@@ -1959,6 +1959,8 @@ test('урок: после перезагрузки продолжается с 
   for (let k = 0; k < 3; k += 1) { await passCards(page); await answerExercise(page); await page.getByRole('button', { name: 'Дальше', exact: true }).click(); }
   await passCards(page);
   await expect(flame).toHaveAttribute('data-streak', '3');
+  // «+1» — за ответ в этом уроке
+  await expect(flame.getByTestId('lesson-streak-plus')).toHaveCount(1);
   await expect(flame).toHaveText(/3\s*подряд верно/);
   await expect(flame).toHaveAttribute('aria-label', '3 подряд верно');
   await expect(flame.locator('svg.lucide-zap')).toHaveCount(1);
@@ -1972,6 +1974,8 @@ test('урок: после перезагрузки продолжается с 
   await passCards(page);
   expect([await ex.getAttribute('data-kind'), await ex.getAttribute('data-answer')]).toEqual(here);
   await expect(flame).toHaveAttribute('data-streak', '3');
+  // урок открылся с уже идущей серией — молния с числом, без «+1»: ответа ещё не было
+  await expect(flame.getByTestId('lesson-streak-plus')).toHaveCount(0);
   // ушли в другой урок и ошиблись — серия дня гаснет
   await leaveLesson();
   await startLesson(page, 'sc-l2');

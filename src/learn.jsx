@@ -907,21 +907,26 @@ function newPlan(run, learn) {
    гаснет. plus — показывать «+1» (на повторе урока опыт почти не идёт). */
 function StreakFlame({ n, plus = true }) {
   const [gone, setGone] = useState(0);
+  /* «+1» и искры — только когда серия выросла за ответ в этом уроке: урок, открытый с уже идущей серией дня,
+     показывает молнию с числом без «+1» (раньше «+1» выпрыгивал при открытии урока) */
+  const [grewTo, setGrewTo] = useState(null);
   const prev = useRef(n);
   useEffect(() => {
     const was = prev.current; prev.current = n;
+    if (n > was) setGrewTo(n);
     if (was >= XP.streakFrom && n === 0) { setGone(was); const t = setTimeout(() => setGone(0), 900); return () => clearTimeout(t); }
     return undefined;
   }, [n]);
   const on = n >= XP.streakFrom;
   if (!on && !gone) return null;
   const shown = on ? n : gone;
-  const milestone = on && n % 5 === 0;
+  const grew = grewTo === n;
+  const milestone = on && grew && n % 5 === 0;
   return (
     <span className={`ln-fire${on ? '' : ' out'}${milestone ? ' big' : ''}`} data-testid="lesson-streak" data-streak={shown} role="status" aria-label={`${shown} подряд верно`}>
       <Zap size={15} className="ln-fire-ic" aria-hidden="true" />
       <b key={shown}>{shown}</b><small className="ln-fire-cap" aria-hidden="true">подряд верно</small>
-      {on && plus && <span key={`p${n}`} className="ln-fire-plus" aria-hidden="true">+1</span>}
+      {on && plus && grew && <span key={`p${n}`} className="ln-fire-plus" data-testid="lesson-streak-plus" aria-hidden="true">+1</span>}
       {milestone && <span key={`s${n}`} className="ln-fire-sparks" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} style={{ '--a': `${i * 45}deg` }} />)}</span>}
     </span>
   );
