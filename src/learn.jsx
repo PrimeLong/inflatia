@@ -19,6 +19,8 @@ import {
   Wrench, Feather, ChartSpline,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
+import { PEOPLE_BY_ID } from './learn/people.js';
+import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
 import { askSave } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
@@ -2041,6 +2043,15 @@ function propsFor(id, i, W, y, left, spooky = false) {
    «сначала ошибки» и закрывает следующий урок. */
 const EXTRA_ICON = { people: Users, read: Feather, graph: ChartSpline, fix: Wrench };
 function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra = () => {}, rec = null, chest = null, onChest, spooky = false }) {
+  // открытая остановка «Персоналии» — портреты её людей грузятся заранее, в фоне (docs/mechanics.md, «Персоналии»)
+  const peopleOpen = stops.filter((x) => x.type === 'people' && x.open && !x.done).map((x) => x.id).join(',');
+  useEffect(() => {
+    if (!peopleOpen) return undefined;
+    const go = () => peopleOpen.split(',').forEach((id) => { if (PEOPLE_BY_ID[id]) preloadPhotos(PEOPLE_BY_ID[id].people); });
+    const idle = typeof window !== 'undefined' && window.requestIdleCallback;
+    const h = idle ? window.requestIdleCallback(go, { timeout: 3000 }) : setTimeout(go, 1500);
+    return () => (idle ? window.cancelIdleCallback(h) : clearTimeout(h));
+  }, [peopleOpen]);
   const W = 300;
   // пройденный юнит — в конце дороги сундук
   const n = stops.length + (chest ? 1 : 0);

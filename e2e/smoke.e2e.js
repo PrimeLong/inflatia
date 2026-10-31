@@ -5644,6 +5644,22 @@ test('«Разбор графика» на ПК: черновик на поля�
   expect(errors).toEqual([]);
 });
 
+test('«Персоналии»: портреты подгружаются заранее — когда остановка открылась на Пути, ещё до входа в урок', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-l1': { at, runs: 1, best: 90 } } } }));
+  });
+  const asked = new Set();
+  page.on('request', (r) => { const m = new URL(r.url()).pathname.match(/^\/people\/([a-z-]+)\.jpg$/); if (m) asked.add(m[1]); });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await expect(page.locator('[data-testid=path-extra][data-extra="people"]')).toHaveAttribute('data-state', 'open');
+  // урок ещё не открыт, а фото Роббинса, Мальтуса и Рикардо уже запрошены
+  await expect.poll(() => ['robbins', 'malthus', 'ricardo'].filter((id) => asked.has(id)).length, { timeout: 8000 }).toBe(3);
+  await expect(page.getByTestId('people')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('«Персоналии на ПК»: страница в две колонки целиком на экране, разбор ответа — на виду, без прокрутки', async ({ page, isMobile }) => {
   test.skip(isMobile, 'на телефоне — одна колонка');
   await page.addInitScript(() => {

@@ -9,7 +9,7 @@ import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf } from './learn/people.js';
-import { cachedPhoto, loadPhoto } from './learn/portraits.js';
+import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
 import { finishLesson, markMet } from './textbook/learn-state.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 
@@ -132,14 +132,14 @@ export function usePhoto(p, off = false) {
 }
 /* Портрет: свой файл из public/people (с подписью автора и лицензии), иначе — гравированный медальон: штриховка гравюры,
    двойная рамка и инициалы антиквой. Фото не загрузилось — тоже медальон. */
-export function Portrait({ p, color, hidden = false }) {
+export function Portrait({ p, color, hidden = false, eager = false }) {
   const loaded = usePhoto(p, hidden);
   const [broken, setBroken] = useState(false);
   const photo = loaded && !broken ? loaded : null;
   const gid = `pp-h-${p.id}`;
   return (
     <div className="pp-pic" data-testid="people-portrait" data-photo={photo ? 'true' : 'false'}>
-      {photo ? <img src={photo.file} alt={`Портрет: ${p.name}`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      {photo ? <img src={photo.file} alt={`Портрет: ${p.name}`} loading={eager ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
         : (
           <svg viewBox="0 0 120 150" width="100%" height="100%" role="img" aria-label={hidden ? 'Ещё не знакомы' : `${p.name} — медальон с инициалами`} preserveAspectRatio="xMidYMid slice">
             <defs>
@@ -197,6 +197,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
   const root = useRef(null);
   // знакомы ли были до этого захода: после финиша прогресс уже отмечен, а на экране — «+12 опыта»
   const [already] = useState(() => isMet(learn, id));
+  // все три портрета — сразу при входе, а не по одному при переходе к человеку
+  useEffect(() => { preloadPhotos(g.people); }, [g]);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }, [k, finished, reduced]);
   const p = g.people[k];
   const choice = picked[k];
@@ -250,7 +252,7 @@ export default function PeopleView({ id, learn, update, onClose }) {
           <div className="pp-col-l">
           <div className="pp-hero">
             <div>
-              <div className="pp-frame"><Portrait p={p} color={g.color} /></div>
+              <div className="pp-frame"><Portrait p={p} color={g.color} eager /></div>
               <PhotoCredit p={p} />
             </div>
             <div style={{ minWidth: 0 }}>
