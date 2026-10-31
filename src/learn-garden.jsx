@@ -242,6 +242,9 @@ const Grade = ({ id }) => <span className="gd-grade" style={{ background: GRADE_
 const GradeArt = ({ plantId, grade, title }) => <span className={`gd-aura g-${grade}`} data-aura={grade}><PlantArt id={plantId} title={title} /></span>;
 const multText = (m) => `×${String(m).replace('.', ',')}`;
 const CROPS_SHOWN = 6;
+// капли дождя над политой грядкой (место по ширине, %); дождь длится, пока последняя капля не упадёт
+const RAIN_DROPS = [12, 30, 48, 66, 84, 22, 58, 76];
+const RAIN_MS = (RAIN_DROPS.length - 1) * 70 + 800 + 100;
 /* «Шансы урожая» (docs/mechanics.md, «Сад Инфли»): экран выключен флагом SHOW_ODDS — по решению владельца шансы не
    пишем. Автотест открывает его своим флагом (ems-show-odds), чтобы экран не сломался незаметно. */
 const oddsOn = () => SHOW_ODDS || (typeof window !== 'undefined' && !!window.__INFLATIA_TEST__ && (() => { try { return localStorage.getItem('ems-show-odds') === '1'; } catch { return false; } })());
@@ -315,14 +318,17 @@ export function GardenView({ learn, update }) {
     setMsg(null);
     setGot({ at: r.at, plant: r.plant, grade: r.grade, first: r.first });
   };
-  // полив: капли падают на грядку, растение снова растёт
-  const [rain, setRain] = useState(null);
+  /* полив: капли падают на грядку, растение снова растёт. Дождь — у каждой грядки свой (полили три подряд —
+     над каждой свои капли) и доигрывает до конца: последняя капля стартует через RAIN_DROPS×70 мс и летит 800 мс */
+  const [rain, setRain] = useState({});
   const doWater = (at) => {
     const r = water(learn, at, Date.now());
     if (!r.ok) { Audio.play('down'); setMsg({ ok: false, text: r.reason }); return; }
     Audio.play('tick');
     update(() => r.s);
-    setRain(at); setTimeout(() => setRain((x) => (x === at ? null : x)), 900);
+    const token = Date.now();
+    setRain((x) => ({ ...x, [at]: token }));
+    setTimeout(() => setRain((x) => { if (x[at] !== token) return x; const { [at]: _gone, ...rest } = x; return rest; }), RAIN_MS);
     setMsg({ ok: true, text: `Полили: воды хватит на ${WATER_HOURS} ч.${r.wasDry ? ' Растение снова растёт.' : ''}` });
   };
   const toSeeds = () => { Audio.play('tick'); if (seedsRef.current) seedsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
@@ -374,7 +380,7 @@ export function GardenView({ learn, update }) {
               <div key={g.at} className={`gd-bed${st.ripe ? ' ripe' : ''}${w && w.dry ? ' dry' : ''}`} data-testid="garden-plot" data-plant={g.plant} data-stage={st.stage} data-dry={w && w.dry ? 'true' : undefined}>
                 <div className="gd-soil">
                   <PlantArt id={g.plant} stage={st.stage} pot={false} />
-                  {rain === g.at && <span className="gd-rain" aria-hidden="true">{[12, 30, 48, 66, 84, 22, 58, 76].map((x, k) => <i key={k} style={{ left: `${x}%`, animationDelay: `${k * 70}ms` }} />)}</span>}
+                  {rain[g.at] && <span key={rain[g.at]} className="gd-rain" data-testid="garden-rain" aria-hidden="true">{RAIN_DROPS.map((x, k) => <i key={k} style={{ left: `${x}%`, animationDelay: `${k * 70}ms` }} />)}</span>}
                 </div>
                 <div className="gd-sign">
                   <div className="gd-name">{p.title}</div>

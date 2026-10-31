@@ -2354,6 +2354,28 @@ test('путь: юнит «Ярмарка» (монополистическая 
   expect(errors).toEqual([]);
 });
 
+test('сад: полили две сухие грядки подряд — дождь над обеими, второй полив не обрывает первый', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const now = Date.now(); const H = 3600000;
+    // два пиона посажены почти сутки назад и не политы — земля сухая
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: now - 86400000, runs: 1, best: 90 } }, coins: { '2026-01-01': 500 },
+      garden: { [now - 20 * H]: 'peony@0', [now - 21 * H]: 'peony@1' } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await page.getByTestId('shop').getByTestId('shop-switch').locator('[data-view="garden"]').click();
+  const garden = page.getByTestId('garden');
+  await expect(garden.getByTestId('garden-dry')).toHaveCount(2);
+  await garden.getByTestId('garden-pour').first().click();
+  await garden.getByTestId('garden-pour').first().click();
+  await expect(garden.getByTestId('garden-rain')).toHaveCount(2);
+  await expect(garden.getByTestId('garden-dry')).toHaveCount(0);
+  // дождь доигрывает и уходит сам
+  await expect(garden.getByTestId('garden-rain')).toHaveCount(0, { timeout: 4000 });
+  expect(errors).toEqual([]);
+});
+
 test('лавка → сад: урожай с редкостью — продать или оставить, семена садятся за монеты, растение растёт без приложения', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {
