@@ -218,10 +218,20 @@ describe('«Работа над ошибками»', async () => {
     expect(st.lessons[4].open).toBe(false);
     const stops = unitStops(st, s);
     expect(stops.findIndex((x) => x.type === 'fix')).toBe(stops.findIndex((x) => x.id === st.lessons[3].id) - 1);
-    // урок — из ошибок этого юнита
-    const items = buildFix(s, 'scarcity', () => 0.3).items;
-    expect(items.length).toBeGreaterThanOrEqual(FIX_MIN);
+    // урок — ровно ошибки этого юнита: сколько на значке, столько заданий, без добора
+    const items = buildFix(s, 'scarcity').items;
+    expect(items).toHaveLength(st.fix.count);
     expect(fixIds(s, 'scarcity')).toHaveLength(FIX_MIN);
+    // открыли снова — те же задания с теми же числами
+    const again = buildFix(s, 'scarcity').items;
+    expect(again.map((x) => [x.id, x.answer, x.prompt])).toEqual(items.map((x) => [x.id, x.answer, x.prompt]));
+  });
+  it('ошибок больше двенадцати — на значке и в уроке по двенадцать', () => {
+    const s = learner(3, 15);
+    if (fixIds(s, 'scarcity').length > 12) {
+      expect(sc(s).fix.count).toBe(12);
+      expect(buildFix(s, 'scarcity').items).toHaveLength(12);
+    }
   });
   it('пройдена — Путь открыт, и второй раз в этом юните она не встанет; ошибки другого юнита не в счёт', () => {
     const s = markFixed(learner(3, FIX_MIN), 'scarcity', T('2026-10-21T10:00:00Z'));

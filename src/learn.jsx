@@ -1015,7 +1015,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const acc = useRef({
     first: rs ? rs.first : {}, hinted: rs ? rs.hinted : {}, solved: new Set(rs ? rs.solved : []),
     itemStart: clock.current.ms, retries: rs ? rs.retries : 0, bonus: rs ? rs.bonus || 0 : 0,
+    // «Работа над ошибками»: решённые ошибки снимаются, когда урок пройден целиком (docs/mechanics.md)
+    fixed: new Set(rs ? rs.fixed || [] : []),
   });
+  // сохранённый незаконченный урок: обычный — по уроку, «Работа над ошибками» — по юниту
+  const resumeKey = run.mode === 'fix' ? `fix:${run.unitId}` : run.lessonId;
   const [started, setStarted] = useState(!!rs);
   /* урок — слой поверх страницы: пока он открыт, страница под ним не прокручивается и не
      показывает свой ползунок (на ПК он висел сбоку урока, даже когда прокручивать нечего) */
@@ -1078,7 +1082,10 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       // похожая задача вместо исходной отвечает за исходную: ошибка по ней снимается, подсказка переходит
       const baseId = cur.of || cur.id;
       // ошибка решена в практике или верно с первой попытки на повторении в уроке — уходит из «Повторить ошибки»
-      if (run.mode === 'practice' || run.mode === 'fix' || (cur.review && firstTime && firstOk)) update((s) => resolveMistake(s, baseId));
+      if (run.mode === 'practice' || (cur.review && firstTime && firstOk)) update((s) => resolveMistake(s, baseId));
+      /* «Работа над ошибками» — ошибка снимается, когда урок пройден целиком: решили половину и вышли — ошибок
+         не стало меньше, и обязательный урок не пропадает с дороги непройденным */
+      if (run.mode === 'fix') a.fixed.add(baseId);
       // решено с подсказкой (или домино собрано с падениями) — невидимо уходит в «Повторение» пораньше; без подсказки — снимается
       const helped = !!a.hinted[orig] || !!r.partial;
       update((s) => (helped ? addHinted(s, baseId) : clearHinted(s, baseId)));
@@ -1140,7 +1147,12 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     } else {
       xp = firstOk * XP.correct + a.bonus;
       // «Работа над ошибками» пройдена — Путь открыт дальше; второй такой в этом юните не будет
-      apply = (s) => { const t = finishLesson(s, null, { xp, ...done }); return run.mode === 'fix' ? markFixed(t, run.unitId, now) : t; };
+      apply = (s) => {
+        if (run.mode !== 'fix') return finishLesson(s, null, { xp, ...done });
+        const solved = [...a.fixed].reduce((t, id) => resolveMistake(t, id), s);
+        return markFixed(finishLesson(solved, null, { xp, ...done }), run.unitId, now);
+      };
+      if (run.mode === 'fix') dropResume(resumeKey);
     }
     // купленный в лавке «двойной опыт»: пока действует, опыт за урок, практику и проверку — вдвое
     // (apply читает xp в момент вызова — удвоенный)
@@ -1194,14 +1206,14 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
      крестиком, после каждого ответа и когда страницу закрывают или прячут — закрытый браузер и
      перезагрузка больше не теряют урок (жалоба: «случайно закрыл браузер — всё слетело») */
   const snapshot = () => {
-    if (run.mode !== 'lesson' || !started || stage === 'done') return;
+    if ((run.mode !== 'lesson' && run.mode !== 'fix') || !started || stage === 'done') return;
     const a = acc.current;
     const at = fb && !fb.empty ? pos + 1 : pos;
-    if (at >= queue.length) { dropResume(run.lessonId); return; }
-    saveResume(run.lessonId, {
+    if (at >= queue.length) { dropResume(resumeKey); return; }
+    saveResume(resumeKey, {
       plan: { items: plan.items, cards: plan.cards, seconds: plan.seconds, diamond }, queue, pos: Math.min(at, queue.length - 1),
       first: a.first, hinted: a.hinted, solved: [...a.solved], retries: a.retries, elapsed: activeNow(),
-      cardsSeen: [...cardsSeen.current], log, kind: cur ? cur.kind : 'choice', history, bonus: a.bonus,
+      cardsSeen: [...cardsSeen.current], log, kind: cur ? cur.kind : 'choice', history, bonus: a.bonus, fixed: [...a.fixed],
     });
   };
   const snapRef = useRef(snapshot);
@@ -2101,7 +2113,7 @@ function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra =
               </button>
               <button type="button" className={`ln-stop-title ln-extra-title side-${ts.side} ${x.open || x.done ? '' : 'locked'}`} tabIndex={-1} aria-hidden="true"
                 data-testid="path-extra-title" data-side={ts.side} style={ts.style}
-                onClick={() => { Audio.play('click'); onExtra(x); }}><small>{x.type === 'fix' ? 'сначала — ошибки юнита' : EXTRA_KIND[x.type]}</small>{x.title}</button>
+                onClick={() => { Audio.play('click'); onExtra(x); }}><small>{x.type === 'fix' ? (resumes.has(x.id) ? 'продолжить — ошибки юнита' : 'сначала — ошибки юнита') : EXTRA_KIND[x.type]}</small>{x.title}</button>
             </div>
           );
         }
@@ -2813,7 +2825,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     if (x.type === 'read') setReading(x.id);
     else if (x.type === 'people') setPeople(x.id);
     else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
-    else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId });
+    // вышли посреди «Работы над ошибками» — она продолжается с того же места (сутки, как обычный урок)
+    else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId, resume: getResume(`fix:${x.unitId}`) });
   };
   // гость: после выбора цели — сразу первый урок Пути, без карточки урока
   useEffect(() => { if (firstLesson) { onFirstLesson(); start({ mode: 'lesson', lessonId: LESSONS[0].id }); } // eslint-disable-next-line react-hooks/exhaustive-deps

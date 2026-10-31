@@ -906,11 +906,13 @@ export const FIX_MIN = 6;
 export const mistakeUnit = (id) => (practiceEntry(id) || {}).unitId || null;
 export const fixIds = (learn, unitId) => (learn.mistakes || []).map((m) => m.id).filter((id) => mistakeUnit(id) === unitId);
 export const fixDue = (learn, unitId) => !(learn.fixed || {})[unitId] && !((learn.units || {})[unitId] || {}).tested && fixIds(learn, unitId).length >= FIX_MIN;
-export function buildFix(learn, unitId, rand = Math.random) {
-  // ошибок больше двенадцати — свежие; добор — уроки юнита, где больше всего ошибок, первыми
+/* урок — ровно ошибки юнита (свежие, если их больше двенадцати), без добора: сколько на значке, столько
+   заданий. Случайность — от юнита и списка ошибок: открыли снова — те же задания с теми же числами */
+export const fixCount = (learn, unitId) => Math.min(PRACTICE_MAX, fixIds(learn, unitId).length);
+const strHash = (t) => { let h = 2166136261; for (let i = 0; i < t.length; i += 1) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+export function buildFix(learn, unitId, rand = null) {
   const ids = fixIds(learn, unitId).slice(-PRACTICE_MAX);
-  const lessons = (UNIT_BY_ID[unitId] || { lessons: [] }).lessons.map((l) => l.id).filter((id) => ((learn.lessons || {})[id] || {}).runs > 0);
-  return buildPractice(ids, rand, { weak: lessons });
+  return buildPractice(ids, rand || seeded(strHash(`${unitId}|${ids.join(',')}`)));
 }
 
 export function pathState(learn) {
@@ -944,7 +946,7 @@ export function pathState(learn) {
           : i === 0 && prev && prev.complete ? { st: prev, unitId: prev.course.id, at: prev.lessons.length } : null;
         if (owner && fixDue(learn, owner.unitId)) {
           open = false; fixLock = true;
-          const fix = { unitId: owner.unitId, at: owner.at, count: fixIds(learn, owner.unitId).length };
+          const fix = { unitId: owner.unitId, at: owner.at, count: fixCount(learn, owner.unitId) };
           if (owner.st) owner.st.fix = fix; else lessons.fix = fix;
         }
       }

@@ -5410,6 +5410,23 @@ test('«Работа над ошибками»: много ошибок в юн�
   await page.getByTestId('lesson-sheet').getByRole('button', { name: 'Закрыть' }).click();
   await fix.click();
   await expect(page.getByTestId('lesson')).toHaveAttribute('aria-label', 'Работа над ошибками');
+  // сколько на значке, столько и заданий — без добора
+  await expect(page.getByTestId('lesson-progress').locator('.ds-level-n')).toHaveText('0/6');
+  // решили половину и вышли — урок не пропал с дороги (ошибки снимаются, когда он пройден целиком)
+  for (let i = 0; i < 3; i += 1) {
+    await answerExercise(page);
+    await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  }
+  const third = await page.getByTestId('ex').getAttribute('data-answer');
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  await page.getByRole('dialog', { name: 'Выйти из урока?' }).getByRole('button', { name: 'Выйти', exact: true }).click();
+  await expect(fix).toBeVisible();
+  await expect(page.getByTestId('path-fix-count')).toHaveText('6');
+  await expect(fix.locator('xpath=following-sibling::button[1]')).toContainText('продолжить');
+  // открыли снова — тот же урок с того же места, а не новые задания
+  await fix.click();
+  await expect(page.getByTestId('lesson-progress').locator('.ds-level-n')).toHaveText('3/6');
+  expect(await page.getByTestId('ex').getAttribute('data-answer')).toBe(third);
   for (let i = 0; i < 30 && !(await page.getByTestId('lesson-result').isVisible()); i += 1) {
     await answerExercise(page);
     await page.getByRole('button', { name: 'Дальше', exact: true }).click();
