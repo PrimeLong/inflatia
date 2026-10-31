@@ -1934,6 +1934,30 @@ test('путь: после алмазного урока на прошлом у�
 
 // урок не теряется: закрыли или перезагрузили страницу — «Продолжить» с того же места. Серия — одна на день:
 // начатый раньше урок не возвращает серию, сбитую ошибкой в другом (жалоба на абуз)
+test('урок: «+1» у молнии серии — за ответ в этом уроке; урок, открытый с идущей серией, — без «+1»', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } } } }));
+  });
+  await openApp(page, '/', '{}', { tab: 'path' });
+  const flame = page.getByTestId('lesson-streak');
+  // урок впервые: три верных подряд — молния «3» и «+1» за третий
+  await startLesson(page, 'sc-l1');
+  for (let k = 0; k < 3; k += 1) { await passCards(page); await answerExercise(page); await page.getByRole('button', { name: 'Дальше', exact: true }).click(); }
+  await expect(flame).toHaveAttribute('data-streak', '3');
+  await expect(flame.getByTestId('lesson-streak-plus')).toHaveCount(1);
+  // урок открыли снова (после перезагрузки) — серия дня та же, молния «3», но «+1» нет: ответа ещё не было
+  await page.reload({ waitUntil: 'networkidle' });
+  await startLesson(page, 'sc-l1', /Продолжить/);
+  await expect(flame).toHaveAttribute('data-streak', '3');
+  await expect(flame.getByTestId('lesson-streak-plus')).toHaveCount(0);
+  // следующий верный — «+1» снова
+  await passCards(page); await answerExercise(page);
+  await expect(flame).toHaveAttribute('data-streak', '4');
+  await expect(flame.getByTestId('lesson-streak-plus')).toHaveCount(1);
+});
+
 test('урок: после перезагрузки продолжается с того же места; начатый урок не воскрешает сбитую серию', async ({ page }) => {
   test.setTimeout(150_000);
   await withTestFlag(page);
@@ -1959,8 +1983,6 @@ test('урок: после перезагрузки продолжается с 
   for (let k = 0; k < 3; k += 1) { await passCards(page); await answerExercise(page); await page.getByRole('button', { name: 'Дальше', exact: true }).click(); }
   await passCards(page);
   await expect(flame).toHaveAttribute('data-streak', '3');
-  // «+1» — за ответ в этом уроке
-  await expect(flame.getByTestId('lesson-streak-plus')).toHaveCount(1);
   await expect(flame).toHaveText(/3\s*подряд верно/);
   await expect(flame).toHaveAttribute('aria-label', '3 подряд верно');
   await expect(flame.locator('svg.lucide-zap')).toHaveCount(1);
@@ -1974,8 +1996,6 @@ test('урок: после перезагрузки продолжается с 
   await passCards(page);
   expect([await ex.getAttribute('data-kind'), await ex.getAttribute('data-answer')]).toEqual(here);
   await expect(flame).toHaveAttribute('data-streak', '3');
-  // урок открылся с уже идущей серией — молния с числом, без «+1»: ответа ещё не было
-  await expect(flame.getByTestId('lesson-streak-plus')).toHaveCount(0);
   // ушли в другой урок и ошиблись — серия дня гаснет
   await leaveLesson();
   await startLesson(page, 'sc-l2');
