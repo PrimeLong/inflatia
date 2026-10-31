@@ -5148,6 +5148,11 @@ test('«Персоналии» — урок на дороге юнита: три
   await stop.click();
   const view = page.getByTestId('people');
   await expect(view).toHaveAttribute('data-id', 'people-scarcity');
+  // флажок «Сообщить об ошибке» — в шапке, как в любом уроке
+  await view.getByTestId('report-flag').click();
+  await expect(page.getByTestId('report-sheet')).toBeVisible();
+  await page.getByTestId('report-sheet-back').click({ position: { x: 8, y: 8 } });
+  await expect(page.getByTestId('report-sheet')).toHaveCount(0);
   for (const id of ['robbins', 'malthus', 'ricardo']) {
     const pg = view.getByTestId('people-page');
     await expect(pg).toHaveAttribute('data-person', id);

@@ -11,6 +11,7 @@ import { useReducedMotion } from './ds-art.jsx';
 import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf } from './learn/people.js';
 import { cachedPhoto, loadPhoto } from './learn/portraits.js';
 import { finishLesson, markMet } from './textbook/learn-state.js';
+import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 
 export const PEOPLE_CSS = `
   .pp-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -204,13 +205,20 @@ export default function PeopleView({ id, learn, update, onClose }) {
   const met = galleryOf({ ...learn, met: { ...learn.met, [id]: 1 } }).filter((x) => x.met).length;
   return (
     <div className="pp-root" ref={root} style={style} data-testid="people" data-id={id} role="dialog" aria-label={`Персоналии: ${g.title}`}>
-      <style>{PEOPLE_CSS}</style>
+      <style>{PEOPLE_CSS + REPORT_CSS}</style>
       <div className="pp-top">
         <IconButton label="Закрыть" icon={X} data-testid="people-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="pp-title"><small>Персоналии</small>{g.title}</div>
         <div className="pp-pips" aria-hidden="true">
           {g.people.map((x, i) => <i key={x.id} className={finished || i < k ? 'ok' : i === k ? 'on' : ''}>{finished || i < k ? <Check size={13} strokeWidth={3} /> : i + 1}</i>)}
         </div>
+        {/* «Сообщить об ошибке» — как в любом уроке: человек, вопрос и выбранный ответ уходят в жалобу */}
+        <ReportFlag context={() => ({
+          screen: 'people', lesson: id, unit: g.unitId, kind: 'people',
+          step: finished ? 'итог' : `${p.name}, ${k + 1} из ${g.people.length}`,
+          prompt: finished ? g.title : `${p.ask.prompt} — ${p.ask.options.map((o) => o.text).join(' / ')}`.slice(0, 1500),
+          answer: !finished && choice != null ? order[k][choice].text : '',
+        })} />
       </div>
       {!finished ? (
         <div className="pp-page" key={p.id} data-testid="people-page" data-person={p.id}>
