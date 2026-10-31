@@ -5279,6 +5279,14 @@ test('книгу на полке можно слушать: голос брау�
   const mini = book.getByTestId('book-mini');
   await expect(mini).toBeVisible();
   await expect(mini).toContainText('Четыре правила налогов');
+  // и в мини-проигрывателе можно перематывать: ползунок и ±15 секунд
+  await mini.getByTestId('book-mini-seek').fill('250');
+  expect(await page.evaluate(() => window.__tape.currentTime)).toBeCloseTo(150, 0);
+  await mini.getByTestId('book-mini-back').click();
+  expect(await page.evaluate(() => window.__tape.currentTime)).toBeCloseTo(135, 0);
+  await mini.getByTestId('book-mini-fwd').click();
+  expect(await page.evaluate(() => window.__tape.currentTime)).toBeCloseTo(150, 0);
+  await page.evaluate((f) => window.__tapeAt(f + 0.001), passageStart(parts, 'taxes'));
   await mini.getByTestId('book-mini-play').click();
   await expect(listen).toHaveAttribute('data-state', 'paused');
   expect(await page.evaluate(() => window.__tape.paused)).toBe(true);

@@ -120,7 +120,19 @@ const CSS = `
     background: color-mix(in srgb, var(--ds-card) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
     border: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); box-shadow: 0 18px 36px -18px rgba(0,0,0,.5); animation: lb-mini-in .4s cubic-bezier(.2, 1.3, .4, 1) backwards; }
   @keyframes lb-mini-in { from { transform: translate(-50%, 150%); } }
-  .lb-mini-bar { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--b); transform-origin: left; transition: transform .35s linear; }
+  /* полоса прослушанного сверху — ползунок перемотки: тонкая, а касаться можно полосы повыше */
+  .lb-mini { padding-top: 17px; }
+  .lb-mini-seek { position: absolute; left: 14px; right: 14px; top: 2px; width: auto; height: 14px; margin: 0; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+  .lb-mini-seek::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--b), var(--b)) 0 0 / var(--v, 0%) 100% no-repeat, color-mix(in srgb, var(--b) 16%, var(--ds-rule2)); }
+  .lb-mini-seek::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--b), var(--b)) 0 0 / var(--v, 0%) 100% no-repeat, color-mix(in srgb, var(--b) 16%, var(--ds-rule2)); }
+  .lb-mini-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: var(--b); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .lb-mini-seek::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--b); border: 2px solid #fff; }
+  .lb-mini-seek:focus-visible { outline: 2px solid var(--b); outline-offset: 2px; }
+  .lb-mini-skip { flex: none; height: 36px; min-width: 36px; padding: 0 6px; border: 0; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+    background: transparent; color: var(--ds-ink2); font: 800 11px var(--ds-sans); }
+  .lb-mini-skip:hover { background: color-mix(in srgb, var(--b) 12%, transparent); color: var(--ds-ink); }
+  .lb-mini .lb-mini-rate { height: 34px; min-width: 50px; padding: 0 10px; }
+  @media (max-width: 420px) { .lb-mini .lb-mini-rate { display: none; } .lb-mini { gap: 4px; } }
   .lb-mini-play { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; color: #fff; background: var(--b); }
   .lb-mini-t { flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; color: inherit; }
   .lb-mini-t small { display: flex; align-items: center; gap: 6px; font: 700 12px var(--ds-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ds-ink3); }
@@ -304,18 +316,24 @@ function ListenCard({ b, p, cardRef }) {
   );
 }
 
-function MiniPlayer({ b, p, onGo }) {
-  const nowTitle = p.now ? (b.passages.find((x) => x.id === p.now) || {}).title : b.short;
+/* мини-проигрыватель: пауза, название звучащего отрывка, ±15 секунд и скорость; сверху — полоса прослушанного,
+   она же ползунок перемотки (тянуть или коснуться места) */
+export function MiniPlayer({ b, p, onGo, onClose = null, testid = 'book-mini', title = null }) {
+  const nowTitle = title || (p.now ? (b.passages.find((x) => x.id === p.now) || {}).title : b.short);
   return (
-    <div className="lb-mini" role="region" aria-label="Проигрыватель книги" data-testid="book-mini">
-      <i className="lb-mini-bar" style={{ transform: `scaleX(${p.at})` }} aria-hidden="true" />
+    <div className="lb-mini" role="region" aria-label="Проигрыватель книги" data-testid={testid} style={{ '--b': b.color }}>
+      <input type="range" className="lb-mini-seek" min="0" max="1000" step="1" value={Math.round(p.at * 1000)} onChange={(e) => p.seek(Number(e.target.value) / 1000)}
+        aria-label="Перемотка" aria-valuetext={`${clock(p.at * p.dur)} из ${clock(p.dur)}`} data-testid="book-mini-seek" style={{ '--v': `${p.at * 100}%` }} />
       <button type="button" className="lb-mini-play" onClick={p.toggle} aria-label={p.playing ? 'Пауза' : 'Продолжить слушать'} data-testid="book-mini-play">
         {p.playing ? <Pause size={19} fill="currentColor" aria-hidden="true" /> : <Play size={19} fill="currentColor" style={{ marginLeft: 3 }} aria-hidden="true" />}
       </button>
-      <button type="button" className="lb-mini-t" onClick={() => onGo(p.now)} aria-label={`К отрывку «${nowTitle}»`}>
-        <small>{p.playing ? <><Bars />Сейчас звучит</> : 'На паузе'}</small><b>{nowTitle}</b>
+      <button type="button" className="lb-mini-t" onClick={() => onGo(p.now)} aria-label={`К отрывку «${nowTitle}»`} data-testid="book-mini-title">
+        <small>{p.playing ? <><Bars />Сейчас звучит</> : 'На паузе'} · <span className="ds-num">{clock(p.at * p.dur)}</span></small><b>{nowTitle}</b>
       </button>
-      <button type="button" className="lb-rate" onClick={p.nextRate} aria-label={`Скорость ${rateText(p.rate)} — сменить`}>{rateText(p.rate)}</button>
+      <button type="button" className="lb-mini-skip" onClick={() => p.skip(-15)} aria-label="Назад на 15 секунд" data-testid="book-mini-back"><RotateCcw size={16} aria-hidden="true" /><small>15</small></button>
+      <button type="button" className="lb-mini-skip" onClick={() => p.skip(15)} aria-label="Вперёд на 15 секунд" data-testid="book-mini-fwd"><RotateCw size={16} aria-hidden="true" /><small>15</small></button>
+      <button type="button" className="lb-rate lb-mini-rate" onClick={p.nextRate} aria-label={`Скорость ${rateText(p.rate)} — сменить`}>{rateText(p.rate)}</button>
+      {onClose && <button type="button" className="lb-mini-skip" onClick={onClose} aria-label="Остановить и убрать проигрыватель" data-testid="book-mini-close"><X size={17} aria-hidden="true" /></button>}
     </div>
   );
 }
