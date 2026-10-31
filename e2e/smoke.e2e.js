@@ -5644,6 +5644,39 @@ test('«Разбор графика» на ПК: черновик на поля�
   expect(errors).toEqual([]);
 });
 
+test('«Персоналии на ПК»: страница в две колонки целиком на экране, разбор ответа — на виду, без прокрутки', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'на телефоне — одна колонка');
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-l1': { at, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-extra="people"]');
+  await stop.scrollIntoViewIfNeeded();
+  await stop.click();
+  const view = page.getByTestId('people');
+  for (const id of ['robbins', 'malthus', 'ricardo']) {
+    const pg = view.getByTestId('people-page');
+    await expect(pg).toHaveAttribute('data-person', id);
+    // вся страница — без прокрутки: высота слоя не больше окна
+    const fit = await view.evaluate((el) => el.scrollHeight - el.clientHeight);
+    expect(fit, `${id}: страница выше окна на ${fit} px`).toBeLessThanOrEqual(2);
+    // вопрос справа от портрета, а не под рассказом
+    const story = await pg.locator('.pp-story').boundingBox();
+    const ask = await pg.locator('.pp-ask').boundingBox();
+    expect(ask.x).toBeGreaterThan(story.x + story.width);
+    await pg.locator('[data-testid=people-opt][data-ok="false"]').first().click();
+    const fb = await page.getByTestId('people-feedback').boundingBox();
+    const foot = await page.locator('.pp-foot').boundingBox();
+    expect(fb.y + fb.height).toBeLessThanOrEqual(foot.y);
+    await pg.locator('[data-testid=people-opt][data-ok="true"]').click();
+    await page.getByTestId('people-next').click();
+  }
+  await expect(page.getByTestId('people-done')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('«Персоналии»: портрет — свой файл из public/people с подписью из people/credits.csv; нет файла — медальон; Википедию не спрашиваем', async ({ page }) => {
   // что лежит в public/people и что написано в people/credits.csv — тем же разбором, что и при сборке
   const files = listPeoplePhotos();

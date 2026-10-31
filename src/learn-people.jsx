@@ -80,6 +80,19 @@ export const PEOPLE_CSS = `
   .pp-opt:disabled { cursor: default; }
   .pp-fb { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 15px; line-height: 1.5; border-left: 4px solid var(--ds-ok); background: var(--ds-ok-bg); color: var(--ds-ok-ink); animation: pp-in .3s ease-out backwards; }
   .pp-fb.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 9%, var(--ds-card)); color: var(--ds-ink); }
+  /* разбор выезжает на экран над нижней кнопкой, а не под неё */
+  .pp-fb { scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* ПК: две колонки на всю ширину окна — страница целиком на экране, разбор под вариантами, на виду
+     (жалоба: «экран может влезть во весь экран, но не влезает, и за плашкой „верно“ приходится мотать») */
+  @media (min-width: 1024px) {
+    .pp-page.pp-two { max-width: 1180px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); column-gap: 40px; align-items: start; padding: 20px 28px 110px; }
+    .pp-two .pp-col-r { position: sticky; top: 72px; }
+    .pp-two .pp-col-r > :first-child { margin-top: 0; }
+    .pp-two .pp-era { margin-top: 18px; }
+    .pp-two .pp-story p { font-size: 16px; line-height: 1.55; margin-top: 10px; }
+    .pp-two .pp-ask { margin-top: 16px; }
+    .pp-foot > * { max-width: 1124px; }
+  }
   .pp-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--ds-paper) 92%, transparent); border-top: 1px solid var(--ds-rule2); backdrop-filter: blur(8px); }
   .pp-foot > * { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; }
   .pp-foot > * > :last-child { flex: 1; }
@@ -194,7 +207,16 @@ export default function PeopleView({ id, learn, update, onClose }) {
     if (!(k in firstOk.current)) firstOk.current[k] = ok;
     Audio.play(ok ? 'coin' : 'down');
     setPicked((m) => ({ ...m, [k]: i }));
+    pickedAt.current = Date.now();
   };
+  // ответили — разбор выезжает на экран (над нижней кнопкой), если он ниже края; при переходе назад не дёргаем
+  const fbRef = useRef(null);
+  const pickedAt = useRef(0);
+  useEffect(() => {
+    const el = fbRef.current;
+    if (!el || Date.now() - pickedAt.current > 1000 || !el.scrollIntoView) return;
+    el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+  }, [choice, k, reduced]);
   const next = () => {
     Audio.play('paper');
     if (k < g.people.length - 1) { setK(k + 1); return; }
@@ -224,7 +246,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
         })} />
       </div>
       {!finished ? (
-        <div className="pp-page" key={p.id} data-testid="people-page" data-person={p.id}>
+        <div className="pp-page pp-two" key={p.id} data-testid="people-page" data-person={p.id}>
+          <div className="pp-col-l">
           <div className="pp-hero">
             <div>
               <div className="pp-frame"><Portrait p={p} color={g.color} /></div>
@@ -238,6 +261,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
           </div>
           <Era p={p} />
           <div className="pp-story">{p.story.map((t, i) => <p key={i}>{t}</p>)}</div>
+          </div>
+          <div className="pp-col-r">
           <div className="pp-idea" data-testid="people-idea"><Lightbulb size={22} aria-hidden="true" />{p.idea}</div>
           <div className="pp-fact"><Sparkles size={20} aria-hidden="true" /><b>Знаете ли вы</b>{p.fact}</div>
           <div className="pp-ask">
@@ -249,10 +274,11 @@ export default function PeopleView({ id, learn, update, onClose }) {
               })}
             </div>
             {choice != null && (
-              <div className={`pp-fb ${order[k][choice].ok ? '' : 'bad'}`} role="status" data-testid="people-feedback" data-ok={String(!!order[k][choice].ok)}>
+              <div ref={fbRef} key={choice} className={`pp-fb ${order[k][choice].ok ? '' : 'bad'}`} role="status" data-testid="people-feedback" data-ok={String(!!order[k][choice].ok)}>
                 {order[k][choice].ok ? <><b>Верно.</b> {p.idea}</> : <><b>Не совсем.</b> {order[k][choice].why} Попробуйте ещё раз.</>}
               </div>
             )}
+          </div>
           </div>
         </div>
       ) : (
