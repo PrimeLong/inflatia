@@ -35,9 +35,12 @@ export const PEOPLE_CSS = `
   .pp-frame > .pp-pic { width: 100%; height: 100%; border-radius: 78px 78px 13px 13px; overflow: hidden; background: var(--ds-card2); position: relative; }
   .pp-pic img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; filter: sepia(.25) contrast(1.04); animation: pp-ken 14s ease-in-out infinite alternate; }
   @keyframes pp-ken { from { transform: scale(1.02) } to { transform: scale(1.1) translate(-2%, -2%) } }
+  /* блик — редко: проход за 2 с, когда портрет появился, и дальше раз в 30 с (было каждые 5 с — портрет «мигал»);
+     в галерее профиля, где портретов много, — один проход (.lb-gal ниже) */
   .pp-pic::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.28) 50%, transparent 65%); background-size: 260% 100%;
-    animation: pp-sheen 5s ease-in-out 1s infinite; pointer-events: none; }
-  @keyframes pp-sheen { 0% { background-position: 130% 0 } 40%, 100% { background-position: -40% 0 } }
+    background-position: -40% 0; animation: pp-sheen 30s linear 1s infinite; pointer-events: none; }
+  @keyframes pp-sheen { 0% { background-position: 130% 0; animation-timing-function: ease-in-out } 6.6%, 100% { background-position: -40% 0 } }
+  .lb-gal .pp-pic::after { animation-iteration-count: 1; }
   .pp-credit { margin-top: 6px; font-size: 12px; line-height: 1.3; color: var(--ds-ink2); max-width: 168px; overflow-wrap: anywhere; }
   .pp-credit a { color: inherit; }
   .pp-name { font: 700 clamp(26px, 4.4vw, 36px)/1.08 var(--ds-news, 'PT Serif', Georgia, serif); letter-spacing: -.01em; }
