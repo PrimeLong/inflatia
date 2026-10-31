@@ -5581,6 +5581,48 @@ test('«Разбор графика» — остановка на дороге �
   expect(errors).toEqual([]);
 });
 
+test('«Разбор графика» на ПК: черновик на полях — рисует по бокам, а не по графику; запись переживает шаг; Ctrl+Z — штрих разбора', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'на телефоне полей нет — и черновика нет');
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+    localStorage.setItem('ems-sketch-on', '1');
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-extra="graph"]');
+  await stop.scrollIntoViewIfNeeded();
+  await stop.click();
+  const g = page.getByTestId('graph-lesson');
+  await expect(g).toBeVisible();
+  const canvas = g.getByTestId('sketch-canvas');
+  await expect(g.getByTestId('sketch-dock')).toHaveAttribute('data-on', 'true');
+  await expect(g).toHaveAttribute('data-sketch', 'pen');
+  const draw = async (pts) => {
+    await page.mouse.move(...pts[0]); await page.mouse.down();
+    for (const p of pts.slice(1)) await page.mouse.move(...p, { steps: 8 });
+    await page.mouse.up();
+  };
+  // левое поле — линия; по самому графику — нет
+  await draw([[80, 300], [240, 300]]);
+  await expect(canvas).toHaveAttribute('data-strokes', '1');
+  const stage = await g.locator('.gl-stage').boundingBox();
+  await draw([[stage.x + 60, stage.y + 80], [stage.x + 200, stage.y + 80]]);
+  await expect(canvas).toHaveAttribute('data-strokes', '1');
+  // следующий шаг — запись на месте
+  await g.getByTestId('graph-next').click();
+  await expect(g.getByTestId('graph-text')).toContainText('Шаг 2 из');
+  await expect(canvas).toHaveAttribute('data-strokes', '1');
+  await draw([[1300, 400], [1400, 420]]);
+  await expect(canvas).toHaveAttribute('data-strokes', '2');
+  await page.keyboard.press('Control+z');
+  await expect(canvas).toHaveAttribute('data-strokes', '1');
+  await g.getByTestId('graph-close').click();
+  await expect(g).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('«Персоналии»: портрет — свой файл из public/people с подписью из people/credits.csv; нет файла — медальон; Википедию не спрашиваем', async ({ page }) => {
   // что лежит в public/people и что написано в people/credits.csv — тем же разбором, что и при сборке
   const files = listPeoplePhotos();

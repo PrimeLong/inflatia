@@ -8,7 +8,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
-import { useReducedMotion } from './ds-art.jsx';
+import { useReducedMotion, useMedia } from './ds-art.jsx';
+import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView } from './learn/graphs.js';
@@ -304,6 +305,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const started = useRef(Date.now());
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
+  // ПК с мышью: поля по бокам разбора — черновик, как в уроке (learn-sketch.jsx)
+  const sketch = useMedia(SKETCH_QUERY);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [k, phase]);
   useEffect(() => { const esc = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [onClose]);
   if (!g) return null;
@@ -382,6 +385,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
           <div className="ds-sub" style={{ fontSize: 15 }}>{peek || already ? 'График разобран — к нему можно вернуться на дороге юнита.' : `+${GRAPH_XP} опыта · график разобран`}</div>
         </div>
       )}
+      {sketch && <><style>{SKETCH_CSS}</style><Sketch mode="graph" /></>}
       <div className="gl-foot">
         <div>
           {phase === 'done'
