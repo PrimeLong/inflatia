@@ -28,7 +28,7 @@ import {
   chestCoins, chestKey, hasClaim, openChest, achievementsOf, coinsWord, plural, greetingAt, COIN, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate, yearGrowth,
   goalCoins,
 } from './learn/rewards.js';
-import { skillLevel, LEVEL_NAME, LEVEL_TEXT } from './learn/program.js';
+import { skillLevel, LEVEL_NAME, levelNote } from './learn/program.js';
 import { DUST, dustDone, dustItem } from './learn/dust.js';
 import {
   dayOf, addDays, dayStart, streak, ownedFreezes, weekDots, rolloverLocal, setProfile, PROFILE_GOALS, PROFILE_MINUTES, PROFILE_GOAL_LABEL, goalMinutes, goalToday, pendingGoal,
@@ -1243,7 +1243,7 @@ export function ProgramCard({ learn, update, onPlacement }) {
         {next ? `Сегодня цель — ${mins} мин. Новая, ${next.minutes} мин, — с завтрашнего дня.` : `За выполненную цель — ${goalCoins(mins)} ${coinsWord(goalCoins(mins))}: столько, сколько минут. Новая цель начинает действовать с завтрашнего дня.`}
       </div>
       <Row label="Уровень заданий" value={LEVEL_NAME[level]} data-testid="prof-level" data-level={level} />
-      <div className="ds-faint" style={{ fontSize: 13, marginTop: 4 }}>{LEVEL_TEXT[level]}</div>
+      <div className="ds-faint" style={{ fontSize: 13, marginTop: 4 }} data-testid="prof-level-note">{levelNote(learn)}</div>
       <div style={{ marginTop: 12 }}>
         <Button small variant="secondary" icon={GraduationCap} data-testid="prof-placement" data-nav-target="run:placement" onClick={() => { Audio.prime(); onPlacement(); }}>
           {(learn.placement || {}).at ? 'Вступительный тест ещё раз' : 'Вступительный тест'}

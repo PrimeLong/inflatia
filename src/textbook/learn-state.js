@@ -408,6 +408,19 @@ export const missedYesterday = (s, now = Date.now()) => {
    ответы выпадали из окна — число «скакало», будто прогресс не сохраняется. Теперь это доля
    верных с первого раза среди всех первых попыток за 28 дней (daily.a и daily.c); дни, записанные
    до появления счётчика попыток, не считаются — пока таких ответов меньше пяти, берём старое окно. */
+// первые попытки за четыре недели (с понедельника три недели назад по сегодня): сколько и сколько верных
+export function firstTries(s, now = Date.now()) {
+  const today = dayOf(now);
+  const start = addDays(weekOf(today), -21);
+  let tried = 0; let right = 0;
+  for (let k = 0; k < 28; k += 1) {
+    const key = addDays(start, k);
+    if (key > today) break;
+    const e = dayEntry(s, key);
+    if (e.a > 0) { tried += e.a; right += Math.min(e.c, e.a); }
+  }
+  return { tried, right };
+}
 export function studyWeeks(s, now = Date.now()) {
   const today = dayOf(now);
   const start = addDays(weekOf(today), -21);
@@ -417,8 +430,7 @@ export function studyWeeks(s, now = Date.now()) {
   });
   const past = days.filter((d) => !d.future);
   const r = s.recent || '';
-  let tried = 0; let right = 0;
-  past.forEach((d) => { const e = dayEntry(s, d.day); if (e.a > 0) { tried += e.a; right += Math.min(e.c, e.a); } });
+  const { tried, right } = firstTries(s, now);
   const windowed = tried >= 5;
   return {
     days,

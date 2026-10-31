@@ -2,7 +2,7 @@
    тест) и награды (монеты, курс, лавка, заморозки, задания дня, сундук, печати, испытание месяца). */
 import { describe, it, expect } from 'vitest';
 import { LESSON_BY_ID, UNIT_BY_ID, EXERCISES, buildLesson, buildPractice, buildPlacement, placementOpened, placementFailed, pathState, pilotUnits, PLACE_PER_UNIT, PRACTICE_MIN, HARD_IN_PRACTICE } from '../course.js';
-import { skillLevel, weakLessons, recommend, courseCtx, lessonOpts, theoryNotice } from '../program.js';
+import { skillLevel, levelNote, weakLessons, recommend, courseCtx, lessonOpts, theoryNotice } from '../program.js';
 import { evalExpr, fmtResult, pressRoot } from '../calc.js';
 import {
   balance, earn, courseIncome, runCoins, rateOn, rateHistory, priceOf, buy, setWear, outfitOf, FREEZE, BOOST, OUTFITS, shopDay, SHOWCASE_SIZE, DEAL_OFF, boostActive, questsFor, openChest, chestCoins, chestKey,
@@ -10,7 +10,7 @@ import {
 } from '../rewards.js';
 import {
   emptyLearn, recordAttempt, finishLesson, setProfile, setPlacement, passUnit, normalizeLearn, mergeLearn, streak, applyFreezes, ownedFreezes,
-  dayOf, addDays, weekDots, dailyOf, MAX_FREEZES, goalToday, goalMinutes, pendingGoal,
+  dayOf, addDays, weekDots, dailyOf, MAX_FREEZES, goalToday, goalMinutes, pendingGoal, studyWeeks,
 } from '../../textbook/learn-state.js';
 
 const at = (day, h = 12) => { const [y, m, d] = day.split('-').map(Number); return new Date(y, m - 1, d, h).getTime(); };
@@ -68,17 +68,36 @@ describe('цель дня: награда по минутам, новая цел
 });
 
 describe('уровень сложности', () => {
-  it('меньше десяти ответов — обычный; выше 90% — повышенный, ниже 60% — по шагам; олимпиадникам — порог 85%', () => {
+  it('меньше десяти ответов — обычный; от 90% — повышенный, ниже 60% — по шагам; олимпиадникам — от 85%', () => {
     const s = emptyLearn();
-    expect(skillLevel(withRecent(s, '111111111'))).toBe('normal');
-    expect(skillLevel(withRecent(s, '1111111111'))).toBe('hard');
-    expect(skillLevel(withRecent(s, '1111111110'))).toBe('normal');
-    expect(skillLevel(withRecent(s, '1100110000'))).toBe('easy');
+    expect(skillLevel(withRecent(s, '111111111'), T)).toBe('normal');
+    expect(skillLevel(withRecent(s, '1111111111'), T)).toBe('hard');
+    // ровно 90% — уже повышенный: так и написано «от 90%»
+    expect(skillLevel(withRecent(s, '1111111110'), T)).toBe('hard');
+    expect(skillLevel(withRecent(s, '1111111100'), T)).toBe('normal');
+    expect(skillLevel(withRecent(s, '1100110000'), T)).toBe('easy');
     const olymp = setProfile(s, { goal: 'olymp' }, T);
-    expect(skillLevel(withRecent(olymp, '11111111111111111110'))).toBe('hard');
-    expect(skillLevel(withRecent(s, '11111111111111111110'))).toBe('hard');
-    expect(skillLevel(withRecent(s, '11111111111111111100'))).toBe('normal');
-    expect(skillLevel(withRecent(olymp, '1111111111111111110' + '0'))).toBe('hard');
+    expect(skillLevel(withRecent(olymp, '11111111111111111110'), T)).toBe('hard');
+    expect(skillLevel(withRecent(s, '11111111111111111100'), T)).toBe('hard');
+    expect(skillLevel(withRecent(s, '11111111111111111000'), T)).toBe('normal');
+    expect(skillLevel(withRecent(olymp, '11111111111111111000'), T)).toBe('hard');
+    expect(skillLevel(withRecent(olymp, '11111111111111110000'), T)).toBe('normal');
+  });
+  it('уровень — по той же точности, что «Верно с первого раза» в профиле (четыре недели), а не по последним 30', () => {
+    let s = emptyLearn();
+    // 25 ответов, 23 верных (92%) за четыре недели, но последние 10 — с двумя ошибками
+    for (let k = 0; k < 25; k += 1) s = recordAttempt(s, 'choice', !(k === 22 || k === 24), 1000, { lesson: 'sd-l1', run: k, now: T });
+    expect(studyWeeks(s, T).accuracy).toBeCloseTo(0.92, 2);
+    expect(skillLevel(s, T)).toBe('hard');
+    expect(levelNote(s, T)).toContain('Сейчас — 92% за четыре недели');
+    // 85% (17 из 20) — обычный, и под уровнем видно, сколько сейчас и сколько нужно
+    let n = emptyLearn();
+    for (let k = 0; k < 20; k += 1) n = recordAttempt(n, 'choice', k % 7 !== 3, 1000, { lesson: 'sd-l1', run: k, now: T });
+    expect(skillLevel(n, T)).toBe('normal');
+    expect(levelNote(n, T)).toBe('Обычный уровень. От 90% верных с первого раза — появятся задачи семинаров и олимпиад. Сейчас — 85% за четыре недели.');
+    // старое окно: ответов за четыре недели нет — по последним
+    expect(levelNote(withRecent(emptyLearn(), '1111111111'), T)).toContain('по последним 10 ответам');
+    expect(levelNote(emptyLearn(), T)).toContain('Посчитаем после 10 ответов');
   });
   it('recordAttempt: последние 30 первых попыток и точность по уроку в окне ~20', () => {
     let s = emptyLearn();
