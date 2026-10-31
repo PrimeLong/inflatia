@@ -431,7 +431,7 @@ export function Sketch({ mode = 'lesson' }) {
   };
   const wipe = () => {
     if (!strokes.current.length || wiping) return;
-    Audio.play('paper');
+    Audio.play('erase');
     const done = () => {
       setCleared(strokes.current); forgetRedo();
       strokes.current = [];
