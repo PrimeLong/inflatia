@@ -5356,6 +5356,40 @@ test('книгу на полке можно слушать: голос брау�
   expect(errors).toEqual([]);
 });
 
+test('книга по отрывкам: у каждого отрывка свой файл — играют друг за другом, «слушать» у отрывка — его файл', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('ems-textbook-v1')) {
+      localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, met: { 'people-scarcity': Date.now() - 86400000 } } }));
+    }
+    // запись по отрывкам (флаг автотеста «2»); проигрыватель — подмена, длина каждой записи — 100 с
+    localStorage.setItem('ems-book-audio-test', '2');
+    window.__tapes = [];
+    window.Audio = class {
+      constructor() { this.src = ''; this.currentTime = 0; this.duration = 0; this.playbackRate = 1; this.paused = true; window.__tape = this; }
+      pause() { this.paused = true; }
+      play() { window.__tapes.push(new URL(this.src, location.href).pathname); this.duration = 100; this.paused = false; return Promise.resolve(); }
+    };
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'profile' });
+  await page.getByTestId('prof-shelf').scrollIntoViewIfNeeded();
+  await page.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
+  const book = page.getByTestId('book-reader');
+  const listen = book.getByTestId('book-listen');
+  await expect(listen).toHaveAttribute('data-mode', 'parts');
+  await expect(listen.getByTestId('book-voice-caption')).toHaveText('голос синтезирован');
+  await listen.getByTestId('book-play').click();
+  expect(await page.evaluate(() => window.__tapes)).toEqual(['/books/smith-wealth/pins.mp3']);
+  // отрывок дослушан — следующий, отмечен звучащим
+  await page.evaluate(() => window.__tape.onended());
+  expect(await page.evaluate(() => window.__tapes.at(-1))).toBe('/books/smith-wealth/butcher.mp3');
+  await expect(book.locator('[data-testid=book-passage][data-now="true"]')).toHaveAttribute('data-passage', 'butcher');
+  // «слушать» у отрывка — сразу его файл
+  await book.locator('[data-testid=book-passage][data-passage="taxes"]').getByTestId('book-passage-play').click();
+  expect(await page.evaluate(() => window.__tapes.at(-1))).toBe('/books/smith-wealth/taxes.mp3');
+  await expect(listen.getByTestId('book-now')).toHaveText('Четыре правила налогов');
+  expect(errors).toEqual([]);
+});
+
 test('«Работа над ошибками»: много ошибок в юните — обязательный урок перед следующим, после него Путь открыт', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {

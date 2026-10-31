@@ -15,7 +15,15 @@ export function listVoiceFiles(dir = VOICE_DIR) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).filter((f) => /\.mp3$/i.test(f)).map((f) => f.replace(/\.mp3$/i, '')).sort();
 }
-export const listBookAudio = () => listVoiceFiles(BOOKS_DIR);
+/* записи книг: книга целиком — 'smith-wealth' (public/books/smith-wealth.mp3), отрывок — 'smith-wealth/pins'
+   (public/books/smith-wealth/pins.mp3) */
+export function listBookAudio(dir = BOOKS_DIR) {
+  if (!fs.existsSync(dir)) return [];
+  const whole = listVoiceFiles(dir);
+  const parts = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory())
+    .flatMap((d) => listVoiceFiles(path.join(dir, d.name)).map((f) => `${d.name}/${f}`));
+  return [...whole, ...parts].sort();
+}
 
 // портреты: id (имя файла без расширения, маленькими буквами) → имя файла; на один id — первый по алфавиту
 export function listPeoplePhotos(dir = PEOPLE_DIR) {

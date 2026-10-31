@@ -156,7 +156,7 @@ function ListenCard({ b, p, cardRef }) {
         <button type="button" className="lb-rate" onClick={p.nextRate} aria-label={`Скорость ${rateText(p.rate)} — сменить`} data-testid="book-speed">{rateText(p.rate)}</button>
         <button type="button" onClick={() => p.skip(15)} aria-label="Вперёд на 15 секунд" data-testid="book-fwd"><small>15</small><RotateCw size={17} aria-hidden="true" /></button>
       </div>
-      <div className="lb-cap" data-testid="book-voice-caption">{p.mode === 'file' ? 'голос синтезирован' : 'читает голос браузера — запись книги появится позже'}</div>
+      <div className="lb-cap" data-testid="book-voice-caption">{p.mode === 'speech' ? 'читает голос браузера — запись книги появится позже' : 'голос синтезирован'}</div>
     </div>
   );
 }

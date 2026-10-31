@@ -328,8 +328,9 @@ export const bookReadAt = (learn, id) => ((learn && learn.books) || {})[id] || 0
 export const shelfBooks = (learn) => BOOKS.map((b) => ({ ...b, open: bookOpen(learn, b), read: !!bookReadAt(learn, b.id) }));
 export const wordsIn = (b) => b.passages.reduce((a, p) => a + p.text.join(' ').split(/\s+/).length, 0);
 
-/* ОЗВУЧКА КНИГИ — одна запись на книгу. Текст для сервиса озвучки: автор, название, год, потом отрывки
-   подряд — название отрывка и его абзацы. Пропуски «[…]» в озвучке не звучат: сервисы делают на них
+/* ОЗВУЧКА КНИГИ — запись по отрывкам (public/books/<книга>/<отрывок>.mp3) или, по-старому, целиком. Текст
+   для сервиса озвучки: автор, название, год, потом отрывки подряд — название отрывка и его абзацы; по
+   отрывкам — то же, разрезанное по отрывкам (вступление — в первом, passageScript). Пропуски «[…]» в озвучке не звучат: сервисы делают на них
    долгую паузу (жалоба «не ставь […], он долго молчит»). Каждая часть знает свою долю текста (from–to):
    по ней проигрыватель понимает, какой отрывок звучит, и перематывает к отрывку. */
 export const speakable = (t) => String(t).replace(/\s*\[(?:…|\.\.\.)\]\s*/g, ' ').replace(/\s+([,.;:!?»)])/g, '$1').replace(/\s{2,}/g, ' ').trim();
@@ -345,8 +346,11 @@ export function bookSpeech(b) {
 }
 // весь текст записи: части через пустую строку — сервис делает между ними короткую паузу
 export const speechScript = (b) => bookSpeech(b).map((x) => x.text).join('\n\n');
-// примерная длина записи: русский синтезатор читает около 14 знаков в секунду
-export const SPEECH_CPS = 14;
+// текст для озвучки одного отрывка: его название и абзацы; у первого — ещё вступление с автором и названием
+export const passageScript = (b, pid) => bookSpeech(b).filter((x, i) => x.passage === pid || (i === 0 && b.passages[0].id === pid)).map((x) => x.text).join('\n\n');
+/* примерная длина записи: замер записи Смита — 7 852 знака за 12,5 минуты, около 10,5 знака в секунду
+   (прежняя оценка, 14, давала «≈ 9 мин») */
+export const SPEECH_CPS = 10.5;
 export const speechSeconds = (b) => Math.round(speechScript(b).length / SPEECH_CPS);
 // какой отрывок звучит, когда прослушана доля f записи; и с какой доли начинается отрывок
 export const passageAt = (parts, f) => { const p = parts.find((x) => f >= x.from && f < x.to) || parts[parts.length - 1]; return p ? p.passage : null; };
