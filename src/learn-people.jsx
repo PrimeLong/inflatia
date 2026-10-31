@@ -4,7 +4,7 @@
    рассказ, главная идея, «Знаете ли вы» и вопрос. В конце — стена галереи: три портрета
    повисают в рамах, опыт — один раз. Отдельный ленивый чанк. */
 import React, { useEffect, useRef, useState } from 'react';
-import { X, ArrowRight, Sparkles, Lightbulb, Check } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
@@ -81,7 +81,8 @@ export const PEOPLE_CSS = `
   .pp-fb { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 15px; line-height: 1.5; border-left: 4px solid var(--ds-ok); background: var(--ds-ok-bg); color: var(--ds-ok-ink); animation: pp-in .3s ease-out backwards; }
   .pp-fb.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 9%, var(--ds-card)); color: var(--ds-ink); }
   .pp-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--ds-paper) 92%, transparent); border-top: 1px solid var(--ds-rule2); backdrop-filter: blur(8px); }
-  .pp-foot > * { max-width: 720px; margin: 0 auto; }
+  .pp-foot > * { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; }
+  .pp-foot > * > :last-child { flex: 1; }
 
   /* стена галереи: три рамы повисают на гвоздях и качаются */
   .pp-wall { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin: 26px 0 10px; }
@@ -201,6 +202,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
     if (!already) update((s) => markMet(finishLesson(s, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id));
     setFinished(true);
   };
+  // назад — к прошлому человеку: его ответ и разбор на месте
+  const back = () => { if (k > 0) { Audio.play('paper'); setK(k - 1); } };
   const style = { '--pp': g.color, '--pp-ink': `color-mix(in srgb, ${g.color} 82%, #000)` };
   const met = galleryOf({ ...learn, met: { ...learn.met, [id]: 1 } }).filter((x) => x.met).length;
   return (
@@ -272,7 +275,10 @@ export default function PeopleView({ id, learn, update, onClose }) {
         <div>
           {finished
             ? <Button wide data-testid="people-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
-            : <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : 'В галерею'}</Button>}
+            : <>
+              <Button variant="ghost" icon={ArrowLeft} disabled={k === 0} data-testid="people-back" onClick={back}>Назад</Button>
+              <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : 'В галерею'}</Button>
+            </>}
         </div>
       </div>
     </div>

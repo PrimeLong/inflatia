@@ -5164,6 +5164,17 @@ test('«Персоналии» — урок на дороге юнита: три
     await expect(page.getByTestId('people-feedback')).toHaveAttribute('data-ok', 'false');
     await pg.locator('[data-testid=people-opt][data-ok="true"]').click();
     await expect(page.getByTestId('people-feedback')).toHaveAttribute('data-ok', 'true');
+    // на первом человеке назад некуда; со второго — «Назад»: прошлый человек с его ответом и разбором
+    if (id === 'robbins') await expect(page.getByTestId('people-back')).toBeDisabled();
+    if (id === 'malthus') {
+      await page.getByTestId('people-back').click();
+      await expect(view.getByTestId('people-page')).toHaveAttribute('data-person', 'robbins');
+      await expect(page.getByTestId('people-feedback')).toHaveAttribute('data-ok', 'true');
+      await expect(page.getByTestId('people-next')).toBeEnabled();
+      await page.getByTestId('people-next').click();
+      await expect(view.getByTestId('people-page')).toHaveAttribute('data-person', 'malthus');
+      await expect(page.getByTestId('people-feedback')).toHaveAttribute('data-ok', 'true');
+    }
     await page.getByTestId('people-next').click();
   }
   await expect(page.getByTestId('people-done')).toContainText('+12 опыта');
