@@ -424,6 +424,10 @@ const CSS = `
   .ln-key-tex { font-size: 19px; text-align: center; margin-top: 4px; overflow-x: auto; overflow-y: hidden; }
   .ln-legend { margin-top: 12px; padding: 8px 12px; border-left: 4px solid var(--u); background: color-mix(in srgb, var(--u) 6%, var(--ds-card)); font-size: 14.5px; line-height: 1.55; border-radius: 4px 12px 12px 4px; }
   .ln-how { background: none; border: none; padding: 4px 0; margin-top: 6px; font: 700 14px var(--ds-sans); color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+  /* «Ошибка в разборе?» — тихая ссылка под разбором в плашке ответа */
+  .ln-explain-flag { margin-top: 8px; display: flex; }
+  .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; }
+  .ln-explain-flag .ln-flag:hover, .ln-explain-flag .ln-flag:focus-visible { opacity: 1; background: none; color: var(--ds-bad); }
   .ln-book { min-height: 100vh; margin: -12px -16px 0; }
   /* кнопки учебника-справочника — те же, что у дизайн-системы: объёмные, со скруглением */
   .ln-textbook .ems-btn { font: 700 13.5px/1.25 var(--ds-sans); border: 2px solid var(--ds-rule2); border-bottom-width: 4px; border-radius: 12px; background: var(--ds-card);
@@ -1261,6 +1265,13 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         {fb.ok && inst.explain && !GAME_KINDS.includes(inst.kind) && inst.kind !== 'open' && (
           how ? <div className="tb-body" style={{ fontSize: 15, marginTop: 6, color: 'inherit' }} data-testid="ex-how"><Blocks blocks={inst.explain} ctx={noopCtx} /></div>
             : <button type="button" className="ln-how" data-testid="ex-how-open" onClick={() => { Audio.play('paper'); setHow(true); }}>Как решать</button>
+        )}
+        {/* пожаловаться именно на разбор: верный ответ, «почему» и ход решения — прямо здесь, под ними */}
+        {!GAME_KINDS.includes(inst.kind) && (!fb.ok || inst.explain || fb.why) && (
+          <div className="ln-explain-flag">
+            <ReportFlag withText label="Ошибка в разборе?" testid="report-explain"
+              context={() => ({ ...exerciseContext(inst, { lesson, resp: respRef.current, correct: answerText(inst), mode: run.mode }), part: 'разбор' })} />
+          </div>
         )}
         {!fb.ok && retryable && !inst.noRetry && !inst.hard && (
           <div className="ds-sub" style={{ fontSize: 13.5, marginTop: 4 }} data-testid="retry-note">

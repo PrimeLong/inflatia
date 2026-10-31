@@ -4752,6 +4752,21 @@ test('антистресс: после четырёх уроков — знак�
 });
 
 /* ------------------------------ ВЫПУСК 25 ОКТЯБРЯ ------------------------------ */
+test('урок: «Ошибка в разборе?» — под разбором в плашке ответа, открывает «Сообщить об ошибке»', async ({ page }) => {
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-i1');
+  await passCards(page);
+  await answerExercise(page, { wrong: true });
+  const bar = page.getByTestId('ex-feedback');
+  await expect(bar).toHaveAttribute('data-ok', 'false');
+  await page.getByTestId('report-explain').click();
+  await expect(page.getByTestId('report-sheet')).toBeVisible();
+  await page.getByTestId('report-sheet-back').click({ position: { x: 8, y: 8 } });
+  await expect(page.getByTestId('report-sheet')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('урок: назад ровно на одну карточку — прошлое задание с ответом и разбором, дальше назад нельзя', async ({ page }) => {
   await withTestFlag(page);
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -4986,6 +5001,8 @@ test('«Чтение» — урок на дороге юнита: после у�
   await sheet.getByTestId('extra-start').click();
   const reading = page.getByTestId('reading');
   await expect(reading).toBeVisible();
+  // «Ошибка?» — в шапке чтения
+  await expect(reading.getByTestId('report-flag')).toContainText('Ошибка?');
   for (let k = 1; k <= 3; k += 1) {
     const p = reading.getByTestId('reading-page');
     await expect(p).toHaveAttribute('data-page', String(k));
@@ -5693,6 +5710,13 @@ test('«Разбор графика» — остановка на дороге �
   // первый шаг — оси в фокусе; дальше на каждом шаге новое — подсвечено
   await expect(g.locator('[data-testid=graph-el][data-el="axes"]')).toHaveAttribute('data-on', 'true');
   await expect(g.getByTestId('graph-back')).toBeDisabled();
+  // пожаловаться на разбор — кнопкой «Ошибка?» в шапке; причины — про объяснение и график, а не про ответ
+  await expect(g.getByTestId('report-flag')).toContainText('Ошибка?');
+  await g.getByTestId('report-flag').click();
+  await expect(page.getByTestId('report-sheet')).toContainText('Ошибка в формуле или на графике');
+  await expect(page.getByTestId('report-sheet')).not.toContainText('Мой ответ должен быть засчитан');
+  await page.getByTestId('report-sheet-back').click({ position: { x: 8, y: 8 } });
+  await expect(page.getByTestId('report-sheet')).toHaveCount(0);
   await g.getByTestId('graph-next').click();
   await expect(g.locator('[data-testid=graph-el][data-el="PPF"]')).toHaveAttribute('data-on', 'true');
   await expect(g.getByTestId('graph-text')).toContainText('КПВ');
