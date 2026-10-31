@@ -1,6 +1,6 @@
 /* Файлы, которые кладут руками и которые приложение должно узнать при сборке: записанные голоса
    (public/voice/<id>.mp3, src/learn/voice-lines.js), записи книг полки (public/books/<id>.mp3,
-   src/learn/book-audio.js) и портреты «Персоналий» (public/people/<id>.jpg|png|webp с подписями из
+   src/learn/book-player.js) и портреты «Персоналий» (public/people/<id>.jpg|png|webp с подписями из
    people/credits.csv, src/learn/portraits.js). Положили файл в папку — после сборки он в деле; руками
    ничего не перечислять. */
 import fs from 'node:fs';

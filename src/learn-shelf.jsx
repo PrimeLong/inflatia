@@ -12,8 +12,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Card, IconButton, Sheet, Button } from './ds.jsx';
-import { shelfBooks, BOOK_BY_ID, wordsIn, bookReadAt, bookSpeech, speechSeconds, passageAt, passageStart } from './learn/shelf.js';
-import { hasBookAudio, bookAudioUrl } from './learn/book-audio.js';
+import { shelfBooks, BOOK_BY_ID, wordsIn, bookReadAt, bookSpeech, speechSeconds } from './learn/shelf.js';
+import { useBookPlayer, MiniPlayer, MINI_CSS, clock, rateText, Bars } from './learn-bookdock.jsx';
+import { bookPlayer, getState as getBookState } from './learn/book-player.js';
 import { plural } from './lib/plural.js';
 import { markBook } from './textbook/learn-state.js';
 import { fullDate } from './learn/collections.js';
@@ -110,35 +111,7 @@ const CSS = `
   .lb-ctl button:hover, .lb-rate:hover { background: color-mix(in srgb, var(--b) 20%, transparent); }
   .lb-ctl small { font: 800 12px var(--ds-sans); }
   .lb-cap { grid-column: 1 / -1; text-align: center; font: 500 12px var(--ds-sans); color: var(--ds-ink3); }
-  .lb-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 13px; }
-  .lb-bars i { width: 3px; height: 4px; border-radius: 1.5px; background: currentColor; animation: lb-eq .8s ease-in-out infinite alternate; }
-  .lb-bars i:nth-child(2) { animation-delay: -.35s; } .lb-bars i:nth-child(3) { animation-delay: -.6s; }
-  @keyframes lb-eq { to { height: 13px; } }
   .lb-listen-t .lb-bars { color: var(--b); }
-  .lb-mini { position: fixed; z-index: 3; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: min(520px, calc(100% - 24px)); transform: translateX(-50%);
-    display: flex; align-items: center; gap: 10px; padding: 9px 10px 8px 9px; border-radius: 18px; overflow: hidden; color: var(--ds-ink);
-    background: color-mix(in srgb, var(--ds-card) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-    border: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); box-shadow: 0 18px 36px -18px rgba(0,0,0,.5); animation: lb-mini-in .4s cubic-bezier(.2, 1.3, .4, 1) backwards; }
-  @keyframes lb-mini-in { from { transform: translate(-50%, 150%); } }
-  /* полоса прослушанного сверху — ползунок перемотки: тонкая, а касаться можно полосы повыше */
-  .lb-mini { padding-top: 17px; }
-  .lb-mini-seek { position: absolute; left: 14px; right: 14px; top: 2px; width: auto; height: 14px; margin: 0; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
-  .lb-mini-seek::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--b), var(--b)) 0 0 / var(--v, 0%) 100% no-repeat, color-mix(in srgb, var(--b) 16%, var(--ds-rule2)); }
-  .lb-mini-seek::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--b), var(--b)) 0 0 / var(--v, 0%) 100% no-repeat, color-mix(in srgb, var(--b) 16%, var(--ds-rule2)); }
-  .lb-mini-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: var(--b); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
-  .lb-mini-seek::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--b); border: 2px solid #fff; }
-  .lb-mini-seek:focus-visible { outline: 2px solid var(--b); outline-offset: 2px; }
-  .lb-mini-skip { flex: none; height: 36px; min-width: 36px; padding: 0 6px; border: 0; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
-    background: transparent; color: var(--ds-ink2); font: 800 11px var(--ds-sans); }
-  .lb-mini-skip:hover { background: color-mix(in srgb, var(--b) 12%, transparent); color: var(--ds-ink); }
-  .lb-mini .lb-mini-rate { height: 34px; min-width: 50px; padding: 0 10px; }
-  @media (max-width: 420px) { .lb-mini .lb-mini-rate { display: none; } .lb-mini { gap: 4px; } }
-  .lb-mini-play { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; color: #fff; background: var(--b); }
-  .lb-mini-t { flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; color: inherit; }
-  .lb-mini-t small { display: flex; align-items: center; gap: 6px; font: 700 12px var(--ds-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ds-ink3); }
-  .lb-mini-t small .lb-bars { height: 9px; color: var(--b); } .lb-mini-t small .lb-bars i { width: 2px; }
-  .lb-mini-t b { display: block; font: 700 14.5px/1.3 var(--ds-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lb-mini .lb-rate { height: 34px; min-width: 50px; padding: 0 10px; }
   .lb-passage .where { font: 600 12.5px var(--ds-sans); color: var(--ds-ink2); margin-top: 2px; letter-spacing: .02em; }
   .lb-passage p { font: 400 18px/1.7 var(--ds-news, 'PT Serif', Georgia, serif); margin: 14px 0 0; text-wrap: pretty; }
   .lb-passage p:first-of-type::first-letter { float: left; font: 700 54px/.9 var(--ds-news, 'PT Serif', Georgia, serif); padding: 6px 8px 0 0; color: var(--b); }
@@ -150,138 +123,10 @@ const CSS = `
   @media (prefers-reduced-motion: reduce) { .lb-cover, .lb-stamp, .lb-ribbon, .lb-tick, .lb-mini, .lb-bars i, .lb-listen.on .lb-play::after, .lb-passage.now::before { animation: none !important; } .lb-book { transition: none; } }
 `;
 
-/* ПРОИГРЫВАТЕЛЬ КНИГИ. Запись есть — играет её (перемотка, скорость, ±15 секунд); нет или не загрузилась —
-   читает голос браузера по частям (src/learn/shelf.js, bookSpeech). Доля прослушанного — at (0…1): по ней
-   кольцо кнопки, полоса и звучащий отрывок. Где остановились и скорость — на этом устройстве. */
-const POS_KEY = 'ems-book-pos';
-const RATE_KEY = 'ems-book-rate';
-const RATES = [1, 1.25, 1.5, 0.75];
-const readStore = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } };
-const savePos = (id, f) => {
-  try {
-    const m = readStore(POS_KEY, {});
-    if (f > 0.002 && f < 0.995) m[id] = Math.round(f * 10000) / 10000; else delete m[id];
-    localStorage.setItem(POS_KEY, JSON.stringify(m));
-  } catch { /* нет хранилища */ }
-};
-const clock = (sec) => { const s = Math.max(0, Math.round(sec)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-const rateText = (r) => `${String(r).replace('.', ',')}×`;
-const ruVoice = () => { try { return window.speechSynthesis.getVoices().find((v) => /^ru/i.test(v.lang)) || null; } catch { return null; } };
-const Bars = () => <span className="lb-bars" aria-hidden="true"><i /><i /><i /></span>;
-
-function useBookPlayer(b) {
-  const parts = useMemo(() => bookSpeech(b), [b]);
-  const canSpeak = typeof window !== 'undefined' && !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function';
-  const [mode, setMode] = useState(() => (hasBookAudio(b.id) ? 'file' : canSpeak ? 'speech' : null));
-  const [playing, setPlaying] = useState(false);
-  const [started, setStarted] = useState(false);
-  const [at, setAt] = useState(() => Number(readStore(POS_KEY, {})[b.id]) || 0);
-  const [dur, setDur] = useState(() => speechSeconds(b));
-  const [rate, setRateState] = useState(() => { const r = Number(readStore(RATE_KEY, 1)); return RATES.includes(r) ? r : 1; });
-  const tape = useRef(null); const pending = useRef(null); const tok = useRef(0); const spoke = useRef(false);
-  const atRef = useRef(at); atRef.current = at;
-  const rateRef = useRef(rate); rateRef.current = rate;
-  const partAt = (f) => Math.max(0, parts.findIndex((x) => f >= x.from && f < x.to));
-  const ended = () => { setPlaying(false); setAt(0); savePos(b.id, 0); };
-  // голос браузера: часть за частью; новый запуск (пауза, перемотка) гасит прежний — по номеру tok
-  const speakFrom = (k) => {
-    const synth = window.speechSynthesis; const my = ++tok.current; spoke.current = true;
-    try { synth.cancel(); } catch { /* нет голоса */ }
-    const run = (i) => {
-      if (my !== tok.current) return;
-      if (i >= parts.length) { ended(); return; }
-      const part = parts[i]; setAt(part.from);
-      const u = new window.SpeechSynthesisUtterance(part.text);
-      u.lang = 'ru-RU'; u.rate = rateRef.current; const v = ruVoice(); if (v) u.voice = v;
-      u.onboundary = (e) => { if (my === tok.current && e && e.charIndex >= 0) setAt(part.from + (part.to - part.from) * Math.min(1, e.charIndex / part.text.length)); };
-      u.onend = () => run(i + 1);
-      u.onerror = (e) => { if (my === tok.current && !(e && /interrupted|canceled/.test(e.error))) setPlaying(false); };
-      synth.speak(u);
-    };
-    run(k);
-  };
-  const tapeFor = () => {
-    if (tape.current) return tape.current;
-    const a = new window.Audio();
-    a.preload = 'metadata';
-    a.onloadedmetadata = () => {
-      if (!a.duration || !isFinite(a.duration)) return;
-      setDur(a.duration);
-      if (pending.current != null) { a.currentTime = pending.current * a.duration; pending.current = null; }
-    };
-    a.ontimeupdate = () => { if (a.duration && isFinite(a.duration)) { setAt(a.currentTime / a.duration); setDur(a.duration); } };
-    a.onended = ended;
-    // запись не загрузилась — книгу дочитает голос браузера с того же места
-    a.onerror = () => {
-      tape.current = null;
-      if (!canSpeak) { setMode(null); setPlaying(false); return; }
-      setMode('speech'); setDur(speechSeconds(b)); speakFrom(partAt(atRef.current));
-    };
-    a.src = bookAudioUrl(b.id);
-    a.playbackRate = rateRef.current;
-    tape.current = a;
-    return a;
-  };
-  const play = (from = atRef.current) => {
-    if (!mode) return;
-    const f = from >= 0.995 ? 0 : from;
-    setPlaying(true); setStarted(true); setAt(f);
-    if (mode === 'file') {
-      const a = tapeFor();
-      const pr = a.play();
-      if (a.duration && isFinite(a.duration)) a.currentTime = f * a.duration; else pending.current = f;
-      if (pr && pr.catch) pr.catch(() => setPlaying(false));
-    } else speakFrom(partAt(f));
-  };
-  const pause = () => {
-    setPlaying(false); savePos(b.id, atRef.current);
-    if (tape.current) tape.current.pause();
-    if (spoke.current) { tok.current += 1; try { window.speechSynthesis.cancel(); } catch { /* нет голоса */ } }
-  };
-  const seek = (to) => {
-    const f = Math.max(0, Math.min(0.999, to));
-    setAt(f); savePos(b.id, f);
-    if (mode === 'file') {
-      const a = tape.current;
-      if (a && a.duration && isFinite(a.duration)) a.currentTime = f * a.duration; else pending.current = f;
-    } else if (playing) speakFrom(partAt(f));
-  };
-  const setRate = (r) => {
-    setRateState(r); rateRef.current = r;
-    try { localStorage.setItem(RATE_KEY, String(r)); } catch { /* нет хранилища */ }
-    if (tape.current) tape.current.playbackRate = r;
-    if (mode === 'speech' && playing) speakFrom(partAt(atRef.current));
-  };
-  const api = {
-    parts, mode, playing, started, at, dur, rate,
-    now: started || at > 0 ? passageAt(parts, at) : null,
-    toggle: () => (playing ? pause() : play()), play, pause, seek,
-    skip: (sec) => seek(atRef.current + sec / Math.max(1, dur)),
-    playFrom: (pid) => play(passageStart(parts, pid)),
-    nextRate: () => setRate(RATES[(RATES.indexOf(rate) + 1) % RATES.length]),
-  };
-  const live = useRef(api); live.current = api;
-  // закрыли книгу — звук стихает, место запоминается
-  useEffect(() => () => {
-    tok.current += 1;
-    if (tape.current) tape.current.pause();
-    if (spoke.current) { try { window.speechSynthesis.cancel(); } catch { /* нет голоса */ } }
-    savePos(b.id, atRef.current);
-  }, [b.id]);
-  // кнопки на экране блокировки телефона и в шторке: пауза, ±15 секунд
-  useEffect(() => {
-    const ms = typeof navigator !== 'undefined' ? navigator.mediaSession : null;
-    if (!ms || !playing || mode !== 'file') return undefined;
-    const acts = { play: () => live.current.play(), pause: () => live.current.pause(), seekbackward: () => live.current.skip(-15), seekforward: () => live.current.skip(15) };
-    try {
-      if (typeof window.MediaMetadata === 'function') ms.metadata = new window.MediaMetadata({ title: b.short, artist: b.author, album: 'Инфляция · книжная полка' });
-      Object.entries(acts).forEach(([k, fn]) => ms.setActionHandler(k, fn));
-    } catch { /* браузер не умеет */ }
-    return () => { try { Object.keys(acts).forEach((k) => ms.setActionHandler(k, null)); } catch { /* браузер не умеет */ } };
-  }, [playing, mode, b]);
-  return api;
-}
-
+/* ПРОИГРЫВАТЕЛЬ КНИГИ — один на всё приложение (src/learn/book-player.js): включили книгу — она звучит и
+   после того, как читалку закрыли; внизу над вкладками — мини-проигрыватель (src/learn-bookdock.jsx).
+   Запись по отрывкам или целиком — перемотка, скорость, ±15 секунд; записи нет или не загрузилась — читает
+   голос браузера по частям. Где остановились и скорость — на этом устройстве. */
 function ListenCard({ b, p, cardRef }) {
   const R = 35; const C = 2 * Math.PI * R;
   const nowTitle = p.now ? (b.passages.find((x) => x.id === p.now) || {}).title : null;
@@ -316,36 +161,24 @@ function ListenCard({ b, p, cardRef }) {
   );
 }
 
-/* мини-проигрыватель: пауза, название звучащего отрывка, ±15 секунд и скорость; сверху — полоса прослушанного,
-   она же ползунок перемотки (тянуть или коснуться места) */
-export function MiniPlayer({ b, p, onGo, onClose = null, testid = 'book-mini', title = null }) {
-  const nowTitle = title || (p.now ? (b.passages.find((x) => x.id === p.now) || {}).title : b.short);
-  return (
-    <div className="lb-mini" role="region" aria-label="Проигрыватель книги" data-testid={testid} style={{ '--b': b.color }}>
-      <input type="range" className="lb-mini-seek" min="0" max="1000" step="1" value={Math.round(p.at * 1000)} onChange={(e) => p.seek(Number(e.target.value) / 1000)}
-        aria-label="Перемотка" aria-valuetext={`${clock(p.at * p.dur)} из ${clock(p.dur)}`} data-testid="book-mini-seek" style={{ '--v': `${p.at * 100}%` }} />
-      <button type="button" className="lb-mini-play" onClick={p.toggle} aria-label={p.playing ? 'Пауза' : 'Продолжить слушать'} data-testid="book-mini-play">
-        {p.playing ? <Pause size={19} fill="currentColor" aria-hidden="true" /> : <Play size={19} fill="currentColor" style={{ marginLeft: 3 }} aria-hidden="true" />}
-      </button>
-      <button type="button" className="lb-mini-t" onClick={() => onGo(p.now)} aria-label={`К отрывку «${nowTitle}»`} data-testid="book-mini-title">
-        <small>{p.playing ? <><Bars />Сейчас звучит</> : 'На паузе'} · <span className="ds-num">{clock(p.at * p.dur)}</span></small><b>{nowTitle}</b>
-      </button>
-      <button type="button" className="lb-mini-skip" onClick={() => p.skip(-15)} aria-label="Назад на 15 секунд" data-testid="book-mini-back"><RotateCcw size={16} aria-hidden="true" /><small>15</small></button>
-      <button type="button" className="lb-mini-skip" onClick={() => p.skip(15)} aria-label="Вперёд на 15 секунд" data-testid="book-mini-fwd"><RotateCw size={16} aria-hidden="true" /><small>15</small></button>
-      <button type="button" className="lb-rate lb-mini-rate" onClick={p.nextRate} aria-label={`Скорость ${rateText(p.rate)} — сменить`}>{rateText(p.rate)}</button>
-      {onClose && <button type="button" className="lb-mini-skip" onClick={onClose} aria-label="Остановить и убрать проигрыватель" data-testid="book-mini-close"><X size={17} aria-hidden="true" /></button>}
-    </div>
-  );
-}
-
-function Reader({ id, onClose, readAt = 0, onRead = null }) {
+export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null }) {
   const b = BOOK_BY_ID[id];
   const [fresh, setFresh] = useState(false);
   const root = useRef(null);
-  const player = useBookPlayer(b);
+  const parts = useMemo(() => bookSpeech(b), [b]);
+  const player = useBookPlayer(b, parts, speechSeconds(b));
   const card = useRef(null);
   const [cardSeen, setCardSeen] = useState(true);
   useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  /* читалка открыта — мини-проигрыватель над вкладками прячется (у читалки свой); закрыли — книга звучит
+     дальше, а над вкладками снова мини-проигрыватель */
+  useEffect(() => { bookPlayer.setReader(id); return () => { if (getBookState().reader === id) bookPlayer.setReader(null); }; }, [id]);
+  // открыли из мини-проигрывателя над вкладками — сразу к звучащему отрывку
+  useEffect(() => {
+    if (!passage) return undefined;
+    const t = setTimeout(() => { const el = root.current && root.current.querySelector(`[data-passage="${passage}"]`); if (el) el.scrollIntoView({ block: 'start' }); }, 60);
+    return () => clearTimeout(t);
+  }, [passage]);
   // проигрыватель под обложкой ушёл с экрана — внизу мини-проигрыватель
   useEffect(() => {
     const el = card.current;
@@ -400,6 +233,7 @@ function Reader({ id, onClose, readAt = 0, onRead = null }) {
         <div className="lb-note">Перевод — редакции «Инфляции», с сокращениями: пропуски отмечены «[…]». Текст {b.year} года — в общественном достоянии.</div>
       </div>
       {player.started && !cardSeen && <MiniPlayer b={b} p={player} onGo={go} />}
+      <style>{MINI_CSS}</style>
     </div>
   );
 }
@@ -425,7 +259,7 @@ export default function Library({ learn, update = null }) {
   const met = people.filter((p) => p.met).length;
   return (
     <>
-      <style>{PEOPLE_CSS + CSS}</style>
+      <style>{PEOPLE_CSS + CSS + MINI_CSS}</style>
       <Card style={{ margin: '12px 0' }} data-testid="prof-shelf">
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <div className="ds-h3" style={{ flex: 1 }}>Книжная полка</div>
@@ -486,6 +320,17 @@ export default function Library({ learn, update = null }) {
           </div>
         </Sheet>
       )}
+    </>
+  );
+}
+
+/* книга поверх любой вкладки — из мини-проигрывателя над вкладками: та же читалка, отметка о прочтении — в прогресс */
+export function BookOverlay({ id, passage = null, learn, update = null, onClose }) {
+  if (!BOOK_BY_ID[id]) return null;
+  return (
+    <>
+      <style>{CSS + MINI_CSS}</style>
+      <Reader id={id} passage={passage} onClose={onClose} readAt={bookReadAt(learn, id)} onRead={update ? (bid) => update((s) => markBook(s, bid)) : null} />
     </>
   );
 }

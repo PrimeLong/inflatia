@@ -5292,10 +5292,43 @@ test('книгу на полке можно слушать: голос брау�
   expect(await page.evaluate(() => window.__tape.paused)).toBe(true);
   // закрыли и открыли снова — место запомнилось
   await page.getByTestId('book-close').click();
+  // на паузе книга не пропала: над вкладками — мини-проигрыватель
+  await expect(page.getByTestId('book-dock')).toBeVisible();
   await page.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
+  await expect(page.getByTestId('book-dock')).toHaveCount(0);
   await expect(listen).toContainText('Вы остановились здесь');
   await expect(listen.getByTestId('book-now')).toHaveText('Четыре правила налогов');
   await expect(listen.getByTestId('book-speed')).toHaveText('1,25×');
+  // включили и закрыли книгу — звучит дальше; над вкладками мини-проигрыватель, и на Пути тоже
+  await listen.getByTestId('book-play').click();
+  await expect(listen).toHaveAttribute('data-state', 'playing');
+  await page.getByTestId('book-close').click();
+  await expect(page.getByTestId('book-reader')).toHaveCount(0);
+  const dock = page.getByTestId('book-dock');
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  expect(await page.evaluate(() => window.__tape.paused)).toBe(false);
+  await openTab(page, 'path');
+  await expect(dock).toBeVisible();
+  await expect(dock).toContainText('Четыре правила налогов');
+  expect(await page.evaluate(() => window.__tape.paused)).toBe(false);
+  // перемотка и пауза — прямо над вкладками
+  await dock.getByTestId('book-mini-seek').fill('500');
+  expect(await page.evaluate(() => window.__tape.currentTime)).toBeCloseTo(300, 0);
+  await dock.getByTestId('book-mini-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'paused');
+  expect(await page.evaluate(() => window.__tape.paused)).toBe(true);
+  // касание названия — книга поверх Пути, на звучащем отрывке; мини-проигрыватель над вкладками прячется
+  await page.evaluate(() => window.__tapeAt(0.5));
+  await dock.getByTestId('book-mini-title').click();
+  await expect(page.getByTestId('book-reader')).toBeVisible();
+  await expect(dock).toHaveCount(0);
+  await page.getByTestId('book-close').click();
+  // «×» — тишина, мини-проигрыватель уходит
+  await dock.getByTestId('book-mini-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  await dock.getByTestId('book-mini-close').click();
+  await expect(dock).toHaveCount(0);
+  expect(await page.evaluate(() => window.__tape.paused)).toBe(true);
   expect(errors).toEqual([]);
 });
 

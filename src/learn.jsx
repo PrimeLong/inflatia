@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID } from './learn/people.js';
+import { BookDock } from './learn-bookdock.jsx';
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
 import { askSave } from './lib/guest.js';
@@ -250,6 +251,8 @@ const CSS = `
   .ln-to-map { position: fixed; right: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 30; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; border-radius: 50%; border: 2px solid var(--ds-rule); background: var(--ds-card); color: var(--u-ink); box-shadow: 0 3px 0 var(--ds-rule2), 0 6px 16px var(--ds-shade); cursor: pointer; }
   @media (min-width: 1024px) { .ln-to-map { right: max(16px, calc(50vw - 560px)); } }
+  /* над вкладками звучит книга — кнопка поднимается над её мини-проигрывателем */
+  html[data-book-dock] .ln-to-map { bottom: calc(160px + env(safe-area-inset-bottom)); }
   .ln-route { position: relative; margin: 0 auto; }
   /* телефон уже 340 px (320 px — старые и маленькие): дорога чуть мельче, чтобы не вылезать за экран */
   @media (max-width: 340px) { .ln-route { zoom: .9; } }
@@ -2664,6 +2667,8 @@ const SettingsView = React.lazy(() => import('./learn-profile.jsx').then((m) => 
 const NewsView = React.lazy(() => import('./learn-news.jsx'));
 const ReadingView = React.lazy(() => import('./learn-reading.jsx'));
 const PeopleView = React.lazy(() => import('./learn-people.jsx'));
+// книга поверх вкладки — из мини-проигрывателя над вкладками (src/learn-bookdock.jsx); читалка — в чанке полки
+const BookOverlay = React.lazy(() => import('./learn-shelf.jsx').then((m) => ({ default: m.BookOverlay })));
 const GraphLesson = React.lazy(() => import('./learn-graph.jsx'));
 const Lazy = ({ children }) => <React.Suspense fallback={<BrandLoader compact text="Открываем" />}>{children}</React.Suspense>;
 const Celebration = React.lazy(() => import('./learn-celebrate.jsx'));
@@ -2789,6 +2794,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   /* особые уроки дороги (src/learn/stops.js): «Чтение», «Персоналии», «Работа над ошибками»;
      закрытый — подсказка, когда откроется */
   const [people, setPeople] = useState(null);
+  const [dockBook, setDockBook] = useState(null);
   // «Разбор графика»: с дороги юнита — урок с опытом; с карточки урока (событие) — поверх урока, без опыта
   const [graph, setGraph] = useState(null);
   useEffect(() => {
@@ -2898,6 +2904,9 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
       {reading && <Lazy><ReadingView id={reading} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
       {people && <Lazy><PeopleView id={people} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
+      {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
+      {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
+      {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
       {extraLocked && (
         <Sheet label={EXTRA_KIND[extraLocked.type]} onClose={() => setExtraLocked(null)} testid="extra-locked">
           <div style={{ textAlign: 'center' }}>
