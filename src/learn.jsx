@@ -19,7 +19,7 @@ import {
   Wrench, Feather, ChartSpline,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
-import { PEOPLE_BY_ID } from './learn/people.js';
+import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
 import { BookDock } from './learn-bookdock.jsx';
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
@@ -75,7 +75,8 @@ import { placeOf, unitColor, DIAMOND_COLOR, dsThemeId } from './ds-tokens.js';
 import { countryPath, RIVER, curveTo } from './lib/mapgeo.js';
 import { levelRegions, mapSlots } from './learn/levelmap.js';
 import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
-import { GRAPH_BY_CHART, GRAPH_EVENT, openGraph } from './learn/graphs.js';
+import { GRAPH_BY_CHART, GRAPH_EVENT, openGraph, GRAPH_BY_ID, GRAPH_XP } from './learn/graphs.js';
+import { READING_BY_ID, READ_XP } from './learn/reading.js';
 import { BrandLoader } from './logo.jsx';
 import { FRIENDS_CSS, FriendsPage, FriendProfile, RaceCard, RaceOffer, racesToShow } from './learn-friends.jsx';
 import { Sketch, SKETCH_CSS, SKETCH_QUERY, SKETCH_BOOK_QUERY } from './learn-sketch.jsx';
@@ -2062,6 +2063,55 @@ function propsFor(id, i, W, y, left, spooky = false) {
    ошибками» — src/learn/stops.js). У особого — свой значок и цвет; «Работа над ошибками» — с меткой
    «сначала ошибки» и закрывает следующий урок. */
 const EXTRA_ICON = { people: Users, read: Feather, graph: ChartSpline, fix: Wrench };
+
+/* КАРТОЧКА ОСОБОГО УРОКА (docs/mechanics.md, «Особые уроки»): «Персоналии», «Чтение», «Разбор графика» —
+   как у обычного урока: вид и место юнита, название, что внутри, ≈ минут и опыт, «Начать». Раньше касание
+   остановки сразу открывало урок, без слова о том, что это и сколько займёт */
+const lastName = (n) => n.split(' ').filter((w) => !/^[А-ЯЁA-Z]\.$/.test(w)).pop();
+export function extraInfo(x) {
+  if (x.type === 'people') {
+    const g = PEOPLE_BY_ID[x.id];
+    return g && { title: g.title, inside: `Три человека: ${g.people.map((p) => lastName(p.name)).join(', ')} — портрет, годы жизни, главная идея и вопрос к каждому.`, min: 5, xp: MET_XP, unitId: g.unitId };
+  }
+  if (x.type === 'read') {
+    const r = READING_BY_ID[x.id];
+    const n = r ? r.pages.length : 0;
+    return r && { title: r.title, inside: `${n} ${plural(n, 'цитата', 'цитаты', 'цитат')} из книг экономистов — кто, когда и зачем написал, и вопрос к каждой.`, min: Math.max(3, n + 1), xp: READ_XP, unitId: r.unitId };
+  }
+  if (x.type === 'graph') {
+    const g = GRAPH_BY_ID[x.id];
+    const n = g ? g.steps.length : 0;
+    return g && { title: g.title, inside: `График собирается на глазах: ${n} ${plural(n, 'шаг', 'шага', 'шагов')}, на каждом — одна мысль простыми словами, в конце — вопрос на понимание.`, min: Math.max(2, Math.round(n * 0.35 + 1)), xp: GRAPH_XP, unitId: g.unitId };
+  }
+  return null;
+}
+function ExtraSheet({ x, onStart, onClose }) {
+  const info = extraInfo(x);
+  if (!info) return null;
+  const Icon = EXTRA_ICON[x.type] || BookOpen;
+  const pl = placeOf(info.unitId);
+  return (
+    <Sheet label={`${EXTRA_KIND[x.type]}: ${info.title}`} onClose={onClose} testid="extra-sheet" data-extra={x.type} data-id={x.id} style={{ '--u': pl.color }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginRight: -8 }}><IconButton label="Закрыть" icon={X} data-nav="back" onClick={onClose} size={22} /></div>
+      <div className="ln-ticket">
+        <div className="ln-ticket-main">
+          <div className="ds-eyebrow">{EXTRA_KIND[x.type]} · {pl.place}</div>
+          <div className="ds-h2" style={{ marginTop: 4 }}>{info.title}</div>
+          <div className="ds-num ds-sub ln-ticket-meta" data-testid="extra-meta">
+            <span><Timer size={15} aria-hidden="true" />≈{info.min} мин</span>
+            <span><Coins size={15} aria-hidden="true" />{x.done ? 'опыт получен' : `+${info.xp} опыта`}</span>
+            {x.done && <span data-testid="extra-done-mark" style={{ color: 'var(--ds-ok)', fontWeight: 700 }}><Check size={15} aria-hidden="true" />пройден</span>}
+          </div>
+        </div>
+        <div className="ln-ticket-stub"><Icon size={30} aria-hidden="true" /></div>
+      </div>
+      <p className="ds-sub" style={{ fontSize: 15, lineHeight: 1.45, margin: '14px 2px 0' }} data-testid="extra-inside">{info.inside}</p>
+      <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
+        <Button wide data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+      </div>
+    </Sheet>
+  );
+}
 function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra = () => {}, rec = null, chest = null, onChest, spooky = false }) {
   // открытая остановка «Персоналии» — портреты её людей грузятся заранее, в фоне (docs/mechanics.md, «Персоналии»)
   const peopleOpen = stops.filter((x) => x.type === 'people' && x.open && !x.done).map((x) => x.id).join(',');
@@ -2820,8 +2870,15 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     return () => window.removeEventListener(GRAPH_EVENT, on);
   }, []);
   const [extraLocked, setExtraLocked] = useState(null);
+  // «Персоналии», «Чтение», «Разбор графика» — сначала карточка урока, «Начать» — сам урок
+  const [extraSheet, setExtraSheet] = useState(null);
   const onExtra = (x) => {
     if (!x.open && !x.done) { Audio.play('down'); setExtraLocked(x); return; }
+    if (x.type !== 'fix' && extraInfo(x)) { setExtraSheet(x); return; }
+    openExtra(x);
+  };
+  const openExtra = (x) => {
+    setExtraSheet(null);
     if (x.type === 'read') setReading(x.id);
     else if (x.type === 'people') setPeople(x.id);
     else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
@@ -2925,6 +2982,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
       {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
+      {extraSheet && <ExtraSheet x={extraSheet} onStart={openExtra} onClose={() => setExtraSheet(null)} />}
       {extraLocked && (
         <Sheet label={EXTRA_KIND[extraLocked.type]} onClose={() => setExtraLocked(null)} testid="extra-locked">
           <div style={{ textAlign: 'center' }}>

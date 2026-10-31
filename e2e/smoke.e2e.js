@@ -4976,6 +4976,14 @@ test('«Чтение» — урок на дороге юнита: после у�
   await expect(page.locator('[data-testid=path-extra][data-extra="people"]')).toHaveAttribute('data-state', 'open');
   await card.scrollIntoViewIfNeeded();
   await card.click();
+  // сначала — карточка урока, как у обычного: что внутри, сколько минут и опыта
+  const sheet = page.getByTestId('extra-sheet');
+  await expect(sheet).toHaveAttribute('data-extra', 'read');
+  await expect(sheet.getByTestId('extra-meta')).toContainText(/≈\d+ мин/);
+  await expect(sheet.getByTestId('extra-meta')).toContainText('+12 опыта');
+  await expect(sheet.getByTestId('extra-inside')).toContainText('цитат');
+  await expect(sheet.getByTestId('extra-start')).toHaveText('Начать');
+  await sheet.getByTestId('extra-start').click();
   const reading = page.getByTestId('reading');
   await expect(reading).toBeVisible();
   for (let k = 1; k <= 3; k += 1) {
@@ -4998,6 +5006,8 @@ test('«Чтение» — урок на дороге юнита: после у�
   expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.read['read-choice'])).toBe(true);
   // перечитать можно, опыт — уже нет; «Найдите в цитате» с ошибкой — верные слова подчёркнуты
   await card.click();
+  await expect(page.getByTestId('extra-done-mark')).toBeVisible();
+  await page.getByTestId('extra-start').click();
   await reading.locator('[data-testid=reading-word]:not([data-hit])').first().click();
   await expect(page.getByTestId('reading-feedback')).toHaveAttribute('data-ok', 'false');
   await expect(page.getByTestId('reading-feedback')).toContainText('Нужные слова подчёркнуты');
@@ -5170,6 +5180,7 @@ test('«Персоналии» — урок на дороге юнита: три
   await page.getByTestId('extra-locked').getByRole('button', { name: 'Понятно' }).click();
   await stop.scrollIntoViewIfNeeded();
   await stop.click();
+  await page.getByTestId('extra-start').click();
   const view = page.getByTestId('people');
   await expect(view).toHaveAttribute('data-id', 'people-scarcity');
   // флажок «Сообщить об ошибке» — в шапке, как в любом уроке
@@ -5676,6 +5687,7 @@ test('«Разбор графика» — остановка на дороге �
   await expect(stop).toHaveAttribute('data-state', 'open');
   await stop.scrollIntoViewIfNeeded();
   await stop.click();
+  await page.getByTestId('extra-start').click();
   const g = page.getByTestId('graph-lesson');
   await expect(g).toHaveAttribute('data-id', 'graph-ppf');
   // первый шаг — оси в фокусе; дальше на каждом шаге новое — подсвечено
@@ -5731,6 +5743,7 @@ test('«Разбор графика» на ПК: черновик на поля�
   const stop = page.locator('[data-testid=path-extra][data-extra="graph"]');
   await stop.scrollIntoViewIfNeeded();
   await stop.click();
+  await page.getByTestId('extra-start').click();
   const g = page.getByTestId('graph-lesson');
   await expect(g).toBeVisible();
   const canvas = g.getByTestId('sketch-canvas');
@@ -5787,6 +5800,7 @@ test('«Персоналии на ПК»: страница в две колон�
   const stop = page.locator('[data-testid=path-extra][data-extra="people"]');
   await stop.scrollIntoViewIfNeeded();
   await stop.click();
+  await page.getByTestId('extra-start').click();
   const view = page.getByTestId('people');
   for (const id of ['robbins', 'malthus', 'ricardo']) {
     const pg = view.getByTestId('people-page');
@@ -5828,6 +5842,7 @@ test('«Персоналии»: портрет — свой файл из public
   page.on('request', (r) => { if (/wikipedia\.org|wikimedia\.org/.test(r.url())) wiki.push(r.url()); });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   await page.locator('[data-testid=path-extra][data-extra="people"]').click();
+  await page.getByTestId('extra-start').click();
   const pg = page.getByTestId('people');
   for (const p of PEOPLE.find((g) => g.id === 'people-scarcity').people) {
     await expect(pg.getByTestId('people-page')).toHaveAttribute('data-person', p.id);
