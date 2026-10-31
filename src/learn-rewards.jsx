@@ -8,7 +8,7 @@ import { loadAccount } from './account.jsx';
 import { noScarcity } from './lib/age.js';
 import {
   X, Wallet, ShieldCheck, CalendarDays, Check, Flame, GraduationCap, Timer, Map as MapIcon, Target, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap,
-  ListChecks, ChevronRight, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown,
+  ListChecks, ChevronRight, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles,
 } from 'lucide-react';
 import { ACH_ICON } from './award-art.js';
 import { Audio } from './MacroSimulator.jsx';
@@ -632,16 +632,18 @@ function DustCard({ learn, onOpen }) {
   );
 }
 /* ЛАВКА — вкладки вместо одной длинной ленты (docs/mechanics.md, «Лавка»): сверху кошелёк и курс
-   дня (касание — график и что такое кроны), ниже пять вкладок: «Витрина» (вещи дня, на Хеллоуин —
+   дня (касание — график и что такое кроны), ниже шесть вкладок: «Витрина» (вещи дня, на Хеллоуин —
    и сезонные), «Для урока» (темы и украшения урока), «Ювелир» (редкое, на что копят), «Гардероб»
-   (примерочная) и «Полезное» (копилка, страховка серии, двойной опыт). Вкладка помнится, пока
-   открыто приложение; из уведомления «вклад созрел» лавка открывается на «Полезном». */
+   (примерочная), «Полезное» (копилка, страховка серии, двойной опыт) и «Протереть» (мини-игра
+   «Пыльная витрина»). Вкладка помнится, пока открыто приложение; из уведомления «вклад созрел»
+   лавка открывается на «Полезном». */
 const SHOP_TABS = [
   { id: 'showcase', label: 'Витрина', icon: Store },
   { id: 'lesson', label: 'Для урока', icon: Palette },
   { id: 'rare', label: 'Ювелир', icon: Gem },
   { id: 'wardrobe', label: 'Гардероб', icon: Shirt },
   { id: 'useful', label: 'Полезное', icon: PiggyBank },
+  { id: 'dust', label: 'Протереть', icon: Sparkles },
 ];
 let lastShopTab = 'showcase';
 export function ShopView({ learn, update, now = Date.now(), focus = null }) {
@@ -758,7 +760,11 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
               {today.showcase.map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} deal={id === today.deal} {...itemProps} />)}
               {!today.showcase.length && <div className="ds-sub" style={{ gridColumn: '1 / -1', fontSize: 14.5 }}>Всё обычное уже ваше — дальше вкладки «Ювелир» и «Для урока».</div>}
             </div>
-            <DustCard learn={learn} onOpen={() => setDust(true)} />
+          </>}
+
+          {tab === 'dust' && <>
+            <Heading level={3} title="Пыльная витрина" sub={`Мини-игра: ночью в лавке пыль — протрите стекло тряпкой, под ним новинка витрины дня. За витрину — ${DUST.coins} ${coinsWord(DUST.coins)}, до ${DUST.perDay} витрин в день.`} />
+            <div style={{ marginTop: 10 }}><DustCard learn={learn} onOpen={() => setDust(true)} /></div>
           </>}
 
           {tab === 'lesson' && <>

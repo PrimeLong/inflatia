@@ -5489,6 +5489,11 @@ test('лавка: «Пыльная витрина» — тряпкой по ст
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, coins: { '2026-10-01': 50 } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  // своя вкладка лавки «Протереть», а не карточка внизу «Витрины»
+  await expect(page.getByTestId('shop-panel').getByTestId('shop-dust')).toHaveCount(0);
+  await page.getByTestId('shop-tabs').locator('[data-tab="dust"]').click();
+  await expect(page.getByTestId('shop-panel')).toHaveAttribute('data-tab', 'dust');
+  await expect(page.getByTestId('shop-panel')).toContainText('Пыльная витрина');
   const card = page.getByTestId('shop-dust');
   await expect(card).toHaveAttribute('data-done', '0');
   const earnedNow = () => page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.coins || {}).reduce((a, x) => a + x, 0));
