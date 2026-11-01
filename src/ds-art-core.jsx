@@ -86,7 +86,7 @@ export const ART_CSS = `
   .ds-postage-in { border: 1.5px solid var(--u); background: var(--ds-card); padding: 6px; text-align: center; position: relative; }
   /* тёмная тема: поля марки светлее страницы — иначе дырки перфорации того же цвета, что и поля, и
      зубцов не видно (жалоба «огранку марки почти не видно»); тонкая светлая кромка по зубцам */
-  .ds-dark .ds-postage, .ds-dark .pf-stamp { background-color: color-mix(in srgb, #EDE6D3 30%, var(--ds-card));
+  .ds-dark .ds-postage { background-color: color-mix(in srgb, #EDE6D3 30%, var(--ds-card));
     filter: drop-shadow(0 0 .6px rgba(237, 230, 211, .55)) drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
   @media (prefers-reduced-motion: reduce) { .ds-smoke, .ds-pulse, .ds-unlock, .ds-appear, .ds-coins i { animation: none !important; } .ds-coins { display: none; } .ds-infla { transition: none !important; } .ds-infla-out { display: none; } .ds-infla-in { animation: none; } }
 `;

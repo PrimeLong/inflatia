@@ -63,30 +63,53 @@ export const PROFILE_CSS = `
   .pf-more:hover { background: var(--ds-card2); border-color: var(--u); }
   .pf-more b { font: 700 18px/1 var(--ds-head); }
   @keyframes pf-in { from { opacity: 0; transform: translateY(8px) scale(.94) } to { opacity: 1; transform: none } }
-  /* марка-миниатюра: зубцы по краю, здание юнита; не полученная — блёклая */
-  .pf-stamp { display: inline-block; padding: 4px; background-color: var(--ds-card); background-image: radial-gradient(circle, var(--ds-paper) 2.2px, transparent 2.6px);
-    background-size: 8px 8px; background-position: -4px -4px; filter: drop-shadow(0 1px 1px var(--ds-shade)); }
-  .pf-stamp > span { display: grid; place-items: center; width: 54px; height: 50px; border: 1.5px solid var(--u); background: var(--ds-card); overflow: hidden; }
-  .pf-stamp.big { padding: 7px; background-image: radial-gradient(circle, var(--ds-paper) 3.2px, transparent 3.6px); background-size: 12px 12px; background-position: -6px -6px;
-    filter: drop-shadow(0 3px 6px var(--ds-shade)); transform: rotate(-2deg); }
-  .pf-stamp.big > span { width: 156px; height: 122px; border-width: 2px; }
-  .pf-stamp[data-got="false"] { --u: var(--ds-rule2); }
-  .pf-stamp[data-got="false"] > span > * { opacity: .42; filter: grayscale(1); }
+  /* МАРКА — как почтовая (та же, что на экране «Новая марка в альбоме»): кремовая бумага с настоящими зубцами —
+     дырки вырезаны маской (под ними видна страница), рамка в две линии цвета юнита, под рисунком — лёгкая заливка;
+     тень — у обёртки (маска срезала бы её). Не полученная — серая «пустая ячейка» с блёклым рисунком. */
+  .pf-stamp { display: inline-block; vertical-align: top; filter: drop-shadow(0 1px 1px rgba(40, 25, 10, .3)) drop-shadow(0 3px 5px rgba(40, 25, 10, .12)); }
+  .pf-perf { display: block; padding: 4px; background: #FFFBF1;
+    -webkit-mask: radial-gradient(circle at center, #0000 2.1px, #000 2.6px) -3.5px -3.5px / 7px 7px round, linear-gradient(#000 0 0) content-box;
+    mask: radial-gradient(circle at center, #0000 2.1px, #000 2.6px) -3.5px -3.5px / 7px 7px round, linear-gradient(#000 0 0) content-box; }
+  .pf-frame { position: relative; display: grid; place-items: center; width: 54px; height: 50px; overflow: hidden; color: #2A221C;
+    background: color-mix(in srgb, var(--u) 10%, #FFFBF1);
+    box-shadow: inset 0 0 0 1.5px var(--u), inset 0 0 0 3px #FFFBF1, inset 0 0 0 3.7px color-mix(in srgb, var(--u) 50%, #FFFBF1); }
+  .pf-stamp.big { transform: rotate(-2deg); filter: drop-shadow(0 2px 2px rgba(40, 25, 10, .3)) drop-shadow(0 10px 16px rgba(40, 25, 10, .18)); }
+  .pf-stamp.big .pf-perf { padding: 8px;
+    -webkit-mask: radial-gradient(circle at center, #0000 3.6px, #000 4.2px) -6px -6px / 12px 12px round, linear-gradient(#000 0 0) content-box;
+    mask: radial-gradient(circle at center, #0000 3.6px, #000 4.2px) -6px -6px / 12px 12px round, linear-gradient(#000 0 0) content-box; }
+  .pf-stamp.big .pf-frame { width: 172px; height: auto; display: flex; flex-direction: column; align-items: stretch; padding: 9px 11px 8px;
+    box-shadow: inset 0 0 0 2px var(--u), inset 0 0 0 5px #FFFBF1, inset 0 0 0 6px color-mix(in srgb, var(--u) 50%, #FFFBF1); }
+  .pf-stamp-top { display: flex; justify-content: space-between; align-items: baseline; font: 700 9px var(--ds-head); letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--u) 75%, #2A221C); }
+  .pf-stamp-top b { font: 700 18px var(--ds-mono); letter-spacing: 0; }
+  .pf-stamp-art { display: grid; place-items: center; height: 104px; }
+  .pf-stamp-cap { font: 700 13px/1.15 var(--ds-head); letter-spacing: .1em; text-transform: uppercase; text-align: center; color: color-mix(in srgb, var(--u) 75%, #2A221C);
+    border-top: 1.5px solid var(--u); padding-top: 6px; }
+  /* штемпель полученной: круг с датой и волны гашения — поверх угла, «чернилами» */
+  .pf-postmark { position: absolute; right: -14px; bottom: 18px; color: #3B4A6B; opacity: .62; mix-blend-mode: multiply; transform: rotate(-12deg); pointer-events: none; }
+  .pf-postmark svg { display: block; }
+  .pf-stamp[data-got="false"] { filter: none; }
+  .pf-stamp[data-got="false"] .pf-perf { background: var(--ds-card2); }
+  .pf-stamp[data-got="false"] .pf-frame { background: var(--ds-card2); color: var(--ds-ink2); box-shadow: inset 0 0 0 1.5px var(--ds-rule2), inset 0 0 0 3px var(--ds-card2), inset 0 0 0 3.7px var(--ds-rule); }
+  .pf-stamp[data-got="false"] .pf-frame > *, .pf-stamp[data-got="false"] .pf-stamp-art { opacity: .45; filter: grayscale(1); }
+  .pf-stamp[data-got="false"] .pf-stamp-top, .pf-stamp[data-got="false"] .pf-stamp-cap { opacity: 1; filter: none; color: var(--ds-ink2); border-color: var(--ds-rule2); }
+  .ds-dark .pf-perf { background: #EFE6D2; }
+  .ds-dark .pf-stamp { filter: drop-shadow(0 0 .6px rgba(237, 230, 211, .5)) drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
   .pf-month { position: relative; }
   .pf-friends { display: flex; align-items: center; gap: 12px; width: 100%; margin: 12px 0 0; padding: 10px 14px; }
   .pf-friends-stack { display: flex; align-items: center; min-width: 52px; }
   .pf-friends-stack > span { margin-left: -12px; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--ds-card2); box-shadow: 0 0 0 2px var(--ds-card); animation: pf-in .4s ease-out both; animation-delay: calc(var(--k, 0) * 80ms); }
   .pf-friends-stack > span:first-child { margin-left: 0; }
   .pf-friends-plus { color: var(--u-ink); background: color-mix(in srgb, var(--u) 12%, var(--ds-card)) !important; }
-  /* марка месяца: у каждого месяца свой цвет и рисунок; пропущенный месяц — блёклый, нынешний — пунктиром с прогрессом */
-  .pf-mstamp > span { position: relative; background: var(--u); border-color: color-mix(in srgb, var(--u) 70%, #000); }
-  .pf-mstamp > span svg { display: block; }
-  .pf-mstamp[data-state="current"] > span { background: var(--ds-card); border-style: dashed; }
-  .pf-mstamp[data-state="current"] > span > * { opacity: 1; filter: none; }
-  .pf-mstamp[data-state="missed"] > span { background: var(--ds-card2); }
+  /* марка месяца: у каждого месяца свой цвет и рисунок, напечатан на заливке цвета месяца; пропущенный месяц — блёклый,
+     нынешний — пунктирная рамка на бумаге с полосой прогресса */
+  .pf-mstamp .pf-frame { background: var(--u); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--u) 65%, #000), inset 0 0 0 3px color-mix(in srgb, #fff 45%, var(--u)); }
+  .pf-mstamp .pf-frame svg { display: block; }
+  .pf-mstamp.big .pf-frame { width: 156px; height: 122px; padding: 0; display: grid; }
+  .pf-mstamp[data-state="current"] .pf-frame { background: #FFFBF1; box-shadow: none; outline: 1.5px dashed var(--u); outline-offset: -3px; }
+  .pf-mstamp[data-state="current"] .pf-frame > * { opacity: 1; filter: none; }
   /* полученная марка месяца больше не вспыхивает свечением раз в 4 секунды: это мигание принимали за
      сбой («марка странно мигает, будто сайт сам обновляется»). Отклик — только на наведение */
-  .pf-item:hover .pf-mstamp[data-state="got"], .pf-item:focus-visible .pf-mstamp[data-state="got"] { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--u) 55%, transparent)); }
+  .pf-item:hover .pf-mstamp[data-state="got"] .pf-perf, .pf-item:focus-visible .pf-mstamp[data-state="got"] .pf-perf { background: color-mix(in srgb, var(--u) 18%, #FFFBF1); }
   .pf-year { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; }
   .pf-year b { font: 700 22px var(--ds-head); }
   .pf-year span { color: var(--ds-ink2); font-size: 14px; }
@@ -129,7 +152,7 @@ function MonthStamp({ it, big = false }) {
   const share = it.progress ? Math.min(1, it.progress.have / Math.max(1, it.progress.total)) : 0;
   return (
     <span className={`pf-stamp pf-mstamp${big ? ' big' : ''}`} style={state === 'missed' ? undefined : { '--u': color }} data-got={String(it.got)} data-state={state}>
-      <span>
+      <span className="pf-perf"><span className="pf-frame">
         <svg viewBox="0 0 54 50" width={big ? 156 : 54} height={big ? 122 : 50} role="img" aria-label={`${it.title} ${it.year}: ${state === 'got' ? 'получена' : state === 'current' ? 'испытание идёт' : 'не получена'}`}>
           <text x="27" y="11" textAnchor="middle" fontSize="8" fontWeight="700" letterSpacing=".8" fill={ink} fontFamily="var(--ds-head)">{MONTH_ABBR[it.month - 1]}</text>
           <Icon x={17} y={14} width={20} height={20} color={ink} strokeWidth={state === 'got' ? 2.2 : 1.8} />
@@ -137,7 +160,23 @@ function MonthStamp({ it, big = false }) {
             <g><rect x="11" y="40" width="32" height="3.5" rx="1.75" fill="var(--ds-rule)" /><rect x="11" y="40" width={Math.max(2, 32 * share)} height="3.5" rx="1.75" fill={color} /></g>
           ) : <text x="27" y="45" textAnchor="middle" fontSize="6.5" fontWeight="700" fill={ink} opacity=".9" fontFamily="var(--ds-mono)">{it.year}</text>}
         </svg>
-      </span>
+      </span></span>
+    </span>
+  );
+}
+
+/* штемпель полученной марки: круг «ПОЧТА ИНФЛЯЦИИ» с датой и волны гашения */
+const pmDate = (at) => { const d = new Date(at); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getFullYear()).slice(2)}`; };
+function Postmark({ at }) {
+  return (
+    <span className="pf-postmark" aria-hidden="true" data-testid="stamp-postmark">
+      <svg width="104" height="62" viewBox="0 0 104 62" fill="none" stroke="currentColor">
+        <defs><path id="pf-pm-arc" d="M8 31 a23 23 0 1 1 46 0" /></defs>
+        <circle cx="31" cy="31" r="27" strokeWidth="2" /><circle cx="31" cy="31" r="19.5" strokeWidth="1" />
+        <text fontSize="7.4" fontWeight="700" letterSpacing="1.2" fill="currentColor" stroke="none" fontFamily="var(--ds-head)"><textPath href="#pf-pm-arc" startOffset="50%" textAnchor="middle">ПОЧТА ИНФЛЯЦИИ</textPath></text>
+        <text x="31" y="35" fontSize="9" fontWeight="700" textAnchor="middle" fill="currentColor" stroke="none" fontFamily="var(--ds-mono)">{pmDate(at)}</text>
+        {[16, 25, 34, 43].map((y) => <path key={y} d={`M56 ${y} q6 -5 12 0 t12 0 t12 0 t12 0`} strokeWidth="2.2" strokeLinecap="round" />)}
+      </svg>
     </span>
   );
 }
@@ -149,13 +188,18 @@ function Art({ it, big = false }) {
     if (big) {
       return (
         <span className="pf-stamp big" style={{ '--u': it.color }} data-got={String(it.got)}>
-          <span><Engraving kind={it.building} alive={it.got} size={132} color={it.color} label={`${it.title}${it.got ? '' : ', ещё не получена'}`} /></span>
+          <span className="pf-perf"><span className="pf-frame">
+            <span className="pf-stamp-top"><b>{it.no}</b><span>Почта Инфляции</span></span>
+            <span className="pf-stamp-art"><Engraving kind={it.building} alive={it.got} size={150} color={it.color} label={`${it.title}${it.got ? '' : ', ещё не получена'}`} /></span>
+            <span className="pf-stamp-cap">{it.title}</span>
+            {it.got && it.at ? <Postmark at={it.at} /> : null}
+          </span></span>
         </span>
       );
     }
     return (
       <span className="pf-stamp" style={{ '--u': it.color }} data-got={String(it.got)}>
-        <span><Engraving kind={it.building} alive={it.got} size={52} color={it.color} label={`${it.title}${it.got ? '' : ', ещё не получена'}`} /></span>
+        <span className="pf-perf"><span className="pf-frame"><Engraving kind={it.building} alive={it.got} size={50} color={it.color} label={`${it.title}${it.got ? '' : ', ещё не получена'}`} /></span></span>
       </span>
     );
   }
