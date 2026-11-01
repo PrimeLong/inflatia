@@ -11,7 +11,12 @@
      node scripts/voice-normalize.mjs --check      — только проверить (таблица; код выхода 1, если есть что выравнивать)
      node scripts/voice-normalize.mjs --force      — переписать все
      node scripts/voice-normalize.mjs public/voice/host-026hwr8.mp3 …   — только эти файлы
-   Файл в норме: громкость −16 ± 1 LUFS, пик не выше −1,5 dBTP, моно, 56 кбит/с, без картинки. */
+   Файл в норме: громкость −16 ± 1 LUFS, пик не выше −1,5 dBTP, моно, 56 кбит/с, без картинки.
+
+   Эфиры (public/voice) — ещё и без длинных пауз: тишина или шипение дольше 2 с посреди сюжета сжимается
+   до 0,5 с. Сервис озвучки вставил в host-026hwr8.mp3 73 секунды шипения между фразами: ученик слышал шум,
+   а подсветка слов (по доле прослушанного) отставала (жалоба mvrvhtya). Книги не трогаем: там паузы
+   между отрывками — часть чтения. */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -50,6 +55,30 @@ function probe(file) {
   const a = streams.find((s) => s.codec_type === 'audio') || {};
   return { channels: Number(a.channels), kbps: Math.round(Number(a.bit_rate) / 1000), picture: streams.some((s) => s.codec_type === 'video') };
 }
+/* длинные паузы эфира: участки тише −40 дБ дольше PAUSE_MAX секунд (ffmpeg silencedetect) */
+export const PAUSE_MAX = 2;
+const PAUSE_KEEP = 0.5;
+const isVoice = (file) => path.relative(path.join(ROOT, 'public/voice'), file).split(path.sep)[0] !== '..';
+function pauses(file) {
+  const err = tool('ffmpeg', ['-hide_banner', '-nostats', '-i', file, '-af', `silencedetect=noise=-40dB:d=${PAUSE_MAX}`, '-f', 'null', '-']).stderr;
+  const starts = [...err.matchAll(/silence_start: ([\d.]+)/g)].map((x) => Number(x[1]));
+  const ends = [...err.matchAll(/silence_end: ([\d.]+)/g)].map((x) => Number(x[1]));
+  // пауза в самом конце (без silence_end) — тоже пауза: до конца файла
+  return starts.map((a, k) => [a, ends[k] != null ? ends[k] : Infinity]).filter(([a]) => a > 0.05);
+}
+/* вырезать паузы: остаются речь и по четверть секунды тишины с каждой стороны (в конце — четверть секунды) */
+export function keepSegments(gaps, keep = PAUSE_KEEP) {
+  const segs = []; let from = 0;
+  gaps.forEach(([a, b]) => { segs.push([from, a + keep / 2]); from = Number.isFinite(b) ? Math.max(a + keep / 2, b - keep / 2) : Infinity; });
+  if (Number.isFinite(from)) segs.push([from, Infinity]);
+  return segs;
+}
+function cutPauses(src, dst, gaps) {
+  const segs = keepSegments(gaps);
+  const parts = segs.map(([a, b], k) => `[0:a]atrim=start=${a.toFixed(3)}${Number.isFinite(b) ? `:end=${b.toFixed(3)}` : ''},asetpts=PTS-STARTPTS[s${k}]`);
+  const filter = `${parts.join(';')};${segs.map((_, k) => `[s${k}]`).join('')}concat=n=${segs.length}:v=0:a=1[out]`;
+  tool('ffmpeg', ['-hide_banner', '-nostats', '-y', '-i', src, '-filter_complex', filter, '-map', '[out]', '-c:a', 'pcm_s16le', dst]);
+}
 export const inNorm = (m, p) => Math.abs(m.I - TARGET.I) <= TOLERANCE_LU && m.TP <= TARGET.TP
   && p.channels === TARGET.channels && Math.abs(p.kbps - TARGET.kbps) <= 1 && !p.picture;
 
@@ -61,10 +90,13 @@ function encode(src, dst, m, tp, i) {
   tool('ffmpeg', ['-hide_banner', '-nostats', '-y', '-i', src, '-map', '0:a:0', '-map_metadata', '-1', '-af', af,
     '-ac', String(TARGET.channels), '-ar', String(TARGET.rate), '-c:a', 'libmp3lame', '-b:a', `${TARGET.kbps}k`, '-id3v2_version', '0', '-write_xing', '1', dst]);
 }
-function normalize(file, m) {
+function normalize(file, m0, gaps = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-'));
-  const src = path.join(dir, `src-${path.basename(file)}`); const out = path.join(dir, path.basename(file));
+  let src = path.join(dir, `src-${path.basename(file)}`); const out = path.join(dir, path.basename(file));
   fs.copyFileSync(file, src);
+  // сначала вырезать длинные паузы (без потерь, в WAV) — и мерить громкость уже без них
+  let m = m0;
+  if (gaps.length) { const cut = path.join(dir, 'cut.wav'); cutPauses(src, cut, gaps); src = cut; m = measure(src); }
   /* громкая по пикам речь не выравнивается линейно, и loudnorm в динамическом режиме недотягивает (−17 вместо
      −16): тогда цель поднимается на величину недобора — тоже из исходника, без второго сжатия результата */
   let tp = TARGET.TP - 0.5; let i = TARGET.I;
@@ -93,16 +125,19 @@ function main() {
   for (const f of list) {
     const rel = path.relative(ROOT, f);
     const m = measure(f); const p = probe(f);
-    const ok = inNorm(m, p);
+    const gaps = isVoice(f) ? pauses(f) : [];
+    const gapText = gaps.length ? `, паузы ${gaps.map(([a, b]) => `${a.toFixed(1)}–${Number.isFinite(b) ? b.toFixed(1) : 'конец'} с`).join(', ')}` : '';
+    const ok = inNorm(m, p) && !gaps.length;
     if (ok && !force) { if (checkOnly) console.log(`в норме  ${rel}: ${fmt(m, p)}`); continue; }
     todo += 1;
-    if (checkOnly) { console.log(`выровнять ${rel}: ${fmt(m, p)}`); continue; }
+    if (checkOnly) { console.log(`выровнять ${rel}: ${fmt(m, p)}${gapText}`); continue; }
     const was = fs.statSync(f).size;
-    normalize(f, m);
+    normalize(f, m, gaps);
     const m2 = measure(f); const p2 = probe(f);
+    const left = isVoice(f) ? pauses(f).length : 0;
     bytes = [bytes[0] + was, bytes[1] + fs.statSync(f).size];
     done += 1;
-    console.log(`${rel}: ${fmt(m, p)} → ${fmt(m2, p2)}${inNorm(m2, p2) ? '' : ' — НЕ В НОРМЕ'}`);
+    console.log(`${rel}: ${fmt(m, p)}${gapText} → ${fmt(m2, p2)}${inNorm(m2, p2) && !left ? '' : ' — НЕ В НОРМЕ'}`);
   }
   if (checkOnly) {
     console.log(todo ? `Выровнять: ${todo} из ${list.length}.` : `Все ${list.length} записей в норме: ${TARGET.I} LUFS, пик ≤ ${TARGET.TP} dBTP, моно, ${TARGET.kbps} кбит/с.`);
@@ -111,4 +146,5 @@ function main() {
   console.log(done ? `Готово: ${done} из ${list.length}, ${(bytes[0] / 1048576).toFixed(1)} → ${(bytes[1] / 1048576).toFixed(1)} МБ.` : `Выравнивать нечего: все ${list.length} в норме.`);
 }
 
-main();
+// запуск командой — да; импорт из теста (keepSegments) — без прохода по файлам
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) main();
