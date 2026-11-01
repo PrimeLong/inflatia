@@ -63,6 +63,8 @@ export const CURVE_STEP = 10;
 const LR = { plus: 'вправо', minus: 'влево', up: '→', down: '←' };
 export const SHIFT_CURVES = {
   'supply-demand': { D: { control: 'dA', label: 'Спрос', ...LR }, S: { control: 'dC', label: 'Предложение', ...LR } },
+  // рынок труда (юнит «Биржа труда»): те же ползунки, свои названия кривых
+  labor: { D: { control: 'dA', label: 'Спрос на труд', short: 'Спрос на труд', ...LR }, S: { control: 'dC', label: 'Предложение труда', short: 'Предложение', ...LR } },
   ppf: {
     X: { control: 'tx', label: 'Конец КПВ на оси хлеба', short: 'Хлеб', plus: 'наружу', minus: 'внутрь', up: '→', down: '←' },
     Y: { control: 'ty', label: 'Конец КПВ на оси станков', short: 'Станки', plus: 'наружу', minus: 'внутрь', up: '↑', down: '↓' },

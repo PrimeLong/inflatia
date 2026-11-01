@@ -74,7 +74,7 @@ describe('уровень знаний — маленькое число, рас�
     const start = ids('start');
     const s = { ...emptyLearn(), lessons: doneAll(start, 80), met: { 'people-scarcity': T('2026-10-20T10:00:00Z') } };
     const c = courseLevel(s);
-    expect(c.points).toBe(start.length * KNOW.lesson + KNOW.unit + KNOW.extra);
+    expect(c.points).toBe(start.length * KNOW.lesson + UNITS.filter((u) => u.level === 'start').length * KNOW.unit + KNOW.extra);
     expect(c.past).toEqual(['start']);
     expect(c.level).toMatchObject({ id: 'basic', done: 0 });
     expect(c.byLevel.start).toEqual({ done: start.length, total: start.length });
@@ -111,15 +111,16 @@ describe('«Персоналии» — данные', async () => {
   const { PEOPLE, PERSON_BY_ID, initialsOf, eraPos, galleryOf } = await import('../people.js');
   const { UNIT_BY_ID } = await import('../course.js');
   it('по три человека на каждый готовый юнит; годы, роль, рассказ, идея, факт', () => {
-    expect(PEOPLE).toHaveLength(10);
-    expect(new Set(PEOPLE.map((g) => g.unitId)).size).toBe(10);
+    expect(PEOPLE).toHaveLength(11);
+    expect(new Set(PEOPLE.map((g) => g.unitId)).size).toBe(11);
     PEOPLE.forEach((g) => {
       expect(UNIT_BY_ID[g.unitId] && UNIT_BY_ID[g.unitId].lessons.length, g.id).toBeTruthy();
       expect(g.people, g.id).toHaveLength(3);
       expect(g.color).toMatch(/^#[0-9A-F]{6}$/i);
     });
     const all = PEOPLE.flatMap((g) => g.people);
-    expect(Object.keys(PERSON_BY_ID)).toHaveLength(all.length);
+    // знакомый, вернувшийся в другом юните, — одна запись
+    expect(Object.keys(PERSON_BY_ID)).toHaveLength(new Set(all.map((p) => p.id)).size);
     all.forEach((p) => {
       expect(p.years, p.id).toBe(`${p.born}–${p.died}`);
       expect(p.born, p.id).toBeLessThan(p.died);
@@ -148,7 +149,7 @@ describe('«Персоналии» — данные', async () => {
     expect(initialsOf('Адам Смит')).toBe('АС');
     expect(initialsOf('Антуан Огюстен Курно')).toBe('АК');
     const g = galleryOf({ met: { 'people-market': 1 } });
-    expect(g).toHaveLength(30);
+    expect(g).toHaveLength(32);
     expect(g.filter((p) => p.met).map((p) => p.id)).toEqual(['smith', 'jenkin', 'marshall']);
   });
 });

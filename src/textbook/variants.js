@@ -518,6 +518,73 @@ T.push({ id: 'v-mc-long', chapter: 'monopolistic', level: 2, source: 'mcomp-long
     check: ([q, p]) => near(A - 2 * B * q, c + 2 * q) && near(p, A - B * q) && near(p, F / q + c + q),
   };
 } });
+// рынок труда: сколько работников нанять — пока предельный продукт в деньгах не меньше зарплаты
+T.push({ id: 'v-lm-hire', chapter: 'labor', level: 1, source: 'labor-hire', gen: (rand) => {
+  const k = draw(rand, () => {
+    const m1 = ri(rand, 35, 50, 5); const m2 = m1 - ri(rand, 5, 10, 5); const m3 = m2 - ri(rand, 5, 10, 5); const m4 = m3 - ri(rand, 5, 10, 5);
+    return { mp: [m1, m2, m3, m4], p: ri(rand, 6, 9), n: ri(rand, 1, 3) };
+  }, ({ mp }) => mp[3] > 0);
+  const mrp = k.mp.map((x) => x * k.p);
+  // зарплата — между ступенькой последнего выгодного и первого невыгодного, круглая
+  const w = Math.round((mrp[k.n - 1] + mrp[k.n]) / 20) * 10;
+  const hire = mrp.filter((r) => r >= w).length;
+  return {
+    statement: `Работники пекарни добавляют за смену ${k.mp.join(', ')} круассанов (первый, второй, третий, четвёртый). Круассан стоит ${k.p} кр., смена — ${w} кр. Сколько работников выгодно нанять?`,
+    parts: [{ answer: hire, unit: 'чел.', pos: true }],
+    // следующий за последним выгодным уже приносит меньше зарплаты
+    traps: [{ part: 0, value: hire + 1, text: `Работник № ${hire + 1} приносит $${k.mp[hire]} \\cdot ${k.p} = ${mrp[hire]}$ кр. — меньше смены за ${w} кр.` }],
+    solution: `Предельный продукт в деньгах: ${mrp.join(', ')} кр. Не меньше зарплаты ${w} кр. — у ${hire === 1 ? 'первого' : `первых ${hire === 2 ? 'двух' : 'трёх'}`}: выгодно нанять ${hire}.`,
+    check: ([x]) => near(x, hire),
+  };
+} });
+// рынок труда: самая большая зарплата, при которой выгодно держать n работников
+T.push({ id: 'v-lm-cap', chapter: 'labor', level: 2, source: 'labor-hire', gen: (rand) => {
+  const k = draw(rand, () => {
+    const m1 = ri(rand, 35, 50, 5); const m2 = m1 - ri(rand, 5, 10, 5); const m3 = m2 - ri(rand, 5, 10, 5);
+    return { mp: [m1, m2, m3], p: ri(rand, 6, 9), n: ri(rand, 2, 3) };
+  }, ({ mp }) => mp[2] > 0);
+  const cap = k.mp[k.n - 1] * k.p;
+  return {
+    statement: `Работники пекарни добавляют за смену ${k.mp.join(', ')} круассанов (первый, второй, третий). Круассан стоит ${k.p} кр. Какую самую большую зарплату за смену может платить пекарня, чтобы ей было выгодно держать ${k.n === 2 ? 'двоих' : 'троих'} работников?`,
+    parts: [{ answer: cap, unit: 'кр.', pos: true }],
+    traps: [
+      { part: 0, value: k.mp[0] * k.p, text: 'Это сколько приносит первый. Держать всех выгодно, пока окупается последний — его предельный продукт в деньгах.' },
+      { part: 0, value: k.mp[k.n - 1], text: 'Это предельный продукт в круассанах. Умножьте на цену круассана.' },
+    ].filter((t) => t.value !== cap),
+    solution: `Работник № ${k.n} приносит $${k.mp[k.n - 1]} \\cdot ${k.p} = ${cap}$ кр. — самый малый вклад из ${k.n === 2 ? 'двоих' : 'троих'}. Пока зарплата не больше ${cap} кр., окупаются все ${k.n === 2 ? 'двое' : 'трое'}.`,
+    check: ([x]) => near(x, cap),
+  };
+} });
+// рынок труда: равновесная зарплата и занятость на линейных кривых
+T.push({ id: 'v-lm-eq', chapter: 'labor', level: 1, source: 'labor-eq', gen: (rand) => {
+  const k = draw(rand, () => ({ w: ri(rand, 120, 240, 10), b: ri(rand, 1, 2), d: ri(rand, 1, 2), L: ri(rand, 60, 160, 10) }), ({ w, b, d, L }) => L - d * w < 0 && L + b * w > 0);
+  const a = k.L + k.b * k.w; const c = k.L - k.d * k.w;
+  const coef = (x) => (x === 1 ? '' : x);
+  return {
+    statement: `Спрос на труд $L_D = ${a} - ${coef(k.b)}w$, предложение труда $L_S = ${lin(c, k.d, 'w')}$, где $w$ — зарплата за смену в кронах.\n\nа) Какова равновесная зарплата?\n\nб) Сколько человек работает в равновесии?`,
+    parts: [{ answer: k.w, unit: 'кр.', pos: true }, { answer: k.L, unit: 'чел.', pos: true }],
+    traps: [{ part: 0, value: a / k.b, text: 'При этой зарплате работников не наймут вовсе. Приравняйте спрос на труд и предложение труда.' }],
+    solution: `а) $${a} - ${coef(k.b)}w = ${lin(c, k.d, 'w')}$, откуда $${k.b + k.d}w = ${a - c}$ и $w^* = ${k.w}$ кр.\n\nб) $L^* = ${a} - ${k.b} \\cdot ${k.w} = ${k.L}$.`,
+    check: ([w, L]) => near(a - k.b * w, c + k.d * w) && near(L, a - k.b * w),
+  };
+} });
+// рынок труда: минимальная зарплата выше равновесной — наём и безработица
+T.push({ id: 'v-lm-min', chapter: 'labor', level: 2, source: 'labor-min', gen: (rand) => {
+  const k = draw(rand, () => ({ w: ri(rand, 120, 200, 10), L: ri(rand, 80, 160, 10), up: ri(rand, 20, 60, 10) }), ({ w, L, up }) => L - up > 0 && L - w < 0);
+  // L_D = a − w, L_S = c + w; минимальная зарплата на up выше равновесной
+  const a = k.L + k.w; const c = k.L - k.w; const m = k.w + k.up;
+  const hired = a - m; const want = c + m; const jobless = want - hired;
+  return {
+    statement: `Спрос на труд $L_D = ${a} - w$, предложение труда $L_S = ${lin(c, 1, 'w')}$, где $w$ — зарплата за смену в кронах. Закон установил минимальную зарплату ${m} кр. Сколько человек хотят работать, но не найдут работу?`,
+    parts: [{ answer: jobless, unit: 'чел.', pos: true }],
+    traps: [
+      { part: 0, value: hired, text: 'Столько человек наймут. Без работы — те, кто хочет работать по минимальной зарплате и не нашёл места: предложение минус спрос.' },
+      { part: 0, value: k.L - hired, text: 'Это на сколько меньше работающих, чем в равновесии. Без работы — разница между желающими и нанятыми при минимальной зарплате.' },
+    ].filter((t) => t.value !== jobless),
+    solution: `Наймут $L_D = ${a} - ${m} = ${hired}$, хотят работать $L_S = ${lin(c, 1, String(m))} = ${want}$: без работы ${jobless}. В равновесии ($w^* = ${k.w}$) работали бы ${k.L}.`,
+    check: ([j]) => near(j, jobless),
+  };
+} });
 // Курно, симметричный
 T.push({ id: 'v-olig-cournot', chapter: 'oligopoly', level: 1, source: 'olig-cournot-price', gen: (rand) => {
   const c = ri(rand, 5, 40); const q = ri(rand, 10, 40); const a = c + 3 * q; const P = a - 2 * q;

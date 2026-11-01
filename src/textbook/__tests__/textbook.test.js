@@ -175,8 +175,8 @@ describe('оглавление', () => {
       .toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures']);
     expect(CHAPTERS.filter((c) => c.part === 'macro').map((c) => c.id))
       .toEqual(['gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth', 'open-economy', 'public-debt', 'inequality']);
-    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
-    expect(CHAPTERS.filter((c) => c.part === 'micro' && c.status !== 'ready').map((c) => c.id)).toEqual(['production', 'labor']);
+    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
+    expect(CHAPTERS.filter((c) => c.part === 'micro' && c.status !== 'ready').map((c) => c.id)).toEqual(['production']);
   });
   it('у каждой готовой главы есть текст, у ненаписанной — нет; карточки приложения существуют', () => {
     CHAPTERS.forEach((c) => {
@@ -374,6 +374,20 @@ describe('структура готовых глав', () => {
 /* Ответы пересчитаны здесь заново — формулой, а не копией числа из главы. Если в
    условии поменяют число, а ответ забудут, тест упадёт. */
 const INDEPENDENT = {
+  // рынок труда — перебором работников по правилу MRP ≥ w и функцией равновесия графика
+  'labor-hire': () => {
+    const mp = [40, 30, 20, 10]; const hire = (w) => mp.filter((m) => 8 * m >= w).length;
+    return [hire(150), hire(200)];
+  },
+  'labor-eq': () => { const eq = sdEquilibrium(300, 1, -60, 1); return [eq.P, eq.Q]; },
+  'labor-mp': () => { const out = [0, 40, 70, 90]; return [out[3] - out[2], 8 * (out[3] - out[2])]; },
+  'labor-min': () => { const w = 220; return [300 - w, (w - 60) - (300 - w)]; },
+  'labor-price': () => {
+    const mp = [40, 30, 20, 10];
+    let p = 0; while (p * mp[2] < 200) p += 1;
+    return [p, mp.filter((m) => 20 * m >= 200).length];
+  },
+  'labor-target': () => { let w = 180; while ((w - 60) - (300 - w) < 60) w += 1; return [w, 300 - w]; },
   // кривая Филлипса — функцией графика; пути инфляции — пошаговой симуляцией
   'ph-pi': () => { const p = { us: 5, beta: 0.5 }; return [phillipsPi(p, 4, 7), phillipsPi(p, 4, 3)]; },
   'ph-accel': () => { let pi = 2; for (let t = 0; t < 4; t += 1) pi = phillipsPi({ us: 5, beta: 0.5 }, pi, 4); return pi; },

@@ -11,7 +11,13 @@ import { listPeoplePhotos, readPhotoCredits } from './voice-files-plugin.js';
 const out = new URL('../people/', import.meta.url);
 const files = listPeoplePhotos();
 const credits = readPhotoCredits();
-const all = PEOPLE.flatMap((g) => g.people.map((p) => ({ ...p, group: g.title })));
+// знакомый, вернувшийся в другом юните (again), — одна строка с одним портретом: группы через запятую
+const all = [];
+PEOPLE.forEach((g) => g.people.forEach((p) => {
+  const seen = all.find((x) => x.id === p.id);
+  if (seen) seen.group += `, ${g.title}`;
+  else all.push({ ...p, group: g.title });
+}));
 let n = 0;
 const rows = all.map((p) => {
   n += 1;
