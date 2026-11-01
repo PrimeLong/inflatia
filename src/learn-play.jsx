@@ -714,14 +714,14 @@ export function GameRound({ inst, onDone, locked, result = null, best = 0, intro
           <div className="lp-howto" data-testid="game-howto">
             <div className="ds-eyebrow">Как играть</div>
             <ol>
-              <li>Появляется заголовок новости — каждая по одному разу, всего {inst.items.length}.</li>
+              <li>Появляются карточки — каждая по одному разу, всего {inst.items.length}.</li>
               <li>Решите: {inst.labels[sides[0]].toLowerCase()} или {inst.labels[sides[1]].toLowerCase()}? Отвечайте — {sideHint}.</li>
               <li>График покажет, что сдвинулось. Три верных подряд — очки ×2, дальше ещё больше; ошибка обнуляет серию. Разобрали все раньше времени — секунды в запасе тоже идут в очки, а очки — в опыт урока.</li>
             </ol>
           </div>
           {chart}
           <div className="lp-trial" data-testid="game-trial">
-            <div className="ds-eyebrow">Пробный заголовок — без таймера</div>
+            <div className="ds-eyebrow">Пробная карточка — без таймера</div>
             <div className="lp-trial-card" data-answer={testing() ? sample.side : undefined}><Inline nodes={sample.text} /></div>
             {!trial ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
