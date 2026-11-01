@@ -406,6 +406,13 @@ const ELASTIC_LABEL = { in: 'Неэластичный: выручка растё
 const COSTS_LABEL = { fc: 'Постоянные: поднялись только средние', vc: 'Переменные: поднялись все три кривые' };
 const POWER_LABEL = { pt: 'Ценополучатель: цена с рынка, P = MC', mp: 'Власть над ценой: цена выше MC' };
 const MARKUP_LABEL = { lo: 'Заменителей больше: спрос эластичнее, наценка ниже', hi: 'Товар заметнее: спрос менее эластичен, наценка выше' };
+/* подпись эффекта в пробной карточке: «Власть над ценой: цена выше MC» после ответа «Власть над ценой» —
+   без повтора ответа, и MC не превращается в «mc» (было «власть над ценой: власть над ценой: цена выше mc») */
+const trialEffect = (answer, label) => {
+  const t = String(label || '');
+  const rest = t.toLowerCase().startsWith(`${String(answer).toLowerCase()}:`) ? t.slice(answer.length + 1).trim() : t;
+  return rest.charAt(0).toLowerCase() + rest.slice(1);
+};
 const effectLabel = (chart, eff) => (chart === 'budget' ? BUDGET_LABEL[eff] : chart === 'elastic' ? ELASTIC_LABEL[eff] : chart === 'costs' ? COSTS_LABEL[eff] : chart === 'power' ? POWER_LABEL[eff] : chart === 'markup' ? MARKUP_LABEL[eff] : EFFECT_LABEL[eff]);
 const BUDGET0 = { I: 100, px: 1.25, py: 1.25 };
 const MARKET_STEP = 16;
@@ -574,7 +581,7 @@ function PowerGameChart({ st, markup: mk = false }) {
       <rect x={sx(0)} y={sy(p)} width={sx(q) - sx(0)} height={Math.max(0, sy(mc(q)) - sy(p))} fill="var(--u)" opacity={0.14 * m} />
       <path d={line(mc, 0, 9.6)} fill="none" stroke="var(--ds-ok)" strokeWidth="2.5" />
       <path d={line(mr, 0, Math.min(QM, 6))} fill="none" stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 4" opacity={m} />
-      <path d={line(dem, 0, QM)} fill="none" stroke="var(--u)" strokeWidth="4" strokeLinecap="round" data-testid="power-demand" />
+      <path d={line(dem, 0, QM - 0.6)} fill="none" stroke="var(--u)" strokeWidth="4" strokeLinecap="round" data-testid="power-demand" />
       <line x1={sx(q)} y1={sy(p)} x2={sx(q)} y2={sy(0)} stroke="var(--ds-ink3)" strokeDasharray="3 3" />
       <line x1={sx(q) + 7} y1={sy(p)} x2={sx(q) + 7} y2={sy(mc(q))} stroke="var(--u)" strokeWidth="2" opacity={m} />
       <circle cx={sx(q)} cy={sy(p)} r="5" fill="var(--u)" />
@@ -585,8 +592,10 @@ function PowerGameChart({ st, markup: mk = false }) {
       <text x={L - 6} y={T + 8} textAnchor="end" className="lp-ax">P</text>
       <text x={sx(1.2)} y={sy(mc(1.2)) - 7} className="lp-ax" style={{ fill: 'var(--ds-ok)', fontWeight: 700, ...halo }}>MC</text>
       <text x={sx(1)} y={sy(dem(1)) - 8} className="lp-ax" style={{ fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>спрос</text>
-      {m > 0.15 && <text x={sx(Math.min(QM, 5.6)) + 4} y={sy(mr(5.6)) + 12} className="lp-ax" style={{ opacity: m, ...halo }}>MR</text>}
-      {m > 0.15 && <text x={sx(q) + 12} y={(sy(p) + sy(mc(q))) / 2 + 4} className="lp-ax" style={{ opacity: m, fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>наценка +{markup}</text>}
+      {/* подписи не на линиях (жалоба mvuaw8zo «что за ужас с графиком»): MR — слева от своей линии над осью,
+          наценка — над точкой цены, где нет ни спроса, ни MC */}
+      {m > 0.15 && <text x={sx(5.2) - 6} y={sy(mr(5.2)) + 4} textAnchor="end" className="lp-ax" style={{ opacity: m, ...halo }}>MR</text>}
+      {m > 0.15 && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: m, fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>наценка +{markup}</text>}
       <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: m > 0.5 ? 'var(--u-ink)' : 'var(--ds-ok)', fontWeight: 700, ...halo }}>{mk ? (m > 0.5 ? 'мало заменителей' : 'много заменителей') : m > 0.5 ? 'цена выше MC' : 'цена = MC'}</text>
     </svg>
   );
@@ -730,7 +739,7 @@ export function GameRound({ inst, onDone, locked, result = null, best = 0, intro
             ) : (
               <div style={{ fontSize: 14.5, lineHeight: 1.45 }} data-testid="game-trial-result" data-ok={String(trial.ok)}>
                 <b style={{ color: trial.ok ? 'var(--ds-ok)' : 'var(--ds-bad)' }}>{trial.ok ? 'Верно.' : 'Не совсем.'}</b>{' '}
-                Ответ — «{inst.labels[sample.side]}»{sample.effect ? `: ${effectLabel(inst.chart, sample.effect).toLowerCase()}, это видно на графике` : ''}. В игре так же — только быстро.
+                Ответ — «{inst.labels[sample.side]}»{sample.effect ? `: ${trialEffect(inst.labels[sample.side], effectLabel(inst.chart, sample.effect))}, это видно на графике` : ''}. В игре так же — только быстро.
               </div>
             )}
           </div>
