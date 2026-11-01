@@ -2418,6 +2418,40 @@ test('путь: юнит «Биржа труда» (рынок труда) — �
   expect(errors).toEqual([]);
 });
 
+test('урок: длинный разбор и «Как решать» прокручиваются в панели ответа — «Дальше» всегда на экране (жалоба mvssly7o)', async ({ page }) => {
+  test.setTimeout(240_000);
+  await withTestFlag(page);
+  // экран из жалобы: 360×768
+  await page.setViewportSize({ width: 360, height: 768 });
+  await page.addInitScript(() => {
+    const at = Date.now() - 86400000;
+    const units = { sc: ['i1', 'l1', 'l2', 'i2', 'l3', 'l4', 'l5', 'l6', 'w', 's1', 'radio', 'g', 'rev', 'sum'], sd: ['i1', 'l1', 'w', 'i2', 'l3', 's1', 'l-radio', 'g', 'rev', 'sum'] };
+    for (const u of ['lm', 'el', 'mf', 'mb', 'in', 'cs', 'ct']) units[u] = ['i1', 'l1', 'i2', 'l2', 'w', 's1', 'radio', 'g', 'rev', 'sum'];
+    units.cm = ['i1', 'l1', 'i2'];
+    const ids = Object.entries(units).flatMap(([u, ls]) => ls.map((l) => `${u}-${l}`));
+    if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  // практика монополии из жалобы: «Какую цену назначит монополист?» — самый длинный разбор в курсе
+  await startLesson(page, 'cm-l2');
+  let opened = 0;
+  for (let i = 0; i < 40 && !(await page.getByTestId('lesson-result').isVisible()); i += 1) {
+    await passCards(page);
+    await answerExercise(page);
+    // верный ответ без разбора — панель пустая, но на месте
+    await expect(page.getByTestId('ex-feedback')).toBeAttached();
+    const how = page.getByTestId('ex-how-open');
+    if (await how.isVisible()) { await how.click(); await expect(page.getByTestId('ex-how')).toBeVisible(); opened += 1; }
+    const next = page.getByRole('button', { name: 'Дальше', exact: true });
+    await expect(next).toBeInViewport({ ratio: 1 });
+    // панель ответа — не выше трёх четвертей экрана: задание над ней остаётся видно
+    expect((await page.getByTestId('lesson-foot').boundingBox()).height).toBeLessThanOrEqual(768 * 0.76);
+    await next.click();
+  }
+  expect(opened, 'хотя бы один разбор «Как решать» раскрыт').toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
 test('сад: полили две сухие грядки подряд — дождь над обеими, второй полив не обрывает первый', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {

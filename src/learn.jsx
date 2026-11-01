@@ -384,6 +384,13 @@ const CSS = `
   .ln-inner { max-width: 560px; margin: 0 auto; }
   .ln-foot { border-top: 2px solid var(--ds-rule); padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--ds-paper); }
   .ln-foot.fb { padding: 0; border-top: none; }
+  /* длинный разбор прокручивается внутри панели ответа, «Дальше» под ним всегда на виду */
+  .ln-foot.fb .ds-answer { max-height: 75dvh; display: flex; flex-direction: column; }
+  .ln-foot.fb .ds-answer > div { display: flex; flex-direction: column; align-items: flex-start; min-height: 0; width: 100%; }
+  .ln-foot.fb .ds-answer > div > * { flex: none; }
+  .ln-foot.fb .ds-answer > div > .ln-fb-body { flex: 0 1 auto; align-self: stretch; }
+  .ln-foot.fb .ds-answer > div > button { align-self: stretch; }
+  .ln-fb-body { margin-top: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .ln-kind { margin-bottom: 8px; }
   .ln-prompt { margin-bottom: 12px; }
   /* урок на ПК — крупнее: на большом экране колонка телефона в 560 px терялась посередине. Шрифт
@@ -1254,7 +1261,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const verdictBar = inst && fb && !fb.empty ? (
     <AnswerBar ok={fb.ok} plain={feed} stamp={GAME_KINDS.includes(inst.kind) ? (fb.ok ? 'Игра засчитана' : 'Игра без зачёта') : inst.kind === 'open' ? (fb.skipped ? 'Вопрос пропущен' : 'Ответ записан') : null}
       say={GAME_KINDS.includes(inst.kind) || inst.kind === 'open' ? null : fb.say} className={fb.ok ? 'ds-flash' : ''} key={`fb${anim.k}`}>
-      <div style={{ marginTop: 10 }} data-testid="ex-feedback" data-ok={String(fb.ok)} data-partial={String(!!fb.partial)}>
+      <div className="ln-fb-body" data-testid="ex-feedback" data-ok={String(fb.ok)} data-partial={String(!!fb.partial)}>
         {inst.kind === 'open' && inst.explain && (
           <div className="tb-body" style={{ fontSize: 15, color: 'inherit' }} data-testid="open-review"><b>Разбор.</b> <Blocks blocks={inst.explain} ctx={noopCtx} /></div>
         )}
@@ -1291,8 +1298,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
             {!dropped && <button type="button" className="ln-how" data-testid="drop-review" onClick={dropHard}>Убрать из повторения</button>}
           </div>
         )}
-        <Button variant={fb.ok ? 'ok' : 'warm'} wide onClick={next} autoFocus style={{ marginTop: 12 }}>Дальше</Button>
       </div>
+      {/* «Дальше» — под прокруткой разбора, всегда на виду (жалоба mvssly7o: «Как решать» на весь экран, не закрыть) */}
+      <Button variant={fb.ok ? 'ok' : 'warm'} wide onClick={next} autoFocus style={{ marginTop: 12, flex: 'none' }}>Дальше</Button>
     </AnswerBar>
   ) : null;
   const unitId = lesson ? lesson.unitId : run.unitId;
