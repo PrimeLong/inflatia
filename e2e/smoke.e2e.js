@@ -3957,6 +3957,38 @@ test('«Слушай» можно пропустить с билета урок�
   expect(errors).toEqual([]);
 });
 
+test('повторение: длинная карточка ушла, а решали её внизу — экран сам подводит к следующей', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 3 * 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({
+      problems: {
+        'pc-basic': { tries: 1, ok: false, box: 0, due: Date.now() - 1000, lastAt: at },
+        'sc-oc': { tries: 1, ok: false, box: 0, due: Date.now() - 1000, lastAt: at },
+      },
+      learn: { mistakes: [{ id: 'auto:sc-oc', at }] },
+    }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await openTasks(page);
+  await page.getByTestId('practice-review').click();
+  const review = page.getByTestId('review');
+  const items = review.getByTestId('review-item');
+  await expect(items).toHaveCount(2);
+  const first = items.first();
+  const firstId = await first.getAttribute('data-item');
+  const next = review.locator(`[data-testid=review-item][data-item="${await items.nth(1).getAttribute('data-item')}"]`);
+  // решали внизу длинной карточки: её начало ушло выше края экрана
+  await first.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top + 80));
+  expect((await first.boundingBox()).y).toBeLessThan(0);
+  await first.getByTestId('review-drop').click();
+  await expect(review.locator(`[data-testid=review-item][data-item="${firstId}"]`)).toHaveCount(0);
+  // следующая карточка — у верха экрана, мотать вверх не нужно
+  await expect.poll(async () => (await next.boundingBox()).y, { timeout: 4000 }).toBeGreaterThanOrEqual(0);
+  expect((await next.boundingBox()).y).toBeLessThan(200);
+  expect(errors).toEqual([]);
+});
+
 test('повторение: трудную задачу можно убрать — уходит и из учебника, и из ошибок Пути', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;

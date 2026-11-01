@@ -52,7 +52,8 @@ export const TEXTBOOK_CSS = `
   .tb-solved-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--c-teal, #2E7D5B); color: #fff; }
   .tb-todo-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 2px dashed var(--c-border); color: var(--c-muted); font: 700 12px/1 var(--ds-sans, sans-serif); }
   /* повторение: карточка уходит — «вернётся» (ярлык-календарь, вправо) или «выучено» (печать, искры, растворяется) */
-  .rv-item { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .45s ease .2s; }
+  .rv-item { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .45s ease .2s; scroll-margin-top: 76px; }
+  [data-testid="review"] { scroll-margin-top: 76px; }
   .rv-item.leaving { grid-template-rows: 0fr; }
   .rv-in { min-height: 0; position: relative; }
   .rv-item.leaving .rv-in { overflow: hidden; }
@@ -1737,10 +1738,22 @@ function ReviewItem({ id, ctx, onGone, children }) {
   const answered = !!rec && (rec.lastAt || 0) > start;
   const outcome = dropped ? 'dropped' : !answered ? null : rec.due == null ? 'done' : rec.ok ? 'later' : 'wrong';
   const days = rec && rec.due ? daysUntil(rec.due) : '';
+  /* длинная карточка ушла, а решали её внизу — экран сам подводит к следующей карточке (последняя — к заголовку
+     «На повторение»); видна была целиком — экран стоит */
+  const box = React.useRef(null);
   const go = React.useCallback(() => {
     setPhase('mark');
     setTimeout(() => setPhase('leaving'), REVIEW_MARK);
-    setTimeout(() => { setPhase('gone'); onGone(id, outcome); }, REVIEW_MARK + REVIEW_LEAVE);
+    setTimeout(() => {
+      const el = box.current;
+      const above = el ? el.getBoundingClientRect().top < 0 : false;
+      const next = el ? (el.nextElementSibling && el.nextElementSibling.matches('[data-testid="review-item"]') ? el.nextElementSibling : el.closest('[data-testid="review"]')) : null;
+      setPhase('gone'); onGone(id, outcome);
+      if (above && next && next.scrollIntoView) {
+        const smooth = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        requestAnimationFrame(() => next.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' }));
+      }
+    }, REVIEW_MARK + REVIEW_LEAVE);
   }, [id, outcome, onGone]);
   React.useEffect(() => {
     if (phase !== 'open' || (outcome !== 'done' && outcome !== 'later')) return undefined;
@@ -1752,7 +1765,7 @@ function ReviewItem({ id, ctx, onGone, children }) {
   const kind = outcome === 'done' ? 'done' : outcome === 'dropped' ? 'dropped' : 'later';
   const drop = () => { Audio.play('paper'); ctx.onDrop(id); setDropped(true); };
   return (
-    <div className={`rv-item ${kind}${phase === 'leaving' ? ' leaving' : ''}`} data-testid="review-item" data-item={id} data-phase={phase} data-outcome={outcome || undefined}>
+    <div ref={box} className={`rv-item ${kind}${phase === 'leaving' ? ' leaving' : ''}`} data-testid="review-item" data-item={id} data-phase={phase} data-outcome={outcome || undefined}>
       <div className="rv-in">
         {children}
         {outcome === 'wrong' && phase === 'open' && (
