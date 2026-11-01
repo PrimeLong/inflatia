@@ -50,7 +50,7 @@ export const PLACES = {
   production: { place: 'Завод', building: 'factory', color: '#B25E00', region: 'industry', at: [690, 395], note: 'труд и капитал' },
   costs: { place: 'Пекарня', building: 'bakery', color: '#9A6300', region: 'agri', at: [700, 515], note: 'издержки и прибыль' },
   'competition-monopoly': { place: 'Биржа', building: 'exchange', color: '#C9372C', region: 'finance', at: [610, 590], note: 'конкуренция и монополия' },
-  monopolistic: { place: 'Ярмарка', building: 'market', color: '#9B2C8F', region: 'agri', at: [490, 615], note: 'похожие товары' },
+  monopolistic: { place: 'Ярмарка', building: 'fair', color: '#9B2C8F', region: 'agri', at: [490, 615], note: 'похожие товары' },
   oligopoly: { place: 'Картель', building: 'factory', color: '#577A00', region: 'mining', at: [425, 530], note: 'несколько крупных' },
   labor: { place: 'Биржа труда', building: 'ministry', color: '#A9561A', region: 'industry', at: [225, 495], note: 'зарплаты и занятость' },
   'market-failures': { place: 'Порт', building: 'port', color: '#D13B1F', region: 'port', at: [585, 180], note: 'внешние эффекты и налоги' },

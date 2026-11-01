@@ -52,3 +52,14 @@ describe('карта: 25 мест — по пять на уровень', async 
     seg.forEach((s1, i) => seg.forEach((s2, j) => { if (j > i + 1) expect(cross(s1, s2), `${i}×${j}`).toBe(false); }));
   });
 });
+
+describe('здания мест', () => {
+  it('у юнитов на Пути — разные гравюры: «Ярмарка» — шатёр, а не лавки «Рынка»', async () => {
+    const { PLACES } = await import('../../ds-tokens.js');
+    expect(PLACES.monopolistic.building).toBe('fair');
+    expect(PLACES['supply-demand'].building).toBe('market');
+    const { pilotUnits } = await import('../course.js');
+    const ready = pilotUnits().map((u) => placeOf(u.id).building);
+    expect(new Set(ready).size).toBe(ready.length);
+  });
+});
