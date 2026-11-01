@@ -2082,7 +2082,8 @@ const lastName = (n) => n.split(' ').filter((w) => !/^[А-ЯЁA-Z]\.$/.test(w)).
 export function extraInfo(x) {
   if (x.type === 'people') {
     const g = PEOPLE_BY_ID[x.id];
-    return g && { title: g.title, inside: `Три человека: ${g.people.map((p) => lastName(p.name)).join(', ')} — портрет, годы жизни, главная идея и вопрос к каждому.`, min: 5, xp: MET_XP, unitId: g.unitId };
+    // знакомый из прошлого юнита — «снова»
+    return g && { title: g.title, inside: `Три человека: ${g.people.map((p) => `${lastName(p.name)}${p.again ? ' (снова)' : ''}`).join(', ')} — портрет, годы жизни, главная идея и вопрос к каждому.`, min: 5, xp: MET_XP, unitId: g.unitId };
   }
   if (x.type === 'read') {
     const r = READING_BY_ID[x.id];

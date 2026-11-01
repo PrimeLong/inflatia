@@ -49,6 +49,9 @@ export const PEOPLE_CSS = `
   .pp-role span { padding: 4px 10px; border-radius: 999px; font: 600 13px var(--ds-sans); background: color-mix(in srgb, var(--pp) 12%, var(--ds-card)); color: var(--pp-ink);
     border: 1px solid color-mix(in srgb, var(--pp) 28%, transparent); }
   .pp-lead { margin-top: 12px; font: 400 17px/1.45 var(--ds-sans); color: var(--ds-ink2); }
+  /* знакомый из прошлого юнита: метка и строка, где встречались */
+  .pp-role .pp-again { background: var(--pp); color: #fff; border-color: var(--pp); }
+  .pp-again-note { margin-top: 8px; font: 500 14px/1.4 var(--ds-sans); color: var(--pp-ink); }
 
   /* лента веков: шкала 1640–2030, годы жизни — полоса, главный год — флажок */
   .pp-era { position: relative; margin: 26px 4px 8px; height: 58px; }
@@ -257,7 +260,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div className="pp-name" data-testid="people-name">{p.name}</div>
-              <div className="pp-role"><span>{p.years}</span><span>{p.role}</span></div>
+              <div className="pp-role"><span>{p.years}</span><span>{p.role}</span>{p.again && <span className="pp-again" data-testid="people-again">Уже знакомы</span>}</div>
+              {p.again && PEOPLE_BY_ID[p.firstGroup] && <div className="pp-again-note" data-testid="people-again-note">Вы встречали {p.name.split(' ').pop()} в «{PEOPLE_BY_ID[p.firstGroup].title}» — теперь о другом.</div>}
               <div className="pp-lead">{p.lead}</div>
             </div>
           </div>

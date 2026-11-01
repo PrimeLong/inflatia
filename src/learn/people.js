@@ -11,7 +11,24 @@
 
 export const MET_XP = 12;
 
-export const PEOPLE = [
+/* Знакомый может вернуться в «Персоналиях» другого юнита — запись { again: '<id>', role?, lead?, mark?, story, idea,
+   fact, ask }: имя, годы и портрет — из первой встречи, остальное — своё для этой темы. В галерее он один. */
+export function resolvePeople(raw) {
+  const first = {};
+  raw.forEach((g) => g.people.forEach((p) => { if (!p.again && !first[p.id]) first[p.id] = { ...p, group: g.id }; }));
+  return raw.map((g) => ({
+    ...g,
+    people: g.people.map((p) => {
+      if (!p.again) return p;
+      const base = first[p.again];
+      if (!base) throw new Error(`Персоналии: «${p.again}» возвращается в ${g.id}, но нигде не встречался впервые`);
+      const { group, ...person } = base;
+      return { ...person, ...p, id: p.again, again: true, firstGroup: group };
+    }),
+  }));
+}
+
+const RAW = [
   {
     id: 'people-scarcity', unitId: 'scarcity', title: 'Люди выбора', color: '#8A5A2B',
     people: [
@@ -364,14 +381,18 @@ export const PEOPLE = [
   },
 ];
 
+export const PEOPLE = resolvePeople(RAW);
 export const PEOPLE_BY_ID = Object.fromEntries(PEOPLE.map((p) => [p.id, p]));
 export const PEOPLE_BY_UNIT = Object.fromEntries(PEOPLE.map((p) => [p.unitId, p]));
-export const PERSON_BY_ID = Object.fromEntries(PEOPLE.flatMap((g) => g.people.map((p) => [p.id, { ...p, group: g.id }])));
+// человек — по первой встрече
+export const PERSON_BY_ID = Object.fromEntries(PEOPLE.flatMap((g) => g.people.filter((p) => !p.again).map((p) => [p.id, { ...p, group: g.id }])));
 export const isMet = (learn, id) => !!((learn && learn.met) || {})[id];
 // инициалы для медальона: «Джон Д. Рокфеллер» → «ДР»
 export const initialsOf = (name) => { const w = name.replace(/\b[А-ЯЁA-Z]\.\s*/g, '').split(/\s+/).filter(Boolean); return (w[0][0] + w[w.length - 1][0]).toUpperCase(); };
 // лента веков: доля положения года на шкале 1640–2030
 export const ERA = { from: 1640, to: 2030 };
 export const eraPos = (year) => Math.max(0, Math.min(1, (year - ERA.from) / (ERA.to - ERA.from)));
-// галерея профиля: все люди, встреченные — с отметкой
-export const galleryOf = (learn) => PEOPLE.flatMap((g) => g.people.map((p) => ({ ...p, group: g, met: isMet(learn, g.id) })));
+// галерея профиля: все люди по одному разу (по первой встрече); встреченный — если пройдены любые «Персоналии», где он есть
+export const galleryOf = (learn, groups = PEOPLE) => groups.flatMap((g) => g.people.filter((p) => !p.again).map((p) => ({
+  ...p, group: g, met: groups.some((x) => isMet(learn, x.id) && x.people.some((y) => y.id === p.id)),
+})));
