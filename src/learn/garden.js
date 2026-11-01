@@ -60,9 +60,9 @@ export const GRADES = [
   { id: 'myth', title: 'небывалый', p: 0.001, mult: 6, color: '#1F5F6B' },
 ];
 export const GRADE_BY_ID = Object.fromEntries(GRADES.map((g) => [g.id, g]));
-/* Экран «Шансы урожая» (docs/mechanics.md, «Сад Инфли»): по решению владельца шансы на экране не пишем, экран
-   выключен. Включить — true (рекомендация показать — docs/legal-todo.md, п. 11). */
-export const SHOW_ODDS = false;
+/* Шансы урожая (docs/mechanics.md, «Сад Инфли»): показываем — решение владельца 1 ноября 2026; в строке редкостей
+   и на экране «Шансы урожая». false — скрыть и то и другое (docs/legal-todo.md, п. 11). */
+export const SHOW_ODDS = true;
 // шанс в процентах по-русски: 55%, 1,9%, 0,1% — из тех же GRADES, по которым выпадает редкость
 export const oddsText = (p) => `${String(Math.round(p * 1000) / 10).replace('.', ',')}%`;
 export const oddsTable = () => GRADES.map((g) => ({ id: g.id, title: g.title, odds: oddsText(g.p), mult: g.mult }));

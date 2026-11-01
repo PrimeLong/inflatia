@@ -2418,10 +2418,10 @@ test('лавка → сад: урожай с редкостью — продат
   await expect(garden.locator('[data-testid=garden-plot][data-plant="chamomile"]')).toHaveAttribute('data-stage', 'bloom');
   await expect(garden.locator('[data-testid=garden-plot][data-plant="tulip"]')).toHaveAttribute('data-stage', 'bud');
   await expect(garden.locator('[data-testid=garden-plot][data-plant="tulip"] [data-testid=garden-left]')).toContainText('3 ч');
-  // шансов редкости на экране нет — только редкости и во сколько раз дороже урожай; экран «Шансы урожая» выключен (SHOW_ODDS)
-  await expect(garden.getByTestId('garden-odds').first()).not.toContainText('%');
-  await expect(garden.getByTestId('garden-grades')).toContainText('небывалый ×6');
-  await expect(garden.getByTestId('garden-odds-open')).toHaveCount(0);
+  // шансы показываем: у каждой редкости — шанс и во сколько раз дороже; кнопка «Шансы урожая» — таблица
+  await expect(garden.locator('[data-testid=garden-grades] > [data-grade="rare"]')).toContainText('6% ×1,4');
+  await expect(garden.locator('[data-testid=garden-grades] > [data-grade="myth"]')).toContainText('0,1% ×6');
+  await expect(garden.getByTestId('garden-odds-open')).toHaveCount(1);
   // на пакетике видно, можно ли купить: «Посадить» — или что мешает, и кнопка выключена
   const seedStates = await garden.getByTestId('garden-seed').evaluateAll((els) => els.map((e) => { const b = e.querySelector('[data-testid=garden-plant]'); return [e.dataset.state, b.textContent, b.disabled]; }));
   seedStates.forEach(([st, text, off]) => {
@@ -5637,11 +5637,10 @@ test('особые уроки не пропустить: после урока �
   expect(errors).toEqual([]);
 });
 
-// «Шансы урожая» — экран за флагом SHOW_ODDS (выключен по решению владельца); тест открывает его своим флагом
-test('сад: экран «Шансы урожая» (за флагом) — редкость, шанс и цена, в сумме 100%', async ({ page }) => {
+// «Шансы урожая» — шансы показываем (SHOW_ODDS): таблица редкость · шанс · цена
+test('сад: экран «Шансы урожая» — редкость, шанс и цена, в сумме 100%', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {
-    localStorage.setItem('ems-show-odds', '1');
     if (localStorage.getItem('ems-textbook-v1')) return;
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, coins: { '2026-01-01': 50 } } }));
   });
