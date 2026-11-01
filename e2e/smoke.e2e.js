@@ -2452,6 +2452,42 @@ test('урок: длинный разбор и «Как решать» прок�
   expect(errors).toEqual([]);
 });
 
+test('«Соедините» на телефоне: термины фишками сверху, определения во всю ширину, у соединённого — метка термина (жалоба mvu7oqpw)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await withTestFlag(page);
+  await page.setViewportSize({ width: 360, height: 768 });
+  await page.addInitScript(() => {
+    const at = Date.now() - 86400000;
+    const units = { sc: ['i1', 'l1', 'l2', 'i2', 'l3', 'l4', 'l5', 'l6', 'w', 's1', 'radio', 'g', 'rev', 'sum'], sd: ['i1', 'l1', 'w', 'i2', 'l3', 's1', 'l-radio', 'g', 'rev', 'sum'] };
+    for (const u of ['lm', 'el', 'mf', 'mb', 'in', 'cs', 'ct']) units[u] = ['i1', 'l1', 'i2', 'l2', 'w', 's1', 'radio', 'g', 'rev', 'sum'];
+    units.cm = ['i1', 'l1', 'i2', 'l2'];
+    const ids = Object.entries(units).flatMap(([u, ls]) => ls.map((l) => `${u}-${l}`));
+    if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  // «Слова» «Биржи»: пары «термин — определение» на время
+  await startLesson(page, 'cm-w');
+  for (let i = 0; i < 30; i += 1) {
+    await passCards(page);
+    if (await page.getByTestId('ex').getAttribute('data-kind') === 'match') break;
+    await answerExercise(page);
+    await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  }
+  const ex = page.getByTestId('ex');
+  await expect(ex).toHaveAttribute('data-kind', 'match');
+  const exW = (await ex.boundingBox()).width;
+  // определения — во всю ширину, термины — короткими фишками
+  for (const b of await ex.locator('[data-side=right]').all()) expect((await b.boundingBox()).width).toBeGreaterThan(exW * 0.9);
+  expect((await ex.locator('[data-side=left]').first().boundingBox()).width).toBeLessThan(exW * 0.75);
+  // соединили — над определением метка с термином
+  const term = (await ex.locator('[data-side=left]').first().innerText()).trim();
+  await ex.locator('[data-side=left]').first().click();
+  await ex.locator('[data-side=right]').nth(1).click();
+  await expect(ex.locator('[data-side=right]').nth(1).getByTestId('match-tag')).toHaveText(term);
+  await expectNoSidewaysScroll(page);
+  expect(errors).toEqual([]);
+});
+
 test('сад: полили две сухие грядки подряд — дождь над обеими, второй полив не обрывает первый', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {

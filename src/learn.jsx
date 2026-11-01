@@ -384,6 +384,14 @@ const CSS = `
   .ln-inner { max-width: 560px; margin: 0 auto; }
   .ln-foot { border-top: 2px solid var(--ds-rule); padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--ds-paper); }
   .ln-foot.fb { padding: 0; border-top: none; }
+  .ln-match { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ln-match-tag { display: block; font: 700 11.5px/1.2 var(--ds-sans); letter-spacing: .02em; margin-bottom: 3px; }
+  @media (max-width: 560px) {
+    .ln-match { grid-template-columns: 1fr; gap: 2px; }
+    .ln-match-left { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 6px; }
+    .ln-body .ln-match-left .ds-opt { width: auto; margin: 0; padding: 7px 12px; line-height: 1.3; }
+    .ln-body .ln-match-right .ds-opt { margin: 6px 0; padding: 11px 14px; }
+  }
   /* длинный разбор прокручивается внутри панели ответа, «Дальше» под ним всегда на виду */
   .ln-foot.fb .ds-answer { max-height: 75dvh; display: flex; flex-direction: column; }
   .ln-foot.fb .ds-answer > div { display: flex; flex-direction: column; align-items: flex-start; min-height: 0; width: 100%; }
@@ -748,14 +756,15 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
           {/* пары на время: по нулю ответ уходит на проверку таким, какой есть */}
           {inst.timer && <TimerBar seconds={inst.timer} running={!locked} onEnd={() => onSubmit(inst._resp.current || {})} />}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div>{inst.left.map((l) => (
+          {/* на телефоне: термины — фишками сверху, определения во всю ширину (жалоба mvu7oqpw: «огромный список») */}
+          <div className="ln-match">
+            <div className="ln-match-left">{inst.left.map((l) => (
               <button key={l.key} type="button" className="ds-opt" data-side="left" data-key={l.key} aria-pressed={sel === l.key} disabled={locked}
                 style={{ fontSize: 14, borderColor: l.key in pairNo ? tone(pairNo[l.key]) : undefined }}
                 onClick={() => { Audio.play('tick'); if (l.key in r) { const n = { ...r }; delete n[l.key]; setResp(n); setSel(null); } else setSel(l.key); }}>
                 <Inline nodes={l.text} ctx={ctx} /></button>
             ))}</div>
-            <div>{inst.right.map((x) => (
+            <div className="ln-match-right">{inst.right.map((x) => (
               <button key={x.key} type="button" className="ds-opt" data-side="right" data-key={x.key} disabled={locked || (!sel && !(x.key in rightOwner))}
                 style={{ fontSize: 14, borderColor: x.key in rightOwner ? tone(pairNo[rightOwner[x.key]]) : undefined }}
                 onClick={() => {
@@ -764,7 +773,9 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
                   if (x.key in rightOwner) delete n[rightOwner[x.key]];
                   if (sel) n[sel] = x.key;
                   setResp(n); setSel(null);
-                }}><Inline nodes={x.text} ctx={ctx} /></button>
+                }}>
+                {x.key in rightOwner && <span className="ln-match-tag" data-testid="match-tag" style={{ color: tone(pairNo[rightOwner[x.key]]) }}><Inline nodes={inst.left.find((l) => l.key === rightOwner[x.key]).text} ctx={ctx} /></span>}
+                <Inline nodes={x.text} ctx={ctx} /></button>
             ))}</div>
           </div>
         </div>
