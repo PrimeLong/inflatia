@@ -1660,7 +1660,8 @@ test('путь: карточка урока, «Знакомство» шагам
   await page.getByRole('button', { name: 'Понятно' }).click();
   await answerExercise(page, { wrong: true });
   await expect(page.getByTestId('lesson-foot')).toContainText('Правильно:');
-  await expect(page.getByTestId('lesson-foot')).toContainText('вернётся в конце урока');
+  // в «Знакомстве» все вопросы урока уже в очереди — замены нет, и та же задача сразу не возвращается
+  await expect(page.getByTestId('retry-note')).toHaveText('Похожего вопроса в уроке нет — задача подождёт в «Повторить ошибки».');
   await expect(page.getByTestId('lesson-foot')).not.toHaveClass(/ds-flash/);
   await expectNoSidewaysScroll(page);
   // встряска после ошибки не даёт ползунка: у тела урока прокрутка только по вертикали и только по делу
@@ -1669,7 +1670,7 @@ test('путь: карточка урока, «Знакомство» шагам
   expect(await body.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
   await page.getByRole('button', { name: 'Дальше', exact: true }).click();
   const { retries, cards } = await playLesson(page);
-  expect(retries, 'ошибка вернулась в конце урока').toBe(1);
+  expect(retries, 'та же задача в конце урока не возвращается').toBe(0);
   expect(cards, 'перед каждым вопросом — свой шаг').toBeGreaterThanOrEqual(4);
   const result = page.getByTestId('lesson-result');
   await expect(result).toContainText('Урок пройден');

@@ -34,7 +34,7 @@ import { afterPathAnswer, dropFromReview } from './textbook/review-sync.js';
 import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
   UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, levelUnits, LESSON_BY_ID, KIND_LABEL, SHIFT_CURVES, LESSON_KIND, GAME_KINDS, SELF_CHECK, OPEN_MIN, buildLesson, buildUnitCheck, buildLevelCheck, buildPractice, practiceIds, canPractice, PRACTICE_MAX, check, ready, answerText, unitFor, pathState,
-  buildPlacement, placementOpened, placementFailed, retryOf, gameNeed, gameRule, buildFix,
+  buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix,
 } from './learn/course.js';
 import {
   startLesson, recordAttempt, abandonLesson, addMistake, resolveMistake, skipLesson, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak,
@@ -1059,6 +1059,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     const r = check(cur, answer);
     if (r.empty) { setFb({ ok: false, why: null, empty: true }); return; }
     const a = acc.current;
+    // ошибка поставила повтор в конец урока — подпись под ответом говорит, вернётся ли задача
+    let requeued = false;
     // урок начат — с первого ответа
     /* аналитика: lesson_start — активность, на каждый урок; first_lesson_start — шаг воронки, один раз с
        устройства (docs/mechanics.md, «Аналитика») */
@@ -1107,9 +1109,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       // повтор в конце урока — не та же задача: новые числа или похожий вопрос на ту же мысль;
       // возвращается ОДИН раз, а не до победного: новичок, отвечая наугад, видел одно задание
       // по пять раз. Не вышло и во второй — урок идёт дальше, задача ждёт в «Повторить ошибки»
-      if (retryable && !cur.noRetry && !cur.retry) {
+      // замены нет (та же задача) — повтора нет: ждёт в «Повторить ошибки»
+      const copy = retryable && !cur.noRetry && !cur.retry ? retryOf(cur, Math.random, queue.map((q) => q.of || q.id)) : null;
+      if (retryWorth(copy)) {
         a.retries += 1;
-        const copy = retryOf(cur, Math.random, queue.map((q) => q.of || q.id));
+        requeued = true;
         setQueue((q) => [...q, { ...copy, uid: `${cur.uid}r${a.retries}`, orig, retry: true }]);
       }
       else a.solved.add(orig);
@@ -1117,7 +1121,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     setAnim((x) => ({ k: x.k + 1, kind: r.ok ? 'flash' : 'shake' }));
     wrongRun.current = r.ok ? 0 : wrongRun.current + 1;
     const say = pickPhrase(situation({ ok: r.ok, streak: firstOk && firstTime ? run3 + 1 : 0, hinted: !!a.hinted[orig] || !!r.partial, retry: !!cur.retry, wrongRun: wrongRun.current }), said.current);
-    setFb({ ok: r.ok, why: r.why, say, skipped: !!r.skipped, partial: !!r.partial });
+    setFb({ ok: r.ok, why: r.why, say, skipped: !!r.skipped, partial: !!r.partial, requeued });
     // украшение урока отзывается на ответ
     if (!r.skipped) tellAnswer(r.ok);
   };
@@ -1276,13 +1280,14 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         {!fb.ok && retryable && !inst.noRetry && !inst.hard && (
           <div className="ds-sub" style={{ fontSize: 13.5, marginTop: 4 }} data-testid="retry-note">
             {inst.retry ? (run.mode === 'practice' || run.mode === 'fix' ? 'Ничего страшного: задача останется в «Повторить ошибки».' : 'В этом уроке она больше не вернётся — подождёт в «Повторить ошибки».')
-              : feed ? 'Похожий вопрос вернётся в конце урока — один раз.' : 'Похожая задача вернётся в конце урока — один раз.'}
+              : !fb.requeued ? (run.mode === 'lesson' ? 'Похожего вопроса в уроке нет — задача подождёт в «Повторить ошибки».' : 'Ничего страшного: задача останется в «Повторить ошибки».')
+                : feed ? 'Похожий вопрос вернётся в конце урока — один раз.' : 'Похожая задача вернётся в конце урока — один раз.'}
           </div>
         )}
         {/* трудная задача: вернётся один раз; не знаете, как решать, — можно убрать из повторения (docs/mechanics.md) */}
         {!fb.ok && retryable && inst.hard && (
           <div className="ln-hard-note" data-testid="hard-note">
-            <span className="ds-sub">{dropped ? 'Убрано из повторения. Решить её можно в учебнике.' : inst.retry ? 'В этом уроке задача больше не вернётся.' : 'Задача вернётся в конце урока — один раз.'}</span>
+            <span className="ds-sub">{dropped ? 'Убрано из повторения. Решить её можно в учебнике.' : inst.retry || !fb.requeued ? 'В этом уроке задача больше не вернётся.' : 'Задача вернётся в конце урока — один раз.'}</span>
             {!dropped && <button type="button" className="ln-how" data-testid="drop-review" onClick={dropHard}>Убрать из повторения</button>}
           </div>
         )}

@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import katex from 'katex';
 import {
   UNITS, UNIT_BY_ID, LESSONS, EXERCISES, pilotUnits, buildLesson, buildUnitCheck, buildPractice, practiceIds, canPractice, instantiate, check, ready, answerText, estimate, pathState, SECONDS, KIND_LABEL, STEP_PICS,
-  GAME_KINDS, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart,
+  GAME_KINDS, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, retryWorth, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart,
 } from '../course.js';
 import { CAST } from '../cast.js';
 import { WALLET, bestOf, gapOf } from '../wallet.js';
@@ -425,6 +425,16 @@ describe('повтор без зубрёжки: вернувшаяся зада�
     }));
     // в «Практиках» почти всегда есть чем заменить
     expect(fresh / total).toBeGreaterThan(0.8);
+  });
+  it('замены нет — повтора в уроке нет: в «Знакомстве» все вопросы уже заданы, та же задача не возвращается (жалоба mvthz3xx)', () => {
+    const { items } = buildLesson('cm-i2', seeded(3));
+    const it = items.find((x) => x.id === 'cm-q2-dwl');
+    const r = retryOf(it, seeded(5), items.map((x) => x.of || x.id));
+    expect(r.fresh).toBe('same');
+    expect(retryWorth(r)).toBe(false);
+    // есть похожий вопрос или новые числа — повтор есть
+    expect(retryWorth(retryOf(it, seeded(5), ['cm-q2-dwl']))).toBe(true);
+    expect(retryWorth(null)).toBe(false);
   });
 });
 

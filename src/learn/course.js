@@ -587,6 +587,9 @@ export function freshCopy(ex, rand = Math.random, extra = {}, { avoid = new Set(
   return instantiate(ex, rand, { ...extra, fresh: 'same' });
 }
 // повтор после ошибки в уроке: avoid — задачи, которые уже есть в этом уроке
+/* Замены нет (fresh: 'same') — повтора в уроке нет: ответ только что показан, та же задача проверила бы
+   память, а не понимание (жалоба mvthz3xx: «два раза ошибся — два одинаковых вопроса»). Ждёт в «Повторить ошибки». */
+export const retryWorth = (copy) => !!copy && copy.fresh !== 'same';
 export function retryOf(inst, rand = Math.random, avoid = []) {
   const base = EXERCISES[inst.of || inst.id] || (inst.variant ? { id: inst.id, kind: 'calc', variant: inst.variant, lesson: inst.lesson, unitId: inst.unitId } : null);
   if (!base) return { ...inst, fresh: 'same' };
