@@ -28,7 +28,7 @@ export function cleanCard(raw) {
     .map((e) => ({ k: e.k, ...(e.id != null ? { id: String(e.id) } : {}), ...(e.n ? { n: num(e.n, 1e5) } : {}), at: num(e.at, 1e14) }))
     .filter((e) => e.at > 0).sort((a, b) => b.at - a.at).slice(0, 20);
   return {
-    wear, streak: num(c.streak, 5000), xp: num(c.xp, 1e8), level: id(c.level), league: id(c.league),
+    wear, streak: num(c.streak, 5000), ahead: arr(c.ahead).slice(0, 4).map((n) => num(n, 5000)), xp: num(c.xp, 1e8), level: id(c.level), league: id(c.league),
     seals: [...new Set(arr(c.seals).map(id).filter(Boolean))].slice(0, 60), album: num(c.album, 200),
     months: arr(c.months).filter((m) => typeof m === 'string' && /^\d{4}-\d{2}$/.test(m)).slice(-36),
     xpDays, events,

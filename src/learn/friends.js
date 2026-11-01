@@ -70,7 +70,10 @@ export function buildCard(learn, now = Date.now()) {
   for (let k = 20; k >= 0; k -= 1) { const d = addDays(today, -k); const x = (learn.xp || {})[d] || 0; if (x) xpDays[d] = x; }
   const wear = Object.fromEntries(Object.entries(outfitOf(learn)).filter(([, v]) => v));
   return {
-    wear, streak: streak(learn, now).days, xp: Object.values(learn.xp || {}).reduce((a, b) => a + b, 0),
+    wear, streak: streak(learn, now).days,
+    // серия, если пропустить следующие 1–4 дня: друзья видят серию на сегодня, а не на день последнего захода
+    ahead: [1, 2, 3, 4].map((k) => streak(learn, now + k * DAY_MS).days),
+    xp: Object.values(learn.xp || {}).reduce((a, b) => a + b, 0),
     level: cur ? levelOf(cur.course.id).id : null, league: leagueState(learn, now).league,
     seals: achievementsOf(learn).filter((a) => a.got).map((a) => a.id),
     album: albumItems(learn).filter((a) => a.got).length,
@@ -94,6 +97,21 @@ export const EVENT_ICON = { unit: 'landmark', streak: 'fire', seal: 'stamp', mon
 export function friendFeed(friends = [], now = Date.now(), days = 14) {
   return friends.flatMap((f) => ((f.card && f.card.events) || []).filter((e) => now - e.at < days * DAY_MS).map((e) => ({ ...e, login: f.login, name: f.name, wear: (f.card && f.card.wear) || {} })))
     .sort((a, b) => b.at - a.at).slice(0, 30);
+}
+
+/* серия друга на сегодня: карточка — с дня, когда он последний раз заходил; прошло d дней — серия, какой она
+   стала бы после d пропусков (ahead, считает его приложение по его правилам); старая карточка без ahead —
+   страховка на один день: больше одного пропущенного дня — 0 */
+const dayNo = (day) => Math.round(Date.parse(`${day}T00:00:00Z`) / DAY_MS);
+export function friendStreak(card, now = Date.now()) {
+  if (!card) return 0;
+  const n = card.streak || 0;
+  if (!card.at || !n) return n;
+  const d = dayNo(dayOf(now)) - dayNo(dayOf(card.at));
+  if (d <= 0) return n;
+  const ahead = Array.isArray(card.ahead) && card.ahead.length ? card.ahead : null;
+  if (ahead) return d <= ahead.length ? ahead[d - 1] || 0 : 0;
+  return d >= 2 ? 0 : n;
 }
 
 // «в сети»: когда друг последний раз обновлял карточку
