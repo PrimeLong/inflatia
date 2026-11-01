@@ -73,7 +73,7 @@ export function publicProfile(user, now = Date.now()) {
   const banned = nameBanned(user);
   return { login: user.login, name: user.name, emblem: user.emblem || 'star', playerId: user.playerId,
     createdAt: user.createdAt, stats: { ...emptyStats(), ...user.stats }, hasRecovery: !!user.recHash,
-    birthYear: user.birthYear || null, kidsMode: kidsModeOf(user), leaguePublic: user.leaguePublic === true,
+    birthYear: user.birthYear || null, kidsMode: kidsModeOf(user),
     nameNextAt: nameNextAt(user, now), renameBy: banned && user.renameBy ? user.renameBy : null, blocked: isBlocked(user, now) };
 }
 

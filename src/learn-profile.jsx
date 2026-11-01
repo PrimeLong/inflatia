@@ -529,7 +529,7 @@ export function SettingsView({ learn, update, notify, onBack, onThemeChange, onP
         </SetGroup>
 
         <SetGroup icon={UserRound} tone="#65408F" title="Аккаунт и данные">
-          <MenuCard icon={UserRound} tone="#65408F" title="Аккаунт" data-testid="prof-account" data-nav-target="account" right={arrow} text="Имя, значок, пароль, выход; имя в лигах; скачать или удалить свои данные" onClick={() => { Audio.play('paper'); setAccount(true); }} />
+          <MenuCard icon={UserRound} tone="#65408F" title="Аккаунт" data-testid="prof-account" data-nav-target="account" right={arrow} text="Имя, значок, пароль, выход; скачать или удалить свои данные" onClick={() => { Audio.play('paper'); setAccount(true); }} />
           <MenuCard icon={ShieldCheck} tone="var(--ds-ink2)" title={PRIVACY_TITLE} data-testid="prof-privacy" right={arrow} text="Что хранится, где, зачем и сколько" onClick={() => { Audio.play('paper'); setPrivacy(true); }} />
         </SetGroup>
         {owner && (

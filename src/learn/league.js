@@ -6,9 +6,8 @@
 
    Соперники — ученики-боты: имя, привычку, уроки по дням и часам задаёт зерно (неделя, лига,
    номер соперника, день), так что таблица одна и та же на всех устройствах и растёт в течение
-   недели скачками — урок за уроком, с пропущенными днями, как у живых учеников: места меняются. Ученики, разрешившие показывать своё имя (api/account.js,
-   leaguePublic), могут появиться под именем бота — с выдуманным опытом; на экране об этом
-   сказано честно.
+   недели скачками — урок за уроком, с пропущенными днями, как у живых учеников: места меняются. Настоящих
+   имён учеников в лигах нет — только боты (опция «имя в лигах» убрана); на экране об этом сказано честно.
 
    Состояния лиги в профиле нет: она выводится из опыта по дням (learn.xp) — неделя за неделей
    от первой недели с опытом, поэтому два устройства всегда согласны. Неделя без опыта — вне
@@ -98,7 +97,7 @@ const HABITS = [
 // сколько уроков в среднем за неделю даёт привычка — чтобы привести лигу к её медиане опыта
 const habitWeek = (h) => h.p.reduce((a, x) => a + x, 0) * ((h.lessons[0] + h.lessons[1]) / 2);
 export const LESSON_XP = 22;
-function rivalsV1(week, league, realNames = []) {
+function rivalsV1(week, league) {
   const r = rng(`${week}:${league}`);
   const lg = LEAGUE_BY_ID[league];
   const used = new Set();
@@ -109,12 +108,6 @@ function rivalsV1(week, league, realNames = []) {
     }
     return `Ученик ${used.size + 1}`;
   };
-  /* настоящие имена — не больше шести на группу, в случайных местах. Своё зерно: имена не
-     сдвигают опыт соперников, таблица и лига от них не зависят */
-  const rr = rng(`${week}:${league}:real`);
-  const real = realNames.filter((n) => typeof n === 'string' && n.trim()).slice();
-  const realSlots = new Set();
-  while (realSlots.size < Math.min(6, real.length)) realSlots.add(Math.floor(rr() * (GROUP - 1)));
   // типичный ученик лиги делает за неделю столько уроков, чтобы набрать её медиану
   const typical = HABITS.reduce((a, h) => a + h.share * habitWeek(h), 0);
   return Array.from({ length: GROUP - 1 }, (_, k) => {
@@ -122,9 +115,8 @@ function rivalsV1(week, league, realNames = []) {
     for (const h of HABITS) { if (roll < h.share) { habit = h; break; } roll -= h.share; }
     // запал недели: кто-то в ударе, кто-то занят — множитель числа уроков, от ~0.45 до ~2.2
     const drive = ((lg.median * 0.88) / (typical * LESSON_XP)) * Math.exp((r() + r() + r() - 1.5) * 0.75);
-    let name = pickName();
+    const name = pickName();
     const color = COLORS[Math.floor(r() * COLORS.length)];
-    if (realSlots.has(k) && real.length) { const j = Math.floor(rr() * real.length); name = real.splice(j, 1)[0]; }
     // уроки по дням: [час, опыт]; у каждого дня своё зерно — один день не тянет за собой другие
     const days = Array.from({ length: LEAGUE_DAYS }, (_, d) => {
       const dr = rng(`${week}:${league}:${k}:${d}`);
@@ -177,7 +169,7 @@ function leagueCurve(league) {
     return knots[knots.length - 1][1];
   };
 }
-function rivalsV2(week, league, realNames = []) {
+function rivalsV2(week, league) {
   const r = rng(`v2:${week}:${league}`);
   const used = new Set();
   const pickName = () => {
@@ -187,10 +179,6 @@ function rivalsV2(week, league, realNames = []) {
     }
     return `Ученик ${used.size + 1}`;
   };
-  const rr = rng(`${week}:${league}:real`);
-  const real = realNames.filter((n) => typeof n === 'string' && n.trim()).slice();
-  const realSlots = new Set();
-  while (realSlots.size < Math.min(6, real.length)) realSlots.add(Math.floor(rr() * (GROUP - 1)));
   // слои вразнобой: номер соперника не говорит о его месте
   const layers = Array.from({ length: GROUP - 1 }, (_, k) => k);
   for (let k = layers.length - 1; k > 0; k -= 1) { const j = Math.floor(r() * (k + 1)); [layers[k], layers[j]] = [layers[j], layers[k]]; }
@@ -202,9 +190,8 @@ function rivalsV2(week, league, realNames = []) {
     let habit;
     if (layer < 2) habit = HABITS[layer === 0 ? 4 : 3];
     else { let roll = r() * 0.84; habit = HABITS[2]; for (const h of HABITS.slice(0, 3)) { if (roll < h.share) { habit = h; break; } roll -= h.share; } }
-    let name = pickName();
+    const name = pickName();
     const color = COLORS[Math.floor(r() * COLORS.length)];
-    if (realSlots.has(k) && real.length) { const j = Math.floor(rr() * real.length); name = real.splice(j, 1)[0]; }
     // уроки: сколько нужно на итог недели, по дням привычки; опыт урока — 12…32, итог — ровно target
     const dr = rng(`v2:${week}:${league}:${k}`);
     const n = Math.max(1, Math.round(target / LESSON_XP));
@@ -253,7 +240,9 @@ function rivalsV2(week, league, realNames = []) {
   });
 }
 // соперники недели: до LEAGUE_V2_FROM — прежние (история лиги не пересчитывается), с неё — по минутам
-const rivals = (week, league, realNames = []) => (week >= LEAGUE_V2_FROM ? rivalsV2 : rivalsV1)(week, league, realNames);
+/* только боты: настоящих имён в лигах нет (docs/mechanics.md, «Лиги недели»); имена и опыт ботов — те же, что
+   выпадали раньше без подмены имени */
+const rivals = (week, league) => (week >= LEAGUE_V2_FROM ? rivalsV2 : rivalsV1)(week, league);
 
 /* Опыт соперника к моменту now: прошедшие дни целиком, сегодня — уроки, час которых уже прошёл.
    В будущее и в прошлое недели не заглядывает: после субботы — весь итог. */
@@ -281,9 +270,9 @@ export function zoneOf(place, league) {
 }
 /* Таблица группы: вы и соперники, по убыванию опыта. При равенстве вы — ниже бота: место надо
    взять опытом. */
-export function standings(learn, week, league, now = Date.now(), realNames = []) {
+export function standings(learn, week, league, now = Date.now()) {
   const done = dayOf(now) > addDays(week, LEAGUE_DAYS - 1);
-  const rows = rivals(week, league, realNames).map((rv) => ({ ...rv, xp: done ? rv.total : rivalXp(rv, week, now) }));
+  const rows = rivals(week, league).map((rv) => ({ ...rv, xp: done ? rv.total : rivalXp(rv, week, now) }));
   rows.push({ id: 'me', name: 'Вы', me: true, xp: weekXp(learn, week) });
   rows.sort((a, b) => b.xp - a.xp || (a.me ? 1 : b.me ? -1 : 0));
   return rows.map((row, k) => ({ ...row, place: k + 1, zone: zoneOf(k + 1, league) }));
@@ -292,7 +281,7 @@ export function standings(learn, week, league, now = Date.now(), realNames = [])
    лигу, таблицу текущей недели и историю: место, переход и награду каждой прошлой недели.
    В воскресенье (перерыв) неделя уже подведена: она в истории, а таблица — её итог (rest: true),
    league — лига, в которой неделю играли, next — куда она ведёт. */
-export function leagueState(learn, now = Date.now(), realNames = []) {
+export function leagueState(learn, now = Date.now()) {
   const thisWeek = weekOf(dayOf(now));
   const rest = isBreakDay(now);
   const days = Object.keys(learn.xp || {}).filter((d) => (learn.xp[d] || 0) > 0).sort();
@@ -321,7 +310,7 @@ export function leagueState(learn, now = Date.now(), realNames = []) {
   const restWeek = rest && history.length && history[history.length - 1].week === thisWeek ? history[history.length - 1] : null;
   const shown = restWeek ? restWeek.league : league;
   // ждущий понедельника в таблице идущей недели не стоит: его опыт этой недели в лигу не идёт
-  const table = standings(waiting ? { ...learn, xp: {} } : learn, thisWeek, shown, now, realNames);
+  const table = standings(waiting ? { ...learn, xp: {} } : learn, thisWeek, shown, now);
   const me = table.find((row) => row.me);
   const others = table.filter((row) => !row.me);
   // сколько опыта до зоны повышения (до пятого места) — 0, если уже там

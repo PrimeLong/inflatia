@@ -6,7 +6,7 @@
    профилем на любое устройство — playerId профиля становится playerId устройства.
    Почты нет, поэтому забытый пароль восстанавливается кодом, который показывается
    при регистрации один раз (и выдаётся заново в профиле по паролю). */
-import { getUser, setUser, setSession, delSession, hasKv, hit, getProfile, getSoloSlots, getTycoonSlots, getRecords, getReports, deleteUserData, setLeagueName, getLeagueNames,
+import { getUser, setUser, setSession, delSession, hasKv, hit, getProfile, getSoloSlots, getTycoonSlots, getRecords, getReports, deleteUserData, dropLeagueNames,
   getUsers, getCards, setCard, getRaces, setRace } from './_lib/store.js';
 import { cleanCard, raceStatus, raceOpen, raceRest, MAX_FRIENDS, MAX_PENDING, RACE } from './_lib/friends.js';
 import { isRude, RUDE_NAME } from '../src/lib/moderation.js';
@@ -190,15 +190,10 @@ async function handleRequest(req, res) {
       if (!body.kidsMode && (!year || isKid(year))) return res.status(403).json({ error: 'До 16 лет «Мир» — в детском режиме' });
       next.kidsMode = body.kidsMode;
     }
-    /* «Показывать моё имя в лигах» — только с 16 лет; имя уходит в общий список имён лиг
-       (другие ученики могут увидеть его на месте бота, с выдуманным опытом) */
-    if (body.leaguePublic !== undefined) {
-      if (typeof body.leaguePublic !== 'boolean') return res.status(400).json({ error: 'Некорректная настройка' });
-      if (body.leaguePublic && (!next.birthYear || isKid(next.birthYear))) return res.status(403).json({ error: 'Показывать имя в лигах можно с 16 лет' });
-      next.leaguePublic = body.leaguePublic;
-    }
+    /* «Показывать моё имя в лигах» убрано (docs/mechanics.md, «Лиги недели»): настройку старых приложений
+       не принимаем, прежнюю — стираем из профиля */
+    delete next.leaguePublic;
     await setUser(user.login, next);
-    if (next.leaguePublic || user.leaguePublic) await setLeagueName(user.login, next.leaguePublic && !nameBanned(next) ? next.name : null);
     return res.status(200).json({ profile: publicProfile(next) });
   }
   /* Владелец требует сменить ник, который фильтр пропустил: у ученика RENAME_DAYS дней, потом блок.
@@ -210,14 +205,13 @@ async function handleRequest(req, res) {
     if (!target) return res.status(404).json({ error: 'Нет такого ученика' });
     const renameBy = target.renameBy && nameBanned(target) ? target.renameBy : Date.now() + RENAME_DAYS * DAY_MS;
     await setUser(login, { ...target, renameFor: target.name, renameBy });
-    if (target.leaguePublic) await setLeagueName(login, null);
     return res.status(200).json({ ok: true, login, name: target.name, renameBy });
   }
-  // имена учеников, разрешивших показ в лигах: до тридцати случайных, без своего и без грубых
+  /* настоящих имён в лигах больше нет: старое приложение, которое ещё спрашивает список, получает пустой —
+     и играет с ботами; собранный раньше список стёрт */
   if (action === 'league-names') {
-    const all = Object.entries(await getLeagueNames()).filter(([login, name]) => login !== user.login && typeof name === 'string' && !isRude(name)).map(([, name]) => name);
-    for (let i = all.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
-    return res.status(200).json({ names: all.slice(0, 30) });
+    await dropLeagueNames();
+    return res.status(200).json({ names: [] });
   }
   /* ------------------------------ ДРУЗЬЯ И ЗАБЕГИ ------------------------------
      Друзья — по точному логину и с согласия второй стороны (заявка → принять/отклонить); поиска
@@ -422,6 +416,8 @@ async function friendsView(user) {
 
 export default async function handler(req, res) {
   try {
+    // настоящие имена для лиг больше не храним: прежний список стирается при первом запросе после запуска сервера
+    await dropLeagueNames().catch(() => {});
     return await handleRequest(req, res);
   } catch (err) {
     console.error('account handler error:', err);

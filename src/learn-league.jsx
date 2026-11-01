@@ -8,8 +8,7 @@ import { Audio } from './MacroSimulator.jsx';
 import { Button, Card, Sheet, IconButton } from './ds.jsx';
 import { LEAGUE_BY_ID, LEAGUES, PROMOTE, GROUP, DEMOTE, PLACE_COINS, leagueState, claimLeague, pendingRewards } from './learn/league.js';
 import { coinsWord, plural } from './learn/rewards.js';
-import { loadAccount, accountKidsMode } from './account.jsx';
-import { accountLeagueNames, trackDaily } from './lib/client.js';
+import { trackDaily } from './lib/client.js';
 import { dayOf, dowOf, rolloverLocal } from './textbook/learn-state.js';
 import { newsDate } from './learn/news.js';
 import { CoinShower } from './ds-art.jsx';
@@ -73,28 +72,8 @@ const LEAGUE_CSS = `
   @keyframes lg-seat { 0%, 60%, 100% { background: transparent } 30% { background: color-mix(in srgb, var(--u) 30%, transparent); border-color: transparent } }
   @media (prefers-reduced-motion: reduce) { .lg-wait-ico, .lg-wait-seats i { animation: none; } }
 `;
-const NAMES_KEY = 'ems-league-names';
-/* Имена учеников, разрешивших показ в лигах: раз в день с сервера, хранятся на устройстве.
-   В детском режиме и без входа — только боты. */
-function useLeagueNames() {
-  const [names, setNames] = useState(() => {
-    try { const c = JSON.parse(localStorage.getItem(NAMES_KEY) || 'null'); return c && Array.isArray(c.names) ? c.names : []; } catch { return []; }
-  });
-  useEffect(() => {
-    const a = loadAccount();
-    if (!a || accountKidsMode(a)) { setNames([]); return undefined; }
-    let alive = true;
-    const today = dayOf(Date.now());
-    try { const c = JSON.parse(localStorage.getItem(NAMES_KEY) || 'null'); if (c && c.day === today) return undefined; } catch { /* нет хранилища */ }
-    accountLeagueNames(a.token).then((r) => {
-      if (!alive || !r || !Array.isArray(r.names)) return;
-      setNames(r.names);
-      try { localStorage.setItem(NAMES_KEY, JSON.stringify({ day: today, names: r.names })); } catch { /* приватный режим */ }
-    }).catch(() => { /* нет сети — играем с ботами */ });
-    return () => { alive = false; };
-  }, []);
-  return names;
-}
+// прежний кеш настоящих имён для лиг на устройстве (ems-league-names) — имён в лигах больше нет, стираем
+try { if (typeof localStorage !== 'undefined') localStorage.removeItem('ems-league-names'); } catch { /* приватный режим */ }
 const placeWord = (n) => `${n}-е место`;
 const inLeague = (id) => `${LEAGUE_BY_ID[id].title.replace(/ая$/, 'ой')} лиге`;
 const toLeague = (id) => `${LEAGUE_BY_ID[id].title.replace(/ая$/, 'ую')}`;
@@ -225,10 +204,9 @@ function GoalCard({ st }) {
 export function LeagueView({ learn, update, now = Date.now() }) {
   // аналитика: раздел открыт — не чаще раза в день с устройства (docs/mechanics.md, «Аналитика»)
   useEffect(() => { trackDaily('league_open'); }, []);
-  const names = useLeagueNames();
   const [got, setGot] = useState(null);
   const [rules, setRules] = useState(false);
-  const st = leagueState(learn, now, names);
+  const st = leagueState(learn, now);
   const lg = LEAGUE_BY_ID[st.league];
   const tier = LEAGUES.findIndex((l) => l.id === st.league);
   const pending = pendingRewards(learn, now);
@@ -255,7 +233,7 @@ export function LeagueView({ learn, update, now = Date.now() }) {
       <div className="lg-bots" role="note" data-testid="league-note">
         <Bot size={26} aria-hidden="true" />
         <div><b>Соперники — боты</b>
-          <span>Это не живые ученики: соперники — программа, их опыт выдуманный.{names.length > 0 && ' Под некоторыми ботами стоят имена учеников, которые разрешили их показывать, — опыт у этих строк тоже выдуманный.'}</span></div>
+          <span>Это не живые ученики: соперники — программа, их опыт выдуманный.</span></div>
       </div>
       <div className="lg-hero">
         <LeagueBadge id={st.league} size={78} />
