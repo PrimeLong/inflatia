@@ -3115,7 +3115,8 @@ test('вход: программа — вступительный тест, су
   if (daysLeft < 7) {
     await expect(page.getByTestId('month')).toHaveAttribute('data-waiting', 'true');
     await expect(page.getByTestId('month-title')).toContainText('Первое испытание — с 1 ');
-  } else await expect(page.getByTestId('month-why')).toContainText('15 минут в день');
+  // вид испытания выпадает по месяцу: объёмное объясняется целью дня, «постоянство» — днями месяца
+  } else await expect(page.getByTestId('month-why')).toContainText(/15 минут в день|Испытание постоянства/);
   await openTab(page, 'path');
 
   // вступительный тест: юнит 1 — без ошибок, юнит 2 — две ошибки подряд: тест заканчивается
