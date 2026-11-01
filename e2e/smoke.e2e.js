@@ -2871,7 +2871,8 @@ test('лента «Слушай»: текст скрыт, «прослушать
   await expect(live.getByTestId('listen-text')).toContainText('морозы');
   await live.getByTestId('feed-toggle').click();
   await expect(live.getByTestId('feed-hidden')).toBeVisible();
-  // «прослушать» ещё раз — то же сообщение
+  // «прослушать» ещё раз — то же сообщение (пока сообщение звучит, та же кнопка его останавливает)
+  await expect(live.getByTestId('feed-play')).toHaveAttribute('data-playing', 'false');
   await live.getByTestId('feed-play').click();
   await expect.poll(() => page.evaluate(() => window.__spoken.length)).toBeGreaterThan(1);
   while (await live.isVisible()) await page.getByTestId('lesson').locator('.ln-foot button').click();
@@ -2944,6 +2945,18 @@ test('«Слушай» с записями (FreeTTS): сюжет играет з
   const at = await live.locator('.fd-word').evaluateAll((els) => els.findIndex((e) => e.classList.contains('on')));
   expect(at).toBeGreaterThan(words * 0.3);
   expect(at).toBeLessThan(words * 0.7);
+  // «остановить» посреди сюжета (жалоба «не могу выключить звук»): подсветка гаснет, ход записи слова больше
+  // не двигает; касание снова — сюжет сначала
+  await expect(live.getByTestId('feed-play')).toHaveAttribute('data-playing', 'true');
+  await live.getByTestId('feed-play').click();
+  await expect(live.getByTestId('feed-play')).toHaveAttribute('data-playing', 'false');
+  await expect(live.locator('.fd-word')).toHaveCount(0);
+  await page.evaluate(() => window.__tapeAt(0.6));
+  await expect(live.locator('.fd-word')).toHaveCount(0);
+  const played = await page.evaluate(() => window.__tapes.length);
+  await live.getByTestId('feed-play').click();
+  await expect.poll(() => page.evaluate(() => window.__tapes.length)).toBe(played + 1);
+  await expect(live.locator('.fd-word').first()).toHaveClass(/\bon\b/);
   await page.evaluate(() => window.__tapeAt(1));
   await expect(live.locator('.fd-word')).toHaveCount(0);
   expect(await page.evaluate(() => window.__spoken.length)).toBe(0);
@@ -2954,6 +2967,7 @@ test('«Слушай» с записями (FreeTTS): сюжет играет з
   expect(await page.evaluate(() => window.__spoken[0])).toContain('морозы');
   // больше эту запись не просим: следующее «слушать» сразу читает браузер
   const tapes = await page.evaluate(() => window.__tapes.length);
+  await expect(live.getByTestId('feed-play')).toHaveAttribute('data-playing', 'false');
   await live.getByTestId('feed-play').click();
   await expect.poll(() => page.evaluate(() => window.__spoken.length)).toBe(2);
   expect(await page.evaluate(() => window.__tapes.length)).toBe(tapes);
