@@ -78,6 +78,73 @@ const supplyDemand = {
   },
 };
 
+/* ---------------- РЫНОК ТРУДА ----------------
+   Спрос на труд L_D = a − b·w (работодатели: чем дороже работник, тем меньше их нанимают), предложение
+   труда L_S = c + d·w (чем выше зарплата, тем больше людей хотят эту работу). По горизонтали — работники
+   L, по вертикали — зарплата w в кронах за смену. Ползунки сдвигают спрос и предложение, третий —
+   минимальная зарплата: выше равновесной она оставляет часть желающих без работы (безработица).
+   show="D S min" — какие линии показать; anim="dA=20" — сдвиг на глазах. */
+const laborShow = (A) => (A.show ? String(A.show).split(/[\s,]+/).filter(Boolean) : null);
+const laborChart = {
+  title: 'Рынок труда',
+  // что меняется от сдвигов: зарплата и число работающих (для графических задач)
+  measure: (A, v) => {
+    const eq = sdEquilibrium(num(A, 'a', 100) + (v.dA || 0), num(A, 'b', 1), num(A, 'c', -20) + (v.dC || 0), num(A, 'd', 1));
+    return { w: eq.P, L: eq.Q };
+  },
+  controls: (A) => {
+    const a = num(A, 'a', 100);
+    const span = Math.round(a * 0.4);
+    const { P } = sdEquilibrium(a, num(A, 'b', 1), num(A, 'c', -20), num(A, 'd', 1));
+    return [
+      { id: 'dA', label: 'Сдвиг спроса на труд', min: -span, max: span, step: 1, def: 0, fmt: (v) => `${v > 0 ? '+' : ''}${v} чел.` },
+      { id: 'dC', label: 'Сдвиг предложения труда', min: -span, max: span, step: 1, def: 0, fmt: (v) => `${v > 0 ? '+' : ''}${v} чел.` },
+      { id: 'min', label: 'Минимальная зарплата', min: Math.round(P * 0.5), max: Math.round(P * 1.6), step: 1, def: num(A, 'min', Math.round(P * 0.5)),
+        fmt: (v) => (v <= Math.round(P * 0.5) ? 'нет' : `${v} кр.`) },
+    ];
+  },
+  build: (A, v) => {
+    const a = num(A, 'a', 100); const b = num(A, 'b', 1); const c = num(A, 'c', -20); const d = num(A, 'd', 1);
+    const a1 = a + (v.dA || 0); const c1 = c + (v.dC || 0);
+    const base = sdEquilibrium(a, b, c, d);
+    const eq = sdEquilibrium(a1, b, c1, d);
+    const wMax = Math.ceil((a * 1.4) / b / 10) * 10;
+    const Lmax = Math.ceil((a * 1.3) / 10) * 10;
+    const show = laborShow(A);
+    const has = (id) => !show || show.includes(id);
+    const dem = (aa) => line((w) => w, 0, aa / b).map(({ x }) => ({ x: aa - b * x, y: x }));
+    const sup = (cc) => line((w) => w, Math.max(0, -cc / d), (Lmax - cc) / d).map(({ x }) => ({ x: cc + d * x, y: x }));
+    const moved = (v.dA || 0) !== 0 || (v.dC || 0) !== 0;
+    const curves = [
+      ...(moved && has('D') ? [{ id: 'D0', points: dem(a), ghost: true, color: 'blue' }] : []),
+      ...(moved && has('S') ? [{ id: 'S0', points: sup(c), ghost: true, color: 'rust' }] : []),
+      ...(has('D') ? [{ id: 'D', label: 'спрос на труд', points: dem(a1), color: 'blue' }] : []),
+      ...(has('S') ? [{ id: 'S', label: 'предложение труда', points: sup(c1), color: 'rust' }] : []),
+    ];
+    const readout = [
+      { label: 'Равновесная зарплата', value: `${r1(eq.P)} кр.` },
+      { label: 'Работают', value: `${r1(eq.Q)} чел.` },
+    ];
+    const segments = [];
+    const floorOn = v.min != null && v.min > Math.round(base.P * 0.5) && has('min');
+    if (floorOn) {
+      const w = v.min;
+      curves.push({ id: 'min', label: 'минимальная зарплата', points: [{ x: 0, y: w }, { x: Lmax, y: w }], color: 'gold', dashed: true });
+      if (w > eq.P) {
+        const ld = Math.max(0, a1 - b * w); const ls = c1 + d * w;
+        segments.push({ x0: ld, x1: ls, y: w, label: 'безработица' });
+        readout.push({ label: 'Нанимают при минимальной', value: `${r1(ld)} чел.` });
+        readout.push({ label: 'Хотят работать, но без работы', value: `${r1(ls - ld)} чел.` });
+      } else readout.push({ label: 'Минимальная ниже равновесной', value: 'не действует' });
+    }
+    return {
+      xDomain: [0, Lmax], yDomain: [0, wMax], xLabel: 'L, чел.', yLabel: 'w, кр.', curves, segments,
+      points: has('D') && has('S') ? [{ x: eq.Q, y: eq.P, label: 'E', guide: true }] : [],
+      readout,
+    };
+  },
+};
+
 /* ---------------- ЭЛАСТИЧНОСТЬ НА ЛИНЕЙНОМ СПРОСЕ ----------------
    Q = a − b·P. Ползунок двигает цену вдоль кривой: под графиком эластичность в точке
    −b·P/Q и выручка P·Q (закрашенный прямоугольник). Верхняя половина прямой —
@@ -1242,6 +1309,7 @@ const moneyChart = {
 
 // как называть величины графика в ответе графической задачи
 supplyDemand.measureNames = { P: 'цена', Q: 'количество' };
+laborChart.measureNames = { w: 'зарплата', L: 'число работающих' };
 elasticity.measureNames = { P: 'цена', Q: 'количество', R: 'выручка', E: 'эластичность' };
 isLm.measureNames = { Y: 'выпуск', r: 'ставка' };
 adAs.measureNames = { Y: 'выпуск', P: 'уровень цен' };
@@ -1392,7 +1460,7 @@ phillipsChart.measureNames = { pi: 'инфляция', u: 'безработиц�
 taylorChart.measureNames = { i: 'ставка', real: 'реальная ставка' };
 solowChart.measureNames = { k: 'капитал на работника', y: 'выпуск на работника', c: 'потребление на работника', i: 'инвестиции на работника' };
 
-export const CHARTS = { 'supply-demand': supplyDemand, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
+export const CHARTS = { 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
 /* Переменные подписи: {{имя}} в тексте подписи заменяется числом из модели графика при
    текущих ползунках — величины measure и свои vars графика; с приставкой d_ — при исходных. */
 const fmtVar = (x) => (typeof x === 'number' ? (Number.isInteger(Math.round(x * 100) / 100) ? String(Math.round(x)) : r1(x)).replace('-', '−') : String(x));

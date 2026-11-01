@@ -129,6 +129,9 @@ describe('забег с другом', () => {
     expect(raceStatus({ status: 'pending', at: now - RACE.acceptMs - 1 }, now)).toBe('expired');
     expect(raceStatus({ status: 'pending', at: now - 1000 }, now)).toBe('pending');
     const c = cleanCard({ streak: -5, xp: 1e12, xpDays: { '2026-10-01': 50, bad: 9 }, level: 'Basic!', months: ['2026-09', 'x'] });
-    expect(c).toMatchObject({ streak: 0, xp: 1e8, xpDays: { '2026-10-01': 50 }, level: null, months: ['2026-09'] });
+    expect(c).toMatchObject({ streak: 0, xp: 1e8, xpDays: { '2026-10-01': 50 }, level: null, months: ['2026-09'], ahead: [] });
+    // серия вперёд на 1–4 пропуска: не больше четырёх чисел, без мусора
+    expect(cleanCard({ streak: 7, ahead: [7, 6, 0, 0, 9, 9], xp: 1 }).ahead).toEqual([7, 6, 0, 0]);
+    expect(cleanCard({ ahead: [-3, 'x', 1e9] }).ahead).toEqual([0, 0, 5000]);
   });
 });

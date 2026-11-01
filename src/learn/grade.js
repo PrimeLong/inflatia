@@ -53,6 +53,11 @@ export function courseLevel(learn) {
 /* Учебник по уровням курса (жалоба: «из Среднего можно читать Продвинутый и Профессиональный»): открыты
    уровни до нынешнего уровня курса включительно, выше — под замком, пока ученик не дойдёт до них на Пути. */
 export function openBookLevels(learn) {
-  const cur = courseLevel(learn && learn.lessons ? learn : emptyLearn()).level.id;
-  return new Set(LEVELS.slice(0, LEVELS.findIndex((l) => l.id === cur) + 1).map((l) => l.id));
+  const s = learn && learn.lessons ? learn : emptyLearn();
+  const c = courseLevel(s);
+  // открытое не закрывается: новый юнит уровнем ниже возвращает туда Путь, но не запирает учебник
+  const tested = new Set(Object.keys(s.units || {}).filter((id) => (s.units[id] || {}).tested));
+  const reached = pathState(s).filter((st) => tested.has(st.course.id) || st.lessons.some((l) => l.done)).map((st) => LEVELS.findIndex((l) => l.id === st.course.level));
+  const top = Math.max(LEVELS.findIndex((l) => l.id === c.level.id), ...reached);
+  return new Set(LEVELS.slice(0, top + 1).map((l) => l.id));
 }

@@ -24,6 +24,10 @@ describe('записанные голоса', () => {
     expect(ttsText('Стоит 10 000 кр. за 5 батонов')).toBe('Стоит 10000 крон за 5 батонов');
   });
 
+  it('в эфире без формул: в тексте сюжета нет знаков TeX — ни на экране, ни в голосе (жалоба mvuagpq0)', () => {
+    voiceLines(LESSONS, plainText, DEFAULT_VOICE.listen).forEach((l) => expect(l.text, `${l.lesson}: ${l.text}`).not.toMatch(/[{}\\^_$]/));
+  });
+
   it('реплики — все сюжеты эфиров «Слушай», без повторов и с разными именами', () => {
     const lines = voiceLines(LESSONS, plainText, DEFAULT_VOICE.listen);
     const listen = LESSONS.filter((l) => l.kind === 'listen');

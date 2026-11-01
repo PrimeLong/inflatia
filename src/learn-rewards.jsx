@@ -8,7 +8,7 @@ import { loadAccount } from './account.jsx';
 import { noScarcity } from './lib/age.js';
 import {
   X, Wallet, ShieldCheck, CalendarDays, Check, Flame, GraduationCap, Timer, Map as MapIcon, Target, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap,
-  ListChecks, ChevronRight, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown,
+  ListChecks, ChevronRight, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles,
 } from 'lucide-react';
 import { ACH_ICON } from './award-art.js';
 import { Audio } from './MacroSimulator.jsx';
@@ -28,7 +28,7 @@ import {
   chestCoins, chestKey, hasClaim, openChest, achievementsOf, coinsWord, plural, greetingAt, COIN, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate, yearGrowth,
   goalCoins,
 } from './learn/rewards.js';
-import { skillLevel, LEVEL_NAME, LEVEL_TEXT } from './learn/program.js';
+import { skillLevel, LEVEL_NAME, levelNote } from './learn/program.js';
 import { DUST, dustDone, dustItem } from './learn/dust.js';
 import {
   dayOf, addDays, dayStart, streak, ownedFreezes, weekDots, rolloverLocal, setProfile, PROFILE_GOALS, PROFILE_MINUTES, PROFILE_GOAL_LABEL, goalMinutes, goalToday, pendingGoal,
@@ -632,16 +632,18 @@ function DustCard({ learn, onOpen }) {
   );
 }
 /* ЛАВКА — вкладки вместо одной длинной ленты (docs/mechanics.md, «Лавка»): сверху кошелёк и курс
-   дня (касание — график и что такое кроны), ниже пять вкладок: «Витрина» (вещи дня, на Хеллоуин —
+   дня (касание — график и что такое кроны), ниже шесть вкладок: «Витрина» (вещи дня, на Хеллоуин —
    и сезонные), «Для урока» (темы и украшения урока), «Ювелир» (редкое, на что копят), «Гардероб»
-   (примерочная) и «Полезное» (копилка, страховка серии, двойной опыт). Вкладка помнится, пока
-   открыто приложение; из уведомления «вклад созрел» лавка открывается на «Полезном». */
+   (примерочная), «Полезное» (копилка, страховка серии, двойной опыт) и «Протереть» (мини-игра
+   «Пыльная витрина»). Вкладка помнится, пока открыто приложение; из уведомления «вклад созрел»
+   лавка открывается на «Полезном». */
 const SHOP_TABS = [
   { id: 'showcase', label: 'Витрина', icon: Store },
   { id: 'lesson', label: 'Для урока', icon: Palette },
   { id: 'rare', label: 'Ювелир', icon: Gem },
   { id: 'wardrobe', label: 'Гардероб', icon: Shirt },
   { id: 'useful', label: 'Полезное', icon: PiggyBank },
+  { id: 'dust', label: 'Протереть', icon: Sparkles },
 ];
 let lastShopTab = 'showcase';
 export function ShopView({ learn, update, now = Date.now(), focus = null }) {
@@ -758,7 +760,11 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
               {today.showcase.map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} deal={id === today.deal} {...itemProps} />)}
               {!today.showcase.length && <div className="ds-sub" style={{ gridColumn: '1 / -1', fontSize: 14.5 }}>Всё обычное уже ваше — дальше вкладки «Ювелир» и «Для урока».</div>}
             </div>
-            <DustCard learn={learn} onOpen={() => setDust(true)} />
+          </>}
+
+          {tab === 'dust' && <>
+            <Heading level={3} title="Пыльная витрина" sub={`Мини-игра: ночью в лавке пыль — протрите стекло тряпкой, под ним новинка витрины дня. За витрину — ${DUST.coins} ${coinsWord(DUST.coins)}, до ${DUST.perDay} витрин в день.`} />
+            <div style={{ marginTop: 10 }}><DustCard learn={learn} onOpen={() => setDust(true)} /></div>
           </>}
 
           {tab === 'lesson' && <>
@@ -1243,7 +1249,7 @@ export function ProgramCard({ learn, update, onPlacement }) {
         {next ? `Сегодня цель — ${mins} мин. Новая, ${next.minutes} мин, — с завтрашнего дня.` : `За выполненную цель — ${goalCoins(mins)} ${coinsWord(goalCoins(mins))}: столько, сколько минут. Новая цель начинает действовать с завтрашнего дня.`}
       </div>
       <Row label="Уровень заданий" value={LEVEL_NAME[level]} data-testid="prof-level" data-level={level} />
-      <div className="ds-faint" style={{ fontSize: 13, marginTop: 4 }}>{LEVEL_TEXT[level]}</div>
+      <div className="ds-faint" style={{ fontSize: 13, marginTop: 4 }} data-testid="prof-level-note">{levelNote(learn)}</div>
       <div style={{ marginTop: 12 }}>
         <Button small variant="secondary" icon={GraduationCap} data-testid="prof-placement" data-nav-target="run:placement" onClick={() => { Audio.prime(); onPlacement(); }}>
           {(learn.placement || {}).at ? 'Вступительный тест ещё раз' : 'Вступительный тест'}

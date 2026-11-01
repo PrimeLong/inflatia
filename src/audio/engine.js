@@ -981,6 +981,25 @@ export function createAudioEngine(options = {}) {
     click: () => { const t = now(); tone(760, t, 0.05, 0.045, 'square'); tone(1140, t + 0.015, 0.05, 0.025, 'triangle'); },
     tab: () => tone(560, now(), 0.06, 0.032, 'triangle'),
     paper: () => { const t = now(); noiseHit(t, 0.28, 0.055, 'bandpass', 2600, 0.7, sfxOut || sfxBus); noiseHit(t + 0.09, 0.22, 0.035, 'bandpass', 3400, 0.9, sfxOut || sfxBus); },
+    /* «Стереть всё» в черновике: губка дважды проходит по доске — шум нарастает и затихает (без щелчка
+       в начале), полоса частот едет вверх на взмахе туда и вниз обратно; низко и тихо, чтобы не резать ухо */
+    erase: () => {
+      const t = now();
+      const swish = (t0, dur, gain, f0, f1) => {
+        const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = 0.3;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.9;
+        bp.frequency.setValueAtTime(f0, t0); bp.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(gain, t0 + dur * 0.35);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        src.connect(lp); lp.connect(bp); bp.connect(g); g.connect(sfxOut || sfxBus);
+        src.start(t0, Math.random() * 0.5); src.stop(t0 + dur + 0.05);
+      };
+      swish(t, 0.16, 0.085, 700, 1400);
+      swish(t + 0.15, 0.2, 0.07, 1300, 650);
+    },
     stamp: () => {
       const t = now(); const o = ctx.createOscillator(); const g = ctx.createGain();
       o.type = 'sine'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(52, t + 0.16);
@@ -1189,7 +1208,7 @@ export async function renderStingerOffline(id, { sampleRate = 22050 } = {}) {
 }
 
 /* Отрендерить звук интерфейса — для замера громкости звуков ответов. */
-export const SFX_NAMES = ['coin', 'down', 'up', 'register', 'tick', 'click', 'tab', 'paper', 'stamp', 'news', 'alarm', 'pop', 'flip'];
+export const SFX_NAMES = ['coin', 'down', 'up', 'register', 'tick', 'click', 'tab', 'paper', 'erase', 'stamp', 'news', 'alarm', 'pop', 'flip'];
 export async function renderSfxOffline(name, { sampleRate = 22050, sfxGain = false } = {}) {
   const OAC = typeof window !== 'undefined' && (window.OfflineAudioContext || window.webkitOfflineAudioContext);
   if (!OAC) return null;

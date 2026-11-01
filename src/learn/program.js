@@ -1,28 +1,47 @@
 /* ПЕРСОНАЛЬНАЯ ПРОГРАММА: уровень сложности, слабые темы и «рекомендуем сейчас».
-   Уровень — по последним тридцати первым попыткам: точность выше 90% (для олимпиадников —
-   выше 85%) — «hard», ниже 60% — «easy» (см. buildLesson в course.js). Слабая тема — пройденный
+   Уровень — по тому же числу, что «Верно с первого раза» в профиле: доля верных первых попыток за
+   четыре недели (пока их меньше десяти — последние 30 ответов). 90% и выше (для олимпиадников — 85% и
+   выше) — «hard», ниже 60% — «easy» (см. buildLesson в course.js). Слабая тема — пройденный
    урок, где недавняя точность ниже 70%: его упражнения первыми идут в «Повторение» и добирают
    практику. Модуль чистый: экраны — src/learn.jsx. */
 import { LESSON_BY_ID, UNIT_BY_ID, pathState } from './course.js';
 import { CHAPTER_SECTIONS } from '../textbook/content.js';
 import { sectionDone } from '../textbook/study-core.js';
-import { lessonDone } from '../textbook/learn-state.js';
+import { lessonDone, firstTries } from '../textbook/learn-state.js';
 
 export const LEVEL_MIN = 10;
-export function skillLevel(s) {
+// доля верных первых попыток, по которой считается уровень: за четыре недели, иначе — последние 30; мало ответов — null
+export function levelAccuracy(s, now = Date.now()) {
+  const w = firstTries(s, now);
+  if (w.tried >= LEVEL_MIN) return w.right / w.tried;
   const r = s.recent || '';
-  if (r.length < LEVEL_MIN) return 'normal';
-  const acc = [...r].filter((c) => c === '1').length / r.length;
-  const hard = (s.profile || {}).goal === 'olymp' ? 0.85 : 0.9;
-  if (acc > hard) return 'hard';
-  if (acc < 0.6) return 'easy';
+  return r.length >= LEVEL_MIN ? [...r].filter((c) => c === '1').length / r.length : null;
+}
+const byWeeks = (s, now) => firstTries(s, now).tried >= LEVEL_MIN;
+export const hardFrom = (s) => ((s.profile || {}).goal === 'olymp' ? 0.85 : 0.9);
+export function skillLevel(s, now = Date.now()) {
+  const acc = levelAccuracy(s, now);
+  if (acc == null) return 'normal';
+  // сравниваем округлённые проценты — те, что видит ученик: «90%» — уже повышенный
+  const pct = Math.round(acc * 100);
+  if (pct >= Math.round(hardFrom(s) * 100)) return 'hard';
+  if (pct < 60) return 'easy';
   return 'normal';
 }
 export const LEVEL_TEXT = {
   easy: 'Сейчас задания проще, а разбор ошибок — по шагам. Станет точнее — вернутся обычные.',
-  normal: 'Обычный уровень. Больше 90% верных — появятся задачи семинаров и олимпиад.',
+  normal: 'Обычный уровень. От 90% верных с первого раза — появятся задачи семинаров и олимпиад.',
   hard: 'Вы отвечаете почти без ошибок — в практике есть задачи семинаров и олимпиад.',
 };
+// строка под уровнем: сколько сейчас и сколько нужно (олимпиадникам порог ниже)
+export function levelNote(s, now = Date.now()) {
+  const level = skillLevel(s, now);
+  const acc = levelAccuracy(s, now);
+  const from = Math.round(hardFrom(s) * 100);
+  const base = level === 'normal' ? `Обычный уровень. От ${from}% верных с первого раза — появятся задачи семинаров и олимпиад.` : LEVEL_TEXT[level];
+  if (acc == null) return `${base} Посчитаем после ${LEVEL_MIN} ответов.`;
+  return `${base} Сейчас — ${Math.round(acc * 100)}% ${byWeeks(s, now) ? 'за четыре недели' : `по последним ${(s.recent || '').length} ответам`}.`;
+}
 export const LEVEL_NAME = { easy: 'по шагам', normal: 'обычный', hard: 'повышенный' };
 
 // точность по урокам, где попыток не меньше четырёх

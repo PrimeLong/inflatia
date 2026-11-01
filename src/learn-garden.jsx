@@ -8,7 +8,7 @@ import { Lock, Sprout, Clock, Coins, X, ArrowDown, Droplet, Droplets } from 'luc
 import { Audio } from './MacroSimulator.jsx';
 import { Button, Heading, Sheet } from './ds.jsx';
 import { PLANTS, PLANT_BY_ID, RARITY, GARDEN_PLOTS, GRADES, GRADE_BY_ID, MARKET_DROP, gardenPlots, growth, leftText, plant, harvest, herbarium, grown, collection,
-  plantPrice, salePrice, sell, sellAll, soldToday, cropGroups, paidPrice, STAGE_LABEL, water, needsWater, WATER_HOURS, SHOW_ODDS, oddsTable } from './learn/garden.js';
+  plantPrice, salePrice, sell, sellAll, soldToday, cropGroups, paidPrice, STAGE_LABEL, water, needsWater, WATER_HOURS, SHOW_ODDS, oddsTable, oddsText } from './learn/garden.js';
 import { balance, coinsWord } from './learn/rewards.js';
 import { RateWeek } from './learn-rate.jsx';
 import { dayOf } from './textbook/learn-state.js';
@@ -242,8 +242,11 @@ const Grade = ({ id }) => <span className="gd-grade" style={{ background: GRADE_
 const GradeArt = ({ plantId, grade, title }) => <span className={`gd-aura g-${grade}`} data-aura={grade}><PlantArt id={plantId} title={title} /></span>;
 const multText = (m) => `×${String(m).replace('.', ',')}`;
 const CROPS_SHOWN = 6;
-/* «Шансы урожая» (docs/mechanics.md, «Сад Инфли»): экран выключен флагом SHOW_ODDS — по решению владельца шансы не
-   пишем. Автотест открывает его своим флагом (ems-show-odds), чтобы экран не сломался незаметно. */
+// капли дождя над политой грядкой (место по ширине, %); дождь длится, пока последняя капля не упадёт
+const RAIN_DROPS = [12, 30, 48, 66, 84, 22, 58, 76];
+const RAIN_MS = (RAIN_DROPS.length - 1) * 70 + 800 + 100;
+/* «Шансы урожая» (docs/mechanics.md, «Сад Инфли»): показываем (SHOW_ODDS) — в строке редкостей и экраном-таблицей.
+   Флаг автотеста ems-show-odds открывает экран, даже если SHOW_ODDS выключат. */
 const oddsOn = () => SHOW_ODDS || (typeof window !== 'undefined' && !!window.__INFLATIA_TEST__ && (() => { try { return localStorage.getItem('ems-show-odds') === '1'; } catch { return false; } })());
 export function GardenOdds({ onClose }) {
   return (
@@ -315,14 +318,17 @@ export function GardenView({ learn, update }) {
     setMsg(null);
     setGot({ at: r.at, plant: r.plant, grade: r.grade, first: r.first });
   };
-  // полив: капли падают на грядку, растение снова растёт
-  const [rain, setRain] = useState(null);
+  /* полив: капли падают на грядку, растение снова растёт. Дождь — у каждой грядки свой (полили три подряд —
+     над каждой свои капли) и доигрывает до конца: последняя капля стартует через RAIN_DROPS×70 мс и летит 800 мс */
+  const [rain, setRain] = useState({});
   const doWater = (at) => {
     const r = water(learn, at, Date.now());
     if (!r.ok) { Audio.play('down'); setMsg({ ok: false, text: r.reason }); return; }
     Audio.play('tick');
     update(() => r.s);
-    setRain(at); setTimeout(() => setRain((x) => (x === at ? null : x)), 900);
+    const token = Date.now();
+    setRain((x) => ({ ...x, [at]: token }));
+    setTimeout(() => setRain((x) => { if (x[at] !== token) return x; const { [at]: _gone, ...rest } = x; return rest; }), RAIN_MS);
     setMsg({ ok: true, text: `Полили: воды хватит на ${WATER_HOURS} ч.${r.wasDry ? ' Растение снова растёт.' : ''}` });
   };
   const toSeeds = () => { Audio.play('tick'); if (seedsRef.current) seedsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
@@ -374,7 +380,7 @@ export function GardenView({ learn, update }) {
               <div key={g.at} className={`gd-bed${st.ripe ? ' ripe' : ''}${w && w.dry ? ' dry' : ''}`} data-testid="garden-plot" data-plant={g.plant} data-stage={st.stage} data-dry={w && w.dry ? 'true' : undefined}>
                 <div className="gd-soil">
                   <PlantArt id={g.plant} stage={st.stage} pot={false} />
-                  {rain === g.at && <span className="gd-rain" aria-hidden="true">{[12, 30, 48, 66, 84, 22, 58, 76].map((x, k) => <i key={k} style={{ left: `${x}%`, animationDelay: `${k * 70}ms` }} />)}</span>}
+                  {rain[g.at] && <span key={rain[g.at]} className="gd-rain" data-testid="garden-rain" aria-hidden="true">{RAIN_DROPS.map((x, k) => <i key={k} style={{ left: `${x}%`, animationDelay: `${k * 70}ms` }} />)}</span>}
                 </div>
                 <div className="gd-sign">
                   <div className="gd-name">{p.title}</div>
@@ -422,7 +428,7 @@ export function GardenView({ learn, update }) {
       <Heading level={3} title="Урожай" sub={keptN ? `Собрано и не продано: ${keptN}. Одинаковое лежит одной строкой.` : 'Соберите созревшее — урожай появится здесь.'} />
       <div className="gd-odds" data-testid="garden-odds">Редкость урожая выпадает при сборе: чем реже, тем дороже на рынке. Цена — цена семян в кронах × редкость × спрос недели. <b>Цена в кронах назначается при сборе и больше не меняется</b>: собрали, когда ставка низкая и спрос высокий, — урожай дорогой; собрали при высокой ставке — так и останется дешёвым. Поэтому растить выгодно, когда ставка низкая. В монеты — по курсу дня продажи.</div>
       <div className="gd-grades" data-testid="garden-grades">
-        {GRADES.map((g) => <span key={g.id}><Grade id={g.id} /> {multText(g.mult)}</span>)}
+        {GRADES.map((g) => <span key={g.id} data-grade={g.id}><Grade id={g.id} /> {SHOW_ODDS ? `${oddsText(g.p)} ` : ''}{multText(g.mult)}</span>)}
       </div>
       {oddsOn() && <button type="button" className="gd-odds-link" data-testid="garden-odds-open" onClick={() => { Audio.play('paper'); setOdds(true); }}>Шансы урожая</button>}
       {odds && <GardenOdds onClose={() => setOdds(false)} />}

@@ -9,7 +9,7 @@ import { DsRoot, Button, IconButton, Card, MenuCard, Panel, Heading, Row, Toggle
 import { ArtStyle, Guilloche, Rosette, Stamp, PostStamp, Engraving, Clipping, ProgressChart, InflaMeter, CountUp } from './ds-art.jsx';
 import { Mascot } from './mascot.jsx';
 
-const BUILDINGS = ['market', 'workshop', 'bakery', 'bank', 'exchange', 'ministry', 'port', 'store', 'factory', 'tower'];
+const BUILDINGS = ['market', 'fair', 'workshop', 'bakery', 'bank', 'exchange', 'ministry', 'port', 'store', 'factory', 'tower'];
 const TOKENS = ['paper', 'card', 'card2', 'ink', 'ink2', 'ink3', 'rule', 'rule2', 'ok', 'okBg', 'bad', 'badBg', 'gold', 'sel', 'selRule'];
 
 function Section({ title, children }) {

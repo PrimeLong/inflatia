@@ -1,6 +1,6 @@
 /* Файлы, которые кладут руками и которые приложение должно узнать при сборке: записанные голоса
    (public/voice/<id>.mp3, src/learn/voice-lines.js), записи книг полки (public/books/<id>.mp3,
-   src/learn/book-audio.js) и портреты «Персоналий» (public/people/<id>.jpg|png|webp с подписями из
+   src/learn/book-player.js) и портреты «Персоналий» (public/people/<id>.jpg|png|webp с подписями из
    people/credits.csv, src/learn/portraits.js). Положили файл в папку — после сборки он в деле; руками
    ничего не перечислять. */
 import fs from 'node:fs';
@@ -15,7 +15,15 @@ export function listVoiceFiles(dir = VOICE_DIR) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).filter((f) => /\.mp3$/i.test(f)).map((f) => f.replace(/\.mp3$/i, '')).sort();
 }
-export const listBookAudio = () => listVoiceFiles(BOOKS_DIR);
+/* записи книг: книга целиком — 'smith-wealth' (public/books/smith-wealth.mp3), отрывок — 'smith-wealth/pins'
+   (public/books/smith-wealth/pins.mp3) */
+export function listBookAudio(dir = BOOKS_DIR) {
+  if (!fs.existsSync(dir)) return [];
+  const whole = listVoiceFiles(dir);
+  const parts = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory())
+    .flatMap((d) => listVoiceFiles(path.join(dir, d.name)).map((f) => `${d.name}/${f}`));
+  return [...whole, ...parts].sort();
+}
 
 // портреты: id (имя файла без расширения, маленькими буквами) → имя файла; на один id — первый по алфавиту
 export function listPeoplePhotos(dir = PEOPLE_DIR) {

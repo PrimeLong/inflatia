@@ -19,6 +19,9 @@ import {
   Wrench, Feather, ChartSpline,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
+import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
+import { BookDock } from './learn-bookdock.jsx';
+import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
 import { askSave } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
@@ -31,7 +34,7 @@ import { afterPathAnswer, dropFromReview } from './textbook/review-sync.js';
 import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
   UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, levelUnits, LESSON_BY_ID, KIND_LABEL, SHIFT_CURVES, LESSON_KIND, GAME_KINDS, SELF_CHECK, OPEN_MIN, buildLesson, buildUnitCheck, buildLevelCheck, buildPractice, practiceIds, canPractice, PRACTICE_MAX, check, ready, answerText, unitFor, pathState,
-  buildPlacement, placementOpened, placementFailed, retryOf, gameNeed, gameRule, buildFix,
+  buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix,
 } from './learn/course.js';
 import {
   startLesson, recordAttempt, abandonLesson, addMistake, resolveMistake, skipLesson, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak,
@@ -72,7 +75,8 @@ import { placeOf, unitColor, DIAMOND_COLOR, dsThemeId } from './ds-tokens.js';
 import { countryPath, RIVER, curveTo } from './lib/mapgeo.js';
 import { levelRegions, mapSlots } from './learn/levelmap.js';
 import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
-import { GRAPH_BY_CHART, GRAPH_EVENT, openGraph } from './learn/graphs.js';
+import { GRAPH_BY_CHART, GRAPH_EVENT, openGraph, GRAPH_BY_ID, GRAPH_XP } from './learn/graphs.js';
+import { READING_BY_ID, READ_XP } from './learn/reading.js';
 import { BrandLoader } from './logo.jsx';
 import { FRIENDS_CSS, FriendsPage, FriendProfile, RaceCard, RaceOffer, racesToShow } from './learn-friends.jsx';
 import { Sketch, SKETCH_CSS, SKETCH_QUERY, SKETCH_BOOK_QUERY } from './learn-sketch.jsx';
@@ -248,6 +252,8 @@ const CSS = `
   .ln-to-map { position: fixed; right: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 30; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; border-radius: 50%; border: 2px solid var(--ds-rule); background: var(--ds-card); color: var(--u-ink); box-shadow: 0 3px 0 var(--ds-rule2), 0 6px 16px var(--ds-shade); cursor: pointer; }
   @media (min-width: 1024px) { .ln-to-map { right: max(16px, calc(50vw - 560px)); } }
+  /* над вкладками звучит книга — кнопка поднимается над её мини-проигрывателем */
+  html[data-book-dock] .ln-to-map { bottom: calc(160px + env(safe-area-inset-bottom)); }
   .ln-route { position: relative; margin: 0 auto; }
   /* телефон уже 340 px (320 px — старые и маленькие): дорога чуть мельче, чтобы не вылезать за экран */
   @media (max-width: 340px) { .ln-route { zoom: .9; } }
@@ -378,6 +384,21 @@ const CSS = `
   .ln-inner { max-width: 560px; margin: 0 auto; }
   .ln-foot { border-top: 2px solid var(--ds-rule); padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--ds-paper); }
   .ln-foot.fb { padding: 0; border-top: none; }
+  .ln-match { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ln-match-tag { display: block; font: 700 11.5px/1.2 var(--ds-sans); letter-spacing: .02em; margin-bottom: 3px; }
+  @media (max-width: 560px) {
+    .ln-match { grid-template-columns: 1fr; gap: 2px; }
+    .ln-match-left { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 6px; }
+    .ln-body .ln-match-left .ds-opt { width: auto; margin: 0; padding: 7px 12px; line-height: 1.3; }
+    .ln-body .ln-match-right .ds-opt { margin: 6px 0; padding: 11px 14px; }
+  }
+  /* длинный разбор прокручивается внутри панели ответа, «Дальше» под ним всегда на виду */
+  .ln-foot.fb .ds-answer { max-height: 75dvh; display: flex; flex-direction: column; }
+  .ln-foot.fb .ds-answer > div { display: flex; flex-direction: column; align-items: flex-start; min-height: 0; width: 100%; }
+  .ln-foot.fb .ds-answer > div > * { flex: none; }
+  .ln-foot.fb .ds-answer > div > .ln-fb-body { flex: 0 1 auto; align-self: stretch; }
+  .ln-foot.fb .ds-answer > div > button { align-self: stretch; }
+  .ln-fb-body { margin-top: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .ln-kind { margin-bottom: 8px; }
   .ln-prompt { margin-bottom: 12px; }
   /* урок на ПК — крупнее: на большом экране колонка телефона в 560 px терялась посередине. Шрифт
@@ -418,6 +439,10 @@ const CSS = `
   .ln-key-tex { font-size: 19px; text-align: center; margin-top: 4px; overflow-x: auto; overflow-y: hidden; }
   .ln-legend { margin-top: 12px; padding: 8px 12px; border-left: 4px solid var(--u); background: color-mix(in srgb, var(--u) 6%, var(--ds-card)); font-size: 14.5px; line-height: 1.55; border-radius: 4px 12px 12px 4px; }
   .ln-how { background: none; border: none; padding: 4px 0; margin-top: 6px; font: 700 14px var(--ds-sans); color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+  /* «Ошибка в разборе?» — тихая ссылка под разбором в плашке ответа */
+  .ln-explain-flag { margin-top: 8px; display: flex; }
+  .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; }
+  .ln-explain-flag .ln-flag:hover, .ln-explain-flag .ln-flag:focus-visible { opacity: 1; background: none; color: var(--ds-bad); }
   .ln-book { min-height: 100vh; margin: -12px -16px 0; }
   /* кнопки учебника-справочника — те же, что у дизайн-системы: объёмные, со скруглением */
   .ln-textbook .ems-btn { font: 700 13.5px/1.25 var(--ds-sans); border: 2px solid var(--ds-rule2); border-bottom-width: 4px; border-radius: 12px; background: var(--ds-card);
@@ -731,14 +756,15 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
           {/* пары на время: по нулю ответ уходит на проверку таким, какой есть */}
           {inst.timer && <TimerBar seconds={inst.timer} running={!locked} onEnd={() => onSubmit(inst._resp.current || {})} />}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div>{inst.left.map((l) => (
+          {/* на телефоне: термины — фишками сверху, определения во всю ширину (жалоба mvu7oqpw: «огромный список») */}
+          <div className="ln-match">
+            <div className="ln-match-left">{inst.left.map((l) => (
               <button key={l.key} type="button" className="ds-opt" data-side="left" data-key={l.key} aria-pressed={sel === l.key} disabled={locked}
                 style={{ fontSize: 14, borderColor: l.key in pairNo ? tone(pairNo[l.key]) : undefined }}
                 onClick={() => { Audio.play('tick'); if (l.key in r) { const n = { ...r }; delete n[l.key]; setResp(n); setSel(null); } else setSel(l.key); }}>
                 <Inline nodes={l.text} ctx={ctx} /></button>
             ))}</div>
-            <div>{inst.right.map((x) => (
+            <div className="ln-match-right">{inst.right.map((x) => (
               <button key={x.key} type="button" className="ds-opt" data-side="right" data-key={x.key} disabled={locked || (!sel && !(x.key in rightOwner))}
                 style={{ fontSize: 14, borderColor: x.key in rightOwner ? tone(pairNo[rightOwner[x.key]]) : undefined }}
                 onClick={() => {
@@ -747,7 +773,9 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
                   if (x.key in rightOwner) delete n[rightOwner[x.key]];
                   if (sel) n[sel] = x.key;
                   setResp(n); setSel(null);
-                }}><Inline nodes={x.text} ctx={ctx} /></button>
+                }}>
+                {x.key in rightOwner && <span className="ln-match-tag" data-testid="match-tag" style={{ color: tone(pairNo[rightOwner[x.key]]) }}><Inline nodes={inst.left.find((l) => l.key === rightOwner[x.key]).text} ctx={ctx} /></span>}
+                <Inline nodes={x.text} ctx={ctx} /></button>
             ))}</div>
           </div>
         </div>
@@ -902,21 +930,26 @@ function newPlan(run, learn) {
    гаснет. plus — показывать «+1» (на повторе урока опыт почти не идёт). */
 function StreakFlame({ n, plus = true }) {
   const [gone, setGone] = useState(0);
+  /* «+1» и искры — только когда серия выросла за ответ в этом уроке: урок, открытый с уже идущей серией дня,
+     показывает молнию с числом без «+1» (раньше «+1» выпрыгивал при открытии урока) */
+  const [grewTo, setGrewTo] = useState(null);
   const prev = useRef(n);
   useEffect(() => {
     const was = prev.current; prev.current = n;
+    if (n > was) setGrewTo(n);
     if (was >= XP.streakFrom && n === 0) { setGone(was); const t = setTimeout(() => setGone(0), 900); return () => clearTimeout(t); }
     return undefined;
   }, [n]);
   const on = n >= XP.streakFrom;
   if (!on && !gone) return null;
   const shown = on ? n : gone;
-  const milestone = on && n % 5 === 0;
+  const grew = grewTo === n;
+  const milestone = on && grew && n % 5 === 0;
   return (
     <span className={`ln-fire${on ? '' : ' out'}${milestone ? ' big' : ''}`} data-testid="lesson-streak" data-streak={shown} role="status" aria-label={`${shown} подряд верно`}>
       <Zap size={15} className="ln-fire-ic" aria-hidden="true" />
       <b key={shown}>{shown}</b><small className="ln-fire-cap" aria-hidden="true">подряд верно</small>
-      {on && plus && <span key={`p${n}`} className="ln-fire-plus" aria-hidden="true">+1</span>}
+      {on && plus && grew && <span key={`p${n}`} className="ln-fire-plus" data-testid="lesson-streak-plus" aria-hidden="true">+1</span>}
       {milestone && <span key={`s${n}`} className="ln-fire-sparks" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} style={{ '--a': `${i * 45}deg` }} />)}</span>}
     </span>
   );
@@ -1005,7 +1038,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const acc = useRef({
     first: rs ? rs.first : {}, hinted: rs ? rs.hinted : {}, solved: new Set(rs ? rs.solved : []),
     itemStart: clock.current.ms, retries: rs ? rs.retries : 0, bonus: rs ? rs.bonus || 0 : 0,
+    // «Работа над ошибками»: решённые ошибки снимаются, когда урок пройден целиком (docs/mechanics.md)
+    fixed: new Set(rs ? rs.fixed || [] : []),
   });
+  // сохранённый незаконченный урок: обычный — по уроку, «Работа над ошибками» — по юниту
+  const resumeKey = run.mode === 'fix' ? `fix:${run.unitId}` : run.lessonId;
   const [started, setStarted] = useState(!!rs);
   /* урок — слой поверх страницы: пока он открыт, страница под ним не прокручивается и не
      показывает свой ползунок (на ПК он висел сбоку урока, даже когда прокручивать нечего) */
@@ -1040,6 +1077,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     const r = check(cur, answer);
     if (r.empty) { setFb({ ok: false, why: null, empty: true }); return; }
     const a = acc.current;
+    // ошибка поставила повтор в конец урока — подпись под ответом говорит, вернётся ли задача
+    let requeued = false;
     // урок начат — с первого ответа
     /* аналитика: lesson_start — активность, на каждый урок; first_lesson_start — шаг воронки, один раз с
        устройства (docs/mechanics.md, «Аналитика») */
@@ -1068,7 +1107,10 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       // похожая задача вместо исходной отвечает за исходную: ошибка по ней снимается, подсказка переходит
       const baseId = cur.of || cur.id;
       // ошибка решена в практике или верно с первой попытки на повторении в уроке — уходит из «Повторить ошибки»
-      if (run.mode === 'practice' || run.mode === 'fix' || (cur.review && firstTime && firstOk)) update((s) => resolveMistake(s, baseId));
+      if (run.mode === 'practice' || (cur.review && firstTime && firstOk)) update((s) => resolveMistake(s, baseId));
+      /* «Работа над ошибками» — ошибка снимается, когда урок пройден целиком: решили половину и вышли — ошибок
+         не стало меньше, и обязательный урок не пропадает с дороги непройденным */
+      if (run.mode === 'fix') a.fixed.add(baseId);
       // решено с подсказкой (или домино собрано с падениями) — невидимо уходит в «Повторение» пораньше; без подсказки — снимается
       const helped = !!a.hinted[orig] || !!r.partial;
       update((s) => (helped ? addHinted(s, baseId) : clearHinted(s, baseId)));
@@ -1085,9 +1127,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       // повтор в конце урока — не та же задача: новые числа или похожий вопрос на ту же мысль;
       // возвращается ОДИН раз, а не до победного: новичок, отвечая наугад, видел одно задание
       // по пять раз. Не вышло и во второй — урок идёт дальше, задача ждёт в «Повторить ошибки»
-      if (retryable && !cur.noRetry && !cur.retry) {
+      // замены нет (та же задача) — повтора нет: ждёт в «Повторить ошибки»
+      const copy = retryable && !cur.noRetry && !cur.retry ? retryOf(cur, Math.random, queue.map((q) => q.of || q.id)) : null;
+      if (retryWorth(copy)) {
         a.retries += 1;
-        const copy = retryOf(cur, Math.random, queue.map((q) => q.of || q.id));
+        requeued = true;
         setQueue((q) => [...q, { ...copy, uid: `${cur.uid}r${a.retries}`, orig, retry: true }]);
       }
       else a.solved.add(orig);
@@ -1095,7 +1139,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     setAnim((x) => ({ k: x.k + 1, kind: r.ok ? 'flash' : 'shake' }));
     wrongRun.current = r.ok ? 0 : wrongRun.current + 1;
     const say = pickPhrase(situation({ ok: r.ok, streak: firstOk && firstTime ? run3 + 1 : 0, hinted: !!a.hinted[orig] || !!r.partial, retry: !!cur.retry, wrongRun: wrongRun.current }), said.current);
-    setFb({ ok: r.ok, why: r.why, say, skipped: !!r.skipped, partial: !!r.partial });
+    setFb({ ok: r.ok, why: r.why, say, skipped: !!r.skipped, partial: !!r.partial, requeued });
     // украшение урока отзывается на ответ
     if (!r.skipped) tellAnswer(r.ok);
   };
@@ -1130,7 +1174,12 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     } else {
       xp = firstOk * XP.correct + a.bonus;
       // «Работа над ошибками» пройдена — Путь открыт дальше; второй такой в этом юните не будет
-      apply = (s) => { const t = finishLesson(s, null, { xp, ...done }); return run.mode === 'fix' ? markFixed(t, run.unitId, now) : t; };
+      apply = (s) => {
+        if (run.mode !== 'fix') return finishLesson(s, null, { xp, ...done });
+        const solved = [...a.fixed].reduce((t, id) => resolveMistake(t, id), s);
+        return markFixed(finishLesson(solved, null, { xp, ...done }), run.unitId, now);
+      };
+      if (run.mode === 'fix') dropResume(resumeKey);
     }
     // купленный в лавке «двойной опыт»: пока действует, опыт за урок, практику и проверку — вдвое
     // (apply читает xp в момент вызова — удвоенный)
@@ -1184,14 +1233,14 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
      крестиком, после каждого ответа и когда страницу закрывают или прячут — закрытый браузер и
      перезагрузка больше не теряют урок (жалоба: «случайно закрыл браузер — всё слетело») */
   const snapshot = () => {
-    if (run.mode !== 'lesson' || !started || stage === 'done') return;
+    if ((run.mode !== 'lesson' && run.mode !== 'fix') || !started || stage === 'done') return;
     const a = acc.current;
     const at = fb && !fb.empty ? pos + 1 : pos;
-    if (at >= queue.length) { dropResume(run.lessonId); return; }
-    saveResume(run.lessonId, {
+    if (at >= queue.length) { dropResume(resumeKey); return; }
+    saveResume(resumeKey, {
       plan: { items: plan.items, cards: plan.cards, seconds: plan.seconds, diamond }, queue, pos: Math.min(at, queue.length - 1),
       first: a.first, hinted: a.hinted, solved: [...a.solved], retries: a.retries, elapsed: activeNow(),
-      cardsSeen: [...cardsSeen.current], log, kind: cur ? cur.kind : 'choice', history, bonus: a.bonus,
+      cardsSeen: [...cardsSeen.current], log, kind: cur ? cur.kind : 'choice', history, bonus: a.bonus, fixed: [...a.fixed],
     });
   };
   const snapRef = useRef(snapshot);
@@ -1223,7 +1272,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const verdictBar = inst && fb && !fb.empty ? (
     <AnswerBar ok={fb.ok} plain={feed} stamp={GAME_KINDS.includes(inst.kind) ? (fb.ok ? 'Игра засчитана' : 'Игра без зачёта') : inst.kind === 'open' ? (fb.skipped ? 'Вопрос пропущен' : 'Ответ записан') : null}
       say={GAME_KINDS.includes(inst.kind) || inst.kind === 'open' ? null : fb.say} className={fb.ok ? 'ds-flash' : ''} key={`fb${anim.k}`}>
-      <div style={{ marginTop: 10 }} data-testid="ex-feedback" data-ok={String(fb.ok)} data-partial={String(!!fb.partial)}>
+      <div className="ln-fb-body" data-testid="ex-feedback" data-ok={String(fb.ok)} data-partial={String(!!fb.partial)}>
         {inst.kind === 'open' && inst.explain && (
           <div className="tb-body" style={{ fontSize: 15, color: 'inherit' }} data-testid="open-review"><b>Разбор.</b> <Blocks blocks={inst.explain} ctx={noopCtx} /></div>
         )}
@@ -1239,21 +1288,30 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
           how ? <div className="tb-body" style={{ fontSize: 15, marginTop: 6, color: 'inherit' }} data-testid="ex-how"><Blocks blocks={inst.explain} ctx={noopCtx} /></div>
             : <button type="button" className="ln-how" data-testid="ex-how-open" onClick={() => { Audio.play('paper'); setHow(true); }}>Как решать</button>
         )}
+        {/* пожаловаться именно на разбор: верный ответ, «почему» и ход решения — прямо здесь, под ними */}
+        {!GAME_KINDS.includes(inst.kind) && (!fb.ok || inst.explain || fb.why) && (
+          <div className="ln-explain-flag">
+            <ReportFlag withText label="Ошибка в разборе?" testid="report-explain"
+              context={() => ({ ...exerciseContext(inst, { lesson, resp: respRef.current, correct: answerText(inst), mode: run.mode }), part: 'разбор' })} />
+          </div>
+        )}
         {!fb.ok && retryable && !inst.noRetry && !inst.hard && (
           <div className="ds-sub" style={{ fontSize: 13.5, marginTop: 4 }} data-testid="retry-note">
             {inst.retry ? (run.mode === 'practice' || run.mode === 'fix' ? 'Ничего страшного: задача останется в «Повторить ошибки».' : 'В этом уроке она больше не вернётся — подождёт в «Повторить ошибки».')
-              : feed ? 'Похожий вопрос вернётся в конце урока — один раз.' : 'Похожая задача вернётся в конце урока — один раз.'}
+              : !fb.requeued ? (run.mode === 'lesson' ? 'Похожего вопроса в уроке нет — задача подождёт в «Повторить ошибки».' : 'Ничего страшного: задача останется в «Повторить ошибки».')
+                : feed ? 'Похожий вопрос вернётся в конце урока — один раз.' : 'Похожая задача вернётся в конце урока — один раз.'}
           </div>
         )}
         {/* трудная задача: вернётся один раз; не знаете, как решать, — можно убрать из повторения (docs/mechanics.md) */}
         {!fb.ok && retryable && inst.hard && (
           <div className="ln-hard-note" data-testid="hard-note">
-            <span className="ds-sub">{dropped ? 'Убрано из повторения. Решить её можно в учебнике.' : inst.retry ? 'В этом уроке задача больше не вернётся.' : 'Задача вернётся в конце урока — один раз.'}</span>
+            <span className="ds-sub">{dropped ? 'Убрано из повторения. Решить её можно в учебнике.' : inst.retry || !fb.requeued ? 'В этом уроке задача больше не вернётся.' : 'Задача вернётся в конце урока — один раз.'}</span>
             {!dropped && <button type="button" className="ln-how" data-testid="drop-review" onClick={dropHard}>Убрать из повторения</button>}
           </div>
         )}
-        <Button variant={fb.ok ? 'ok' : 'warm'} wide onClick={next} autoFocus style={{ marginTop: 12 }}>Дальше</Button>
       </div>
+      {/* «Дальше» — под прокруткой разбора, всегда на виду (жалоба mvssly7o: «Как решать» на весь экран, не закрыть) */}
+      <Button variant={fb.ok ? 'ok' : 'warm'} wide onClick={next} autoFocus style={{ marginTop: 12, flex: 'none' }}>Дальше</Button>
     </AnswerBar>
   ) : null;
   const unitId = lesson ? lesson.unitId : run.unitId;
@@ -2040,7 +2098,66 @@ function propsFor(id, i, W, y, left, spooky = false) {
    ошибками» — src/learn/stops.js). У особого — свой значок и цвет; «Работа над ошибками» — с меткой
    «сначала ошибки» и закрывает следующий урок. */
 const EXTRA_ICON = { people: Users, read: Feather, graph: ChartSpline, fix: Wrench };
+
+/* КАРТОЧКА ОСОБОГО УРОКА (docs/mechanics.md, «Особые уроки»): «Персоналии», «Чтение», «Разбор графика» —
+   как у обычного урока: вид и место юнита, название, что внутри, ≈ минут и опыт, «Начать». Раньше касание
+   остановки сразу открывало урок, без слова о том, что это и сколько займёт */
+const lastName = (n) => n.split(' ').filter((w) => !/^[А-ЯЁA-Z]\.$/.test(w)).pop();
+export function extraInfo(x) {
+  if (x.type === 'people') {
+    const g = PEOPLE_BY_ID[x.id];
+    // знакомый из прошлого юнита — «снова»
+    return g && { title: g.title, inside: `Три человека: ${g.people.map((p) => `${lastName(p.name)}${p.again ? ' (снова)' : ''}`).join(', ')} — портрет, годы жизни, главная идея и вопрос к каждому.`, min: 5, xp: MET_XP, unitId: g.unitId };
+  }
+  if (x.type === 'read') {
+    const r = READING_BY_ID[x.id];
+    const n = r ? r.pages.length : 0;
+    return r && { title: r.title, inside: `${n} ${plural(n, 'цитата', 'цитаты', 'цитат')} из книг экономистов — кто, когда и зачем написал, и вопрос к каждой.`, min: Math.max(3, n + 1), xp: READ_XP, unitId: r.unitId };
+  }
+  if (x.type === 'graph') {
+    const g = GRAPH_BY_ID[x.id];
+    const n = g ? g.steps.length : 0;
+    return g && { title: g.title, inside: `График собирается на глазах: ${n} ${plural(n, 'шаг', 'шага', 'шагов')}, на каждом — одна мысль простыми словами, в конце — вопрос на понимание.`, min: Math.max(2, Math.round(n * 0.35 + 1)), xp: GRAPH_XP, unitId: g.unitId };
+  }
+  return null;
+}
+function ExtraSheet({ x, onStart, onClose }) {
+  const info = extraInfo(x);
+  if (!info) return null;
+  const Icon = EXTRA_ICON[x.type] || BookOpen;
+  const pl = placeOf(info.unitId);
+  return (
+    <Sheet label={`${EXTRA_KIND[x.type]}: ${info.title}`} onClose={onClose} testid="extra-sheet" data-extra={x.type} data-id={x.id} style={{ '--u': pl.color }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginRight: -8 }}><IconButton label="Закрыть" icon={X} data-nav="back" onClick={onClose} size={22} /></div>
+      <div className="ln-ticket">
+        <div className="ln-ticket-main">
+          <div className="ds-eyebrow">{EXTRA_KIND[x.type]} · {pl.place}</div>
+          <div className="ds-h2" style={{ marginTop: 4 }}>{info.title}</div>
+          <div className="ds-num ds-sub ln-ticket-meta" data-testid="extra-meta">
+            <span><Timer size={15} aria-hidden="true" />≈{info.min} мин</span>
+            <span><Coins size={15} aria-hidden="true" />{x.done ? 'опыт получен' : `+${info.xp} опыта`}</span>
+            {x.done && <span data-testid="extra-done-mark" style={{ color: 'var(--ds-ok)', fontWeight: 700 }}><Check size={15} aria-hidden="true" />пройден</span>}
+          </div>
+        </div>
+        <div className="ln-ticket-stub"><Icon size={30} aria-hidden="true" /></div>
+      </div>
+      <p className="ds-sub" style={{ fontSize: 15, lineHeight: 1.45, margin: '14px 2px 0' }} data-testid="extra-inside">{info.inside}</p>
+      <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
+        <Button wide data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+      </div>
+    </Sheet>
+  );
+}
 function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra = () => {}, rec = null, chest = null, onChest, spooky = false }) {
+  // открытая остановка «Персоналии» — портреты её людей грузятся заранее, в фоне (docs/mechanics.md, «Персоналии»)
+  const peopleOpen = stops.filter((x) => x.type === 'people' && x.open && !x.done).map((x) => x.id).join(',');
+  useEffect(() => {
+    if (!peopleOpen) return undefined;
+    const go = () => peopleOpen.split(',').forEach((id) => { if (PEOPLE_BY_ID[id]) preloadPhotos(PEOPLE_BY_ID[id].people); });
+    const idle = typeof window !== 'undefined' && window.requestIdleCallback;
+    const h = idle ? window.requestIdleCallback(go, { timeout: 3000 }) : setTimeout(go, 1500);
+    return () => (idle ? window.cancelIdleCallback(h) : clearTimeout(h));
+  }, [peopleOpen]);
   const W = 300;
   // пройденный юнит — в конце дороги сундук
   const n = stops.length + (chest ? 1 : 0);
@@ -2082,7 +2199,7 @@ function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra =
               </button>
               <button type="button" className={`ln-stop-title ln-extra-title side-${ts.side} ${x.open || x.done ? '' : 'locked'}`} tabIndex={-1} aria-hidden="true"
                 data-testid="path-extra-title" data-side={ts.side} style={ts.style}
-                onClick={() => { Audio.play('click'); onExtra(x); }}><small>{x.type === 'fix' ? 'сначала — ошибки юнита' : EXTRA_KIND[x.type]}</small>{x.title}</button>
+                onClick={() => { Audio.play('click'); onExtra(x); }}><small>{x.type === 'fix' ? (resumes.has(x.id) ? 'продолжить — ошибки юнита' : 'сначала — ошибки юнита') : EXTRA_KIND[x.type]}</small>{x.title}</button>
             </div>
           );
         }
@@ -2653,6 +2770,8 @@ const SettingsView = React.lazy(() => import('./learn-profile.jsx').then((m) => 
 const NewsView = React.lazy(() => import('./learn-news.jsx'));
 const ReadingView = React.lazy(() => import('./learn-reading.jsx'));
 const PeopleView = React.lazy(() => import('./learn-people.jsx'));
+// книга поверх вкладки — из мини-проигрывателя над вкладками (src/learn-bookdock.jsx); читалка — в чанке полки
+const BookOverlay = React.lazy(() => import('./learn-shelf.jsx').then((m) => ({ default: m.BookOverlay })));
 const GraphLesson = React.lazy(() => import('./learn-graph.jsx'));
 const Lazy = ({ children }) => <React.Suspense fallback={<BrandLoader compact text="Открываем" />}>{children}</React.Suspense>;
 const Celebration = React.lazy(() => import('./learn-celebrate.jsx'));
@@ -2778,6 +2897,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   /* особые уроки дороги (src/learn/stops.js): «Чтение», «Персоналии», «Работа над ошибками»;
      закрытый — подсказка, когда откроется */
   const [people, setPeople] = useState(null);
+  const [dockBook, setDockBook] = useState(null);
   // «Разбор графика»: с дороги юнита — урок с опытом; с карточки урока (событие) — поверх урока, без опыта
   const [graph, setGraph] = useState(null);
   useEffect(() => {
@@ -2786,12 +2906,20 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     return () => window.removeEventListener(GRAPH_EVENT, on);
   }, []);
   const [extraLocked, setExtraLocked] = useState(null);
+  // «Персоналии», «Чтение», «Разбор графика» — сначала карточка урока, «Начать» — сам урок
+  const [extraSheet, setExtraSheet] = useState(null);
   const onExtra = (x) => {
     if (!x.open && !x.done) { Audio.play('down'); setExtraLocked(x); return; }
+    if (x.type !== 'fix' && extraInfo(x)) { setExtraSheet(x); return; }
+    openExtra(x);
+  };
+  const openExtra = (x) => {
+    setExtraSheet(null);
     if (x.type === 'read') setReading(x.id);
     else if (x.type === 'people') setPeople(x.id);
     else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
-    else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId });
+    // вышли посреди «Работы над ошибками» — она продолжается с того же места (сутки, как обычный урок)
+    else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId, resume: getResume(`fix:${x.unitId}`) });
   };
   // гость: после выбора цели — сразу первый урок Пути, без карточки урока
   useEffect(() => { if (firstLesson) { onFirstLesson(); start({ mode: 'lesson', lessonId: LESSONS[0].id }); } // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2887,6 +3015,10 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
       {reading && <Lazy><ReadingView id={reading} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
       {people && <Lazy><PeopleView id={people} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
+      {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
+      {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
+      {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
+      {extraSheet && <ExtraSheet x={extraSheet} onStart={openExtra} onClose={() => setExtraSheet(null)} />}
       {extraLocked && (
         <Sheet label={EXTRA_KIND[extraLocked.type]} onClose={() => setExtraLocked(null)} testid="extra-locked">
           <div style={{ textAlign: 'center' }}>

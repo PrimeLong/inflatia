@@ -11,7 +11,13 @@ import { listPeoplePhotos, readPhotoCredits } from './voice-files-plugin.js';
 const out = new URL('../people/', import.meta.url);
 const files = listPeoplePhotos();
 const credits = readPhotoCredits();
-const all = PEOPLE.flatMap((g) => g.people.map((p) => ({ ...p, group: g.title })));
+// знакомый, вернувшийся в другом юните (again), — одна строка с одним портретом: группы через запятую
+const all = [];
+PEOPLE.forEach((g) => g.people.forEach((p) => {
+  const seen = all.find((x) => x.id === p.id);
+  if (seen) seen.group += `, ${g.title}`;
+  else all.push({ ...p, group: g.title });
+}));
 let n = 0;
 const rows = all.map((p) => {
   n += 1;
@@ -63,7 +69,7 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 \`\`\`
 
 Автор и лицензия — со страницы файла на Commons, ссылка — адрес этой страницы (файла на Commons нет —
-адрес источника). Под портретом появится «Фото: автор · лицензия · Wikimedia Commons». Заметка — для
+адрес источника). Под портретом появится «Фото: автор · лицензия · Wikimedia Commons» (файл из самой Википедии — «· Википедия»). Заметка — для
 себя (на экран не идёт): откуда фото, что ещё проверить. Точку с запятой внутри полей не ставьте — это
 разделитель. Лицензию найти нельзя или фото не то, что на странице, — не кладите его: пусть будет
 медальон.

@@ -17,7 +17,7 @@ async function openMore(page, id) {
 const DIR = 'screens';
 const ACCOUNT = { token: 't', login: 'tester', name: 'Тест', emblem: 'star', kidsMode: false, birthYear: 1990 };
 // пройдено всё, кроме «Итогов юнита»: на Пути видно и пройденное, и текущее; любой урок открыт для повтора
-const DONE = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev'];
+const DONE = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev'];
 
 async function setup(page, { theme, account = true, learn = null }) {
   const errors = [];
@@ -75,8 +75,8 @@ async function a11y(page, name) {
 }
 const foot = (page) => page.getByTestId('lesson').locator('.ln-foot button').last();
 // на Пути юниты одного уровня: уровень нужного юнита — через плашку и список уровней, если юнита нет на экране
-const UNIT_OF = { sc: 'scarcity', sd: 'supply-demand', el: 'elasticity', mf: 'market-failures', mb: 'money-banks', in: 'inflation', cs: 'consumer' };
-const LEVEL_OF = { scarcity: 'start', 'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic', consumer: 'middle' };
+const UNIT_OF = { sc: 'scarcity', lm: 'labor', sd: 'supply-demand', el: 'elasticity', mf: 'market-failures', mb: 'money-banks', in: 'inflation', cs: 'consumer' };
+const LEVEL_OF = { scarcity: 'start', labor: 'start', 'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic', consumer: 'middle' };
 const showUnit = async (page, unit) => {
   await page.waitForTimeout(150);
   if (await page.locator(`[data-testid=path-unit][data-unit="${unit}"]`).count()) return;
@@ -434,7 +434,7 @@ for (const theme of ['light', 'dark']) {
         try {
           const p = JSON.parse(localStorage.getItem('ems-textbook-v1'));
           const at = Date.now() - 86400000;
-          ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'sd-sum', 'el-sum', ...ids].forEach((id) => { p.learn.lessons[id] = { at, runs: 1, best: 90 }; });
+          ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-sum', 'el-sum', ...ids].forEach((id) => { p.learn.lessons[id] = { at, runs: 1, best: 90 }; });
           localStorage.setItem('ems-textbook-v1', JSON.stringify(p));
         } catch { /* нет хранилища */ }
       }, CS);

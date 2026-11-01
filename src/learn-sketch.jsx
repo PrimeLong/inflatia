@@ -28,7 +28,8 @@ const TOOLS = [{ id: 'pen', icon: PenLine }, { id: 'marker', icon: Highlighter }
 /* Где рисовать. Урок — свой слой поверх приложения: поле — сам слой и его тело (.ln-body) вне
    колонки. Лента новостей — страница: поле — сама страница (.ln-root) и вкладка (.ln-tab) вне колонки. */
 const MODES = {
-  lesson: { host: (el) => el.parentElement, field: 'ln-body', col: ':scope > .ln-body > .ln-inner, :scope > .ln-foot .ln-inner', hint: 'Новое: пишите на полях урока' },
+  /* урок; поле — и тело слоя «Предыдущая карточка» (.ln-peek > .ln-body) вне колонки: прошлая карточка черновик не закрывает */
+  lesson: { host: (el) => el.parentElement, field: 'ln-body', peek: true, col: ':scope > .ln-body > .ln-inner, :scope > .ln-foot .ln-inner', hint: 'Новое: пишите на полях урока' },
   page: { page: true, host: (el) => el.closest('.ln-root'), field: 'ln-tab', col: ':scope > .ln-tab > .ln-wrap', hint: 'Новое: пишите на полях' },
   /* учебник — та же страница, но колонка — весь учебник (.ln-textbook с оглавлением главы), а поле —
      и вкладка, и обёртка учебника (.ln-book) по бокам от него (отчёт: «вот тут как никогда нужно рисование») */
@@ -36,6 +37,9 @@ const MODES = {
   /* учебник поверх Пути — открыт кнопкой «Гайд юнита» или из урока: та же запись на полях, только
      учебник лежит прямо в корне (.ln-root > .ln-book), а не во вкладке (отчёт: «через гайд черновика нет») */
   bookOver: { page: true, host: (el) => el.closest('.ln-root'), fieldSel: '.ln-root > .ln-book', col: ':scope > .ln-book > .ln-textbook', hint: 'Новое: пишите на полях учебника' },
+  /* разбор графика — свой слой (.gl), который сам прокручивается: холсты и док закреплены на экране (fixed),
+     запись стоит на месте, как в уроке; поле — сам слой по бокам от страницы разбора */
+  graph: { fixed: true, host: (el) => el.closest('.gl'), field: 'gl', col: ':scope > .gl-page', hint: 'Новое: пишите на полях разбора' },
 };
 
 // курсор из SVG; у ручки кончик — текущего цвета, у маркера и ластика — круг их толщины
@@ -58,6 +62,11 @@ export const SKETCH_CSS = `
   .sk-grid.on { opacity: 1; }
   .sk-canvas { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; transition: opacity .26s ease, filter .26s ease; }
   .sk-canvas.wipe { opacity: 0; filter: blur(6px); }
+  /* «Предыдущая карточка» поверх урока: непрозрачна только над колонкой — поля с записью видны и рисуют дальше */
+  .ln-overlay[data-sketch-host] > .ln-peek { background: linear-gradient(90deg, transparent calc(var(--sk-l, 35%) - 14px), var(--ds-paper) calc(var(--sk-l, 35%) - 14px),
+    var(--ds-paper) calc(var(--sk-r, 65%) + 14px), transparent calc(var(--sk-r, 65%) + 14px)); }
+  .ln-overlay[data-sketch] > .ln-peek > .ln-body { cursor: var(--sk-cursor, crosshair); }
+  .ln-overlay[data-sketch] > .ln-peek > .ln-body > * { cursor: auto; }
   .ln-overlay[data-sketch], .ln-overlay[data-sketch] > .ln-body { cursor: var(--sk-cursor, crosshair); }
   .ln-overlay[data-sketch] > :not(.ln-body), .ln-overlay[data-sketch] > .ln-body > * { cursor: auto; }
   .ln-overlay[data-sketching] * { cursor: inherit !important; user-select: none; }
@@ -66,6 +75,15 @@ export const SKETCH_CSS = `
   .sk-page.sk-canvas { clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, calc(var(--sk-l, 35%) - 12px) 0, calc(var(--sk-l, 35%) - 12px) 100%,
     calc(var(--sk-r, 65%) + 12px) 100%, calc(var(--sk-r, 65%) + 12px) 0, calc(var(--sk-l, 35%) - 12px) 0); }
   .sk-dock.sk-page { position: fixed; z-index: 90; bottom: calc(var(--sk-bottom, 16px) + env(safe-area-inset-bottom)); }
+  /* разбор графика: слой прокручивается сам — холсты и док закреплены на экране, под страницей разбора */
+  .sk-fixed.sk-grid, .sk-fixed.sk-canvas { position: fixed; }
+  /* док — над нижней панелью разбора («Назад» / «Дальше»): в окне 1280 px панель начинается у 280 px, и док её закрывал бы */
+  .sk-dock.sk-fixed { position: fixed; z-index: 4; bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* черновик включён — страница разбора чуть уже (680 вместо 720 px): в окне 1280 px поле слева шире дока (316 > 302 px) */
+  .gl[data-sketch] > .gl-page { max-width: 680px; }
+  .gl[data-sketch] { cursor: var(--sk-cursor, crosshair); }
+  .gl[data-sketch] > * { cursor: auto; }
+  .gl[data-sketching] * { cursor: inherit !important; user-select: none; }
   .ln-root[data-sketch], .ln-root[data-sketch] > .ln-tab { cursor: var(--sk-cursor, crosshair); }
   .ln-root[data-sketch] > :not(.ln-tab), .ln-root[data-sketch] > .ln-tab > * { cursor: auto; }
   .ln-root[data-sketching] * { cursor: inherit !important; user-select: none; }
@@ -155,9 +173,11 @@ export const SKETCH_CSS = `
 // поле — сам слой (страница) и его тело вне колонки; полоса прокрутки тела — не поле
 function onMargin(e, root, M) {
   const t = e.target;
-  if (t === root) return true;
+  // сам слой — поле, кроме полосы прокрутки (у разбора графика слой прокручивается)
+  if (t === root) { const r = root.getBoundingClientRect(); const k = root.offsetWidth ? r.width / root.offsetWidth : 1; return e.clientX < r.left + root.clientWidth * k; }
   if (!(t instanceof Element) || !root.contains(t)) return false;
-  if (!(M.fieldSel ? t.matches(M.fieldSel) : t.parentElement === root && t.classList.contains(M.field))) return false;
+  const inPeek = M.peek && t.parentElement && t.parentElement.classList.contains('ln-peek') && t.parentElement.parentElement === root && t.classList.contains('ln-body');
+  if (!inPeek && !(M.fieldSel ? t.matches(M.fieldSel) : t.parentElement === root && t.classList.contains(M.field))) return false;
   const r = t.getBoundingClientRect();
   const k = t.offsetWidth ? r.width / t.offsetWidth : 1;
   return e.clientX < r.left + t.clientWidth * k;
@@ -346,11 +366,14 @@ export function Sketch({ mode = 'lesson' }) {
        ответ: там своя отмена; и не при скрытом уроке) */
     const key = (e) => {
       if (!pick.current.on || !(e.ctrlKey || e.metaKey) || e.altKey || typing(document.activeElement) || !r.clientWidth) return;
+      // поверх открыт разбор графика со своим черновиком — отмена его, а не того, что под ним
+      if (mode !== 'graph' && document.querySelector('.gl[data-sketch-host]')) return;
       const isRedo = e.code === 'KeyY' || (e.code === 'KeyZ' && e.shiftKey);
       const isUndo = e.code === 'KeyZ' && !e.shiftKey;
       if (isUndo && strokes.current.length) { e.preventDefault(); undo(); }
       else if (isRedo && undone.current.length) { e.preventDefault(); redo(); }
     };
+    r.dataset.sketchHost = mode;
     r.addEventListener('pointerdown', down);
     r.addEventListener('pointermove', move);
     r.addEventListener('pointerup', up);
@@ -390,7 +413,7 @@ export function Sketch({ mode = 'lesson' }) {
       if (mo) mo.disconnect();
       cancelAnimationFrame(frame.current);
       clearTimeout(wipeTimer.current);
-      delete r.dataset.sketching;
+      delete r.dataset.sketching; delete r.dataset.sketchHost;
       r.style.removeProperty('--sk-l'); r.style.removeProperty('--sk-r');
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -431,7 +454,7 @@ export function Sketch({ mode = 'lesson' }) {
   };
   const wipe = () => {
     if (!strokes.current.length || wiping) return;
-    Audio.play('paper');
+    Audio.play('erase');
     const done = () => {
       setCleared(strokes.current); forgetRedo();
       strokes.current = [];
@@ -454,7 +477,7 @@ export function Sketch({ mode = 'lesson' }) {
   const sizes = SKETCH_TOOLS[tool].sizes;
   const dotOf = (px) => Math.max(5, Math.min(18, tool === 'pen' ? px * 2.4 : px * 0.62));
   const snack = on && !!cleared && !count;
-  const page = M.page ? 'sk-page' : '';
+  const page = M.page ? 'sk-page' : M.fixed ? 'sk-fixed' : '';
   return (
     <>
       <div ref={gridRef} className={`sk-grid ${on ? 'on' : ''} ${page}`} aria-hidden="true" data-testid="sketch-grid" />

@@ -54,12 +54,12 @@ describe('лига: таблица недели', () => {
     expect(zoneOf(1, 'silver')).toBe('up'); expect(zoneOf(PROMOTE, 'silver')).toBe('up'); expect(zoneOf(PROMOTE + 1, 'silver')).toBe('stay');
     expect(zoneOf(GROUP, 'silver')).toBe('down'); expect(zoneOf(GROUP, 'bronze')).toBe('stay'); expect(zoneOf(1, 'diamond')).toBe('stay');
   });
-  it('настоящие имена встают на места ботов, но опыт и места соперников не меняют', () => {
+  it('в лигах только боты: настоящие имена не подставляются, даже если их передать (опция убрана)', () => {
     const s = withXp({ [MON]: 80 });
     const plain = standings(s, MON, 'gold', at(addDays(MON, 3)));
     const named = standings(s, MON, 'gold', at(addDays(MON, 3)), ['Тест Т.', 'Проверка П.']);
-    expect(named.map((r) => r.xp)).toEqual(plain.map((r) => r.xp));
-    expect(named.filter((r) => ['Тест Т.', 'Проверка П.'].includes(r.name))).toHaveLength(2);
+    expect(named.map((r) => [r.name, r.xp])).toEqual(plain.map((r) => [r.name, r.xp]));
+    expect(named.filter((r) => ['Тест Т.', 'Проверка П.'].includes(r.name))).toHaveLength(0);
   });
 });
 

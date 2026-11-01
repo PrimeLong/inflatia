@@ -10,7 +10,7 @@
    Плашка «верно / не совсем» у живого вопроса — в нижней панели урока, как у остальных
    упражнений: её видно без прокрутки. */
 import React, { useEffect, useRef, useState } from 'react';
-import { Headphones, Eye, EyeOff, Volume2, VolumeX, Play, RotateCcw, ChevronRight } from 'lucide-react';
+import { Headphones, Eye, EyeOff, VolumeX, Square, Play, RotateCcw, ChevronRight } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Inline } from './textbook.jsx';
 import { Guilloche } from './ds-art.jsx';
@@ -221,7 +221,17 @@ function useSpeech() {
       if (busy) setTimeout(go, 80); else go();
     } catch { setBroken(true); }
   };
-  return { voice, voiced, canVoice, muted, setMuted, now, speak, caption: voiceCaption(anyRecordings()) };
+  // остановить идущий сюжет (жалоба mvrvi831 «не могу выключить звук»): запись, голос браузера и подсветку
+  const stop = () => {
+    clearInterval(timer.current);
+    stopTape();
+    utter.current = null;
+    try { window.speechSynthesis.cancel(); } catch { /* нет голоса */ }
+    setNow({ key: null, at: -1 });
+  };
+  // кнопка сюжета: звучит этот — остановить, иначе — читать сначала
+  const toggle = (key, text, who) => { if (now.key === key) stop(); else speak(key, text, who); };
+  return { voice, voiced, canVoice, muted, setMuted, now, speak, stop, toggle, caption: voiceCaption(anyRecordings()) };
 }
 
 const msgText = (card) => plainText(card.text || []);
@@ -261,8 +271,8 @@ function Message({ entry, mode, speech, picture, skipTitle, flag }) {
         {visible && picture}
         {listen && (
           <div className="fd-tools">
-            <button type="button" className="fd-tool" data-testid="feed-play" aria-label={`Прослушать сообщение ${index}`} onClick={() => speech.speak(entry.key, text, whoId)}>
-              {speaking ? <Volume2 size={15} aria-hidden="true" /> : <Headphones size={15} aria-hidden="true" />}{speaking ? 'читаю…' : 'прослушать'}
+            <button type="button" className="fd-tool" data-testid="feed-play" data-playing={String(speaking)} aria-label={speaking ? `Остановить сообщение ${index}` : `Прослушать сообщение ${index}`} onClick={() => speech.toggle(entry.key, text, whoId)}>
+              {speaking ? <Square size={13} aria-hidden="true" /> : <Headphones size={15} aria-hidden="true" />}{speaking ? 'остановить' : 'прослушать'}
             </button>
             {voiced && !revealed && (
               <button type="button" className="fd-tool" data-testid="feed-toggle" onClick={() => { Audio.play('paper'); setShown((v) => !v); }}>
@@ -293,8 +303,8 @@ function RadioSet({ entry, speech, picture, skipTitle, flag }) {
         <span className="fd-onair">в эфире</span><span className="ln-kind fd-set-who" title={(CAST[card.who] || CAST[DEFAULT_VOICE.listen]).name}>{(CAST[card.who] || CAST[DEFAULT_VOICE.listen]).name.split(' ')[0]} · сюжет {index}</span><span style={{ flex: 1 }} />{flag}
       </div>
       <div className="fd-set-main">
-        <button type="button" className="fd-play" data-testid="feed-play" aria-label={`${speaking ? 'Читаю' : 'Слушать'}: сюжет ${index}`} onClick={() => speech.speak(entry.key, text, whoId)}>
-          {speaking ? <Volume2 size={28} aria-hidden="true" /> : <Play size={28} aria-hidden="true" style={{ marginLeft: 3 }} />}
+        <button type="button" className="fd-play" data-testid="feed-play" data-playing={String(speaking)} aria-label={`${speaking ? 'Остановить' : 'Слушать'}: сюжет ${index}`} onClick={() => speech.toggle(entry.key, text, whoId)}>
+          {speaking ? <Square size={24} aria-hidden="true" /> : <Play size={28} aria-hidden="true" style={{ marginLeft: 3 }} />}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="fd-set-title">{card.title && card.title !== skipTitle ? card.title : index === 1 ? 'Начало эфира' : 'Эфир'}</div>

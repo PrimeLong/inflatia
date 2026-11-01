@@ -4,13 +4,14 @@
    рассказ, главная идея, «Знаете ли вы» и вопрос. В конце — стена галереи: три портрета
    повисают в рамах, опыт — один раз. Отдельный ленивый чанк. */
 import React, { useEffect, useRef, useState } from 'react';
-import { X, ArrowRight, Sparkles, Lightbulb, Check } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf } from './learn/people.js';
-import { cachedPhoto, loadPhoto } from './learn/portraits.js';
+import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
 import { finishLesson, markMet } from './textbook/learn-state.js';
+import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 
 export const PEOPLE_CSS = `
   .pp-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -35,9 +36,12 @@ export const PEOPLE_CSS = `
   .pp-frame > .pp-pic { width: 100%; height: 100%; border-radius: 78px 78px 13px 13px; overflow: hidden; background: var(--ds-card2); position: relative; }
   .pp-pic img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; filter: sepia(.25) contrast(1.04); animation: pp-ken 14s ease-in-out infinite alternate; }
   @keyframes pp-ken { from { transform: scale(1.02) } to { transform: scale(1.1) translate(-2%, -2%) } }
+  /* блик — редко: проход за 2 с, когда портрет появился, и дальше раз в 30 с (было каждые 5 с — портрет «мигал»);
+     в галерее профиля, где портретов много, — один проход (.lb-gal ниже) */
   .pp-pic::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.28) 50%, transparent 65%); background-size: 260% 100%;
-    animation: pp-sheen 5s ease-in-out 1s infinite; pointer-events: none; }
-  @keyframes pp-sheen { 0% { background-position: 130% 0 } 40%, 100% { background-position: -40% 0 } }
+    background-position: -40% 0; animation: pp-sheen 30s linear 1s infinite; pointer-events: none; }
+  @keyframes pp-sheen { 0% { background-position: 130% 0; animation-timing-function: ease-in-out } 6.6%, 100% { background-position: -40% 0 } }
+  .lb-gal .pp-pic::after { animation-iteration-count: 1; }
   .pp-credit { margin-top: 6px; font-size: 12px; line-height: 1.3; color: var(--ds-ink2); max-width: 168px; overflow-wrap: anywhere; }
   .pp-credit a { color: inherit; }
   .pp-name { font: 700 clamp(26px, 4.4vw, 36px)/1.08 var(--ds-news, 'PT Serif', Georgia, serif); letter-spacing: -.01em; }
@@ -45,6 +49,9 @@ export const PEOPLE_CSS = `
   .pp-role span { padding: 4px 10px; border-radius: 999px; font: 600 13px var(--ds-sans); background: color-mix(in srgb, var(--pp) 12%, var(--ds-card)); color: var(--pp-ink);
     border: 1px solid color-mix(in srgb, var(--pp) 28%, transparent); }
   .pp-lead { margin-top: 12px; font: 400 17px/1.45 var(--ds-sans); color: var(--ds-ink2); }
+  /* знакомый из прошлого юнита: метка и строка, где встречались */
+  .pp-role .pp-again { background: var(--pp); color: #fff; border-color: var(--pp); }
+  .pp-again-note { margin-top: 8px; font: 500 14px/1.4 var(--ds-sans); color: var(--pp-ink); }
 
   /* лента веков: шкала 1640–2030, годы жизни — полоса, главный год — флажок */
   .pp-era { position: relative; margin: 26px 4px 8px; height: 58px; }
@@ -76,8 +83,22 @@ export const PEOPLE_CSS = `
   .pp-opt:disabled { cursor: default; }
   .pp-fb { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 15px; line-height: 1.5; border-left: 4px solid var(--ds-ok); background: var(--ds-ok-bg); color: var(--ds-ok-ink); animation: pp-in .3s ease-out backwards; }
   .pp-fb.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 9%, var(--ds-card)); color: var(--ds-ink); }
+  /* разбор выезжает на экран над нижней кнопкой, а не под неё */
+  .pp-fb { scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* ПК: две колонки на всю ширину окна — страница целиком на экране, разбор под вариантами, на виду
+     (жалоба: «экран может влезть во весь экран, но не влезает, и за плашкой „верно“ приходится мотать») */
+  @media (min-width: 1024px) {
+    .pp-page.pp-two { max-width: 1180px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); column-gap: 40px; align-items: start; padding: 20px 28px 110px; }
+    .pp-two .pp-col-r { position: sticky; top: 72px; }
+    .pp-two .pp-col-r > :first-child { margin-top: 0; }
+    .pp-two .pp-era { margin-top: 18px; }
+    .pp-two .pp-story p { font-size: 16px; line-height: 1.55; margin-top: 10px; }
+    .pp-two .pp-ask { margin-top: 16px; }
+    .pp-foot > * { max-width: 1124px; }
+  }
   .pp-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--ds-paper) 92%, transparent); border-top: 1px solid var(--ds-rule2); backdrop-filter: blur(8px); }
-  .pp-foot > * { max-width: 720px; margin: 0 auto; }
+  .pp-foot > * { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; }
+  .pp-foot > * > :last-child { flex: 1; }
 
   /* стена галереи: три рамы повисают на гвоздях и качаются */
   .pp-wall { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin: 26px 0 10px; }
@@ -114,14 +135,14 @@ export function usePhoto(p, off = false) {
 }
 /* Портрет: свой файл из public/people (с подписью автора и лицензии), иначе — гравированный медальон: штриховка гравюры,
    двойная рамка и инициалы антиквой. Фото не загрузилось — тоже медальон. */
-export function Portrait({ p, color, hidden = false }) {
+export function Portrait({ p, color, hidden = false, eager = false }) {
   const loaded = usePhoto(p, hidden);
   const [broken, setBroken] = useState(false);
   const photo = loaded && !broken ? loaded : null;
   const gid = `pp-h-${p.id}`;
   return (
     <div className="pp-pic" data-testid="people-portrait" data-photo={photo ? 'true' : 'false'}>
-      {photo ? <img src={photo.file} alt={`Портрет: ${p.name}`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      {photo ? <img src={photo.file} alt={`Портрет: ${p.name}`} loading={eager ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
         : (
           <svg viewBox="0 0 120 150" width="100%" height="100%" role="img" aria-label={hidden ? 'Ещё не знакомы' : `${p.name} — медальон с инициалами`} preserveAspectRatio="xMidYMid slice">
             <defs>
@@ -146,7 +167,9 @@ export function Portrait({ p, color, hidden = false }) {
 export function PhotoCredit({ p }) {
   const ph = usePhoto(p);
   if (!ph || (!ph.author && !ph.license)) return null;
-  const where = /wikimedia\.org|wikipedia\.org/.test(ph.source || '') || /^https:\/\/upload\.wikimedia/.test(ph.file || '') ? 'Wikimedia Commons' : 'источник';
+  // файл в самой Википедии (не на Commons) — «Википедия»: так у Робинсон
+  const where = /wikipedia\.org\/wiki\/File:/.test(ph.source || '') ? 'Википедия'
+    : /wikimedia\.org|wikipedia\.org/.test(ph.source || '') || /^https:\/\/upload\.wikimedia/.test(ph.file || '') ? 'Wikimedia Commons' : 'источник';
   return (
     <div className="pp-credit" data-testid="people-credit">
       Фото: {[ph.author, ph.license].filter(Boolean).join(' · ')}{ph.source ? <> · <a href={ph.source} target="_blank" rel="noopener noreferrer">{where}</a></> : where === 'Wikimedia Commons' ? ' · Wikimedia Commons' : ''}
@@ -179,6 +202,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
   const root = useRef(null);
   // знакомы ли были до этого захода: после финиша прогресс уже отмечен, а на экране — «+12 опыта»
   const [already] = useState(() => isMet(learn, id));
+  // все три портрета — сразу при входе, а не по одному при переходе к человеку
+  useEffect(() => { preloadPhotos(g.people); }, [g]);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }, [k, finished, reduced]);
   const p = g.people[k];
   const choice = picked[k];
@@ -189,7 +214,16 @@ export default function PeopleView({ id, learn, update, onClose }) {
     if (!(k in firstOk.current)) firstOk.current[k] = ok;
     Audio.play(ok ? 'coin' : 'down');
     setPicked((m) => ({ ...m, [k]: i }));
+    pickedAt.current = Date.now();
   };
+  // ответили — разбор выезжает на экран (над нижней кнопкой), если он ниже края; при переходе назад не дёргаем
+  const fbRef = useRef(null);
+  const pickedAt = useRef(0);
+  useEffect(() => {
+    const el = fbRef.current;
+    if (!el || Date.now() - pickedAt.current > 1000 || !el.scrollIntoView) return;
+    el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+  }, [choice, k, reduced]);
   const next = () => {
     Audio.play('paper');
     if (k < g.people.length - 1) { setK(k + 1); return; }
@@ -197,33 +231,46 @@ export default function PeopleView({ id, learn, update, onClose }) {
     if (!already) update((s) => markMet(finishLesson(s, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id));
     setFinished(true);
   };
+  // назад — к прошлому человеку: его ответ и разбор на месте
+  const back = () => { if (k > 0) { Audio.play('paper'); setK(k - 1); } };
   const style = { '--pp': g.color, '--pp-ink': `color-mix(in srgb, ${g.color} 82%, #000)` };
   const met = galleryOf({ ...learn, met: { ...learn.met, [id]: 1 } }).filter((x) => x.met).length;
   return (
     <div className="pp-root" ref={root} style={style} data-testid="people" data-id={id} role="dialog" aria-label={`Персоналии: ${g.title}`}>
-      <style>{PEOPLE_CSS}</style>
+      <style>{PEOPLE_CSS + REPORT_CSS}</style>
       <div className="pp-top">
         <IconButton label="Закрыть" icon={X} data-testid="people-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="pp-title"><small>Персоналии</small>{g.title}</div>
         <div className="pp-pips" aria-hidden="true">
           {g.people.map((x, i) => <i key={x.id} className={finished || i < k ? 'ok' : i === k ? 'on' : ''}>{finished || i < k ? <Check size={13} strokeWidth={3} /> : i + 1}</i>)}
         </div>
+        {/* «Сообщить об ошибке» — как в любом уроке: человек, вопрос и выбранный ответ уходят в жалобу */}
+        <ReportFlag context={() => ({
+          screen: 'people', lesson: id, unit: g.unitId, kind: 'people',
+          step: finished ? 'итог' : `${p.name}, ${k + 1} из ${g.people.length}`,
+          prompt: finished ? g.title : `${p.ask.prompt} — ${p.ask.options.map((o) => o.text).join(' / ')}`.slice(0, 1500),
+          answer: !finished && choice != null ? order[k][choice].text : '',
+        })} />
       </div>
       {!finished ? (
-        <div className="pp-page" key={p.id} data-testid="people-page" data-person={p.id}>
+        <div className="pp-page pp-two" key={p.id} data-testid="people-page" data-person={p.id}>
+          <div className="pp-col-l">
           <div className="pp-hero">
             <div>
-              <div className="pp-frame"><Portrait p={p} color={g.color} /></div>
+              <div className="pp-frame"><Portrait p={p} color={g.color} eager /></div>
               <PhotoCredit p={p} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div className="pp-name" data-testid="people-name">{p.name}</div>
-              <div className="pp-role"><span>{p.years}</span><span>{p.role}</span></div>
+              <div className="pp-role"><span>{p.years}</span><span>{p.role}</span>{p.again && <span className="pp-again" data-testid="people-again">Уже знакомы</span>}</div>
+              {p.again && PEOPLE_BY_ID[p.firstGroup] && <div className="pp-again-note" data-testid="people-again-note">Вы встречали {p.name.split(' ').pop()} в «{PEOPLE_BY_ID[p.firstGroup].title}» — теперь о другом.</div>}
               <div className="pp-lead">{p.lead}</div>
             </div>
           </div>
           <Era p={p} />
           <div className="pp-story">{p.story.map((t, i) => <p key={i}>{t}</p>)}</div>
+          </div>
+          <div className="pp-col-r">
           <div className="pp-idea" data-testid="people-idea"><Lightbulb size={22} aria-hidden="true" />{p.idea}</div>
           <div className="pp-fact"><Sparkles size={20} aria-hidden="true" /><b>Знаете ли вы</b>{p.fact}</div>
           <div className="pp-ask">
@@ -235,10 +282,11 @@ export default function PeopleView({ id, learn, update, onClose }) {
               })}
             </div>
             {choice != null && (
-              <div className={`pp-fb ${order[k][choice].ok ? '' : 'bad'}`} role="status" data-testid="people-feedback" data-ok={String(!!order[k][choice].ok)}>
+              <div ref={fbRef} key={choice} className={`pp-fb ${order[k][choice].ok ? '' : 'bad'}`} role="status" data-testid="people-feedback" data-ok={String(!!order[k][choice].ok)}>
                 {order[k][choice].ok ? <><b>Верно.</b> {p.idea}</> : <><b>Не совсем.</b> {order[k][choice].why} Попробуйте ещё раз.</>}
               </div>
             )}
+          </div>
           </div>
         </div>
       ) : (
@@ -261,7 +309,10 @@ export default function PeopleView({ id, learn, update, onClose }) {
         <div>
           {finished
             ? <Button wide data-testid="people-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
-            : <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : 'В галерею'}</Button>}
+            : <>
+              <Button variant="ghost" icon={ArrowLeft} disabled={k === 0} data-testid="people-back" onClick={back}>Назад</Button>
+              <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : 'В галерею'}</Button>
+            </>}
         </div>
       </div>
     </div>

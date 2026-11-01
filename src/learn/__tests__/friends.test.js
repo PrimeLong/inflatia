@@ -19,7 +19,7 @@ describe('карточка для друзей', () => {
     expect(c).toMatchObject({ streak: 2, xp: 50, wear: { head: 'beret' }, xpDays: { [addDays(DAY, -1)]: 30, [DAY]: 20 } });
     expect(c.seals).toContain('first');
     expect(c.events.some((e) => e.k === 'seal' && e.id === 'first')).toBe(true);
-    expect(Object.keys(c)).toEqual(['wear', 'streak', 'xp', 'level', 'league', 'seals', 'album', 'months', 'xpDays', 'events']);
+    expect(Object.keys(c)).toEqual(['wear', 'streak', 'ahead', 'xp', 'level', 'league', 'seals', 'album', 'months', 'xpDays', 'events']);
     expect(cardEvents(s, NOW).every((e) => e.at <= NOW)).toBe(true);
   });
   it('подписи событий — без рода', () => {
@@ -93,5 +93,36 @@ describe('забег с другом', () => {
     const f1 = { login: 'a', name: 'А', card: { events: [{ k: 'streak', n: 3, at: NOW - 1000 }, { k: 'seal', id: 'first', at: NOW - 30 * 86400e3 }] } };
     const f2 = { login: 'b', name: 'Б', card: { events: [{ k: 'unit', id: 'scarcity', at: NOW - 500 }] } };
     expect(friendFeed([f1, f2], NOW).map((e) => e.login)).toEqual(['b', 'a']);
+  });
+});
+
+describe('серия друга — на сегодня, а не на день его последнего захода', async () => {
+  const { friendStreak, buildCard } = await import('../friends.js');
+  const { emptyLearn, finishLesson } = await import('../../textbook/learn-state.js');
+  const DAY = 86400000;
+  const at = (d) => new Date(`${d}T12:00:00`).getTime();
+  // семь дней подряд, последний — 2026-10-21 (среда)
+  let s = emptyLearn();
+  for (let k = 0; k < 7; k += 1) s = finishLesson(s, 'sc-i1', { xp: 10, accuracy: 90, now: at('2026-10-15') + k * DAY, seconds: 240 });
+  const seen = at('2026-10-21');
+  const card = { ...buildCard(s, seen), at: seen };
+  it('в день захода и назавтра — та же серия', () => {
+    expect(card.streak).toBe(7);
+    expect(friendStreak(card, seen)).toBe(7);
+    expect(friendStreak(card, seen + DAY)).toBe(7);
+  });
+  it('не заходил три дня — серии нет (поблажки на столько не хватает)', () => {
+    expect(friendStreak(card, seen + 3 * DAY)).toBe(0);
+    expect(friendStreak(card, seen + 10 * DAY)).toBe(0);
+  });
+  it('ahead — по его же правилам серии: столько же, сколько показал бы ему его счётчик', async () => {
+    const { streak } = await import('../../textbook/learn-state.js');
+    [1, 2, 3, 4].forEach((k) => expect(card.ahead[k - 1]).toBe(streak(s, seen + k * DAY).days));
+  });
+  it('старая карточка без ahead: страховка — один день', () => {
+    const old = { streak: 7, at: seen };
+    expect(friendStreak(old, seen + DAY)).toBe(7);
+    expect(friendStreak(old, seen + 2 * DAY)).toBe(0);
+    expect(friendStreak(null)).toBe(0);
   });
 });

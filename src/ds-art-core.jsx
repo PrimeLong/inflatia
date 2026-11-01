@@ -58,8 +58,13 @@ export const ART_CSS = `
   .ds-level-track button.bad { background: repeating-linear-gradient(135deg, var(--ds-bad) 0 3px, color-mix(in srgb, var(--ds-bad) 45%, var(--ds-card)) 3px 6px); }
   .ds-level-track button.cur { background: var(--ds-card); box-shadow: inset 0 0 0 1.5px var(--u-ink); }
   .ds-level-back::before { content: ''; position: absolute; inset: -16px -4px; }
-  .ds-level-back::after { content: '‹'; position: absolute; inset: 0; display: grid; place-items: center; font: 700 13px/1 var(--ds-sans); color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.55); }
-  .ds-level-back.cur::after { color: var(--u-ink); text-shadow: none; }
+  /* стрелка — рисунком (уголок 8×10 точно по центру отрезка), а не знаком «‹»: у шрифта знак сидел ниже середины и
+     левее — на прямоугольнике отрезка стрелка выглядела кривой. Белая с тёмной обводкой — видна и на цвете юнита, и на штриховке ошибки */
+  .ds-level-back::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 10px; transform: translate(-50%, -50%); pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M5.6 1.6 2.2 5l3.4 3.4' fill='none' stroke='%23000' stroke-opacity='.45' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5.6 1.6 2.2 5l3.4 3.4' fill='none' stroke='%23fff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 8px 10px no-repeat; }
+  .ds-level-back.cur::after { background: var(--u-ink);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M5.6 1.6 2.2 5l3.4 3.4' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 8px 10px no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M5.6 1.6 2.2 5l3.4 3.4' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 8px 10px no-repeat; }
   .ds-level-back:hover, .ds-level-back:focus-visible { outline: 2px solid var(--u-ink); outline-offset: 2px; }
   .ds-level-n { font-size: 12.5px; font-weight: 700; color: var(--ds-ink2); min-width: 34px; text-align: right; }
   .ds-infla { display: inline-block; transform-origin: 50% 90%; transition: transform .45s cubic-bezier(.34,1.45,.5,1); }
@@ -81,7 +86,7 @@ export const ART_CSS = `
   .ds-postage-in { border: 1.5px solid var(--u); background: var(--ds-card); padding: 6px; text-align: center; position: relative; }
   /* тёмная тема: поля марки светлее страницы — иначе дырки перфорации того же цвета, что и поля, и
      зубцов не видно (жалоба «огранку марки почти не видно»); тонкая светлая кромка по зубцам */
-  .ds-dark .ds-postage, .ds-dark .pf-stamp { background-color: color-mix(in srgb, #EDE6D3 30%, var(--ds-card));
+  .ds-dark .ds-postage { background-color: color-mix(in srgb, #EDE6D3 30%, var(--ds-card));
     filter: drop-shadow(0 0 .6px rgba(237, 230, 211, .55)) drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
   @media (prefers-reduced-motion: reduce) { .ds-smoke, .ds-pulse, .ds-unlock, .ds-appear, .ds-coins i { animation: none !important; } .ds-coins { display: none; } .ds-infla { transition: none !important; } .ds-infla-out { display: none; } .ds-infla-in { animation: none; } }
 `;

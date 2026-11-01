@@ -92,8 +92,13 @@ describe('учебник по уровням курса: выше нынешне
     const { emptyLearn } = await import('../../textbook/learn-state.js');
     expect([...openBookLevels(emptyLearn())]).toEqual(['start']);
     expect([...openBookLevels(null)]).toEqual(['start']);
-    const passed = { ...emptyLearn(), units: { scarcity: { tested: 1 } } };
+    // Начальный — это «Ограниченность» и «Рынок труда»: сдан проверкой целиком — открыт Базовый
+    expect([...openBookLevels({ ...emptyLearn(), units: { scarcity: { tested: 1 } } })]).toEqual(['start']);
+    const passed = { ...emptyLearn(), units: { scarcity: { tested: 1 }, labor: { tested: 1 } } };
     expect([...openBookLevels(passed)]).toEqual(['start', 'basic']);
+    // открытое не закрывается: урок Базового пройден до выхода «Рынка труда» — Базовый открыт, хотя Путь вернулся в Начальный
+    const before = { ...emptyLearn(), units: { scarcity: { tested: 1 } }, lessons: { 'sd-i1': { at: 1, runs: 1, best: 90 } } };
+    expect([...openBookLevels(before)]).toEqual(['start', 'basic']);
   });
 });
 
@@ -190,7 +195,6 @@ describe('портреты «Персоналий» руками: файл в pu
     });
   });
   it('у каждого фото в public/people — автор, лицензия и https-ссылка в credits.csv; заметка (5-й столбец) на экран не идёт', async () => {
-    const fs = await import('node:fs');
     const { listPeoplePhotos, parseCredits, readPhotoCredits } = await import('../../../scripts/voice-files-plugin.js');
     expect(parseCredits('robbins;LSE Library;No known copyright restrictions;https://example.org/x;для владельца'))
       .toEqual({ robbins: { author: 'LSE Library', license: 'No known copyright restrictions', source: 'https://example.org/x' } });
@@ -206,7 +210,9 @@ describe('портреты «Персоналий» руками: файл в pu
     });
     // подпись без файла — не подпись: удалённое фото не оставляет чужой строки
     Object.keys(credits).forEach((id) => expect(files[id], `${id}: подпись есть, файла нет`).toBeTruthy());
-    expect(fs.existsSync(new URL('../../../public/people/robinson.jpg', import.meta.url))).toBe(false);
+    // Робинсон — по решению владельца (1.11.2026): портрет Ramsey & Muspratt, общественное достояние по странице
+    // файла в Википедии; подпись ведёт туда (docs/legal-todo.md, п. 13)
+    expect(credits.robinson).toMatchObject({ license: 'Public domain', source: 'https://en.wikipedia.org/wiki/File:Joan_Robinson_Ramsey_Muspratt.jpg' });
   });
   it('у каждого человека в people/credits.csv есть строка, имена файлов в инструкции — его id', async () => {
     const fs = await import('node:fs');

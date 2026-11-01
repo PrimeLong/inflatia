@@ -8,12 +8,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
-import { useReducedMotion } from './ds-art.jsx';
+import { useReducedMotion, useMedia } from './ds-art.jsx';
+import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView } from './learn/graphs.js';
 import { finishLesson, markGraph } from './textbook/learn-state.js';
-import { ReportFlag } from './learn-report.jsx';
+import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { textBox, dotBox, aroundPoint, placeLabels, freeTicks } from './learn/label-place.js';
 
 const CSS = `
@@ -304,6 +305,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const started = useRef(Date.now());
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
+  // ПК с мышью: поля по бокам разбора — черновик, как в уроке (learn-sketch.jsx)
+  const sketch = useMedia(SKETCH_QUERY);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [k, phase]);
   useEffect(() => { const esc = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [onClose]);
   if (!g) return null;
@@ -335,8 +338,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
       <div className="gl-top">
         <IconButton label="Закрыть" icon={X} data-testid="graph-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="gl-title"><small>Разбор графика</small>{g.title}</div>
-        {/* «Сообщить об ошибке» — как в любом уроке: шаг (или вопрос) и его текст уходят в жалобу */}
-        <ReportFlag context={() => ({
+        {/* «Ошибка?» — флажок с подписью (серый значок не замечали): шаг (или вопрос) и его текст уходят в жалобу */}
+        <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({
           screen: 'graph', lesson: id, unit: g.unitId, kind: 'graph',
           step: phase === 'tour' ? `шаг ${k + 1} из ${n}` : phase === 'quiz' ? 'вопрос' : 'итог',
           prompt: (phase === 'tour' ? g.steps[k].text : `${g.quiz.q} — ${g.quiz.options.map((o) => o.text).join(' / ')}`).replace(/\*\*/g, '').slice(0, 1500),
@@ -382,6 +385,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
           <div className="ds-sub" style={{ fontSize: 15 }}>{peek || already ? 'График разобран — к нему можно вернуться на дороге юнита.' : `+${GRAPH_XP} опыта · график разобран`}</div>
         </div>
       )}
+      {sketch && <><style>{SKETCH_CSS}</style><Sketch mode="graph" /></>}
       <div className="gl-foot">
         <div>
           {phase === 'done'

@@ -118,6 +118,35 @@ const B = {
       <circle cx="20" cy="76" r="3" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".7" /><circle cx="27" cy="77" r="3" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".7" />
     </>
   ),
+  /* ярмарка (монополистическая конкуренция) — не рынок с рядами лавок, а полосатый шатёр с флагом, гирлянды флажков
+     на столбах, касса и воздушные шары: раньше у «Ярмарки» была та же гравюра, что у «Рынка» */
+  fair: (h) => {
+    const pts = [[17, 41.4], [26.6, 41.8], [36.6, 39.4], [47, 34.2]];
+    const fills = [h.accent, h.gold, h.wash, h.accent];
+    const pennant = ([x, y], k) => <path key={`${x},${y}`} d={`M${x - 3},${y} L${x + 3},${y} L${x},${y + 6} Z`} fill={h.alive ? fills[k % 4] : 'none'} stroke="currentColor" strokeWidth=".6" />;
+    return (
+      <>
+        <line x1="8" y1="34" x2="8" y2="82" stroke="currentColor" strokeWidth="1" /><line x1="112" y1="34" x2="112" y2="82" stroke="currentColor" strokeWidth="1" />
+        <path d="M8,38 Q30,50 58,26" fill="none" stroke="currentColor" strokeWidth=".7" /><path d="M112,38 Q90,50 62,26" fill="none" stroke="currentColor" strokeWidth=".7" />
+        {pts.map(pennant)}{pts.map(([x, y]) => [120 - x, y]).map(pennant)}
+        <rect x="34" y="54" width="52" height="28" fill={h.body} stroke="none" />
+        {[0, 1, 2, 3, 4, 5].map((k) => <rect key={k} x={34 + k * (52 / 6)} y="54" width={52 / 6} height="28" fill={k % 2 ? (h.alive ? h.wash : h.hatch) : 'none'} stroke="none" />)}
+        <rect x="34" y="54" width="52" height="28" fill="none" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M30,54 L60,22 L90,54 Z" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth="1.1" />
+        {[0, 2, 4].map((k) => <path key={k} d={`M60,22 L${30 + k * 10},54 L${40 + k * 10},54 Z`} fill={h.alive ? h.accent : h.hatch} stroke="currentColor" strokeWidth=".7" />)}
+        {[0, 1, 2, 3, 4, 5].map((k) => <path key={k} d={`M${30 + k * 10},54 q5,6 10,0`} fill={h.alive ? (k % 2 ? h.gold : h.accent) : 'none'} stroke="currentColor" strokeWidth=".8" />)}
+        <path d="M52,82 L60,63 L68,82 Z" fill={h.hatch} stroke="currentColor" strokeWidth=".9" />
+        <line x1="60" y1="22" x2="60" y2="9" stroke="currentColor" strokeWidth="1" />
+        <path d="M60,9 L72,12 L60,15 Z" fill={h.alive ? h.flag : 'none'} stroke="currentColor" strokeWidth=".8" />
+        <rect x="94" y="64" width="13" height="18" fill={h.body} stroke="currentColor" strokeWidth=".9" />
+        <path d="M92,64 L100.5,57 L109,64 Z" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".9" />
+        <rect x="97" y="68" width="7" height="5" fill={h.alive ? h.gold : h.hatch} stroke="currentColor" strokeWidth=".6" />
+        <path d="M21,57 L23,76 M27,63 L23,76" stroke="currentColor" strokeWidth=".5" fill="none" />
+        <ellipse cx="20" cy="52" rx="4.5" ry="5.5" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".8" />
+        <ellipse cx="27.5" cy="58.5" rx="3.8" ry="4.6" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".8" />
+      </>
+    );
+  },
   workshop: (h) => (
     <>
       <rect x="14" y="44" width="92" height="38" fill={h.body} stroke="currentColor" strokeWidth="1.1" />

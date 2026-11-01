@@ -63,6 +63,8 @@ export const CURVE_STEP = 10;
 const LR = { plus: 'вправо', minus: 'влево', up: '→', down: '←' };
 export const SHIFT_CURVES = {
   'supply-demand': { D: { control: 'dA', label: 'Спрос', ...LR }, S: { control: 'dC', label: 'Предложение', ...LR } },
+  // рынок труда (юнит «Биржа труда»): те же ползунки, свои названия кривых
+  labor: { D: { control: 'dA', label: 'Спрос на труд', short: 'Спрос на труд', ...LR }, S: { control: 'dC', label: 'Предложение труда', short: 'Предложение', ...LR } },
   ppf: {
     X: { control: 'tx', label: 'Конец КПВ на оси хлеба', short: 'Хлеб', plus: 'наружу', minus: 'внутрь', up: '→', down: '←' },
     Y: { control: 'ty', label: 'Конец КПВ на оси станков', short: 'Станки', plus: 'наружу', minus: 'внутрь', up: '↑', down: '↓' },
@@ -585,6 +587,9 @@ export function freshCopy(ex, rand = Math.random, extra = {}, { avoid = new Set(
   return instantiate(ex, rand, { ...extra, fresh: 'same' });
 }
 // повтор после ошибки в уроке: avoid — задачи, которые уже есть в этом уроке
+/* Замены нет (fresh: 'same') — повтора в уроке нет: ответ только что показан, та же задача проверила бы
+   память, а не понимание (жалоба mvthz3xx: «два раза ошибся — два одинаковых вопроса»). Ждёт в «Повторить ошибки». */
+export const retryWorth = (copy) => !!copy && copy.fresh !== 'same';
 export function retryOf(inst, rand = Math.random, avoid = []) {
   const base = EXERCISES[inst.of || inst.id] || (inst.variant ? { id: inst.id, kind: 'calc', variant: inst.variant, lesson: inst.lesson, unitId: inst.unitId } : null);
   if (!base) return { ...inst, fresh: 'same' };
@@ -906,11 +911,13 @@ export const FIX_MIN = 6;
 export const mistakeUnit = (id) => (practiceEntry(id) || {}).unitId || null;
 export const fixIds = (learn, unitId) => (learn.mistakes || []).map((m) => m.id).filter((id) => mistakeUnit(id) === unitId);
 export const fixDue = (learn, unitId) => !(learn.fixed || {})[unitId] && !((learn.units || {})[unitId] || {}).tested && fixIds(learn, unitId).length >= FIX_MIN;
-export function buildFix(learn, unitId, rand = Math.random) {
-  // ошибок больше двенадцати — свежие; добор — уроки юнита, где больше всего ошибок, первыми
+/* урок — ровно ошибки юнита (свежие, если их больше двенадцати), без добора: сколько на значке, столько
+   заданий. Случайность — от юнита и списка ошибок: открыли снова — те же задания с теми же числами */
+export const fixCount = (learn, unitId) => Math.min(PRACTICE_MAX, fixIds(learn, unitId).length);
+const strHash = (t) => { let h = 2166136261; for (let i = 0; i < t.length; i += 1) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+export function buildFix(learn, unitId, rand = null) {
   const ids = fixIds(learn, unitId).slice(-PRACTICE_MAX);
-  const lessons = (UNIT_BY_ID[unitId] || { lessons: [] }).lessons.map((l) => l.id).filter((id) => ((learn.lessons || {})[id] || {}).runs > 0);
-  return buildPractice(ids, rand, { weak: lessons });
+  return buildPractice(ids, rand || seeded(strHash(`${unitId}|${ids.join(',')}`)));
 }
 
 export function pathState(learn) {
@@ -944,7 +951,7 @@ export function pathState(learn) {
           : i === 0 && prev && prev.complete ? { st: prev, unitId: prev.course.id, at: prev.lessons.length } : null;
         if (owner && fixDue(learn, owner.unitId)) {
           open = false; fixLock = true;
-          const fix = { unitId: owner.unitId, at: owner.at, count: fixIds(learn, owner.unitId).length };
+          const fix = { unitId: owner.unitId, at: owner.at, count: fixCount(learn, owner.unitId) };
           if (owner.st) owner.st.fix = fix; else lessons.fix = fix;
         }
       }

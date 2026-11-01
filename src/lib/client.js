@@ -150,7 +150,6 @@ export const accountRecover = (login, code, newPassword) => post({ action: 'reco
 export const accountRecoveryNew = (token, password) => post({ action: 'recovery_new', token, password }, ACCOUNT_API);
 export const accountExport = (token) => post({ action: 'export', token }, ACCOUNT_API);
 export const accountDelete = (token, password) => post({ action: 'delete', token, password }, ACCOUNT_API);
-export const accountLeagueNames = (token) => post({ action: 'league-names', token }, ACCOUNT_API);
 // друзья и забеги (api/account.js): карточка для друзей, список, заявки, приглашения
 export const accountCard = (token, card) => post({ action: 'card', token, card }, ACCOUNT_API);
 export const accountFriends = (token) => post({ action: 'friends', token }, ACCOUNT_API);

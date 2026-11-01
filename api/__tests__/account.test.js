@@ -290,26 +290,17 @@ describe('согласия при регистрации и подтвержде
   });
 });
 
-describe('имя в лигах недели — только с согласия и с 16 лет', () => {
-  const thisYear = new Date().getUTCFullYear();
-  it('по умолчанию выключено; включил — имя видят другие, но не сам; выключил — пропало', async () => {
+describe('в лигах только боты — настоящих имён нет', () => {
+  it('настройки «имя в лигах» нет: в профиле её нет, старое приложение её не включит, список имён пуст', async () => {
     const a = await acc({ action: 'register', consentPage: true, consentPd: true, login: uniq('league'), password: 'secret12', name: 'Лигина', birthYear: 1995 });
     const b = await acc({ action: 'register', consentPage: true, consentPd: true, login: uniq('viewer'), password: 'secret12', name: 'Зритель', birthYear: 1995 });
-    expect(a.data.profile.leaguePublic).toBe(false);
-    expect((await acc({ action: 'league-names', token: b.data.token })).data.names).not.toContain('Лигина');
+    expect(a.data.profile).not.toHaveProperty('leaguePublic');
     const on = await acc({ action: 'update', token: a.data.token, leaguePublic: true });
-    expect(on.status).toBe(200); expect(on.data.profile.leaguePublic).toBe(true);
-    expect((await acc({ action: 'league-names', token: b.data.token })).data.names).toContain('Лигина');
-    expect((await acc({ action: 'league-names', token: a.data.token })).data.names).not.toContain('Лигина');
-    // новое имя — новое и в лигах
-    await acc({ action: 'update', token: a.data.token, name: 'Лигина Н.' });
-    expect((await acc({ action: 'league-names', token: b.data.token })).data.names).toContain('Лигина Н.');
-    await acc({ action: 'update', token: a.data.token, leaguePublic: false });
-    const names = (await acc({ action: 'league-names', token: b.data.token })).data.names;
-    expect(names).not.toContain('Лигина'); expect(names).not.toContain('Лигина Н.');
-  });
-  it('до 16 лет включить нельзя', async () => {
-    const kid = await acc({ action: 'register', consentPage: true, consentPd: true, login: uniq('kidleague'), password: 'secret12', birthYear: thisYear - 14, parentConsent: true, parentName: 'Ольга Петрова' });
-    expect((await acc({ action: 'update', token: kid.data.token, leaguePublic: true })).status).toBe(403);
+    expect(on.status).toBe(200);
+    expect(on.data.profile).not.toHaveProperty('leaguePublic');
+    const list = await acc({ action: 'league-names', token: b.data.token });
+    expect(list.status).toBe(200);
+    expect(list.data.names).toEqual([]);
   });
 });
+

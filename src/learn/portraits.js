@@ -30,3 +30,17 @@ export function cachedPhoto(p) {
 }
 // то же обещанием — для экрана, который ждёт фото (сети нет, ответ сразу)
 export const loadPhoto = (p) => Promise.resolve(cachedPhoto(p));
+/* Заранее: остановка «Персоналии» открылась на Пути или урок начался — фото всех её людей грузятся в фоне,
+   чтобы человек появлялся уже с портретом (docs/mechanics.md, «Персоналии»). Один раз на адрес. */
+const preloaded = new Map();
+export function preloadPhotos(people) {
+  if (typeof Image === 'undefined') return;
+  (people || []).forEach((p) => {
+    const ph = cachedPhoto(p);
+    if (!ph || preloaded.has(ph.file)) return;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = ph.file;
+    preloaded.set(ph.file, img);
+  });
+}

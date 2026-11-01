@@ -9,7 +9,7 @@ export const LEVELS = [
   { id: 'pro', title: 'Профессиональный', text: 'Вы умеете проводить полноценный экономический анализ.' },
 ];
 export const UNIT_LEVEL = {
-  // по пять юнитов на уровень (карта Пути — 25 мест); «Рынок труда» пока в планах и встанет в Начальный
+  // по пять юнитов на уровень (карта Пути — 25 мест); «Рынок труда» — в Начальном, сразу после «Ограниченности»
   scarcity: 'start', labor: 'start',
   'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic',
   consumer: 'middle', production: 'middle', costs: 'middle', 'competition-monopoly': 'middle', monopolistic: 'middle',

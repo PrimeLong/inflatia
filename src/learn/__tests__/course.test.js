@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import katex from 'katex';
 import {
   UNITS, UNIT_BY_ID, LESSONS, EXERCISES, pilotUnits, buildLesson, buildUnitCheck, buildPractice, practiceIds, canPractice, instantiate, check, ready, answerText, estimate, pathState, SECONDS, KIND_LABEL, STEP_PICS,
-  GAME_KINDS, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart,
+  GAME_KINDS, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, retryWorth, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart,
 } from '../course.js';
 import { CAST } from '../cast.js';
 import { WALLET, bestOf, gapOf } from '../wallet.js';
@@ -18,13 +18,13 @@ import { recordSeen, recordBest, DIAMOND_ACCURACY, streakBonus, gameXp, maxLesso
 import { runCoins, runKey, COIN } from '../rewards.js';
 import { XP, addHinted, clearHinted, emptyLearn, finishLesson, passUnit, lessonXp, streak, longestStreak, bestWeek, recordAttempt, abandonLesson, startLesson, learnStats, normalizeLearn, mergeLearn, addMistake, resolveMistake, dayOf, setGoal, goalToday, missedYesterday } from '../../textbook/learn-state.js';
 
-// Путь идёт по уровням: Начальный (scarcity), Базовый (supply-demand, elasticity, market-failures, money-banks, inflation), Средний (consumer, costs, competition-monopoly, monopolistic)
-const PATH = ['scarcity', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'costs', 'competition-monopoly', 'monopolistic'];
+// Путь идёт по уровням: Начальный (scarcity, labor), Базовый (supply-demand, elasticity, market-failures, money-banks, inflation), Средний (consumer, costs, competition-monopoly, monopolistic)
+const PATH = ['scarcity', 'labor', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'costs', 'competition-monopoly', 'monopolistic'];
 const PILOT = 'supply-demand';
 const plain = (nodes) => plainText(nodes || []);
 const N = 30;
 
-it('на Пути уроками — десять юнитов по уровням: от Начального к Среднему', () => {
+it('на Пути уроками — одиннадцать юнитов по уровням: от Начального к Среднему', () => {
   expect(pilotUnits().map((u) => u.id)).toEqual(PATH);
   // юниты идут по уровням; внутри уровня — по порядку глав учебника
   const ranks = UNITS.map((u) => LEVELS.findIndex((l) => l.id === u.level));
@@ -426,6 +426,16 @@ describe('повтор без зубрёжки: вернувшаяся зада�
     // в «Практиках» почти всегда есть чем заменить
     expect(fresh / total).toBeGreaterThan(0.8);
   });
+  it('замены нет — повтора в уроке нет: в «Знакомстве» все вопросы уже заданы, та же задача не возвращается (жалоба mvthz3xx)', () => {
+    const { items } = buildLesson('cm-i2', seeded(3));
+    const it = items.find((x) => x.id === 'cm-q2-dwl');
+    const r = retryOf(it, seeded(5), items.map((x) => x.of || x.id));
+    expect(r.fresh).toBe('same');
+    expect(retryWorth(r)).toBe(false);
+    // есть похожий вопрос или новые числа — повтор есть
+    expect(retryWorth(retryOf(it, seeded(5), ['cm-q2-dwl']))).toBe(true);
+    expect(retryWorth(null)).toBe(false);
+  });
 });
 
 describe('юнит «Порт»: провалы рынка', () => {
@@ -747,7 +757,7 @@ describe('алмазный уровень', () => {
   });
   it('«Знакомство» с алмазными шагами: шаги и вопросы после них есть только на алмазном уровне', () => {
     const deep = lessons.filter((l) => l.inner.some((c) => c.diamond));
-    expect(deep.map((l) => l.id).sort()).toEqual(['cm-i1', 'cm-i2', 'cs-i1', 'cs-i2', 'ct-i1', 'ct-i2', 'el-i1', 'el-i2', 'in-i1', 'in-i2', 'mb-i1', 'mb-i2', 'mc-i1', 'mc-i2', 'mf-i1', 'mf-i2', 'sc-i1', 'sc-i2', 'sd-i1', 'sd-i2']);
+    expect(deep.map((l) => l.id).sort()).toEqual(['cm-i1', 'cm-i2', 'cs-i1', 'cs-i2', 'ct-i1', 'ct-i2', 'el-i1', 'el-i2', 'in-i1', 'in-i2', 'lm-i1', 'lm-i2', 'mb-i1', 'mb-i2', 'mc-i1', 'mc-i2', 'mf-i1', 'mf-i2', 'sc-i1', 'sc-i2', 'sd-i1', 'sd-i2']);
     deep.forEach((l) => {
       const plainIds = buildLesson(l.id, seeded(1)).items.map((it) => it.id);
       const gemPlan = buildLesson(l.id, seeded(1), { diamond: true });
@@ -792,7 +802,7 @@ describe('алмазный уровень', () => {
     const other = finishLesson(emptyLearn(), 'sd-i1', { xp: 10, accuracy: 100, now: 5e12 });
     expect(mergeLearn(s, other).lessons['sd-i1'].diamond).toBe(3e12);
     expect(mergeLearn(other, s)).toEqual(mergeLearn(s, other));
-    expect(pathState(s)[1].lessons.find((l) => l.id === 'sd-i1').diamond).toBe(true);
+    expect(pathState(s).find((st) => st.course.id === 'supply-demand').lessons.find((l) => l.id === 'sd-i1').diamond).toBe(true);
   });
   it('серия и мини-игра: с третьего верного подряд — +1 опыта за ответ; очки игры — в опыт (40 очков — 1, не больше 20)', () => {
     expect([1, 2, 3, 4, 10].map(streakBonus)).toEqual([0, 0, 1, 1, 1]);
@@ -959,10 +969,9 @@ describe('тест уровня', () => {
     expect(p.passMistakes).toBe(2);
     expect(new Set(p.items.map((it) => it.unitId))).toEqual(new Set(ids));
     p.items.forEach((it) => expect(it.check).toBe(true));
-    // уровень из одного юнита — его проверка целиком
+    // Начальный: «Мастерская» и «Биржа труда» — задачи из обоих
     const start = buildLevelCheck('start', seeded(5));
-    expect(new Set(start.items.map((it) => it.unitId))).toEqual(new Set(['scarcity']));
-    expect(start.passMistakes).toBe(1);
+    expect(new Set(start.items.map((it) => it.unitId))).toEqual(new Set(['scarcity', 'labor']));
   });
 });
 

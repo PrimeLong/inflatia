@@ -16,7 +16,7 @@ import { friendsApi } from './lib/friends-store.js';
 import { ACHIEVEMENTS, coinsWord, plural } from './learn/rewards.js';
 import { LEAGUE_BY_ID } from './learn/league.js';
 import { dayOf, addDays } from './textbook/learn-state.js';
-import { eventText, EVENT_ICON, friendFeed, seenText, lastSeenDays, raceable, raceReadyIn, raceView, raceCoins, raceClaimed, claimRace, levelTitle, raceRest, raceRestText, RACE } from './learn/friends.js';
+import { eventText, EVENT_ICON, friendFeed, seenText, lastSeenDays, friendStreak, raceable, raceReadyIn, raceView, raceCoins, raceClaimed, claimRace, levelTitle, raceRest, raceRestText, RACE } from './learn/friends.js';
 import { agoText } from './learn/notify.js';
 
 export const FRIENDS_CSS = `
@@ -97,7 +97,8 @@ const leagueName = (id) => (LEAGUE_BY_ID[id] ? `${LEAGUE_BY_ID[id].title} лиг
 const friendSub = (f, now) => {  // серия, лига и «в сети»
   const c = f.card;
   if (!c) return 'ещё не заходил в обновлённое приложение';
-  return [c.streak ? `серия ${c.streak} ${plural(c.streak, 'день', 'дня', 'дней')}` : null, c.league && LEAGUE_BY_ID[c.league] ? `${LEAGUE_BY_ID[c.league].title} лига` : null, seenText(f, now)].filter(Boolean).join(' · ');
+  const st = friendStreak(c, now);
+  return [st ? `серия ${st} ${plural(st, 'день', 'дня', 'дней')}` : null, c.league && LEAGUE_BY_ID[c.league] ? `${LEAGUE_BY_ID[c.league].title} лига` : null, seenText(f, now)].filter(Boolean).join(' · ');
 };
 
 // строка друга: Инфля в его наряде, имя, серия, лига, когда был в сети
@@ -373,7 +374,7 @@ export function FriendProfile({ login, data, learn, update, myWear, onBack }) {
           <div className="ds-sub" style={{ fontSize: 14 }}>@{f.login} · {seenText(f, now)}</div>
         </div>
         <div className="fr-tiles">
-          <div className="fr-tile" style={{ '--i': 0 }}><Flame size={22} color="var(--ds-bad)" aria-hidden="true" /><span><b>{c.streak || 0}</b><small>{plural(c.streak || 0, 'день', 'дня', 'дней')} подряд</small></span></div>
+          <div className="fr-tile" style={{ '--i': 0 }}><Flame size={22} color="var(--ds-bad)" aria-hidden="true" /><span><b data-testid="friend-streak">{friendStreak(c, now)}</b><small>{plural(friendStreak(c, now), 'день', 'дня', 'дней')} подряд</small></span></div>
           <div className="fr-tile" style={{ '--i': 1 }}><Sparkles size={22} color="var(--u-ink)" aria-hidden="true" /><span><b>{c.xp || 0}</b><small>опыта всего</small></span></div>
           <div className="fr-tile" style={{ '--i': 2 }}>{c.league ? <LeagueBadge id={c.league} size={30} /> : <Trophy size={22} aria-hidden="true" />}<span><b style={{ fontSize: 15 }}>{leagueName(c.league)}</b><small>лига недели</small></span></div>
           <div className="fr-tile" style={{ '--i': 3 }}><Award size={22} color="var(--ds-gold)" aria-hidden="true" /><span><b style={{ fontSize: 15 }}>{c.level ? levelTitle(c.level) : '—'}</b><small>уровень Пути · марок {c.album || 0}</small></span></div>

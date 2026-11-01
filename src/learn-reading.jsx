@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Check, BookOpen, ArrowRight } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
+import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { READING_BY_ID, READ_XP, quoteWords, isRead, shelfOf } from './learn/reading.js';
 import { finishLesson, markRead } from './textbook/learn-state.js';
@@ -192,12 +193,19 @@ export default function ReadingView({ id, learn, update, onClose }) {
   const style = { '--rd': r.color, '--rd-ink': `color-mix(in srgb, ${r.color} 80%, var(--ds-ink))` };
   return (
     <div className="rd-root" role="dialog" aria-modal="true" aria-label={`Чтение: ${r.title}`} data-testid="reading" data-id={r.id} style={style}>
-      <style>{CSS}</style>
+      <style>{CSS + REPORT_CSS}</style>
       <div className="rd-top">
         <IconButton label="Закрыть чтение" icon={X} data-testid="reading-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <BookOpen size={18} color="var(--rd)" aria-hidden="true" />
         <span className="rd-title">Чтение · {r.title}</span>
         {!done && <span className="rd-marks" aria-label={`Страница ${idx + 1} из ${r.pages.length}`}>{r.pages.map((_, k) => <i key={k} className={k <= idx ? 'on' : ''} />)}</span>}
+        {/* «Ошибка?» — подборка, страница, вопрос и ответ уходят в жалобу */}
+        <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в чтении? Цитата, вопрос и устройство приложатся сами." context={() => ({
+          screen: 'reading', lesson: r.id, unit: r.unitId, kind: 'read',
+          step: done ? 'полка' : `страница ${idx + 1} из ${r.pages.length}: ${page.author}, ${page.book}`,
+          prompt: done ? r.title : `${page.quote} — ${page.ask.prompt}`.slice(0, 1500),
+          answer: !done && answered ? `${page.ask.kind === 'choice' ? ((page.ask.options || []).find((o) => o.k === answered.pick) || {}).text || '' : `слово ${answered.pick}`} — ${answered.ok ? 'верно' : 'неверно'}` : '',
+        })} />
       </div>
       {!done ? (
         <div className="rd-page">

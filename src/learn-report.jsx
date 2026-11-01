@@ -23,6 +23,11 @@ export const THEORY_REASONS = [
   ['theory', 'Ошибка в теории или примере'], ['formula', 'Ошибка в формуле или на графике'], ['typo', 'Опечатка или ошибка в тексте'],
   ['unclear', 'Непонятно объяснено'], ['visual', 'Что-то выглядит не так'], ['broken', 'Не работает'],
 ];
+// разборы (график по шагам, чтение): ошибиться может объяснение или график, а не ответ ученика
+export const EXPLAIN_REASONS = [
+  ['formula', 'Ошибка в формуле или на графике'], ['theory', 'Ошибка в теории или примере'], ['typo', 'Опечатка или ошибка в тексте'],
+  ['unclear', 'Непонятно объяснено'], ['visual', 'Что-то выглядит не так'], ['broken', 'Не работает'],
+];
 // «filter» — «Это ошибка фильтра» с экрана регистрации: в списке есть, в выборе причины — нет
 const REASON_BY_ID = { ...Object.fromEntries(REASONS), ...Object.fromEntries(THEORY_REASONS), filter: 'Фильтр не пропустил имя' };
 // eslint-disable-next-line no-undef
@@ -58,7 +63,7 @@ export function exerciseContext(inst, { lesson = null, resp = null, correct = ''
   };
 }
 
-function ReportSheet({ context, onClose, reasons = REASONS }) {
+function ReportSheet({ context, onClose, reasons = REASONS, sub = null }) {
   const [reason, setReason] = useState(null);
   const [comment, setComment] = useState('');
   const [state, setState] = useState({ busy: false, done: false, error: '' });
@@ -85,7 +90,7 @@ function ReportSheet({ context, onClose, reasons = REASONS }) {
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <Heading level={2} title="Сообщить об ошибке" sub={reasons === THEORY_REASONS ? 'Что не так в теории? Страница учебника и устройство приложатся сами.' : 'Что не так? Упражнение, ваш ответ и устройство приложатся сами.'} />
+            <Heading level={2} title="Сообщить об ошибке" sub={sub || (reasons === THEORY_REASONS ? 'Что не так в теории? Страница учебника и устройство приложатся сами.' : 'Что не так? Упражнение, ваш ответ и устройство приложатся сами.')} />
             <IconButton label="Закрыть" icon={X} onClick={onClose} size={22} />
           </div>
           {context.quote
@@ -112,7 +117,7 @@ function ReportSheet({ context, onClose, reasons = REASONS }) {
 }
 
 /* Флажок. context — функция: контекст собирается в момент нажатия (ответ уже введён). */
-export function ReportFlag({ context, label = 'Сообщить об ошибке', style, withText = false, reasons = REASONS }) {
+export function ReportFlag({ context, label = 'Сообщить об ошибке', style, withText = false, text = null, reasons = REASONS, sub = null, testid = 'report-flag' }) {
   const [open, setOpen] = useState(null);
   const btn = useRef(null);
   /* шторка — в корень экрана дизайн-системы (там её цвета и шрифты): внутри анимированной
@@ -120,11 +125,11 @@ export function ReportFlag({ context, label = 'Сообщить об ошибк�
   const root = btn.current && btn.current.closest('.ds');
   return (
     <>
-      <button type="button" ref={btn} className="ln-flag" aria-label={label} title={label} data-testid="report-flag" style={style}
+      <button type="button" ref={btn} className="ln-flag" aria-label={label} title={label} data-testid={testid} style={style}
         onClick={(e) => { e.stopPropagation(); Audio.play('tick'); setOpen(context()); }}>
-        <Flag size={16} aria-hidden="true" />{withText && <span className="ln-flag-text">{label}</span>}
+        <Flag size={16} aria-hidden="true" />{withText && <span className="ln-flag-text">{text || label}</span>}
       </button>
-      {open && createPortal(<div className="ln-report-root"><ReportSheet context={open} reasons={reasons} onClose={() => setOpen(null)} /></div>, root || document.body)}
+      {open && createPortal(<div className="ln-report-root"><ReportSheet context={open} reasons={reasons} sub={sub} onClose={() => setOpen(null)} /></div>, root || document.body)}
     </>
   );
 }
