@@ -4271,6 +4271,39 @@ test('урок на ПК: черновик на полях — включает�
   expect(errors).toEqual([]);
 });
 
+test('урок на ПК: «Предыдущая карточка» не закрывает черновик — поля видны и рисуют', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'на телефоне черновика нет');
+  await withTestFlag(page);
+  await page.addInitScript(() => { localStorage.setItem('ems-sketch-on', '1'); localStorage.setItem('ems-sketch-tried', '1'); });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-i1');
+  const canvas = page.getByTestId('sketch-canvas');
+  const draw = async (pts) => {
+    await page.mouse.move(...pts[0]); await page.mouse.down();
+    for (const p of pts.slice(1)) await page.mouse.move(...p, { steps: 8 });
+    await page.mouse.up();
+  };
+  await draw([[80, 300], [240, 300]]);
+  await expect(canvas).toHaveAttribute('data-strokes', '1');
+  await page.getByTestId('lesson').locator('.ln-foot button').last().click();
+  await page.getByTestId('lesson-back').click();
+  await expect(page.getByTestId('lesson-peek')).toBeVisible();
+  // слой прошлой карточки прозрачен над полем: там, где запись, — не бумага, а то, что под ним
+  const clear = await page.evaluate(() => {
+    const peek = document.querySelector('.ln-peek');
+    const left = parseFloat(getComputedStyle(peek).getPropertyValue('--sk-l'));
+    return { grad: getComputedStyle(peek).backgroundImage, left };
+  });
+  expect(clear.grad).toContain('linear-gradient');
+  expect(clear.left - 14).toBeGreaterThan(240);
+  // и на полях можно писать дальше, пока смотрим назад
+  await draw([[80, 420], [240, 420]]);
+  await expect(canvas).toHaveAttribute('data-strokes', '2');
+  await page.getByTestId('lesson-peek-return').click();
+  await expect(canvas).toHaveAttribute('data-strokes', '2');
+  expect(errors).toEqual([]);
+});
+
 test('копилка: график вклада — подписи не налезают друг на друга, «сейчас» — плашкой над графиком, пополнения — ступеньками', async ({ page }) => {
   await withTestFlag(page);
   const D = 86400000;

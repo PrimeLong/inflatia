@@ -28,7 +28,8 @@ const TOOLS = [{ id: 'pen', icon: PenLine }, { id: 'marker', icon: Highlighter }
 /* Где рисовать. Урок — свой слой поверх приложения: поле — сам слой и его тело (.ln-body) вне
    колонки. Лента новостей — страница: поле — сама страница (.ln-root) и вкладка (.ln-tab) вне колонки. */
 const MODES = {
-  lesson: { host: (el) => el.parentElement, field: 'ln-body', col: ':scope > .ln-body > .ln-inner, :scope > .ln-foot .ln-inner', hint: 'Новое: пишите на полях урока' },
+  /* урок; поле — и тело слоя «Предыдущая карточка» (.ln-peek > .ln-body) вне колонки: прошлая карточка черновик не закрывает */
+  lesson: { host: (el) => el.parentElement, field: 'ln-body', peek: true, col: ':scope > .ln-body > .ln-inner, :scope > .ln-foot .ln-inner', hint: 'Новое: пишите на полях урока' },
   page: { page: true, host: (el) => el.closest('.ln-root'), field: 'ln-tab', col: ':scope > .ln-tab > .ln-wrap', hint: 'Новое: пишите на полях' },
   /* учебник — та же страница, но колонка — весь учебник (.ln-textbook с оглавлением главы), а поле —
      и вкладка, и обёртка учебника (.ln-book) по бокам от него (отчёт: «вот тут как никогда нужно рисование») */
@@ -61,6 +62,11 @@ export const SKETCH_CSS = `
   .sk-grid.on { opacity: 1; }
   .sk-canvas { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; transition: opacity .26s ease, filter .26s ease; }
   .sk-canvas.wipe { opacity: 0; filter: blur(6px); }
+  /* «Предыдущая карточка» поверх урока: непрозрачна только над колонкой — поля с записью видны и рисуют дальше */
+  .ln-overlay[data-sketch-host] > .ln-peek { background: linear-gradient(90deg, transparent calc(var(--sk-l, 35%) - 14px), var(--ds-paper) calc(var(--sk-l, 35%) - 14px),
+    var(--ds-paper) calc(var(--sk-r, 65%) + 14px), transparent calc(var(--sk-r, 65%) + 14px)); }
+  .ln-overlay[data-sketch] > .ln-peek > .ln-body { cursor: var(--sk-cursor, crosshair); }
+  .ln-overlay[data-sketch] > .ln-peek > .ln-body > * { cursor: auto; }
   .ln-overlay[data-sketch], .ln-overlay[data-sketch] > .ln-body { cursor: var(--sk-cursor, crosshair); }
   .ln-overlay[data-sketch] > :not(.ln-body), .ln-overlay[data-sketch] > .ln-body > * { cursor: auto; }
   .ln-overlay[data-sketching] * { cursor: inherit !important; user-select: none; }
@@ -170,7 +176,8 @@ function onMargin(e, root, M) {
   // сам слой — поле, кроме полосы прокрутки (у разбора графика слой прокручивается)
   if (t === root) { const r = root.getBoundingClientRect(); const k = root.offsetWidth ? r.width / root.offsetWidth : 1; return e.clientX < r.left + root.clientWidth * k; }
   if (!(t instanceof Element) || !root.contains(t)) return false;
-  if (!(M.fieldSel ? t.matches(M.fieldSel) : t.parentElement === root && t.classList.contains(M.field))) return false;
+  const inPeek = M.peek && t.parentElement && t.parentElement.classList.contains('ln-peek') && t.parentElement.parentElement === root && t.classList.contains('ln-body');
+  if (!inPeek && !(M.fieldSel ? t.matches(M.fieldSel) : t.parentElement === root && t.classList.contains(M.field))) return false;
   const r = t.getBoundingClientRect();
   const k = t.offsetWidth ? r.width / t.offsetWidth : 1;
   return e.clientX < r.left + t.clientWidth * k;
