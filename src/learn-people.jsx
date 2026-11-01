@@ -167,7 +167,9 @@ export function Portrait({ p, color, hidden = false, eager = false }) {
 export function PhotoCredit({ p }) {
   const ph = usePhoto(p);
   if (!ph || (!ph.author && !ph.license)) return null;
-  const where = /wikimedia\.org|wikipedia\.org/.test(ph.source || '') || /^https:\/\/upload\.wikimedia/.test(ph.file || '') ? 'Wikimedia Commons' : 'источник';
+  // файл в самой Википедии (не на Commons) — «Википедия»: так у Робинсон
+  const where = /wikipedia\.org\/wiki\/File:/.test(ph.source || '') ? 'Википедия'
+    : /wikimedia\.org|wikipedia\.org/.test(ph.source || '') || /^https:\/\/upload\.wikimedia/.test(ph.file || '') ? 'Wikimedia Commons' : 'источник';
   return (
     <div className="pp-credit" data-testid="people-credit">
       Фото: {[ph.author, ph.license].filter(Boolean).join(' · ')}{ph.source ? <> · <a href={ph.source} target="_blank" rel="noopener noreferrer">{where}</a></> : where === 'Wikimedia Commons' ? ' · Wikimedia Commons' : ''}

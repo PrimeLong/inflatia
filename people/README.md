@@ -5,7 +5,7 @@
 `public/people/` под именем из таблицы. После сборки на Vercel портрет появится сам —
 сайт отдаёт его со своего адреса, поэтому Википедия ученику не нужна.
 
-Сейчас лежит 27 из 32. Этот файл пишет команда `npm run people:export`.
+Сейчас лежит 28 из 32. Этот файл пишет команда `npm run people:export`.
 
 ## Как добавить портрет
 
@@ -40,7 +40,7 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 ```
 
 Автор и лицензия — со страницы файла на Commons, ссылка — адрес этой страницы (файла на Commons нет —
-адрес источника). Под портретом появится «Фото: автор · лицензия · Wikimedia Commons». Заметка — для
+адрес источника). Под портретом появится «Фото: автор · лицензия · Wikimedia Commons» (файл из самой Википедии — «· Википедия»). Заметка — для
 себя (на экран не идёт): откуда фото, что ещё проверить. Точку с запятой внутри полей не ставьте — это
 разделитель. Лицензию найти нельзя или фото не то, что на странице, — не кладите его: пусть будет
 медальон.
@@ -53,7 +53,7 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 | 2 | Томас Мальтус | 1766–1834 | Люди выбора | `malthus.jpg` | [статья](https://en.wikipedia.org/wiki/Thomas_Robert_Malthus) | ✓ malthus.jpg, подпись есть |
 | 3 | Давид Рикардо | 1772–1823 | Люди выбора | `ricardo.jpg` | [статья](https://en.wikipedia.org/wiki/David_Ricardo) | ✓ ricardo.jpg, подпись есть |
 | 4 | Джон Бейтс Кларк | 1847–1938 | Люди труда | `clark.jpg` | [статья](https://en.wikipedia.org/wiki/John_Bates_Clark) | — |
-| 5 | Джоан Робинсон | 1903–1983 | Люди труда, Люди бренда | `robinson.jpg` | [статья](https://en.wikipedia.org/wiki/Joan_Robinson) | — |
+| 5 | Джоан Робинсон | 1903–1983 | Люди труда, Люди бренда | `robinson.jpg` | [статья](https://en.wikipedia.org/wiki/Joan_Robinson) | ✓ robinson.jpg, подпись есть |
 | 6 | Гэри Беккер | 1930–2014 | Люди труда | `becker.jpg` | [статья](https://en.wikipedia.org/wiki/Gary_Becker) | — |
 | 7 | Адам Смит | 1723–1790 | Люди рынка | `smith.jpg` | [статья](https://en.wikipedia.org/wiki/Adam_Smith) | ✓ smith.jpg, подпись есть |
 | 8 | Флеминг Дженкин | 1833–1885 | Люди рынка | `jenkin.jpg` | [статья](https://en.wikipedia.org/wiki/Fleeming_Jenkin) | ✓ jenkin.jpg, подпись есть |
