@@ -179,6 +179,7 @@ export const VERBS = {
   curve: { verb: 'строить', model: true }, point: { verb: 'строить', model: true }, price: { verb: 'исследовать', model: true },
   swipe: { verb: 'предсказывать', model: true }, rush: { verb: 'предсказывать', model: true }, wallet: { verb: 'решать', model: true },
   open: { verb: 'объяснять' }, domino: { verb: 'строить', model: true }, discover: { verb: 'исследовать', model: true },
+  exam: { verb: 'ответить' },
 };
 // глаголы урока: его шаги «Откройте сами» и свои упражнения (практика берёт «Домино» всегда)
 export function lessonVerbs(lesson) {

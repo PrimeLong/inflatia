@@ -381,11 +381,16 @@ export const parseChapter = (text) => parseBlocks(text);
      — верные звенья по порядку (событие → что меняется → какая кривая и куда → цена → количество → кого
      коснётся), «!! карточка | почему не следует» — правдоподобные ложные карточки с объяснением, как у
      ловушек. Звеньев 4–5, всего карточек 7–8. Эффект — что звено делает со сценой: D+ D- S+ S- (кривая
-     сдвигается), P и Q (стрелка цены и количества), ceil (потолок цены 15 крон), street (люди на улице). */
+     сдвигается), P и Q (стрелка цены и количества), ceil (потолок цены 15 крон), street (люди на улице).
+   Задание в формате экзамена (exam test=ЕГЭ|ОГЭ no=N form=pick|match|one): pick — «выберите верные
+   суждения», строки «+ верное» и «- неверное | почему» (4–6 пунктов, верных 2–4), ответ — цифры
+   по возрастанию; match — «установите соответствие», bins="Столбец 1|Столбец 2", строки
+   «- пример >> столбец» (4–6 пунктов), ответ — цифры под буквами; one — один верный из четырёх. */
+export const EXAM_FORMS = ['pick', 'match', 'one'];
 export const LESSON_KINDS = ['intro', 'practice', 'words', 'story', 'listen', 'game', 'review', 'summary'];
 // шаги «Откройте сами»: demand — день в кофейне, точки «цена — сколько купили» складываются в кривую спроса
 export const DISCOVER_KINDS = ['demand'];
-const EX_KINDS = ['choice', 'gap', 'tf', 'match', 'sort', 'calc', 'shift', 'news', 'tiles', 'curve', 'price', 'point', 'open', 'domino'];
+const EX_KINDS = ['choice', 'gap', 'tf', 'match', 'sort', 'calc', 'shift', 'news', 'tiles', 'curve', 'price', 'point', 'open', 'domino', 'exam'];
 export const DOMINO_EFFECTS = ['D+', 'D-', 'S+', 'S-', 'P', 'Q', 'ceil', 'street'];
 const MARKET = ['a', 'b', 'c', 'd', 'dA', 'dC'];
 const market = (attrs) => Object.fromEntries(MARKET.map((k) => [k, attrs[k] != null ? Number(attrs[k]) : (k === 'dA' || k === 'dC' ? 0 : NaN)]));
@@ -516,6 +521,20 @@ function parseExercise(kind, attrs, body) {
   }
   if (kind === 'open' && !explain) throw new Error(`У открытого вопроса ${attrs.id} нет разбора после ---`);
   if (kind === 'match' && attrs.seconds) ex.seconds = Number(attrs.seconds);
+  if (kind === 'exam') {
+    ex.test = attrs.test === 'ОГЭ' ? 'ОГЭ' : 'ЕГЭ'; ex.no = attrs.no ? Number(attrs.no) : null; ex.form = attrs.form || 'pick';
+    if (!EXAM_FORMS.includes(ex.form)) throw new Error(`В задании ${attrs.id} form — pick, match или one`);
+    if (ex.form === 'match') {
+      ex.bins = (attrs.bins || '').split('|').map((x) => x.trim()).filter(Boolean);
+      ex.items = opts.map((o) => { const [t, bin] = o.raw.split(/\s>>\s/); return { raw: t.trim(), text: parseInline(t.trim()), bin: (bin || '').trim() }; });
+      if (ex.bins.length < 2 || ex.items.length < 4 || ex.items.length > 6 || ex.items.some((it) => !ex.bins.includes(it.bin))) throw new Error(`В задании ${attrs.id} (соответствие) — 2+ столбца и 4–6 пунктов со столбцом из bins`);
+    } else {
+      ex.options = opts.map((o) => ({ text: parseInline(o.raw), raw: o.raw, correct: o.correct, why: o.why }));
+      const right = ex.options.filter((o) => o.correct).length;
+      if (ex.form === 'one' && (ex.options.length !== 4 || right !== 1)) throw new Error(`В задании ${attrs.id} (один ответ) — 4 пункта, верный один`);
+      if (ex.form === 'pick' && (ex.options.length < 4 || ex.options.length > 6 || right < 2 || right > 4)) throw new Error(`В задании ${attrs.id} (верные суждения) — 4–6 пунктов, верных 2–4`);
+    }
+  }
   if (kind === 'tiles') {
     const tiles = (o) => o.raw.split(/\s\|\s/).map((x) => x.trim()).filter(Boolean);
     const right = opts.filter((o) => o.correct);

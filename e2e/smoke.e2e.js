@@ -1462,6 +1462,16 @@ async function answerExercise(page, { wrong = false, skipOpen = false } = {}) {
   } else if (kind === 'sort') {
     const bins = await ex.locator('[data-bin]').evaluateAll((els) => [...new Set(els.map((e) => e.dataset.bin))]);
     for (const [it, b] of Object.entries(ans)) await ex.locator(`[data-item="${it}"][data-bin="${wrong ? bins.find((x) => x !== b) : b}"]`).click();
+  } else if (kind === 'exam') {
+    // задание экзамена: соответствие — цифра под каждой буквой, «верные суждения» — отметить пункты, один ответ — один пункт
+    if (ans.form === 'match') {
+      const bins = await ex.locator('[data-bin]').evaluateAll((els) => [...new Set(els.map((e) => e.dataset.bin))]);
+      for (const [it, b] of Object.entries(ans.map)) await ex.locator(`[data-item="${it}"][data-bin="${wrong ? bins.find((x) => x !== b) : b}"]`).click();
+    } else if (ans.form === 'one') await ex.locator(wrong ? `[data-pick]:not([data-pick="${ans.key}"])` : `[data-pick="${ans.key}"]`).first().click();
+    else {
+      const all = await ex.locator('[data-pick]').evaluateAll((els) => els.map((e) => e.dataset.pick));
+      for (const k of wrong ? all.filter((x) => !ans.keys.includes(x)) : ans.keys) await ex.locator(`[data-pick="${k}"]`).click();
+    }
   } else if (kind === 'news') {
     for (const [v, d] of Object.entries(ans)) await ex.locator(`[data-var="${v}"][data-dir="${wrong ? (d === '+' ? '-' : '+') : d}"]`).click();
   } else if (kind === 'tiles') {
@@ -2493,6 +2503,45 @@ test('«Соедините» на телефоне: термины фишкам�
   await ex.locator('[data-side=right]').nth(1).click();
   await expect(ex.locator('[data-side=right]').nth(1).getByTestId('match-tag')).toHaveText(term);
   await expectNoSidewaysScroll(page);
+  expect(errors).toEqual([]);
+});
+
+test('задание в формате ЕГЭ: метка и номер, пункты по номерам, бланк цифрами; одна ошибка — «1 балл из 2»', async ({ page }) => {
+  test.setTimeout(180_000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const units = { sc: ['i1', 'l1', 'l2', 'i2', 'l3', 'l4', 'l5', 'l6', 'w', 's1', 'radio', 'g', 'rev', 'sum'], lm: ['i1', 'l1', 'i2', 'l2', 'w', 's1', 'radio', 'g', 'rev', 'sum'], sd: ['i1', 'l1', 'w', 'i2'] };
+    const ids = Object.entries(units).flatMap(([u, ls]) => ls.map((l) => `${u}-${l}`));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  // практика «Предложение и равновесие»: задание ЕГЭ в ней всегда
+  await startLesson(page, 'sd-l3');
+  let seen = false;
+  for (let i = 0; i < 40 && !(await page.getByTestId('lesson-result').isVisible()); i += 1) {
+    await passCards(page);
+    const ex = page.getByTestId('ex');
+    if (await ex.getAttribute('data-kind') === 'exam') {
+      seen = true;
+      await expect(ex.getByTestId('exam-tag')).toHaveText('ЕГЭ · задание 7');
+      const ans = JSON.parse(await ex.getAttribute('data-answer'));
+      const all = await ex.locator('[data-pick]').evaluateAll((els) => els.map((e) => e.dataset.pick));
+      // все верные и один лишний — одна ошибка
+      for (const k of [...ans.keys, all.find((x) => !ans.keys.includes(x))]) await ex.locator(`[data-pick="${k}"]`).click();
+      await expect(ex.getByTestId('exam-form')).toHaveAttribute('aria-label', /^Ответ: \d{3,4}$/);
+      await page.getByRole('button', { name: 'Проверить' }).click();
+      await expect(page.getByTestId('ex-feedback')).toHaveAttribute('data-ok', 'false');
+      await expect(page.getByTestId('ex-why')).toContainText('1 балл из 2');
+      await expectNoSidewaysScroll(page);
+      await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+      continue;
+    }
+    await answerExercise(page);
+    await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  }
+  expect(seen, 'задание ЕГЭ было в практике').toBe(true);
   expect(errors).toEqual([]);
 });
 

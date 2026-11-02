@@ -18,14 +18,18 @@ import { walletYears, WALLET } from './wallet.js';
 import { extraLocks } from './stops.js';
 
 // сколько секунд на упражнение: одно касание — около десяти, расчёт и сборка — дольше
-export const SECONDS = { choice: 12, gap: 12, tf: 10, shift: 12, news: 16, match: 22, sort: 22, calc: 28, tiles: 20, curve: 15, price: 18, point: 15, swipe: 60, rush: 60, wallet: 120, open: 30, domino: 35 };
+export const SECONDS = { choice: 12, gap: 12, tf: 10, shift: 12, news: 16, match: 22, sort: 22, calc: 28, tiles: 20, curve: 15, price: 18, point: 15, swipe: 60, rush: 60, wallet: 120, open: 30, domino: 35, exam: 45 };
 export const IDEA_SECONDS = 25;
 export const KIND_LABEL = {
   choice: 'Выбор ответа', gap: 'Заполните пропуск', tf: 'Верно или неверно', shift: 'Куда сдвинется?',
   news: 'Газета', match: 'Сопоставьте пары', sort: 'Разложите по корзинам', calc: 'Быстрый расчёт',
   tiles: 'Соберите определение', curve: 'Сдвиньте кривую', price: 'Найдите цену', point: 'Отметьте равновесие',
   swipe: 'Мини-игра', rush: 'Мини-игра на время', wallet: 'Сбереги кошелёк', open: 'Как бы вы поступили?', domino: 'Домино',
+  exam: 'Задание экзамена',
 };
+/* Задание в формате ЕГЭ или ОГЭ (docs/mechanics.md, «Задания урока»): ответ — цифрами, как в бланке.
+   Буквы пунктов соответствия — как на экзамене: А, Б, В, Г, Д, Е (без Ё и Й). */
+export const EXAM_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е'];
 /* «Домино»: ученик сам выкладывает цепочку причин; неверное звено роняет домино с этого места,
    разбор — и он продолжает с верного места. Проверяется само, когда цепочка собрана: засчитано,
    если домино ни разу не упало. */
@@ -141,6 +145,7 @@ function fromBlock(b) {
     case 'tf': return { ...e, answer: b.answer, wrongWhy: null };
     case 'match': return { ...e, pairs: b.pairs };
     case 'sort': return { ...e, bins: b.bins, items: b.items };
+    case 'exam': return { ...e, test: b.test, no: b.no, form: b.form, ...(b.form === 'match' ? { bins: b.bins, items: b.items } : { options: b.options }) };
     case 'calc': return b.variant ? { ...e, variant: b.variant } : { ...e, answer: b.answer, tol: b.tol, unit: b.unit, traps: b.traps, ...(b.units ? { units: b.units } : {}), ...(b.source ? { source: b.source } : {}), ...(b.vary ? { vary: b.vary } : {}) };
     case 'shift': return { ...e, chart: b.chart, chartAttrs: b.chartAttrs, answer: b.answer, choices: b.choices || shiftChoices(b.chart), traps: b.traps };
     case 'news': return { ...e, headline: b.headline, vars: b.vars, expect: b.expect };
@@ -303,6 +308,10 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
       return { ...base, ...(ex.seconds ? { timer: ex.seconds } : {}), left: shuffle(pairs.map((p) => ({ key: p.key, text: p.left.text, raw: p.left.raw })), rand), right: shuffle(pairs.map((p) => ({ key: p.key, text: p.right.text, raw: p.right.raw })), rand) };
     }
     case 'sort': return { ...base, bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `s${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand) };
+    // пункты перемешаны и пронумерованы заново — ответ цифрами не заучить
+    case 'exam': return ex.form === 'match'
+      ? { ...base, test: ex.test, no: ex.no, form: 'match', bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `e${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand) }
+      : { ...base, test: ex.test, no: ex.no, form: ex.form, options: shuffle(ex.options.map((o, k) => ({ key: `e${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand) };
     case 'calc': {
       if (ex.variant) {
         const tpl = TEMPLATE_BY_ID[ex.variant];
@@ -359,6 +368,7 @@ export function check(inst, resp) {
     case 'tf': return { ok: resp === inst.answer, why: resp !== inst.answer ? inst.wrongWhy : null };
     case 'match': return { ok: !!resp && inst.left.every((l) => resp[l.key] === l.key), why: null };
     case 'sort': return { ok: !!resp && inst.items.every((it) => resp[it.key] === it.bin), why: null };
+    case 'exam': return checkExam(inst, resp);
     case 'calc': {
       const r = checkAnswer(resp, inst.answer, inst.tol, inst.unit);
       if (r.ok) return { ok: true, why: null };
@@ -426,10 +436,31 @@ export function gameScore(answers) {
   answers.forEach((ok) => { if (ok) { run += 1; score += 10 * comboOf(run - 1); best = Math.max(best, run); } else run = 0; });
   return { score, bestRun: best };
 }
+/* Задание экзамена: ошибки — как в бланке. «Верные суждения»: каждый лишний или пропущенный пункт —
+   ошибка; соответствие — каждая неверная буква. Баллы ЕГЭ: 0 ошибок — 2, одна — 1, больше — 0. */
+export function examErrors(inst, resp) {
+  if (inst.form === 'one') return inst.options.find((o) => o.key === resp && o.correct) ? 0 : 1;
+  if (inst.form === 'match') return inst.items.filter((it) => !resp || resp[it.key] !== it.bin).length;
+  const sel = new Set(Array.isArray(resp) ? resp : []);
+  return inst.options.filter((o) => o.correct !== sel.has(o.key)).length;
+}
+export const examPoints = (inst, resp) => (inst.form === 'one' ? (examErrors(inst, resp) ? 0 : 1) : Math.max(0, 2 - examErrors(inst, resp)));
+function checkExam(inst, resp) {
+  const err = examErrors(inst, resp);
+  if (!err) return { ok: true, why: null };
+  const num = (o) => inst.options.indexOf(o) + 1;
+  // разбор — размеченный текст: сколько баллов на экзамене, и у ошибочно отмеченного пункта — его «почему»
+  const nodes = [];
+  if (inst.form !== 'one') nodes.push(...text(err === 1 ? 'Одна ошибка — на экзамене это 1 балл из 2.' : `Ошибок: ${err} — на экзамене это 0 баллов.`));
+  if (inst.form === 'pick') inst.options.filter((o) => !o.correct && (resp || []).includes(o.key) && o.why).forEach((o) => nodes.push(...text(` Пункт ${num(o)}: `), ...o.why));
+  if (inst.form === 'one') { const o = inst.options.find((x) => x.key === resp); if (o && o.why) nodes.push(...o.why); }
+  return { ok: false, why: nodes.length ? nodes : null };
+}
 // ответ заполнен настолько, что можно нажать «Проверить»
 export function ready(inst, resp) {
   if (resp == null) return false;
   switch (inst.kind) {
+    case 'exam': return inst.form === 'match' ? Object.keys(resp).length === inst.items.length : inst.form === 'one' ? !!resp : Array.isArray(resp) && resp.length > 0;
     case 'match': return Object.keys(resp).length === inst.left.length;
     case 'sort': return Object.keys(resp).length === inst.items.length;
     case 'news': return inst.vars.every((v) => resp[v.key]);
@@ -464,6 +495,13 @@ export function unitFor(inst, val) {
   if (!val || !Number.isFinite(x)) return inst.unit;
   return Number.isInteger(x) ? plural(x, ...inst.units) : inst.units[1];
 }
+export function examAnswer(inst) {
+  if (inst.form === 'match') {
+    const digits = inst.items.map((it) => inst.bins.indexOf(it.bin) + 1).join('');
+    return `${digits} (${inst.items.map((it, k) => `${EXAM_LETTERS[k]}${inst.bins.indexOf(it.bin) + 1}`).join(' ')})`;
+  }
+  return inst.options.map((o, k) => (o.correct ? k + 1 : null)).filter(Boolean).join('');
+}
 export function answerText(inst) {
   const plain = (nodes) => (nodes || []).map((n) => (n.t === 'text' ? n.v : n.t === 'math' ? texPlain(n.v) : n.c ? plain(n.c) : '')).join('');
   switch (inst.kind) {
@@ -471,6 +509,8 @@ export function answerText(inst) {
     case 'tf': return inst.answer ? 'Верно' : 'Неверно';
     case 'match': return inst.left.map((l) => `${plain(l.text)} — ${plain(inst.right.find((r) => r.key === l.key).text)}`).join('; ');
     case 'sort': return inst.bins.map((b) => `${b}: ${inst.items.filter((it) => it.bin === b).map((it) => plain(it.text)).join(', ')}`).join('; ');
+    // как в бланке: цифры подряд; у соответствия — ещё и «А1 Б2 …»
+    case 'exam': return examAnswer(inst);
     // единица по числу: «2 чашки», «5 чашек», «2,5 чашки»
     case 'calc': return inst.units ? `${fmt(inst.answer)} ${Number.isInteger(inst.answer) ? plural(inst.answer, ...inst.units) : inst.units[1]}` : withUnit(inst.answer, inst.unit);
     case 'shift': return shiftLabel(inst.chart, inst.answer);
@@ -509,7 +549,8 @@ export const REVIEW_SIZE = 12;
 // упражнения, годные для повторения и проверок: в одно действие, без игрового счёта
 const reviewable = (e) => !GAME_KINDS.includes(e.kind) && e.kind !== 'open';
 // и без алмазных: их видели только те, кто проходил урок на алмазном уровне
-const basic = (e) => reviewable(e) && !e.diamond;
+// задание экзамена — только в своей практике и в «Повторить ошибки»: в повторении и итогах оно растянуло бы урок за 5 минут
+const basic = (e) => reviewable(e) && !e.diamond && e.kind !== 'exam';
 const stepCards = (lesson, items, inner = lesson.inner) => {
   const cards = {};
   inner.forEach((c) => { if (items[c.at]) (cards[items[c.at].uid] = cards[items[c.at].uid] || []).push(c.idea); });
@@ -699,8 +740,8 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   }
   const all = ownOf(lesson);
   // свои — не больше десяти, в прежнем порядке (случайный набор при каждом прохождении; реже виденные — первыми);
-  // «Домино» урока — всегда: в нём ученик сам строит цепочку, а не только отвечает
-  const pinned = all.map((e, k) => (SELF_CHECK.includes(e.kind) ? k : -1)).filter((k) => k >= 0);
+  // «Домино» урока — всегда: в нём ученик сам строит цепочку, а не только отвечает; задание экзамена — тоже всегда
+  const pinned = all.map((e, k) => (SELF_CHECK.includes(e.kind) || e.kind === 'exam' ? k : -1)).filter((k) => k >= 0);
   const keep = new Set([...pinned, ...bySeen(all.map((e, k) => ({ ...e, k })).filter((e) => !pinned.includes(e.k)), seen, rand).slice(0, PRACTICE_OWN - pinned.length).map((e) => e.k)]);
   const own = all.filter((_, k) => keep.has(k));
   // начинать с упражнения в одно касание, а не с расчёта или сборки
@@ -719,7 +760,7 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   while (estimate(items) > LESSON_MAX_SECONDS && items.length > 10) {
     const rev = items.filter((it) => it.review).length;
     const dropReview = rev / (items.length - 1) > 0.34;
-    const k = items.map((it, i) => i).reverse().find((i) => i > 0 && !!items[i].review === dropReview && !SELF_CHECK.includes(items[i].kind));
+    const k = items.map((it, i) => i).reverse().find((i) => i > 0 && !!items[i].review === dropReview && !SELF_CHECK.includes(items[i].kind) && items[i].kind !== 'exam');
     if (k == null) break;
     items.splice(k, 1);
   }
