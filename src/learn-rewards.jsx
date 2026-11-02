@@ -24,7 +24,7 @@ import { SkinPreview, SKIN_CSS } from './learn-skins.jsx';
 const GardenView = React.lazy(() => import('./learn-garden.jsx').then((m) => ({ default: m.GardenView })));
 const DustGame = React.lazy(() => import('./learn-dust.jsx'));
 import {
-  balance, rateOn, rateHistory, priceOf, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF, questsFor, QUEST_ICON, monthChallenge, monthStamps, policyInfo, takePolicy, cancelPolicy, PREMIUM,
+  balance, rateOn, rateHistory, priceOf, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF, questsFor, questNews, QUEST_ICON, monthChallenge, monthStamps, policyInfo, takePolicy, cancelPolicy, PREMIUM,
   chestCoins, chestKey, hasClaim, openChest, achievementsOf, coinsWord, plural, greetingAt, COIN, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate, yearGrowth,
   goalCoins,
 } from './learn/rewards.js';
@@ -48,6 +48,19 @@ export const REWARD_CSS = `
   .rw-quest:first-of-type { border-top: none; }
   .rw-ico { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--ds-rule2); color: var(--u-ink); background: var(--ds-card); }
   .rw-tasks-entry { margin: 0 0 12px; padding: 12px 14px; }
+  /* кольца заданий дня в карточке «Задания»: дорастают плавно, выполненное — зелёное с галочкой */
+  .rw-qrings { display: inline-flex; gap: 3px; flex-shrink: 0; }
+  .rw-qring { position: relative; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; color: var(--ds-ok); }
+  .rw-qring > svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .rw-qring circle { fill: none; stroke-width: 3.2; }
+  .rw-qring .bg { stroke: var(--ds-rule); }
+  .rw-qring .fg { stroke: var(--u); stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.3,.8,.4,1), stroke .3s; }
+  .rw-qring[data-done="true"] .fg { stroke: var(--ds-ok); }
+  .rw-tasks-entry.grew { animation: rw-tasks-glow 1.4s ease-out 1; }
+  .rw-tasks-news { color: var(--u-ink); font-weight: 700; animation: rw-news-in .35s ease-out both; }
+  @keyframes rw-tasks-glow { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--u) 45%, transparent) } 60% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--u) 0%, transparent) } }
+  @keyframes rw-news-in { from { opacity: 0; transform: translateY(4px) } }
+  @media (prefers-reduced-motion: reduce) { .rw-qring .fg { transition: none; } .rw-tasks-entry.grew, .rw-tasks-news { animation: none; } }
   .rw-money { display: grid; gap: 8px; margin: 0 0 12px; font-size: 14px; line-height: 1.4; }
   .rw-money > div:not(.rw-money-rate) { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: center; }
   .rw-money-ico { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; }
@@ -311,22 +324,58 @@ export function WalletStat({ learn }) {
 }
 
 /* Карточка «Задания» наверху Пути: сколько заданий дня сделано, цель в минутах и испытание
-   месяца — одной строкой. Касание открывает экран заданий (задания дня, испытание, практика). */
+   месяца — одной строкой. Касание открывает экран заданий (задания дня, испытание, практика).
+   Прогресс виден без открытия: три маленьких кольца заданий дня; продвинулось с прошлого показа —
+   кольцо дорастает от прежнего значения, карточка вспыхивает, на 4 с — строка «что продвинулось»
+   (docs/mechanics.md, «Навигация»). Показанное помнит устройство на сегодня. */
+const QUESTS_SEEN = 'ems-quests-seen';
+const readQuestsSeen = (day) => { try { const v = JSON.parse(localStorage.getItem(QUESTS_SEEN)); return v && v.day === day && v.have ? v.have : null; } catch { return null; } };
+function QuestRing({ have, target, done, id }) {
+  const r = 8; const len = 2 * Math.PI * r; const k = target ? Math.min(1, have / target) : 0;
+  return (
+    <span className="rw-qring" data-testid="tasks-ring" data-quest={id} data-have={have} data-done={String(done)} aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 22 22"><circle className="bg" cx="11" cy="11" r={r} />
+        <circle className="fg" cx="11" cy="11" r={r} strokeDasharray={len} strokeDashoffset={len * (1 - k)} /></svg>
+      {done && <Check size={10} strokeWidth={3.2} />}
+    </span>
+  );
+}
 export function TasksEntry({ learn, onOpen, now = Date.now() }) {
   const quests = questsFor(learn, now);
   const g = goalToday(learn, now);
   const m = monthChallenge(learn, now);
+  const day = dayOf(now);
   const done = quests.filter((q) => q.done).length;
   const goalOk = g.done >= g.goal;
   const month = m.claimed ? 'выполнено' : m.waiting ? `с ${m.startsText}` : `${m.have} из ${m.target}`;
   const text = `Задания дня: ${done} из 3 · цель ${Math.min(g.done, g.goal)}/${g.goal} мин · испытание месяца ${month}`;
+  // кольца рисуются сначала с прежним значением, потом — с новым: так они плавно дорастают
+  const haveKey = quests.map((q) => `${q.id}:${q.have}`).join(',');
+  const [shown, setShown] = useState(() => { const prev = readQuestsSeen(day); return Object.fromEntries(quests.map((q) => [q.id, prev ? Math.min(q.have, prev[q.id] || 0) : q.have])); });
+  const [news, setNews] = useState(null);
+  useEffect(() => {
+    const ch = questNews(readQuestsSeen(day), quests);
+    const now2 = Object.fromEntries(quests.map((q) => [q.id, q.have]));
+    try { localStorage.setItem(QUESTS_SEEN, JSON.stringify({ day, have: now2 })); } catch { /* приватный режим */ }
+    if (!ch.length) { setShown(now2); return undefined; }
+    const grow = setTimeout(() => setShown(now2), 120);
+    setNews(ch[ch.length - 1]);
+    const hide = setTimeout(() => setNews(null), 4000);
+    return () => { clearTimeout(grow); clearTimeout(hide); };
+  }, [day, haveKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const newsText = news ? (news.done ? `${news.title} — выполнено, +${news.coins} ${coinsWord(news.coins)}` : `${news.title}: ${news.to} из ${news.target}`) : null;
   return (
-    <button type="button" className="ds-card ds-card--button rw-tasks-entry" data-testid="tasks-card" data-nav-target="tasks" aria-label={`Задания. ${text}`}
+    <button type="button" className={`ds-card ds-card--button rw-tasks-entry${news ? ' grew' : ''}`} data-testid="tasks-card" data-nav-target="tasks" aria-label={`Задания. ${text}`}
       onClick={() => { Audio.play('paper'); onOpen(); }}>
       <span className={`rw-ico ${done === 3 && goalOk ? 'ok' : ''}`}>{done === 3 && goalOk ? <Check size={16} aria-hidden="true" /> : <ListChecks size={16} aria-hidden="true" />}</span>
       <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
         <span style={{ display: 'block', fontWeight: 700, fontSize: 15.5 }}>Задания</span>
-        <span className="ds-sub" style={{ display: 'block', fontSize: 13, lineHeight: 1.35 }} data-testid="tasks-card-text">{text}</span>
+        {newsText
+          ? <span className="rw-tasks-news" style={{ display: 'block', fontSize: 13, lineHeight: 1.35 }} data-testid="tasks-news" role="status">{newsText}</span>
+          : <span className="ds-sub" style={{ display: 'block', fontSize: 13, lineHeight: 1.35 }} data-testid="tasks-card-text">{text}</span>}
+      </span>
+      <span className="rw-qrings" data-testid="tasks-rings">
+        {quests.map((q) => <QuestRing key={q.id} id={q.id} have={shown[q.id] ?? q.have} target={q.target} done={(shown[q.id] ?? q.have) >= q.target} />)}
       </span>
       <ChevronRight size={20} color="var(--ds-ink3)" aria-hidden="true" />
     </button>

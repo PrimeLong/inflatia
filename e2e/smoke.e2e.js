@@ -1689,6 +1689,9 @@ test('путь: карточка урока, «Знакомство» шагам
 
   // путь: урок пройден, у следующего открывается замок, серия и цель дня засчитаны
   await expect(pathNode(page, 'sc-i1')).toHaveAttribute('data-state', 'done');
+  // прогресс заданий виден без открытия: строка «что продвинулось» и подросшее кольцо в карточке «Задания»
+  await expect(page.getByTestId('tasks-news').first()).toBeAttached();
+  expect(await page.getByTestId('tasks-ring').evaluateAll((els) => els.some((e) => Number(e.dataset.have) > 0))).toBe(true);
   await expect(pathNode(page, 'sc-l1')).toHaveAttribute('data-state', 'open');
   await expect(pathNode(page, 'sc-l1').getByTestId('unlock-anim')).toHaveCount(1);
   await expect(pathNode(page, 'sc-l1').getByTestId('unlock-anim')).toHaveCount(0, { timeout: 5000 });

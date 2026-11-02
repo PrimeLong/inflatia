@@ -387,6 +387,12 @@ export function questsFor(s, now = Date.now()) {
   });
 }
 
+/* Что продвинулось в заданиях дня с прошлого показа карточки «Задания» (docs/mechanics.md, «Навигация»):
+   prev — { id: have } показанного раньше (сегодня), quests — questsFor. Новое — по порядку заданий. */
+export const questNews = (prev, quests) => (prev ? quests
+  .filter((q) => q.have > (prev[q.id] || 0))
+  .map((q) => ({ id: q.id, title: q.title, from: Math.min(prev[q.id] || 0, q.have), to: q.have, target: q.target, done: q.done, coins: q.coins })) : []);
+
 /* ------------------------------ СУНДУК ЮНИТА ------------------------------ */
 export const chestCoins = (unitId) => 40 + Math.floor(hash01(`chest:${unitId}`) * 41);
 export const chestKey = (unitId) => `c:${unitId}`;
