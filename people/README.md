@@ -5,7 +5,7 @@
 `public/people/` под именем из таблицы. После сборки на Vercel портрет появится сам —
 сайт отдаёт его со своего адреса, поэтому Википедия ученику не нужна.
 
-Сейчас лежит 28 из 32. Этот файл пишет команда `npm run people:export`.
+Сейчас лежит 29 из 32. Этот файл пишет команда `npm run people:export`.
 
 ## Как добавить портрет
 
@@ -54,7 +54,7 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 | 3 | Давид Рикардо | 1772–1823 | Люди выбора | `ricardo.jpg` | [статья](https://en.wikipedia.org/wiki/David_Ricardo) | ✓ ricardo.jpg, подпись есть |
 | 4 | Джон Бейтс Кларк | 1847–1938 | Люди труда | `clark.jpg` | [статья](https://en.wikipedia.org/wiki/John_Bates_Clark) | — |
 | 5 | Джоан Робинсон | 1903–1983 | Люди труда, Люди бренда | `robinson.jpg` | [статья](https://en.wikipedia.org/wiki/Joan_Robinson) | ✓ robinson.jpg, подпись есть |
-| 6 | Гэри Беккер | 1930–2014 | Люди труда | `becker.jpg` | [статья](https://en.wikipedia.org/wiki/Gary_Becker) | — |
+| 6 | Гэри Беккер | 1930–2014 | Люди труда | `becker.jpg` | [статья](https://en.wikipedia.org/wiki/Gary_Becker) | ✓ becker.jpg, подпись есть |
 | 7 | Адам Смит | 1723–1790 | Люди рынка | `smith.jpg` | [статья](https://en.wikipedia.org/wiki/Adam_Smith) | ✓ smith.jpg, подпись есть |
 | 8 | Флеминг Дженкин | 1833–1885 | Люди рынка | `jenkin.jpg` | [статья](https://en.wikipedia.org/wiki/Fleeming_Jenkin) | ✓ jenkin.jpg, подпись есть |
 | 9 | Альфред Маршалл | 1842–1924 | Люди рынка | `marshall.jpg` | [статья](https://en.wikipedia.org/wiki/Alfred_Marshall) | ✓ marshall.jpg, подпись есть |
