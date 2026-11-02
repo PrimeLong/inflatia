@@ -235,7 +235,8 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
     const pay = dustLeft(learn) > 0;
     if (pay) update((s) => dustClaim(s, Date.now()), { settle: true });
     setPaid(pay ? DUST.coins : 0);
-    Audio.play(pay ? 'coin' : 'up');
+    Audio.play('shine');
+    if (pay) setTimeout(() => Audio.play('coin'), 260);
     try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* нет вибрации */ }
     sparkle();
     setTimeout(() => { phaseRef.current = 'done'; setPhase('done'); }, reduced ? 0 : 950);
@@ -254,7 +255,8 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
     if (dusty) {
       puff(p.x, p.y, from ? (p.x - from.x) * 20 : 0);
       const t = performance.now();
-      if (t - lastSound.current > 420) { lastSound.current = t; Audio.play('paper'); }
+      // тряпка по стеклу — мягкое «ш» не чаще раза в 0,6 с (сухой бумажный шорох раздражал)
+      if (t - lastSound.current > 600) { lastSound.current = t; Audio.play('wipe'); }
     }
     const share = cleanShare(g);
     const shown = shownPercent(share);

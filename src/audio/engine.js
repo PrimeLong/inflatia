@@ -1000,6 +1000,27 @@ export function createAudioEngine(options = {}) {
       swish(t, 0.16, 0.085, 700, 1400);
       swish(t + 0.15, 0.2, 0.07, 1300, 650);
     },
+    /* «Пыльная витрина»: тряпка по стеклу — приглушённое мягкое «ш» (шум сквозь низкую полосу, плавно
+       нарастает и затихает, без щелчка) и чуть слышный скрип стекла — короткий тон, едва скользящий вверх */
+    wipe: () => {
+      const t = now();
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = 0.2;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.7;
+      bp.frequency.setValueAtTime(650, t); bp.frequency.exponentialRampToValueAtTime(950, t + 0.24);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.05, t + 0.08);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      src.connect(lp); lp.connect(bp); bp.connect(g); g.connect(sfxOut || sfxBus);
+      src.start(t, Math.random() * 0.5); src.stop(t + 0.32);
+      const o = ctx.createOscillator(); const og = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(1650, t + 0.05); o.frequency.linearRampToValueAtTime(1780, t + 0.15);
+      og.gain.setValueAtTime(0.0001, t + 0.05); og.gain.exponentialRampToValueAtTime(0.006, t + 0.08); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(og); og.connect(sfxOut || sfxBus); o.start(t + 0.05); o.stop(t + 0.2);
+    },
+    // стекло протёрто: короткий звонкий перелив — три высоких тона подряд
+    shine: () => { const t = now(); [1318.5, 1760, 2349.3].forEach((f, i) => tone(f, t + i * 0.06, 0.32, 0.022, 'triangle')); },
     stamp: () => {
       const t = now(); const o = ctx.createOscillator(); const g = ctx.createGain();
       o.type = 'sine'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(52, t + 0.16);
@@ -1208,7 +1229,7 @@ export async function renderStingerOffline(id, { sampleRate = 22050 } = {}) {
 }
 
 /* Отрендерить звук интерфейса — для замера громкости звуков ответов. */
-export const SFX_NAMES = ['coin', 'down', 'up', 'register', 'tick', 'click', 'tab', 'paper', 'erase', 'stamp', 'news', 'alarm', 'pop', 'flip'];
+export const SFX_NAMES = ['coin', 'down', 'up', 'register', 'tick', 'click', 'tab', 'paper', 'erase', 'wipe', 'shine', 'stamp', 'news', 'alarm', 'pop', 'flip'];
 export async function renderSfxOffline(name, { sampleRate = 22050, sfxGain = false } = {}) {
   const OAC = typeof window !== 'undefined' && (window.OfflineAudioContext || window.webkitOfflineAudioContext);
   if (!OAC) return null;

@@ -5837,7 +5837,7 @@ test('лавка: младше 16 — без «−30%» и «ещё N дней, 
   expect(errors).toEqual([]);
 });
 
-test('лавка: «Пыльная витрина» — тряпкой по стеклу, 100% — блик и 3 монеты; до трёх витрин в день', async ({ page }) => {
+test('лавка: «Пыльная витрина» — тряпкой по стеклу, 100% — блик и 2 монеты; до пяти витрин в день', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, coins: { '2026-10-01': 50 } } }));
@@ -5855,7 +5855,7 @@ test('лавка: «Пыльная витрина» — тряпкой по ст
   await card.getByTestId('dust-open').click();
   const game = page.getByTestId('dust-game');
   await expect(game).toHaveAttribute('data-phase', 'play');
-  await expect(game.getByTestId('dust-hint')).toContainText('3 монеты');
+  await expect(game.getByTestId('dust-hint')).toContainText('2 монеты');
   // мазок мышью — часть стекла уже чистая
   const glass = game.getByTestId('dust-glass');
   const box = await glass.boundingBox();
@@ -5870,9 +5870,9 @@ test('лавка: «Пыльная витрина» — тряпкой по ст
   for (let k = 0; k < 40 && (await game.getAttribute('data-phase')) === 'play'; k += 1) await page.keyboard.press('Enter');
   await expect(game.getByTestId('dust-percent')).toHaveAttribute('data-value', '100');
   const res = game.getByTestId('dust-result');
-  await expect(res).toHaveAttribute('data-paid', '3');
-  await expect(res.getByTestId('dust-coins')).toContainText('+3 монеты');
-  await expect(res).toContainText('ещё 2 из 3');
+  await expect(res).toHaveAttribute('data-paid', '2');
+  await expect(res.getByTestId('dust-coins')).toContainText('+2 монеты');
+  await expect(res).toContainText('ещё 4 из 5');
   // ещё витрина — снова пыль, проценты с нуля
   await res.getByTestId('dust-again').click();
   await expect(game).toHaveAttribute('data-phase', 'play');
@@ -5880,8 +5880,8 @@ test('лавка: «Пыльная витрина» — тряпкой по ст
   await game.getByTestId('dust-close').click();
   await expect(game).toHaveCount(0);
   await expect(card).toHaveAttribute('data-done', '1');
-  // три монеты витрины (вместе с ними могли прийти и печати, которые ждали расчёта наград)
-  expect(await earnedNow()).toBeGreaterThanOrEqual(before + 3);
+  // две монеты витрины (вместе с ними могли прийти и печати, которые ждали расчёта наград)
+  expect(await earnedNow()).toBeGreaterThanOrEqual(before + 2);
   expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.claimed).filter((k) => k.startsWith('dust:')).length)).toBe(1);
   expect(errors).toEqual([]);
 });
