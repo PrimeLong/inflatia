@@ -4188,6 +4188,26 @@ test('повторение: длинная карточка ушла, а реш�
   expect(errors).toEqual([]);
 });
 
+test('повторение прочитанного: у вопроса «Вспомните» — флажок «Сообщить об ошибке», как у задач', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 3 * 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({
+      problems: { 'sc-r-oc': { tries: 1, ok: false, box: 0, due: Date.now() - 1000, lastAt: at }, 'sc-oc': { tries: 1, ok: false, box: 0, due: Date.now() - 1000, lastAt: at } },
+    }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await openTasks(page);
+  await page.getByTestId('practice-review').click();
+  const review = page.getByTestId('review');
+  const recall = review.locator('[data-testid=review-item][data-item="sc-r-oc"]');
+  await expect(recall.getByTestId('tb-recall')).toBeVisible();
+  await expect(recall.getByTestId('tb-report')).toHaveCount(1);
+  // и у задачи — тоже
+  await expect(review.locator('[data-testid=review-item][data-item="sc-oc"]').getByTestId('tb-report')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
 test('повторение: трудную задачу можно убрать — уходит и из учебника, и из ошибок Пути', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;

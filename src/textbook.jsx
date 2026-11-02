@@ -551,8 +551,12 @@ function RecallCard({ b, ctx, from }) {
     <div className="tb-box" style={{ borderLeftColor: COLOR.blue }} data-testid="tb-recall" data-recall={b.id} data-answer={JSON.stringify(b.parts.map((p) => p.options.findIndex((o) => o.correct)))}>
       <div className="row-between" style={{ alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
         <div className="tb-box-head" style={{ color: COLOR.blue, marginBottom: 6 }}><Brain size={13} />{from ? `${from} · ` : ''}Вспомните</div>
-        {rec && !done && <span className="tb-chip" style={{ color: rec.ok ? COLOR.teal : COLOR.rust, borderColor: rec.ok ? COLOR.teal : COLOR.rust }}>
-          {rec.ok ? 'отвечено верно' : 'была ошибка'}{rec.due ? ` · повтор ${daysUntil(rec.due)}` : ''}</span>}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {rec && !done && <span className="tb-chip" style={{ color: rec.ok ? COLOR.teal : COLOR.rust, borderColor: rec.ok ? COLOR.teal : COLOR.rust }}>
+            {rec.ok ? 'отвечено верно' : 'была ошибка'}{rec.due ? ` · повтор ${daysUntil(rec.due)}` : ''}</span>}
+          {/* пожаловаться на вопрос «Вспомните» — и в главе, и в повторении прочитанного (раньше флажок был только у задач) */}
+          {ctx.reportFlag && <span data-testid="tb-report">{ctx.reportFlag(() => recallContext(b, picks))}</span>}
+        </span>
       </div>
       {b.parts.map((p, i) => {
         const chosen = picks[i];
@@ -952,6 +956,13 @@ const DIR_WORD = { '+': 'растёт', '-': 'падает', 0: 'не меняе
 const KIND_LABEL = { number: 'Задача', truefalse: 'Верно или неверно', graph: 'Графическая задача' };
 
 // контекст для «Сообщить об ошибке»: задача, условие, что ввёл ученик и правильный ответ
+// контекст жалобы на вопрос «Вспомните»: вопросы, выбранные и верные ответы
+const recallContext = (b, picks) => ({
+  screen: 'textbook-recall', kind: 'recall', exercise: b.id, unit: b.chapter || '',
+  prompt: b.parts.map((p) => flatProblem(p.question)).join(' | ').slice(0, 1500),
+  answer: b.parts.map((p, i) => (picks[i] != null ? flatProblem(p.options[picks[i]].text) : '—')).join(' | ').slice(0, 480),
+  correct: b.parts.map((p) => flatProblem((p.options.find((o) => o.correct) || {}).text)).join(' | ').slice(0, 480),
+});
 const problemContext = (block, given, answerText) => ({
   screen: 'textbook-problem', kind: block.kind, exercise: block.id, unit: block.chapter || '',
   prompt: flatProblem(block.statement).slice(0, 1500), answer: given == null ? '' : String(given).slice(0, 480), correct: String(answerText || '').slice(0, 480),
