@@ -1,4 +1,5 @@
-/* Выровнять громкость записей речи: эфиры «Слушай» (public/voice/*.mp3) и книги полки (public/books/*.mp3).
+/* Выровнять громкость записей речи: эфиры «Слушай» (public/voice/*.mp3) и книги полки (public/books/*.mp3 и
+   отрывки по подпапкам public/books/<книга>/<отрывок>.mp3).
    Раньше книга Смита играла на −14,3 LUFS с пиком +0,5 dBFS (перегруз, 128 кбит/с), а эфиры — около −26 LUFS:
    после эфира книга оглушала, а эфир после книги было не расслышать.
 
@@ -114,7 +115,13 @@ function normalize(file, m0, gaps = []) {
 
 function files() {
   if (given.length) return given.map((f) => path.resolve(f));
-  return DIRS.filter((d) => fs.existsSync(d)).flatMap((d) => fs.readdirSync(d).filter((f) => /\.mp3$/i.test(f)).sort().map((f) => path.join(d, f)));
+  // книги по отрывкам лежат в подпапках: public/books/<книга>/<отрывок>.mp3 — их тоже проверяем
+  const mp3s = (d) => fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap((e) => {
+    const full = path.join(d, e.name);
+    if (e.isDirectory()) return mp3s(full);
+    return /\.mp3$/i.test(e.name) ? [full] : [];
+  });
+  return DIRS.filter((d) => fs.existsSync(d)).flatMap(mp3s);
 }
 const fmt = (m, p) => `${m.I.toFixed(1)} LUFS, пик ${m.TP > 0 ? '+' : ''}${m.TP.toFixed(1)} dBTP, ${p.channels === 1 ? 'моно' : `${p.channels} кан.`}, ${p.kbps} кбит/с${p.picture ? ', с обложкой' : ''}`;
 
