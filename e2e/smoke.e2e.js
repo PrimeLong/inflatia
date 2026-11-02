@@ -2545,6 +2545,23 @@ test('задание в формате ЕГЭ: метка и номер, пун�
   expect(errors).toEqual([]);
 });
 
+test('настройки: одна полоса прокрутки — страница под экраном настроек не прокручивается, после «назад» — снова прокручивается', async ({ page }) => {
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'profile' });
+  const htmlOverflow = () => page.evaluate(() => getComputedStyle(document.documentElement).overflowY);
+  expect(await htmlOverflow()).not.toBe('hidden');
+  await page.getByTestId('prof-settings-open').click();
+  const set = page.getByTestId('settings');
+  await expect(set).toBeVisible();
+  expect(await htmlOverflow()).toBe('hidden');
+  // прокручивается сам экран настроек
+  expect(await set.evaluate((el) => getComputedStyle(el).overflowY)).toBe('auto');
+  await set.locator('[data-nav="back"]').first().click();
+  await expect(set).toHaveCount(0);
+  expect(await htmlOverflow()).not.toBe('hidden');
+  expect(errors).toEqual([]);
+});
+
 test('сад: полили две сухие грядки подряд — дождь над обеими, второй полив не обрывает первый', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {

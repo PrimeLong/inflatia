@@ -46,6 +46,8 @@ export const NOTIFY_CSS = `
   .nt-page { position: fixed; inset: 0; z-index: 110; overflow-y: auto; background: var(--ds-paper); padding: 8px 16px calc(100px + env(safe-area-inset-bottom)); animation: nt-fade .22s ease-out; }
   /* под окном (марка, аккаунт): страница замирает — не прокручивается и не ловит фокус */
   .nt-page.nt-under { overflow: hidden; }
+  /* пока открыт экран поверх, страница под ним не прокручивается — иначе на ПК два ползунка */
+  html:has(.nt-page) { overflow: hidden; }
   .nt-page-in { max-width: 560px; margin: 0 auto; animation: nt-page-in .3s cubic-bezier(.2,.9,.3,1); }
   @keyframes nt-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes nt-page-in { from { transform: translateY(18px) } to { transform: none } }
