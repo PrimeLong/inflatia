@@ -67,9 +67,13 @@ function segDist2(p, a, b) {
   const t = L ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)) : 0;
   return dist2(p, [a[0] + dx * t, a[1] + dy * t]);
 }
-/* Где поставить номер уровня: на суше, внутри его области и подальше от зданий мест (их рисунок —
-   круг около 60 px над точкой места), от дороги и от края страны. Перебор по сетке — карта маленькая. */
-function badgeSpot(polys, sites, road, border) {
+/* Где поставить номер уровня (круг r=19): на суше, внутри его области и подальше от зданий мест (круг r=49
+   с центром на 26 выше точки места и подпись под ним), от дороги и от края страны. У пустого места-кружка
+   (soon) здания нет — ему хватает небольшого зазора. Перебор по сетке — карта маленькая. */
+const BADGE_R = 19;
+const BUILT = new Set(UNITS.filter((u) => u.lessons.length).map((u) => u.id));
+const rectDist = (p, r) => Math.hypot(p[0] - Math.max(r.x0, Math.min(p[0], r.x1)), p[1] - Math.max(r.y0, Math.min(p[1], r.y1)));
+function badgeSpot(polys, slots, road, border) {
   const pts = polys.flatMap((poly) => poly.map((v) => v.p));
   const xs = pts.map((p) => p[0]); const ys = pts.map((p) => p[1]);
   let best = null; let bestScore = -Infinity;
@@ -77,13 +81,19 @@ function badgeSpot(polys, sites, road, border) {
     for (let y = Math.min(...ys); y <= Math.max(...ys); y += 8) {
       const p = [x, y];
       if (!inside(p, countryPoints) || !polys.some((poly) => inside(p, poly.map((v) => v.p)))) continue;
-      const toSite = Math.min(...sites.map((s) => Math.min(dist2(p, s), dist2(p, [s[0], s[1] - 30]))));
+      // зазор до каждого места: здание (круг) и подпись (около 13 px на букву) — или пустой кружок
+      const toSite = Math.min(...slots.map((sl) => {
+        const [sx, sy] = sl.at;
+        // здание рисуется только у вышедшего юнита (с уроками); у будущего — такой же пустой кружок
+        if (sl.soon || !BUILT.has(sl.id)) return Math.hypot(p[0] - sx, p[1] - sy) - (7 + BADGE_R + 4);
+        const half = (placeOf(sl.id).place || '').length * 6.5;
+        return Math.min(Math.hypot(p[0] - sx, p[1] - (sy - 26)) - (49 + BADGE_R + 4),
+          rectDist(p, { x0: sx - half, x1: sx + half, y0: sy + 10, y1: sy + 36 }) - (BADGE_R + 3));
+      }));
       const toRoad = Math.min(...road.slice(1).map((b, k) => segDist2(p, road[k], b)));
       const toEdge = Math.min(...countryPoints.map((q) => dist2(p, q)));
       const toBorder = border.length ? Math.min(...border.map(([a, b]) => segDist2(p, a, b))) : Infinity;
-      // подпись места — строка под зданием шириной около 110 px
-      const toName = Math.min(...sites.map((q) => segDist2(p, [q[0] - 58, q[1] + 26], [q[0] + 58, q[1] + 26])));
-      const score = Math.min(Math.sqrt(toSite) - 62, Math.sqrt(toRoad) - 22, Math.sqrt(toEdge) - 26, Math.sqrt(toBorder) - 26, Math.sqrt(toName) - 30);
+      const score = Math.min(toSite, Math.sqrt(toRoad) - 22, Math.sqrt(toEdge) - 26, Math.sqrt(toBorder) - 26);
       if (score > bestScore) { bestScore = score; best = p; }
     }
   }
@@ -112,7 +122,7 @@ export function levelRegions(units = mapSlots()) {
     // граница области — рёбра её клеток с соседями другого уровня
     const border = idx.flatMap((i) => cells[i].map((v, k) => (v.lab >= 0 && levelOfSite[v.lab] !== l.id ? [cells[i][(k - 1 + cells[i].length) % cells[i].length].p, v.p] : null)).filter(Boolean));
     return { id: l.id, no: k + 1, title: l.title, tint: LEVEL_TINT[l.id], units: idx.map((i) => units[i].id), d: polys.map(polyPath).join(' '),
-      label: polys.length ? badgeSpot(polys, sites, sites, border) || centroid(polys) : null };
+      label: polys.length ? badgeSpot(polys, units, sites, border) || centroid(polys) : null };
   }).filter((r) => r.units.length);
   const borders = [];
   cells.forEach((poly, i) => {

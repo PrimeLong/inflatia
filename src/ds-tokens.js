@@ -43,16 +43,16 @@ export const DS_SIZE = { xs: 12.5, s: 14, m: 16, l: 18, xl: 22, xxl: 28, hero: 3
    Продвинутый внутренним кольцом, Профессиональный в центре. На каждый уровень — пять мест (25 на карте):
    где юнитов уровня меньше пяти, остальные места ждут будущих юнитов (SOON_PLACES). */
 export const PLACES = {
-  scarcity: { place: 'Мастерская', building: 'workshop', color: '#4D7C0F', region: 'industry', at: [300, 570], note: 'хлеб или станки' },
+  scarcity: { place: 'Мастерская', building: 'workshop', color: '#4D7C0F', region: 'industry', at: [306, 576], note: 'хлеб или станки' },
   'supply-demand': { place: 'Рынок', building: 'market', color: '#C2490B', region: 'capital', at: [320, 220], note: 'кофе, мука и цены' },
   consumer: { place: 'Универмаг', building: 'store', color: '#B0198F', region: 'capital', at: [785, 300], note: 'выбор покупателя' },
   elasticity: { place: 'Кофейня', building: 'cafe', color: '#C21E56', region: 'agri', at: [440, 180], note: 'реакция на цену' },
   production: { place: 'Завод', building: 'factory', color: '#B25E00', region: 'industry', at: [690, 395], note: 'труд и капитал' },
-  costs: { place: 'Пекарня', building: 'bakery', color: '#9A6300', region: 'agri', at: [700, 515], note: 'издержки и прибыль' },
+  costs: { place: 'Пекарня', building: 'bakery', color: '#9A6300', region: 'agri', at: [715, 505], note: 'издержки и прибыль' },
   'competition-monopoly': { place: 'Биржа', building: 'exchange', color: '#C9372C', region: 'finance', at: [610, 590], note: 'конкуренция и монополия' },
   monopolistic: { place: 'Ярмарка', building: 'fair', color: '#9B2C8F', region: 'agri', at: [490, 615], note: 'похожие товары' },
   oligopoly: { place: 'Картель', building: 'factory', color: '#577A00', region: 'mining', at: [425, 530], note: 'несколько крупных' },
-  labor: { place: 'Биржа труда', building: 'ministry', color: '#A9561A', region: 'industry', at: [225, 495], note: 'зарплаты и занятость' },
+  labor: { place: 'Биржа труда', building: 'ministry', color: '#A9561A', region: 'industry', at: [212, 462], note: 'зарплаты и занятость' },
   'market-failures': { place: 'Порт', building: 'port', color: '#D13B1F', region: 'port', at: [585, 180], note: 'внешние эффекты и налоги' },
   gdp: { place: 'Статуправление', building: 'tower', color: '#A65A00', region: 'capital', at: [330, 445], note: 'как считают ВВП' },
   'money-banks': { place: 'Банк', building: 'bank', color: '#8F6A00', region: 'finance', at: [690, 215], note: 'деньги и кредит' },
@@ -67,7 +67,7 @@ export const PLACES = {
   inequality: { place: 'Рабочий квартал', building: 'store', color: '#B0453A', region: 'periphery', at: [535, 370], note: 'доходы и бедность' },
 };
 // места под будущие юниты уровня — точки на дороге без названия, по порядку после юнитов уровня
-export const SOON_PLACES = { start: [[195, 410], [210, 320], [235, 235]] };
+export const SOON_PLACES = { start: [[205, 370], [225, 290], [245, 215]] };
 export const placeOf = (unitId) => PLACES[unitId] || { place: 'Город', building: 'store', color: '#6B4357', region: 'capital', at: [496, 372], note: '' };
 export const unitColor = (unitId) => placeOf(unitId).color;
 /* Тёплая палитра (docs/world.md, «Цвета»): места юнитов, их кнопки и алмазный уровень — яркие
