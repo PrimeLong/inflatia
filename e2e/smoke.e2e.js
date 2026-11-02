@@ -1716,6 +1716,13 @@ test('путь: карточка урока, «Знакомство» шагам
   // «Мои четыре недели»: календарь и уроки; разбивки по типам упражнений нет
   await expect(page.getByTestId('prof-lessons')).toHaveText('1');
   await expect(page.getByTestId('prof-calendar').locator('.today')).toHaveCount(1);
+  // подпись цели — в легенде, а не поверх столбиков; выросшие столбики стоят на оси
+  await expect(page.getByTestId('prof-calendar').getByTestId('bars-goal')).toHaveText('цель 10 мин');
+  await expect(page.getByTestId('prof-calendar').locator('.st-bars-plot')).toHaveText('');
+  await expect.poll(() => page.getByTestId('prof-calendar').evaluate((el) => {
+    const axis = el.querySelector('.st-bars-plot').getBoundingClientRect().bottom - 1;
+    return [...el.querySelectorAll('.st-col i')].every((i) => getComputedStyle(i).transform === 'none' && Math.abs(i.getBoundingClientRect().bottom - axis) < 0.5);
+  })).toBe(true);
   await expect(page.getByTestId('prof-types')).toHaveCount(0);
   expect(external).toEqual([]);
   expect(errors).toEqual([]);
