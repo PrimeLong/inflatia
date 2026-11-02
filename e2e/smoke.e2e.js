@@ -4497,6 +4497,29 @@ test('копилка: график вклада — подписи не нале
   }
 });
 
+test('монеты не появляются молча: цель дня выполнена, а выдаётся при вкладе в копилку — плашкой «+N монет · Цель дня»', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const D = 86400000; const at = Date.now() - D;
+    const day = new Date().toISOString().slice(0, 10);
+    // 35 монет; сегодня позанимались 10 минут (цель дня по умолчанию) — награда за цель ещё не выдана
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), coins: { '2026-01-01': 35 }, daily: { [day]: { s: 600 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await shopTab(page, 'useful');
+  const piggy = page.getByTestId('shop-piggy');
+  await piggy.getByTestId('piggy-put').click();
+  await expect(piggy.getByTestId('piggy-open')).toBeVisible();
+  // выплата пришла не молча: плашка говорит, сколько и за что
+  const note = page.getByTestId('notify-toast');
+  // здесь сразу две выплаты: цель дня (+10) и печать «Первый шаг» — суммой и списком
+  await expect(note).toContainText(/\+\d+ монет/);
+  await expect(note).toContainText('Цель дня: 10 минут');
+  expect(errors).toEqual([]);
+});
+
 test('новости: выпуск раскрывается и сворачивается плавно, после «Свернуть» — снова на экране и не прозрачный; на ПК поля ленты — черновик', async ({ page, isMobile }) => {
   await withTestFlag(page);
   // ученик с первого дня раньше выпусков — свежие выпуски с плашкой «Новое»

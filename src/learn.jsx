@@ -42,7 +42,7 @@ import {
   markShown, shownWith, markFixed,
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
-import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth } from './learn/rewards.js';
+import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote } from './learn/rewards.js';
 import { DeskDecor, tellAnswer } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
@@ -485,6 +485,10 @@ function useLearn() {
   const [progress, setProgress] = useState(loadProgress);
   const playerId = useMemo(getPlayerId, []);
   const timer = useRef(null);
+  /* выплаты при действии вне урока (лавка, копилка, сад, витрина): settle выдаёт накопленное — цель дня,
+     задания, печати; раньше монеты приходили молча (жалоба «откуда-то 10 монет»), теперь — плашкой */
+  const gainsRef = useRef([]);
+  const [gains, setGains] = useState([]);
   // opts.settle — после изменения выдать всё выполненное: задания дня, печати, бонусы серии
   // opts.whole — fn получает весь прогресс (с задачами учебника), а не только Путь
   const update = (fn, opts = {}) => {
@@ -492,7 +496,7 @@ function useLearn() {
       const p = latestProgress(mem);
       if (opts.whole) { const next = fn(p); return next === p ? mem : saveProgress(next); }
       let learn = fn(p.learn);
-      if (opts.settle) learn = settle(learn, courseCtx(learn)).s;
+      if (opts.settle) { const r = settle(learn, courseCtx(learn)); learn = r.s; if (r.gains.length) gainsRef.current = r.gains; }
       return learn === p.learn ? mem : saveProgress({ ...p, learn });
     });
     if (timer.current) clearTimeout(timer.current);
@@ -531,8 +535,11 @@ function useLearn() {
     return () => { alive = false; if (timer.current) clearTimeout(timer.current); syncProfile(playerId).catch(() => {}); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId]);
-  return [progress.learn, update];
+  // выплата из settle — после записи прогресса, один раз (апдейтер setProgress может вызываться дважды)
+  useEffect(() => { if (gainsRef.current.length) { const g = gainsRef.current; gainsRef.current = []; setGains(g); } }, [progress]);
+  return [progress.learn, update, gains, () => setGains([])];
 }
+
 
 // значок вида урока: на остановке Пути и в билете урока
 export const KIND_ICON = { intro: BookOpen, practice: Dumbbell, words: Languages, story: MessageCircle, listen: Headphones, game: Gamepad2, review: Repeat, summary: Flag };
@@ -2830,7 +2837,7 @@ function GuestSave({ learn, afterLesson = false }) {
 }
 
 export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {
-  const [learn, update] = useLearn();
+  const [learn, update, gains, gainsDone] = useLearn();
   const [run, setRun] = useState(null);
   // «Чтение» юнита — подборка цитат поверх Пути (src/learn-reading.jsx)
   const [reading, setReading] = useState(null);
@@ -3000,6 +3007,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {friendLogin && <FriendProfile login={friendLogin} data={friends} learn={learn} update={update} myWear={outfit} onBack={() => setFriendLogin(null)} />}
       {bell && <NotifyCenter notify={notify} onClose={() => setBell(false)} onGo={goNotify} />}
       {toast && <NotifyToast n={toast} onGo={(n) => { toastDone(); goNotify(n); }} onClose={toastDone} onRead={(n) => notify.markOne(n.id)} />}
+      {!toast && !run && gains.length > 0 && <NotifyToast n={gainsNote(gains)} onGo={gainsDone} onClose={gainsDone} />}
       {reports && <ReportsView onBack={() => { Audio.play('paper'); setReports(false); }} />}
       {analytics && <AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} />}
       {chest && <ChestSheet unitId={chest} place={placeOf(chest).place} learn={learn} update={update}

@@ -561,4 +561,11 @@ export function settle(s, ctx, now = Date.now()) {
   ACHIEVEMENTS.forEach((a) => { if (a.test(t, full)) t = give(t, a.coins, achievementKey(a.id), `Печать «${a.title}»`, 'achievement'); });
   return { s: t, gains };
 }
+/* Плашка выплаты вне урока (docs/mechanics.md, «Экономика наград»): settle выдал накопленное при действии
+   в лавке, копилке, саду — «+10 монет · Цель дня: 10 минут»; несколько — суммой и списком. */
+export const gainsNote = (gains) => {
+  const sum = gains.reduce((a, g) => a + g.coins, 0);
+  return { id: `gain:${gains.map((g) => g.key).join(',')}`, kind: 'gain', icon: 'coins', tone: '#9A6300', at: Date.now(),
+    title: `+${sum} ${coinsWord(sum)}`, text: gains.map((g) => g.title).join(' · ') };
+};
 export const achievementsOf = (s) => ACHIEVEMENTS.map((a) => ({ ...a, got: hasClaim(s, achievementKey(a.id)), at: (s.claimed || {})[achievementKey(a.id)] || 0 }));
