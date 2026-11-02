@@ -1972,6 +1972,8 @@ test('урок: после перезагрузки продолжается с 
     const d = new Date(); const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     return ((JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.daily || {})[day] || {}).rc || 0;
   });
+  // бессрочная серия молнии — run в прогрессе (общая для устройств)
+  const run = () => page.evaluate(() => ((JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.run || {}).n || 0));
   const flame = page.getByTestId('lesson-streak');
   const leaveLesson = async () => {
     await page.getByRole('button', { name: 'Выйти из урока' }).click();
@@ -1983,11 +1985,13 @@ test('урок: после перезагрузки продолжается с 
   for (let k = 0; k < 3; k += 1) { await passCards(page); await answerExercise(page); await page.getByRole('button', { name: 'Дальше', exact: true }).click(); }
   await passCards(page);
   await expect(flame).toHaveAttribute('data-streak', '3');
-  await expect(flame).toHaveText(/3\s*подряд верно/);
+  // молния — значок и число, без подписи (подпись — только для экранного диктора)
+  await expect(flame).toHaveText('3');
   await expect(flame).toHaveAttribute('aria-label', '3 подряд верно');
   await expect(flame.locator('svg.lucide-zap')).toHaveCount(1);
   await expect(flame.locator('svg.lucide-flame')).toHaveCount(0);
   expect(await rc()).toBe(3);
+  expect(await run()).toBe(3);
   const ex = page.getByTestId('ex');
   const here = [await ex.getAttribute('data-kind'), await ex.getAttribute('data-answer')];
   // браузер закрыли посреди урока — после перезагрузки урок ждёт с того же места, с той же серией
@@ -1996,12 +2000,13 @@ test('урок: после перезагрузки продолжается с 
   await passCards(page);
   expect([await ex.getAttribute('data-kind'), await ex.getAttribute('data-answer')]).toEqual(here);
   await expect(flame).toHaveAttribute('data-streak', '3');
-  // ушли в другой урок и ошиблись — серия дня гаснет
+  // ушли в другой урок и ошиблись — серия гаснет
   await leaveLesson();
   await startLesson(page, 'sc-l2');
   await passCards(page);
   await answerExercise(page, { wrong: true });
   expect(await rc()).toBe(0);
+  expect(await run()).toBe(0);
   await leaveLesson();
   // вернулись в первый урок — серия не воскресает из сохранённого урока
   await startLesson(page, 'sc-l1', /Продолжить/);

@@ -46,7 +46,7 @@ const MAX_SOLVED = 200;
 export const emptyLearn = () => ({
   lessons: {}, units: {}, goal: 1, goalAt: 0, xp: {}, done: {}, types: {},
   runs: { started: 0, finished: 0, abandoned: 0 }, quits: {}, quitAt: {}, mistakes: [], hinted: [], solved: {}, unhint: {},
-  profile: { goal: null, minutes: null, knows: false, at: 0 }, placement: { at: 0, opened: [] },
+  profile: { goal: null, minutes: null, knows: false, at: 0 }, placement: { at: 0, opened: [] }, run: { n: 0, at: 0 },
   topics: {}, recent: '', recentAt: 0, daily: {},
   coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
   policyAt: 0, policyOff: 0, policyLapse: 0, premiums: {}, monthPlan: {},
@@ -171,25 +171,28 @@ export function recordAttempt(s, kind, ok, ms, { lesson = null, now = Date.now()
   patch.recent = `${s.recent || ''}${ok ? 1 : 0}`.slice(-MAX_RECENT);
   patch.recentAt = now;
   const day = dayOf(now); const d = dayEntry(s, day);
-  /* серия верных подряд — за день, а не за урок (docs/mechanics.md): rc — текущая серия сегодня,
-     переход в следующий урок её не обнуляет; r — лучшая серия дня. run (серия урока) больше не нужен:
-     раньше девять подряд на стыке двух уроков засчитывались как семь */
+  /* серия верных подряд (docs/mechanics.md): run — бессрочная серия молнии, общая для всех устройств: ни новый
+     урок, ни новый день её не обнуляют, только ошибка. rc — сегодняшняя часть серии (для задания дня),
+     r — лучшая серия дня. Раньше вся серия жила в rc и к утру гасла (жалоба: «пусть копится») */
   const rc = ok ? d.rc + 1 : 0;
   patch.daily = { ...s.daily, [day]: { ...d, a: d.a + 1, c: d.c + (ok ? 1 : 0), rc, r: Math.max(d.r, rc) } };
+  patch.run = { n: ok ? streakNow(s, now) + 1 : 0, at: now };
   return upd(s, patch);
 }
-/* Серия верных ответов урока — одна на день: огонёк урока и rc дня всегда одно число. recordAttempt
-   ведёт её по первым попыткам; урок вызывает syncStreak на каждом изменении огонька — и ошибка в
-   повторе задачи в конце урока тоже гасит серию дня. Иначе огонёк и rc расходились: ошибся на повторе,
-   урок кончился — а следующий начинался с прежней серии (жалоба). */
+/* Серия верных ответов — бессрочная: молния урока и run всегда одно число. recordAttempt ведёт её по первым
+   попыткам; урок вызывает syncStreak на каждом изменении молнии — и ошибка в повторе задачи в конце урока
+   тоже гасит серию (и сегодняшнюю часть rc). Иначе молния и сохранённая серия расходились: ошибся на
+   повторе, урок кончился — а следующий начинался с прежней серии (жалоба). */
 export function syncStreak(s, n, now = Date.now()) {
   const day = dayOf(now); const d = dayEntry(s, day);
-  const rc = Math.max(0, Math.round(n || 0));
-  if (d.rc === rc && d.r >= rc) return s;
-  return upd(s, { daily: { ...s.daily, [day]: { ...d, rc, r: Math.max(d.r, rc) } } });
+  const k = Math.max(0, Math.round(n || 0));
+  const run = s.run || { n: 0, at: 0 };
+  const rc = k === 0 ? 0 : d.rc;
+  if (run.n === k && run.at && d.rc === rc) return s;
+  return upd(s, { run: { n: k, at: now }, daily: { ...s.daily, [day]: { ...d, rc, r: Math.max(d.r, rc) } } });
 }
-// серия, с которой начинается урок: сегодняшняя (вчерашняя к утру гаснет)
-export const streakNow = (s, now = Date.now()) => dayEntry(s, dayOf(now)).rc;
+/* серия, с которой начинается урок: бессрочная run; у прогресса без run (до бессрочной серии) — сегодняшняя rc */
+export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n : dayEntry(s, dayOf(now)).rc);
 const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h'];
 const dayEntry = (s, day) => ({ l: 0, n: 0, p: 0, a: 0, c: 0, s: 0, r: 0, rc: 0, g: 0, pr: 0, h: 0, ...(s.daily || {})[day] });
 export const dailyOf = (s, now = Date.now()) => dayEntry(s, dayOf(now));
@@ -597,6 +600,7 @@ function normalizeProgram(r) {
       ...(isDay(p.since) && PROFILE_MINUTES.includes(p.prev) ? { since: p.since, prev: p.prev } : {}),
     },
     placement: { at: cnt(pl.at, 1e14), opened: (Array.isArray(pl.opened) ? pl.opened : []).filter(okKey).slice(0, 40) },
+    run: { n: cnt(obj(r.run).n, 1e7), at: cnt(obj(r.run).at, 1e14) },
     topics, daily,
     recent: typeof r.recent === 'string' && /^[01]*$/.test(r.recent) ? r.recent.slice(-MAX_RECENT) : '', recentAt: cnt(r.recentAt, 1e14),
     coins: dayMap(r.coins, 1e6), spent: dayMap(r.spent, 1e6), freezeBuy: dayMap(r.freezeBuy, MAX_FREEZES * 5),
@@ -623,7 +627,7 @@ function mergeProgram(x, y) {
   Object.entries(y.daily).forEach(([k, d]) => { const c = daily[k]; daily[k] = c ? Object.fromEntries(DAILY_FIELDS.map((f) => [f, f === 'h' ? (c.h | d.h) : Math.max(c[f], d[f])])) : d; });
   const laterRecent = y.recentAt > x.recentAt || (y.recentAt === x.recentAt && y.recent > x.recent);
   return {
-    profile: later(x.profile, y.profile), placement: later(x.placement, y.placement), wear: later(x.wear, y.wear),
+    profile: later(x.profile, y.profile), placement: later(x.placement, y.placement), wear: later(x.wear, y.wear), run: later(x.run, y.run),
     topics, daily,
     recent: laterRecent ? y.recent : x.recent, recentAt: Math.max(x.recentAt, y.recentAt),
     coins: maxMap(x.coins, y.coins), spent: maxMap(x.spent, y.spent), freezeBuy: maxMap(x.freezeBuy, y.freezeBuy),

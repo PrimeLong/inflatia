@@ -338,13 +338,13 @@ const CSS = `
   .ln-peek-verdict.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 10%, var(--ds-card)); color: var(--ds-ink); }
   @media (prefers-reduced-motion: reduce) { .ln-peek { animation: none; } }
   .ln-head { display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 14px 4px; max-width: 592px; width: 100%; margin: 0 auto; }
-  /* молния «подряд верно» — верные ответы подряд в уроке (огонёк — только серия дней) */
+  /* молния с числом — верные ответы подряд, бессрочная серия (огонёк — только серия дней) */
   .ln-fire { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 10px 0 7px; border-radius: 999px;
     background: linear-gradient(135deg, #FFB547, #FF6A3D); color: #fff; font: 800 14px var(--ds-head); box-shadow: 0 3px 0 #C2410C, 0 8px 16px -8px rgba(255, 106, 61, .8);
     animation: ln-fire-in .45s cubic-bezier(.3, 1.6, .5, 1) both; }
   .ln-fire b { display: inline-block; min-width: 1ch; text-align: center; animation: ln-fire-bump .35s cubic-bezier(.3, 1.8, .5, 1); }
-  .ln-fire-cap { font: 700 12px/1 var(--ds-sans); margin-left: 2px; white-space: nowrap; }
-  .ln-fire-ic { animation: ln-flicker 1.2s ease-in-out infinite; transform-origin: 50% 90%; }
+  /* молния покачивается медленно и мягко — раньше дёргалась и раздувалась раз в 1,2 с (жалоба «качается быстро и странно») */
+  .ln-fire-ic { animation: ln-fire-sway 3.2s ease-in-out infinite; transform-origin: 50% 85%; }
   .ln-fire.big { animation: ln-fire-big .6s cubic-bezier(.3, 1.6, .5, 1); }
   .ln-fire.out { background: linear-gradient(135deg, #B9B2A6, #8E877C); box-shadow: 0 3px 0 #6F695F; animation: ln-fire-out .9s ease-in forwards; }
   .ln-fire.out .ln-fire-ic { animation: none; }
@@ -353,6 +353,7 @@ const CSS = `
   @keyframes ln-fire-in { from { transform: scale(.3); opacity: 0 } }
   @keyframes ln-fire-bump { 0% { transform: scale(1.7) } 100% { transform: scale(1) } }
   @keyframes ln-flicker { 0%, 100% { transform: scale(1) rotate(-4deg) } 50% { transform: scale(1.14) rotate(5deg) } }
+  @keyframes ln-fire-sway { 0%, 100% { transform: rotate(-4deg) } 50% { transform: rotate(4deg) } }
   @keyframes ln-fire-big { 0% { transform: scale(1) } 40% { transform: scale(1.3) } 100% { transform: scale(1) } }
   @keyframes ln-fire-out { 0% { transform: none; opacity: 1 } 30% { transform: rotate(-7deg) } 60% { transform: rotate(5deg); opacity: .8 } 100% { transform: scale(.6); opacity: 0 } }
   @keyframes ln-plus { 0% { transform: translateY(0); opacity: 0 } 15% { opacity: 1 } 100% { transform: translateY(-22px); opacity: 0 } }
@@ -925,7 +926,7 @@ function newPlan(run, learn) {
   return { items: buildPractice(practiceIds(learn), Math.random, { weak: weakLessons(learn).map((w) => w.id) }).items, cards: {} };
 }
 /* Верные ответы подряд — молния в шапке урока (огонёк — только серия дней, docs/mechanics.md, «Экономика
-   наград»). С третьего верного подряд: «⚡ 3 подряд верно», каждый новый верный ответ раздувает число и
+   наград»). С третьего верного подряд: «⚡ 3» — значок и число, без подписи; серия бессрочная. Каждый новый верный ответ раздувает число и
    выпускает «+1» (опыт за верные подряд); на 5, 10, 15… — вспышка искр. Ошибка — молния сереет, качается и
    гаснет. plus — показывать «+1» (на повторе урока опыт почти не идёт). */
 function StreakFlame({ n, plus = true }) {
@@ -948,7 +949,7 @@ function StreakFlame({ n, plus = true }) {
   return (
     <span className={`ln-fire${on ? '' : ' out'}${milestone ? ' big' : ''}`} data-testid="lesson-streak" data-streak={shown} role="status" aria-label={`${shown} подряд верно`}>
       <Zap size={15} className="ln-fire-ic" aria-hidden="true" />
-      <b key={shown}>{shown}</b><small className="ln-fire-cap" aria-hidden="true">подряд верно</small>
+      <b key={shown}>{shown}</b>
       {on && plus && grew && <span key={`p${n}`} className="ln-fire-plus" data-testid="lesson-streak-plus" aria-hidden="true">+1</span>}
       {milestone && <span key={`s${n}`} className="ln-fire-sparks" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} style={{ '--a': `${i * 45}deg` }} />)}</span>}
     </span>
