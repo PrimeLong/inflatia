@@ -5864,10 +5864,23 @@ test('открытия: учебник — уровни выше нынешне�
     localStorage.setItem('ems-unlock-test', '1');
     if (localStorage.getItem('ems-textbook-v1')) return;
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } } } }));
+    // глава «Деньги и банки» когда-то читалась далеко внизу: место чтения запомнено
+    localStorage.setItem('ems-textbook-scroll', JSON.stringify({ 'chapter:money-banks': 3000 }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   await openBook(page);
   const groups = page.getByTestId('tb-level-group');
+  // глава под замком — всегда с начала страницы: ни прокрутка оглавления, ни старое место чтения
+  // не уводят замок с названием под шапку
+  const money = page.locator('[data-chapter="money-banks"][data-locked="true"]');
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await money.click();
+  await expect(page.getByTestId('tb-chapter-locked')).toContainText('Деньги и банки');
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.getByTestId('tb-chapter-locked').locator('.tb-locked-ico')).toBeInViewport({ ratio: 1 });
+  // и на странице замка место не запоминается
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ems-textbook-scroll'))['chapter:money-banks'])).toBe(3000);
+  await page.getByTestId('tb-chapter-locked').getByRole('button', { name: 'К оглавлению' }).click();
   await expect(groups.and(page.locator('[data-level="start"]'))).not.toHaveAttribute('data-locked', 'true');
   const basic = groups.and(page.locator('[data-level="basic"]'));
   await expect(basic).toHaveAttribute('data-locked', 'true');

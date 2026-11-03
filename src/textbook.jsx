@@ -2324,6 +2324,14 @@ const pageKey = (pg) => (pg.kind === 'toc' ? 'toc' : `${pg.kind}:${pg.id}`);
 const readJSON = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch { return d; } };
 const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* приватный режим */ } };
 const saveScroll = (key) => { const m = readJSON(SCROLL_KEY, {}); m[key] = Math.round(window.scrollY); writeJSON(SCROLL_KEY, m); };
+/* глава под замком (уровень выше нынешнего на Пути): её страница всегда с начала — не восстанавливает место
+   чтения, запомненное, пока глава была открыта (короткая страница замка упиралась низом, и замок с названием
+   уходили под шапку), и сама места не запоминает (docs/mechanics.md) */
+const lockedPage = (pg, learn) => {
+  if (!pg || pg.kind !== 'chapter' || unlockBypass()) return false;
+  const lv = chapterLevel(pg.id);
+  return !!lv && !openBookLevels(learn).has(lv.id);
+};
 
 function ReaderBar({ scale, setScale }) {
   const i = SCALES.indexOf(scale);
@@ -2409,13 +2417,15 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
   // прокрутка текущей страницы — запоминается на ходу (не чаще раза в 300 мс)
   const pageRef = React.useRef(page);
   pageRef.current = page;
+  const lockedNow = React.useRef(false);
+  lockedNow.current = lockedPage(page, progress.learn);
   React.useEffect(() => {
     let t = null;
     const onScroll = () => {
       if (t) return;
       // ключ страницы — тот, где прокрутили, а не тот, что откроется к моменту записи
       const key = pageKey(pageRef.current);
-      t = setTimeout(() => { t = null; if (key !== pageKey(pageRef.current)) return; saveScroll(key); }, 300);
+      t = setTimeout(() => { t = null; if (key !== pageKey(pageRef.current) || lockedNow.current) return; saveScroll(key); }, 300);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => { window.removeEventListener('scroll', onScroll); if (t) clearTimeout(t); };
@@ -2433,23 +2443,24 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [page]);
-  // открыли страницу — вернуть туда, где остановились (у якоря своё место)
-  React.useEffect(() => {
+  // открыли страницу — вернуть туда, где остановились (у якоря своё место); глава под замком — с начала.
+  // Первый шаг — до отрисовки: ни кадра на прокрутке прошлой страницы
+  React.useLayoutEffect(() => {
     if (page.anchor || typeof window === 'undefined' || !window.scrollTo) return undefined;
-    const y = readJSON(SCROLL_KEY, {})[pageKey(page)] || 0;
+    const y = lockedNow.current ? 0 : readJSON(SCROLL_KEY, {})[pageKey(page)] || 0;
     let n = 0; let raf = 0;
     // графики и формулы дорисовываются не сразу — несколько кадров догоняем нужную высоту;
     // ученик сам что-то нажал или прокрутил — догонять перестаём, его действие важнее
     const tick = () => { window.scrollTo(0, y); n += 1; if (n < 20 && Math.abs(window.scrollY - y) > 2) raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
+    tick();
     const stop = () => cancelAnimationFrame(raf);
     const evs = ['pointerdown', 'wheel', 'touchstart', 'keydown'];
     evs.forEach((ev) => window.addEventListener(ev, stop, { passive: true, capture: true }));
     return () => { stop(); evs.forEach((ev) => window.removeEventListener(ev, stop, { capture: true })); };
   }, [page]);
   const go = (next, { push = true } = {}) => {
-    // уходя, запомнить, где остановились на этой странице
-    if (typeof window !== 'undefined') saveScroll(pageKey(page));
+    // уходя, запомнить, где остановились на этой странице (на странице замка — нечего)
+    if (typeof window !== 'undefined' && !lockedNow.current) saveScroll(pageKey(page));
     if (push && pageKey(next) !== pageKey(page)) setStack((st) => [...st, page].slice(-30));
     if (pageKey(next) !== pageKey(page)) Audio.play('paper');
     setPage(next);
