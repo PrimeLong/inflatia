@@ -6348,6 +6348,8 @@ test('график рынка труда: подпись «безработиц�
   await page.getByTestId('textbook').locator('[data-chapter="labor"]').first().click();
   const chart = page.locator('[data-chart="labor"]').first();
   await chart.scrollIntoViewIfNeeded();
+  // буквы осей — словами под графиком (жалоба mvz29zos: «обозначения w и L и никакого объяснения»)
+  await expect(chart.getByTestId('chart-axes')).toHaveText('L — число работников, чел. · w — зарплата за смену, кр.');
   await chart.getByRole('slider', { name: 'Минимальная зарплата' }).fill('220');
   const seg = chart.locator('text[data-seg-side]');
   await expect(seg).toHaveText('безработица');

@@ -102,3 +102,13 @@ describe('подпись кривой — там, где кривая уходи
     }
   });
 });
+
+describe('буквы осей рынка труда — словами под графиком (жалоба mvz29zos)', async () => {
+  const { CHARTS } = await import('../../textbook/charts.js');
+  it('у графика labor есть расшифровка L и w', () => {
+    const sc = CHARTS.labor.build({ a: 300, b: 1, c: -60, d: 1 }, { dA: 0, dC: 0, min: null });
+    expect(sc.xLabel).toBe('L, чел.');
+    expect(sc.yLabel).toBe('w, кр.');
+    expect(sc.axes).toEqual(['L — число работников, чел.', 'w — зарплата за смену, кр.']);
+  });
+});

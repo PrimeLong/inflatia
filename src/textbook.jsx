@@ -48,6 +48,7 @@ export const TEXTBOOK_CSS = `
     padding: 0; border-radius: 50%; border: 1px solid var(--ds-rule2, var(--c-border)); background: var(--ds-card, var(--c-panel)); color: var(--u-ink, var(--c-gold-soft)); box-shadow: 0 4px 14px var(--ds-shade, rgba(0,0,0,.18)); cursor: pointer; }
   .tb-to-top.with-nav { bottom: calc(84px + env(safe-area-inset-bottom)); }
   /* решённая задача — видно издалека: зелёная кайма слева, лёгкий зелёный фон, плашка «Решена» */
+  .tb-chart-axes { margin: 2px auto 0; max-width: 560px; text-align: center; font: italic 12.5px/1.4 var(--ds-sans, sans-serif); color: var(--c-muted, #777); }
   .tb-solved { border-left: 4px solid var(--c-teal, #2E7D5B) !important; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 7%, var(--c-panel, #fff)) !important; }
   .tb-solved-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--c-teal, #2E7D5B); color: #fff; }
   .tb-todo-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 2px dashed var(--c-border); color: var(--c-muted); font: 700 12px/1 var(--ds-sans, sans-serif); }
@@ -804,7 +805,7 @@ export function ChartSvg({ scene }) {
         <g key={`y${t}`}>
           <line x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke={COLOR.border} strokeOpacity={0.45} />
           {/* у самого верха стоит подпись оси — число там не пишем, чтобы они не слиплись */}
-          {sy(t) - M.t > 9 && <text x={M.l - 6} y={sy(t) + 3.5} fontSize={12} fill={COLOR.faint} textAnchor="end">{fmtNum(t)}</text>}
+          {sy(t) - M.t > 16 && <text x={M.l - 6} y={sy(t) + 3.5} fontSize={12} fill={COLOR.faint} textAnchor="end">{fmtNum(t)}</text>}
         </g>
       ))}
       <line x1={M.l} x2={W - M.r} y1={H - M.b} y2={H - M.b} stroke={COLOR.muted} />
@@ -879,6 +880,7 @@ export function ChartSvg({ scene }) {
         </g>
       ))}
     </svg>
+    {scene.axes && <div className="tb-chart-axes" data-testid="chart-axes">{scene.axes.join(' · ')}</div>}
     </div>
   );
 }

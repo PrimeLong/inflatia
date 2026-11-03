@@ -139,6 +139,8 @@ const laborChart = {
     }
     return {
       xDomain: [0, Lmax], yDomain: [0, wMax], xLabel: 'L, чел.', yLabel: 'w, кр.', curves, segments,
+      // буквы осей — словами под графиком (docs/mechanics.md)
+      axes: ['L — число работников, чел.', 'w — зарплата за смену, кр.'],
       points: has('D') && has('S') ? [{ x: eq.Q, y: eq.P, label: 'E', guide: true }] : [],
       readout,
     };
