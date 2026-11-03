@@ -615,11 +615,38 @@ function CardPicture({ c }) {
     </>
   );
 }
-function MiniChart({ type, attrs, values = null }) {
+/* «Куда сдвинется?»: новое положение кривой — не сразу, а плавным переходом от того, что на экране
+   (docs/mechanics.md); перебили новым выбором — едет от того места, где была. «Уменьшить движение» — сразу. */
+const TWEEN_MS = 1100;
+function useTweened(v, on) {
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(v);
+  const from = useRef(v);
+  const key = JSON.stringify(v);
+  const lastKey = useRef(key);
+  useEffect(() => {
+    // без перехода (шаги урока со своим движением) — ничего не держим и лишний раз не перерисовываем
+    if (!on || key === lastKey.current) return undefined;
+    lastKey.current = key;
+    if (reduced) { from.current = v; setShown(v); return undefined; }
+    const a = from.current; const t0 = performance.now(); let raf = 0;
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / TWEEN_MS); const e = easeIO(k);
+      const mid = Object.fromEntries(Object.entries(v).map(([id, x]) => [id, typeof x === 'number' && typeof a[id] === 'number' ? a[id] + (x - a[id]) * e : x]));
+      from.current = mid; setShown(mid);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [key, on, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
+  return on ? shown : v;
+}
+function MiniChart({ type, attrs, values = null, tween = false }) {
   const def = CHARTS[type];
   const moving = useAnimValues(type, attrs);
+  const target = def ? { ...chartDefaults(type, attrs), ...moving, ...values } : {};
+  const v = useTweened(target, tween);
   if (!def) return null;
-  const v = { ...chartDefaults(type, attrs), ...moving, ...values };
   // на Пути деньги — в кронах (src/learn/money.js)
   // под графиком — ключ: что значит каждая линия, простыми словами
   return <div style={{ maxWidth: 360, margin: '8px auto' }}><ChartSvg scene={sceneInCrowns(def.build(attrs, v))} />{def.legend && <ChartLegend items={def.legend(attrs, v)} />}</div>;
@@ -744,7 +771,7 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
       return (
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
-          <MiniChart type={inst.chart} attrs={inst.chartAttrs} values={values} />
+          <MiniChart type={inst.chart} attrs={inst.chartAttrs} values={values} tween />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {inst.choices.map((c) => (
               <button key={c.key} type="button" className={`ds-opt ${optClass(c.key, c.key === inst.answer)}`} style={{ textAlign: 'center', margin: 0 }}

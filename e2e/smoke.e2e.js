@@ -6358,3 +6358,41 @@ test('график рынка труда: подпись «безработиц�
   expect(hit(u.b, e.b)).toBe(false);
   expect(errors).toEqual([]);
 });
+
+/* «Куда сдвинется?»: после выбора кривая едет плавно, как на шаге с движением (жалоба mvz56ive) */
+test('«Куда сдвинется?»: кривая сдвигается плавно, а не появляется сразу', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'lm-i2');
+  for (let i = 0; i < 20; i += 1) {
+    await passCards(page);
+    if (await page.getByTestId('ex').getAttribute('data-kind') === 'shift') break;
+    await answerExercise(page, {});
+    await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  }
+  const ex = page.getByTestId('ex');
+  await expect(ex).toHaveAttribute('data-kind', 'shift');
+  const lines = () => ex.locator('svg path').evaluateAll((els) => els.map((e) => e.getAttribute('d')).join('|'));
+  const before = await lines();
+  const ans = JSON.parse(await ex.getAttribute('data-answer'));
+  // все положения линий, которые побывали на экране после выбора: плавный сдвиг — много промежуточных
+  await ex.evaluate((el) => {
+    window.__shiftFrames = new Set();
+    const snap = () => window.__shiftFrames.add([...el.querySelectorAll('svg path')].map((p) => p.getAttribute('d')).join('|'));
+    new MutationObserver(snap).observe(el, { subtree: true, attributes: true, attributeFilter: ['d'] });
+  });
+  await ex.locator(`[data-key="${ans}"]`).click();
+  await page.waitForTimeout(1600);
+  const end = await lines();
+  await page.waitForTimeout(400);
+  expect(await lines()).toBe(end);
+  expect(end).not.toBe(before);
+  expect(await page.evaluate(() => window.__shiftFrames.size)).toBeGreaterThan(4);
+  expect(errors).toEqual([]);
+});
