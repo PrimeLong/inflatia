@@ -52,6 +52,8 @@ export const PLACES = {
   'competition-monopoly': { place: 'Биржа', building: 'exchange', color: '#C9372C', region: 'finance', at: [610, 590], note: 'конкуренция и монополия' },
   monopolistic: { place: 'Ярмарка', building: 'fair', color: '#9B2C8F', region: 'agri', at: [490, 615], note: 'похожие товары' },
   oligopoly: { place: 'Картель', building: 'factory', color: '#577A00', region: 'mining', at: [425, 530], note: 'несколько крупных' },
+  // политология (проба для команды): на карте курса политологии — только оно, на месте «Мастерской»
+  power: { place: 'Парламент', building: 'ministry', color: '#8C2337', region: 'capital', at: [306, 576], note: 'власть и государство' },
   labor: { place: 'Биржа труда', building: 'ministry', color: '#A9561A', region: 'industry', at: [212, 462], note: 'зарплаты и занятость' },
   'market-failures': { place: 'Порт', building: 'port', color: '#D13B1F', region: 'port', at: [585, 180], note: 'внешние эффекты и налоги' },
   gdp: { place: 'Статуправление', building: 'tower', color: '#A65A00', region: 'capital', at: [330, 445], note: 'как считают ВВП' },

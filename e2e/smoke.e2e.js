@@ -6276,3 +6276,66 @@ test('«Персоналии»: портрет — свой файл из public
   expect(await page.evaluate(() => localStorage.getItem('ems-portraits-v1')), 'старый кеш Википедии стёрт').toBeNull();
   expect(errors).toEqual([]);
 });
+
+/* Политология — проба только для команды (docs/mechanics.md): переключатель в «Настройки → Для команды»,
+   после перезапуска Путь, карта и учебник — по политологии; выключили — снова экономика */
+test('политология — проба для команды: переключатель, юнит «Власть и государство» и его глава', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } } } }));
+  });
+  let owner = true;
+  const api = (req) => {
+    let body = null; try { body = req.postDataJSON(); } catch { body = null; }
+    if (req.url().includes('/api/reports') && body && body.action === 'me') return JSON.stringify({ owner });
+    return '{}';
+  };
+  const { errors } = await openApp(page, '/', api, { tab: 'path' });
+  // у учеников (и у команды до переключения) — экономика
+  await expect(page.getByTestId('track-badge')).toHaveCount(0);
+  await expect(pathNode(page, 'sc-i1')).toHaveCount(1);
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  const sw = page.getByTestId('set-politics');
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await Promise.all([page.waitForEvent('load'), sw.click()]);
+  await page.waitForLoadState('networkidle');
+  // Путь — по политологии: плашка пробы, юнит «Власть и государство», уроков экономики нет
+  await expect(page.getByTestId('track-badge')).toContainText('Политология');
+  await expect(pathNode(page, 'pw-i1')).toHaveCount(1);
+  await expect(pathNode(page, 'sc-i1')).toHaveCount(0);
+  // урок открывается и идёт как обычный
+  await pathNode(page, 'pw-i1').click();
+  await expect(page.getByTestId('lesson-sheet')).toContainText('Что такое власть');
+  await expect(page.getByTestId('lesson-sheet')).toContainText('Парламент');
+  await page.getByTestId('lesson-sheet').getByTestId('lesson-start').click();
+  await expect(page.getByTestId('lesson')).toBeVisible();
+  await expect(page.getByTestId('lesson')).toContainText('власть');
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  const ask = page.getByRole('dialog', { name: 'Выйти из урока?' });
+  if (await ask.isVisible().catch(() => false)) await ask.getByRole('button', { name: 'Выйти', exact: true }).click();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  // учебник — одна глава «Власть и государство»
+  await openBook(page);
+  const toc = page.getByTestId('textbook');
+  await expect(toc.locator('[data-chapter]')).toHaveCount(1);
+  await toc.locator('[data-chapter="power"]').click();
+  await expect(page.getByTestId('chapter')).toHaveAttribute('data-chapter', 'power');
+  await expect(page.getByTestId('chapter')).toContainText('Легитимность');
+  await expect(page.getByTestId('chapter').getByTestId('tb-recall')).toHaveCount(3);
+  // выключили — снова экономика
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  await expect(page.getByTestId('set-politics')).toHaveAttribute('aria-checked', 'true');
+  await Promise.all([page.waitForEvent('load'), page.getByTestId('set-politics').click()]);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByTestId('track-badge')).toHaveCount(0);
+  await expect(pathNode(page, 'sc-i1')).toHaveCount(1);
+  // не команда — политологию не включить и подменой хранилища: курс снова экономика
+  owner = false;
+  await page.evaluate(() => { localStorage.setItem('ems-track', 'politics'); localStorage.setItem('ems-team', 'tester'); });
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('ems-track'))).toBe(null);
+  await expect(page.getByTestId('track-badge')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

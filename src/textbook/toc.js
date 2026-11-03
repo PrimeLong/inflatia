@@ -6,6 +6,7 @@
    издания к изданию (и в переводах), названия — почти нет. В скобках — оригинал. */
 
 import { LEVELS, UNIT_LEVEL } from './levels.js';
+import { TRACK } from '../learn/track.js';
 
 export const BOOKS = {
   mankiwPrinciples: 'Н. Г. Мэнкью. «Принципы экономикс»',
@@ -149,9 +150,20 @@ export const PARTS = [
         cards: ['lorenz'] },
     ],
   },
+  /* ПОЛИТОЛОГИЯ — проба для команды (src/learn/track.js): в курсе экономики этой части нет вовсе,
+     в курсе политологии есть только она */
+  {
+    id: 'politics', title: 'Политология', track: 'politics',
+    chapters: [
+      { id: 'power', title: 'Власть и государство', status: 'ready',
+        summary: 'Что такое власть и откуда она берётся, легитимность и три её типа по Веберу, признаки и функции государства, разделение властей и формы правления.' },
+    ],
+  },
 ];
 
-export const CHAPTERS = PARTS.flatMap((p) => p.chapters.map((c) => ({ ...c, part: p.id })));
+// курс экономики — без части «Политология», курс политологии — только она (src/learn/track.js)
+export const TRACK_PARTS = PARTS.filter((p) => (p.track || 'econ') === TRACK);
+export const CHAPTERS = TRACK_PARTS.flatMap((p) => p.chapters.map((c) => ({ ...c, part: p.id })));
 export const CHAPTER_BY_ID = Object.fromEntries(CHAPTERS.map((c) => [c.id, c]));
 /* Порядок чтения — как на Пути: по уровням (Начальный, Базовый…), внутри уровня — по
    оглавлению выше. Оглавление учебника сгруппировано по тем же уровням; главы «в работе» в

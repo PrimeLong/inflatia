@@ -15,4 +15,6 @@ export const UNIT_LEVEL = {
   consumer: 'middle', production: 'middle', costs: 'middle', 'competition-monopoly': 'middle', monopolistic: 'middle',
   oligopoly: 'advanced', gdp: 'advanced', 'is-lm': 'advanced', 'ad-as': 'advanced', phillips: 'advanced',
   policy: 'pro', growth: 'pro', 'open-economy': 'pro', 'public-debt': 'pro', inequality: 'pro',
+  // политология (проба для команды, src/learn/track.js): первый юнит — в Начальном
+  power: 'start',
 };

@@ -197,7 +197,7 @@ export const monthInflation = (m) => (m <= INFL.base ? 0 : Math.round((INFL.min 
 const priceIndexRaw = (day) => { let p = 1; for (let m = nextMonth(INFL.base); m <= monthOf(day); m = nextMonth(m)) p *= 1 + monthInflation(m); return p; };
 let capMemo = 0;
 export const priceIndexCap = () => capMemo || (capMemo = (0.7 * courseIncome().total - 1) / (Math.max(...OUTFITS.filter((o) => !o.reward).map((o) => o.crowns)) * RATE_MAX));
-export const priceIndex = (day) => Math.min(priceIndexRaw(day), priceIndexCap());
+export const priceIndex = (day) => Math.min(priceIndexRaw(day), Math.max(1, priceIndexCap()));
 // цена вещи в кронах сегодня: базовая × индекс (семена сада и взнос страховки — без инфляции)
 export const crownsOn = (id, day) => Math.round(itemOf(id).crowns * priceIndex(day));
 // для лавки: инфляция этого месяца, рост с базы, держатся ли цены у предела

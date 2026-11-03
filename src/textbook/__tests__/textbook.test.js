@@ -7,7 +7,7 @@ import { LAB_LEVERS, impulseResponse } from '../../lib/lab.js';
 import { DRILLS } from '../../lib/drills.js';
 import { GLOSSARY } from '../glossary.js';
 import { GAME_CARDS } from '../appendix.js';
-import { CHAPTERS, CHAPTER_BY_ID, APPENDICES, BOOKS } from '../toc.js';
+import { CHAPTERS, CHAPTER_BY_ID, APPENDICES, BOOKS, PARTS } from '../toc.js';
 import { TYCOON_TASKS, TYCOON_TABS, TYCOON_STARTS, taskText } from '../tycoon-tasks.js';
 import { CHAPTER_TEXT, CHAPTER_BLOCKS, APPENDIX_BLOCKS, CHAPTER_SECTIONS, PROBLEMS, RECALLS, problemsOf, sectionsOf, plainText } from '../content.js';
 import { parseBlocks, parseInline, collectLinks, collectMath, collectBlocks, actionOf, checkAnswer, parseNumber, matchTraps } from '../markdown.js';
@@ -183,8 +183,9 @@ describe('оглавление', () => {
       expect(!!CHAPTER_BLOCKS[c.id], c.id).toBe(c.status === 'ready');
       (c.cards || []).forEach((id) => expect(GAME_CARDS.some((g) => g.id === id), `${c.id} → ${id}`).toBe(true));
     });
-    // лишних файлов глав нет
-    Object.keys(CHAPTER_BLOCKS).forEach((id) => expect(CHAPTER_BY_ID[id], id).toBeTruthy());
+    // лишних файлов глав нет: каждый — в оглавлении своего курса (экономика или политология, src/learn/track.js)
+    const anyCourse = new Set(PARTS.flatMap((p) => p.chapters.map((c) => c.id)));
+    Object.keys(CHAPTER_BLOCKS).forEach((id) => expect(anyCourse.has(id), id).toBe(true));
   });
   it('каждая карточка «игра ↔ учебник» привязана к главе — один порядок чтения', () => {
     GAME_CARDS.forEach((g) => expect(CHAPTERS.some((c) => (c.cards || []).includes(g.id)), g.id).toBe(true));

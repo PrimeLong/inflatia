@@ -25,7 +25,8 @@ import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
 import { askSave } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
-import { track, trackOnce } from './lib/client.js';
+import { track, trackOnce, reportsMe } from './lib/client.js';
+import { TRACK, rememberTeam } from './learn/track.js';
 import { Audio, getPlayerId, syncProfile } from './MacroSimulator.jsx';
 import { Blocks, Inline, ChartSvg, ChartLegend, TEXTBOOK_CSS, TextbookScreen } from './textbook.jsx';
 import { CHARTS, chartDefaults } from './textbook/charts.js';
@@ -464,6 +465,8 @@ const CSS = `
   .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; }
   .ln-explain-flag .ln-flag:hover, .ln-explain-flag .ln-flag:focus-visible { opacity: 1; background: none; color: var(--ds-bad); }
   .ln-book { min-height: 100vh; margin: -12px -16px 0; }
+  .ln-track { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; padding: 7px 12px; border-radius: 10px; font: 600 13px/1.3 var(--ds-sans); color: #7A1F31; background: color-mix(in srgb, #8C2337 10%, var(--ds-card)); border: 1px dashed color-mix(in srgb, #8C2337 45%, transparent); }
+  .ds-dark .ln-track { color: #F0B9C4; }
   /* кнопки учебника-справочника — те же, что у дизайн-системы: объёмные, со скруглением */
   .ln-textbook .ems-btn { font: 700 13.5px/1.25 var(--ds-sans); border: 2px solid var(--ds-rule2); border-bottom-width: 4px; border-radius: 12px; background: var(--ds-card);
     color: var(--u-ink); box-shadow: none; letter-spacing: 0; }
@@ -2685,6 +2688,7 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
     <div ref={rootRef} className={`ln-wrap${wide ? ' ln-path-wide' : ''}`} data-testid="path" data-layout={wide ? 'columns' : 'column'}>
       <div className="ln-path-main">
       <TopStats learn={learn} bell={bell} />
+      {TRACK === 'politics' && <div className="ln-track" data-testid="track-badge"><Landmark size={15} aria-hidden="true" />Курс «Политология» — проба для команды</div>}
       {!wide && <TasksEntry learn={learn} onOpen={onTasks} />}
       {!wide && races}
       {!wide && <HalloweenCard learn={learn} update={update} />}
@@ -2906,6 +2910,14 @@ function GuestSave({ learn, afterLesson = false }) {
 
 export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {
   const [learn, update, gains, gainsDone] = useLearn();
+  // курс политологии (проба для команды, src/learn/track.js): сервер больше не считает вошедшего командой — обратно к экономике
+  useEffect(() => {
+    if (TRACK !== 'politics') return;
+    let acc = null;
+    try { acc = JSON.parse(localStorage.getItem('ems-account') || 'null'); } catch { /* повреждённая запись */ }
+    if (!acc || !acc.token) return;
+    reportsMe(acc.token).then((r) => { if (r && r.owner === false) { rememberTeam(acc.login, false); window.location.reload(); } }).catch(() => {});
+  }, []);
   const [run, setRun] = useState(null);
   // «Чтение» юнита — подборка цитат поверх Пути (src/learn-reading.jsx)
   const [reading, setReading] = useState(null);
