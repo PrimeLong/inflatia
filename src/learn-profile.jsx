@@ -105,7 +105,7 @@ export const PROFILE_CSS = `
   .pf-mstamp .pf-frame { background: var(--u); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--u) 65%, #000), inset 0 0 0 3px color-mix(in srgb, #fff 45%, var(--u)); }
   .pf-mstamp .pf-frame svg { display: block; }
   .pf-mstamp.big .pf-frame { width: 156px; height: 122px; padding: 0; display: grid; }
-  .pf-mstamp[data-state="current"] .pf-frame { background: #FFFBF1; box-shadow: none; outline: 1.5px dashed var(--u); outline-offset: -3px; }
+  .pf-mstamp[data-state="current"] .pf-frame { background: #FFFBF1; box-shadow: none; outline: 1.5px dashed color-mix(in srgb, var(--u) 75%, #FFFBF1); outline-offset: -3px; }
   .pf-mstamp[data-state="current"] .pf-frame > * { opacity: 1; filter: none; }
   /* полученная марка месяца больше не вспыхивает свечением раз в 4 секунды: это мигание принимали за
      сбой («марка странно мигает, будто сайт сам обновляется»). Отклик — только на наведение */
