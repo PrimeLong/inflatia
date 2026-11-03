@@ -3367,11 +3367,14 @@ test('вход: программа — вступительный тест, су
   await openTab(page, 'shop');
   const shop = page.getByTestId('shop');
   await expect(shop.getByTestId('rate-value')).toContainText(/1 крона = \d,\d\d монеты/);
+  // инфляция в Лавке: строка под курсом — за этот месяц и с октября 2026; в раскрытом курсе — что это значит
+  await expect(shop.getByTestId('shop-inflation')).toContainText(/Инфляция в Лавке(: за [а-я]+ \+\d+,\d%, с октября 2026 \+\d+,\d%|: цены держатся| — с ноября 2026)/);
   // лавка короткая: график курса и «что такое кроны» — по касанию курса
   await expect(shop.getByTestId('rate-chart')).toHaveCount(0);
   await shop.getByTestId('rate-toggle').click();
   await expect(shop.getByTestId('coins-crowns')).toBeVisible();
   await expect(shop.getByTestId('rate-chart')).toBeVisible();
+  await expect(shop.getByTestId('shop-inflation-more')).toContainText('в копилке растут быстрее цен');
   // палец ведёт по графику — текст вокруг не выделяется
   expect(await shop.locator('.rw-rate-box').evaluate((el) => getComputedStyle(el).userSelect || getComputedStyle(el).webkitUserSelect)).toBe('none');
   // подсказка графика курса у правого края не расширяет страницу (иначе телефон перемасштабирует её и панель внизу «уезжает»)

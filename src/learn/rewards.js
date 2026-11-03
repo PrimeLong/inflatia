@@ -185,9 +185,30 @@ export function shopDay(s, day) {
   return { showcase, deal: showcase[0] || null, rare: OUTFITS.filter((o) => o.rare && !o.season && !LESSON_SLOTS.includes(o.slot)).map((o) => o.id), desk: DESK_ITEMS, theme: THEME_ITEMS, season: halloweenOn(day) ? SEASON_ITEMS : [] };
 }
 export const crownsOf = (id) => itemOf(id).crowns;
+/* ИНФЛЯЦИЯ В ЛАВКЕ (docs/mechanics.md, «Лавка»): цены вещей в кронах растут каждый месяц. Инфляция месяца —
+   0,6–1,8%, своя у каждого месяца и одна у всех учеников (по дате); индекс цен — произведение инфляций
+   месяцев после октября 2026 (тогда индекс = 1). Индекс не выше предела: самая дорогая вещь по худшему курсу
+   не дороже 70% заработка курса (правило «Экономики наград»); новый юнит поднимает заработок — и предел. */
+export const INFL = { base: '2026-10', min: 0.006, span: 0.012 };
+const monthOf = (day) => day.slice(0, 7);
+const nextMonth = (m) => { const [y, mm] = m.split('-').map(Number); return mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`; };
+// инфляция месяца «2026-11» — доля (0,012 = 1,2%), с точностью до 0,1%; до базы и в базовом месяце — 0
+export const monthInflation = (m) => (m <= INFL.base ? 0 : Math.round((INFL.min + mix01(`infl:${m}`) * INFL.span) * 1000) / 1000);
+const priceIndexRaw = (day) => { let p = 1; for (let m = nextMonth(INFL.base); m <= monthOf(day); m = nextMonth(m)) p *= 1 + monthInflation(m); return p; };
+let capMemo = 0;
+export const priceIndexCap = () => capMemo || (capMemo = (0.7 * courseIncome().total - 1) / (Math.max(...OUTFITS.filter((o) => !o.reward).map((o) => o.crowns)) * RATE_MAX));
+export const priceIndex = (day) => Math.min(priceIndexRaw(day), priceIndexCap());
+// цена вещи в кронах сегодня: базовая × индекс (семена сада и взнос страховки — без инфляции)
+export const crownsOn = (id, day) => Math.round(itemOf(id).crowns * priceIndex(day));
+// для лавки: инфляция этого месяца, рост с базы, держатся ли цены у предела
+export function inflationInfo(day) {
+  const m = monthOf(day);
+  const raw = priceIndexRaw(day); const cap = priceIndexCap();
+  return { month: m, rate: monthInflation(m), since: Math.min(raw, cap) - 1, capped: raw >= cap };
+}
 // цена в монетах: по курсу дня; вещь со скидкой дня — на 30% дешевле
 export function priceOf(id, day, s = null) {
-  const full = Math.ceil(itemOf(id).crowns * rateOn(day));
+  const full = Math.ceil(crownsOn(id, day) * rateOn(day));
   return s && shopDay(s, day).deal === id ? Math.ceil(full * (1 - DEAL_OFF)) : full;
 }
 export const boostActive = (s, now = Date.now()) => (s.boost || 0) > now;

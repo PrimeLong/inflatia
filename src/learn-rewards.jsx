@@ -24,7 +24,7 @@ import { SkinPreview, SKIN_CSS } from './learn-skins.jsx';
 const GardenView = React.lazy(() => import('./learn-garden.jsx').then((m) => ({ default: m.GardenView })));
 const DustGame = React.lazy(() => import('./learn-dust.jsx'));
 import {
-  balance, rateOn, rateHistory, priceOf, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF, questsFor, questNews, QUEST_ICON, monthChallenge, monthStamps, policyInfo, takePolicy, cancelPolicy, PREMIUM,
+  balance, rateOn, rateHistory, priceOf, crownsOn, inflationInfo, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF, questsFor, questNews, QUEST_ICON, monthChallenge, monthStamps, policyInfo, takePolicy, cancelPolicy, PREMIUM,
   chestCoins, chestKey, hasClaim, openChest, achievementsOf, coinsWord, plural, greetingAt, COIN, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate, yearGrowth,
   goalCoins,
 } from './learn/rewards.js';
@@ -282,6 +282,9 @@ export const REWARD_CSS = `
   .sh-rate:hover { border-color: var(--u); }
   .sh-rate-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .sh-rate-k { font: 600 12px var(--ds-sans); letter-spacing: .05em; text-transform: uppercase; color: var(--ds-ink3); }
+  .sh-infl { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; padding: 0 4px; font: 13px/1.4 var(--ds-sans); color: var(--ds-ink2); }
+  .sh-infl svg { flex-shrink: 0; margin-top: 2px; color: var(--ds-bad, #A4462A); }
+  .sh-infl b { color: var(--ds-ink); font-weight: 700; }
   .sh-rate-prev { font-size: 12.5px; color: var(--ds-ink2); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
   .sh-chev { flex: none; color: var(--ds-ink3); transition: transform .2s ease; }
   .sh-rate[aria-expanded="true"] .sh-chev { transform: rotate(180deg); }
@@ -540,7 +543,7 @@ function ShopItem({ o, learn, day, wear, b, onBuy, onToggle, deal = false, goal 
           {hw && <div className="rw-goal" role="progressbar" aria-label="Собрано тыкв" aria-valuemin={0} aria-valuemax={hw.goal} aria-valuenow={hw.pumpkins}><i style={{ width: `${(hw.pumpkins / hw.goal) * 100}%` }} /></div>}
           <div className="ds-sub" style={{ fontSize: 12.5 }}>{hw && hw.ready ? 'Заберите её на Пути' : 'Каждый урок — тыква'}</div>
         </> : <>
-          <div className="rw-price">{price < full && !calm && <s>{full}</s>}{price} <span style={{ fontWeight: 400 }}>мон.</span><small>{o.crowns} кр.</small></div>
+          <div className="rw-price">{price < full && !calm && <s>{full}</s>}{price} <span style={{ fontWeight: 400 }}>мон.</span><small>{crownsOn(o.id, day)} кр.</small></div>
           {/* цена отказа: чего стоит вещь, кроме монет */}
           <div className="rw-forgone" data-testid="shop-forgone" title={`Цена отказа: ${forgone(price).text} или +${forgone(price).week} в копилке за неделю`}>{forgone(price).text} · копилка дала бы +{forgone(price).week}</div>
           {goal && b < price && <div className="rw-goal" role="progressbar" aria-label="Накоплено на покупку" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor((b / price) * 100)}><i style={{ width: `${Math.min(100, (b / price) * 100)}%` }} /></div>}
@@ -695,6 +698,9 @@ const SHOP_TABS = [
   { id: 'dust', label: 'Протереть', icon: Sparkles },
 ];
 let lastShopTab = 'showcase';
+// «за ноябрь»; проценты — до десятых, с запятой
+const MONTH_IN = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const pct = (x) => `${(Math.round(x * 1000) / 10).toFixed(1).replace('.', ',')}%`;
 export function ShopView({ learn, update, now = Date.now(), focus = null }) {
   // аналитика: раздел открыт — не чаще раза в день с устройства (docs/mechanics.md, «Аналитика»)
   useEffect(() => { trackDaily('shop_open'); }, []);
@@ -720,6 +726,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
   const boosted = boostActive(learn, now);
   const pig = piggyState(learn, now);
   const Trend = rate > prev ? TrendingUp : rate < prev ? TrendingDown : Minus;
+  const infl = inflationInfo(day);
   const doBuy = (id) => {
     const r = buy(learn, id, now);
     if (!r.ok) { Audio.play('down'); setMsg({ ok: false, text: r.reason }); return; }
@@ -763,6 +770,13 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <span className="ds-num sh-rate-prev"><Trend size={14} aria-hidden="true" />вчера {fmtRate(prev)}</span>
             <ChevronDown size={18} className="sh-chev" aria-hidden="true" />
           </button>
+          {/* инфляция в Лавке: цены в кронах растут каждый месяц (docs/mechanics.md, «Лавка») */}
+          <div className="sh-infl" data-testid="shop-inflation" data-rate={infl.rate} data-capped={infl.capped ? 'true' : undefined}>
+            <TrendingUp size={15} aria-hidden="true" />
+            {infl.capped ? <span>Инфляция в Лавке: цены держатся — дороже не будет, пока не выйдет новый юнит</span>
+              : infl.since === 0 ? <span>Инфляция в Лавке — с ноября 2026: цены будут расти на 1–2% в месяц</span>
+              : <span>Инфляция в Лавке: за {MONTH_IN[Number(infl.month.slice(5)) - 1]} <b className="ds-num">+{pct(infl.rate)}</b>, с октября 2026 <b className="ds-num">+{pct(infl.since)}</b></span>}
+          </div>
           {rateOpen && (
             <div className="sh-more" data-testid="rate-more">
               {/* новичок не знает, что такое кроны и «кр.»: две строки — что своё, что чужое, и как одно меняется на другое */}
@@ -774,6 +788,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
               </div>
               <RateChart hist={rateHistory(day, 14)} />
               <div className="rw-money-rate">Платите монетами по курсу дня. Курс ниже — покупка дешевле: можно подождать удачного дня.</div>
+              <div className="rw-money-rate" data-testid="shop-inflation-more"><b>Инфляция.</b> Цены Лавки в кронах растут каждый месяц на 1–2%: те же вещи стоят всё больше крон. Монеты в кошельке от этого дешевеют, а в копилке растут быстрее цен — её ставка 1–3% в день. Отложенная покупка дорожает; сбережения под процент — нет.</div>
             </div>
           )}
         </Card>
@@ -851,7 +866,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700 }}>{BOOST.title}{boosted && <span className="ds-badge" style={{ marginLeft: 6 }} data-testid="boost-on">действует до {new Date(learn.boost).toTimeString().slice(0, 5)}</span>}</div>
                   <div className="ds-sub" style={{ fontSize: 13, lineHeight: 1.35 }}>{BOOST.text}</div>
-                  <div className="rw-price">{priceOf(BOOST.id, day)} <span style={{ fontWeight: 400 }}>мон.</span><small>{BOOST.crowns} кр.</small></div>
+                  <div className="rw-price">{priceOf(BOOST.id, day)} <span style={{ fontWeight: 400 }}>мон.</span><small>{crownsOn(BOOST.id, day)} кр.</small></div>
                 </div>
                 <Button small disabled={boosted} onClick={() => doBuy(BOOST.id)} data-testid="buy-boost">Купить</Button>
               </div>
