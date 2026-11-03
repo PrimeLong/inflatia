@@ -1085,12 +1085,16 @@ test('учебник: оглавление, формулы KaTeX, график �
   for (let i = 0; i < rightKeys.length; i += 1) await parts.nth(i).locator(`[data-key="${rightKeys[i]}"]`).click();
   await expect(recall.getByTestId('tb-recall-verdict')).toContainText('Раздел пройден');
   await expect(recall.getByTestId('tb-recall-verdict')).toContainText('вернётся на повторение');
+  // верно сразу после ошибки — без опыта: опыт будет в день повторения
+  await expect(recall.getByTestId('tb-recall-xp')).toHaveCount(0);
   // следующий раздел: всё верно с первого раза — раздел пройден
   const recall2 = page.getByTestId('chapter').getByTestId('tb-recall').nth(1);
   await recall2.scrollIntoViewIfNeeded();
   const rightKeys2 = JSON.parse(await recall2.getAttribute('data-answer'));
   for (let i = 0; i < rightKeys2.length; i += 1) await recall2.getByTestId('tb-recall-part').nth(i).locator(`[data-key="${rightKeys2[i]}"]`).click();
   await expect(recall2.getByTestId('tb-recall-verdict')).toContainText('Раздел пройден');
+  // новый вопрос верно — немного опыта
+  await expect(recall2.getByTestId('tb-recall-xp')).toHaveText('+1 опыта');
   await expectNoSidewaysScroll(page);
   await toToc(page);
   await expect(toc.locator('.tb-toc-row', { hasText: 'Спрос и предложение' }).locator('[data-testid=tb-ch-sections][data-done="2"][data-total="4"]')).toHaveCount(1);
@@ -5560,9 +5564,21 @@ test('«Персоналии» — урок на дороге юнита: три
   await expect(book).toBeVisible();
   await expect(book.getByTestId('book-passage')).toHaveCount(BOOK_BY_ID['smith-wealth'].passages.length);
   await expect(book).toContainText('Не от благожелательности мясника, пивовара или булочника');
-  // дочитали — в конце «Отметить прочитанной»: штамп с датой, на полке — закладка
+  // «Отметить прочитанной» — не сразу, а через половину времени чтения: полку не «прокликать» ради опыта
+  await expect(book.getByTestId('book-mark-read')).toBeDisabled();
+  await expect(book.getByTestId('book-read-wait')).toContainText(/Откроется через \d+:\d\d/);
+  const left = Number(await book.getByTestId('book-read-wait').getAttribute('data-left'));
+  expect(left).toBeGreaterThan(150);
+  await expect.poll(async () => Number(await book.getByTestId('book-read-wait').getAttribute('data-left'))).toBeLessThan(left);
+  // время помнит устройство: закрыли, «дочитали» (накопленное время — в ems-book-time) и открыли снова
+  await page.getByTestId('book-close').click();
+  await page.evaluate(() => localStorage.setItem('ems-book-time', JSON.stringify({ 'smith-wealth': 600 })));
+  await shelf.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
+  await expect(book.getByTestId('book-read-wait')).toHaveCount(0);
+  // дочитали — в конце «Отметить прочитанной»: штамп с датой и «+5 опыта», на полке — закладка
   await book.getByTestId('book-mark-read').click();
   await expect(book.getByTestId('book-read-stamp')).toContainText('Прочитано');
+  await expect(book.getByTestId('book-xp')).toHaveText('+5 опыта');
   await page.getByTestId('book-close').click();
   const smith = shelf.locator('[data-testid=shelf-book][data-book="smith-wealth"]');
   await expect(smith).toHaveAttribute('data-read', 'true');

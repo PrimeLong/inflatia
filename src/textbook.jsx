@@ -21,7 +21,7 @@ import { TYCOON_TASKS } from './textbook/tycoon-tasks.js';
 import { CHAPTER_BLOCKS, APPENDIX_BLOCKS, CHAPTER_SECTIONS, PROBLEMS, RECALLS, problemsOf, keyFormulas } from './textbook/content.js';
 import { sectionDone, sectionProgress, dueItems, chapterRead, chapterShare } from './textbook/study.js';
 import { COIN, bookFirstTry, earn } from './learn/rewards.js';
-import { emptyLearn } from './textbook/learn-state.js';
+import { emptyLearn, recallXp, addXp } from './textbook/learn-state.js';
 import { CHARTS, chartDefaults, checkGraph, captionVars } from './textbook/charts.js';
 import { actionOf, parseInline, checkAnswer, matchTraps, LEVELS, typo } from './textbook/markdown.js';
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, markRead, unmarkRead, recordAnswer, scheduleAfter, reviewQueue, chapterScore, setLast, daysUntil, confidenceStats, addStudyMinute } from './textbook/progress.js';
@@ -123,6 +123,9 @@ export const TEXTBOOK_CSS = `
   /* неверный — сплошная рамка и крестик: пунктир на толстой левой кромке рассыпался на рваные куски (жалоба mvgosm0p) */
   .tb-recall-opt.wrong { border-color: var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 8%, var(--c-panel)); color: var(--c-text); }
   .tb-recall-opt.dim { opacity: .62; }
+  .tb-recall-xp { font: 700 12px/1 var(--ds-sans, sans-serif); color: var(--c-teal, #2E7D5B); padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 12%, transparent); animation: tb-xp-in .4s ease-out both; }
+  @keyframes tb-xp-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+  @media (prefers-reduced-motion: reduce) { .tb-recall-xp { animation: none; } }
   .tb-recall-why { font-size: 13px; line-height: 1.5; color: var(--c-text); margin: -4px 0 10px; padding: 6px 10px; border-left: 3px solid var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 6%, transparent); }
   .tb-box-head { display: flex; align-items: center; gap: 7px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
   .tb-link { background: none; border: none; padding: 0; font: inherit; color: var(--c-gold-soft); cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
@@ -545,7 +548,7 @@ function RecallCard({ b, ctx, from }) {
     const all = b.parts.every((_, j) => next[j] != null);
     const good = all && b.parts.every((p, j) => p.options[next[j]].correct);
     Audio.play(!b.parts[i].options[k].correct ? 'tick' : all && good ? 'stamp' : 'click');
-    if (all) { setAfter({ ...scheduleAfter(rec, good, Date.now()), wasOk: !!(rec && rec.ok) }); ctx.onAnswer(b.id, good, {}); }
+    if (all) { const now = Date.now(); setAfter({ ...scheduleAfter(rec, good, now), wasOk: !!(rec && rec.ok), xp: recallXp(rec, good, now) }); ctx.onAnswer(b.id, good, {}); }
   };
   return (
     <div className="tb-box" style={{ borderLeftColor: COLOR.blue }} data-testid="tb-recall" data-recall={b.id} data-answer={JSON.stringify(b.parts.map((p) => p.options.findIndex((o) => o.correct)))}>
@@ -589,6 +592,7 @@ function RecallCard({ b, ctx, from }) {
           </div>
           <div data-testid="tb-recall-verdict" style={{ fontSize: 13, marginBottom: 10, color: ok ? COLOR.teal : COLOR.rust, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{recallVerdict(ok, after)}</span>
+            {ok && after && after.xp > 0 && <span className="tb-recall-xp" data-testid="tb-recall-xp">+{after.xp} опыта</span>}
             {!ok && !ctx.inReview && <button type="button" className="ems-btn" style={{ padding: '6px 12px', fontSize: 12.5 }} data-testid="tb-recall-again"
               onClick={() => { Audio.play('click'); setOrder(mix()); setPicks({}); setAfter(null); }}>Ещё раз</button>}
           </div>
@@ -2468,8 +2472,10 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
       let next = afterBookAnswer(recordAnswer(p, id, ok, now, RECALLS[id] ? { ...opts, settle: true } : opts), id, ok, why);
       // задача главы решена с первой попытки — немного монет в кошелёк Пути (rewards.js, bookFirstTry)
       if (PROBLEMS[id] && bookFirstTry(prev, ok, opts && opts.sawSolution)) next = { ...next, learn: earn(next.learn || emptyLearn(), COIN.book, null, now) };
-      // пройден последний раздел главы — глава прочитана сама, кнопку нажимать не нужно
       const rc = RECALLS[id];
+      // «Вспомните»: немного опыта — за новый вопрос или подошедший срок повторения (recallXp)
+      if (rc && recallXp(prev, ok, now)) next = { ...next, learn: addXp(next.learn || emptyLearn(), recallXp(prev, ok, now), now) };
+      // пройден последний раздел главы — глава прочитана сама, кнопку нажимать не нужно
       if (rc && ok && !next.read[rc.chapter] && chapterRead(next, rc.chapter)) next = markRead(next, rc.chapter, now);
       return next;
     }),

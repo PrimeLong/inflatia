@@ -6,7 +6,9 @@
    Серия дней — дни, когда пройден хотя бы один урок. Один пропуск в календарную неделю
    «замораживается» и серию не обнуляет. Без наказаний: пропуск просто не считается днём серии. */
 const DAY = 24 * 3600 * 1000;
-export const XP = { correct: 2, finish: 5, replayShare: 0.1, diamond: 1.5, streakFrom: 3, gameMax: 20, gameRate: 40 };
+/* recall — верный ответ на «Вспомните» учебника (новый вопрос или подошёл срок повторения, recallXp);
+   book — книга полки отмечена прочитанной (один раз, markBook) */
+export const XP = { correct: 2, finish: 5, replayShare: 0.1, diamond: 1.5, streakFrom: 3, gameMax: 20, gameRate: 40, recall: 1, book: 5 };
 /* Серия верных ответов подряд (с первой попытки): начиная с третьего в серии, каждый ответ — ещё +1
    опыта. Мини-игра: её очки (там серия умножает очки ×2…×4) идут в опыт — очко опыта за 40 очков игры,
    не больше 20. n — длина серии вместе с этим ответом. */
@@ -79,8 +81,19 @@ export function markMet(s, id, now = Date.now()) {
    для всех устройств; на полке у прочитанной — закладка-ляссе с галочкой. */
 export function markBook(s, id, now = Date.now()) {
   if (!okKey(id) || (s.books || {})[id]) return s;
-  return upd(s, { books: { ...s.books, [id]: now } });
+  return addXp(upd(s, { books: { ...s.books, [id]: now } }), XP.book, now);
 }
+// опыт вне урока (учебник, полка) — в опыт дня, как опыт урока: лига, задания и испытание месяца его видят
+export function addXp(s, n, now = Date.now()) {
+  const k = Math.max(0, Math.round(n || 0));
+  if (!k) return s;
+  const day = dayOf(now);
+  return upd(s, { xp: { ...s.xp, [day]: (s.xp[day] || 0) + k } });
+}
+/* опыт за ответ на «Вспомните»: prev — запись вопроса в прогрессе учебника до ответа. Только верный ответ
+   на новый вопрос или на вопрос, которому подошёл срок повторения: выученный вопрос, открытый заново
+   (перезагрузили главу), и верный ответ сразу после ошибки опыта не дают — иначе его можно «накликать». */
+export const recallXp = (prev, ok, now = Date.now()) => (ok && (!prev || (prev.due != null && prev.due <= now)) ? XP.recall : 0);
 // «Разбор графика» юнита пройден (src/learn/graphs.js): id → когда; опыт — один раз, общее для устройств
 export function markGraph(s, id, now = Date.now()) {
   if (!okKey(id) || (s.graphs || {})[id]) return s;

@@ -327,6 +327,11 @@ export function bookOpen(learn, book) {
 export const bookReadAt = (learn, id) => ((learn && learn.books) || {})[id] || 0;
 export const shelfBooks = (learn) => BOOKS.map((b) => ({ ...b, open: bookOpen(learn, b), read: !!bookReadAt(learn, b.id) }));
 export const wordsIn = (b) => b.passages.reduce((a, p) => a + p.text.join(' ').split(/\s+/).length, 0);
+/* примерное время чтения — по словам, 180 слов в минуту; «Отметить прочитанной» открывается через половину
+   его (кто-то читает быстро), чтобы полку нельзя было «прокликать» ради опыта (docs/mechanics.md) */
+export const READ_WPM = 180;
+export const readSeconds = (b) => Math.round((wordsIn(b) / READ_WPM) * 60);
+export const readLockSeconds = (b) => Math.ceil(readSeconds(b) / 2);
 
 /* ОЗВУЧКА КНИГИ — запись по отрывкам (public/books/<книга>/<отрывок>.mp3) или, по-старому, целиком. Текст
    для сервиса озвучки: автор, название, год, потом отрывки подряд — название отрывка и его абзацы; по
