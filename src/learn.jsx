@@ -359,8 +359,9 @@ const CSS = `
   @keyframes ln-fire-out { 0% { transform: none; opacity: 1 } 30% { transform: rotate(-7deg) } 60% { transform: rotate(5deg); opacity: .8 } 100% { transform: scale(.6); opacity: 0 } }
   @keyframes ln-plus { 0% { transform: translateY(0); opacity: 0 } 15% { opacity: 1 } 100% { transform: translateY(-22px); opacity: 0 } }
   @keyframes ln-spark { from { transform: rotate(var(--a)) translateX(4px); opacity: 1 } to { transform: rotate(var(--a)) translateX(28px); opacity: 0 } }
-  .ln-xp-bonus { display: inline-flex; align-items: center; gap: 3px; margin-top: 2px; font: 700 12px var(--ds-sans); color: #C2490B; }
-  .ds.ds-dark .ln-xp-bonus { color: #FFB27A; }
+  .ln-xp-bonus { display: inline-flex; align-items: center; gap: 2px; margin-top: 3px; padding: 1px 7px 1px 5px; border-radius: 999px; font: 700 13px/1.4 var(--ds-sans); color: #C2490B; background: color-mix(in srgb, #C2490B 10%, transparent); white-space: nowrap; }
+  .ln-xp-note { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 8px 0 0; font: 600 13.5px/1.35 var(--ds-sans); color: #C2490B; text-align: center; }
+  .ds.ds-dark .ln-xp-bonus, .ds.ds-dark .ln-xp-note { color: #FFB27A; }
   @media (prefers-reduced-motion: reduce) { .ln-fire, .ln-fire b, .ln-fire-ic, .ln-fire-plus, .ln-fire-sparks i { animation: none !important; } .ln-fire-plus, .ln-fire-sparks { display: none; } }
   /* прокрутка урока — только по вертикали и только когда содержимое правда длиннее экрана:
      встряска после ошибки и свайп карточки двигают его вбок (без overflow-x: hidden из-за
@@ -1706,10 +1707,12 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
               {result.streakUp > 0 && <StreakBurst days={result.streakUp} />}
               <div className="ln-tickets">
                 <div data-testid="result-xp" data-bonus={result.bonus || 0}><div className="ds-eyebrow" style={{ fontSize: 12 }}>Опыт{result.boosted ? ' ×2' : ''}</div><div className="v"><CountUp value={result.xp} prefix="+" /></div>
-                  {result.bonus > 0 && <div className="ln-xp-bonus"><Zap size={12} aria-hidden="true" />+{result.bonus} {result.game ? 'за игру и верные подряд' : 'за верные подряд'}</div>}</div>
+                  {result.bonus > 0 && <div className="ln-xp-bonus" data-testid="result-xp-bonus" title={`+${result.bonus} ${result.game ? 'за игру и верные ответы подряд' : 'за верные ответы подряд'}`}><Zap size={15} strokeWidth={2.4} aria-hidden="true" />+{result.bonus}</div>}</div>
                 <div data-testid="result-acc"><div className="ds-eyebrow" style={{ fontSize: 12 }}>Точность</div><div className="v">{Math.round(result.accuracy)}%</div></div>
                 <div data-testid="result-time"><div className="ds-eyebrow" style={{ fontSize: 12 }}>Время</div><div className="v">{mmss(result.ms)}</div></div>
               </div>
+              {/* пояснение к молнии — под плитками, а не в плитке: на узком телефоне оно растягивало все три */}
+              {result.bonus > 0 && <div className="ln-xp-note" data-testid="result-xp-note"><Zap size={15} strokeWidth={2.4} aria-hidden="true" />+{result.bonus} опыта — {result.game ? 'за игру и верные ответы подряд' : 'за верные ответы подряд'}</div>}
               <GainsList coins={result.coins} gains={result.gains} />
               {lesson && run.mode === 'lesson' && !replay && partsOfLesson(lesson.id).length > 0 && (
                 <div className="ds-sub" style={{ fontSize: 14.5, marginTop: 10 }} data-testid="result-model">

@@ -6396,3 +6396,29 @@ test('«Куда сдвинется?»: кривая сдвигается пла
   expect(await page.evaluate(() => window.__shiftFrames.size)).toBeGreaterThan(4);
   expect(errors).toEqual([]);
 });
+
+/* Итоги урока на телефоне 360 px: молния в плитке «Опыт» не крошечная, пояснение — строкой под плитками,
+   плитки не растягиваются (жалоба mvz2jtzc) */
+test('итоги урока на телефоне 360: плитки ровные, молния видна, пояснение под плитками', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'lm-i1');
+  await playLesson(page);
+  const res = page.getByTestId('lesson-result');
+  await expect(res.getByTestId('result-xp-bonus')).toHaveText(/^\+\d+$/);
+  await expect(res.getByTestId('result-xp-note')).toContainText(/\+\d+ опыта — за верные ответы подряд/);
+  const icon = await res.getByTestId('result-xp-bonus').locator('svg').boundingBox();
+  expect(icon.width).toBeGreaterThanOrEqual(14);
+  const tiles = await res.locator('.ln-tickets > div').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+  expect(tiles).toHaveLength(3);
+  expect(Math.max(...tiles) - Math.min(...tiles)).toBeLessThanOrEqual(1);
+  expect(Math.max(...tiles)).toBeLessThan(110);
+  expect(errors).toEqual([]);
+});
