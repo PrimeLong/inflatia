@@ -24,7 +24,7 @@ import { SkinPreview, SKIN_CSS } from './learn-skins.jsx';
 const GardenView = React.lazy(() => import('./learn-garden.jsx').then((m) => ({ default: m.GardenView })));
 const DustGame = React.lazy(() => import('./learn-dust.jsx'));
 import {
-  balance, rateOn, rateHistory, priceOf, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF, questsFor, QUEST_ICON, monthChallenge, monthStamps, policyInfo, takePolicy, cancelPolicy, PREMIUM,
+  balance, rateOn, rateHistory, priceOf, crownsOn, inflationInfo, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF, questsFor, questNews, QUEST_ICON, monthChallenge, monthStamps, policyInfo, takePolicy, cancelPolicy, PREMIUM,
   chestCoins, chestKey, hasClaim, openChest, achievementsOf, coinsWord, plural, greetingAt, COIN, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate, yearGrowth,
   goalCoins,
 } from './learn/rewards.js';
@@ -48,6 +48,19 @@ export const REWARD_CSS = `
   .rw-quest:first-of-type { border-top: none; }
   .rw-ico { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--ds-rule2); color: var(--u-ink); background: var(--ds-card); }
   .rw-tasks-entry { margin: 0 0 12px; padding: 12px 14px; }
+  /* кольца заданий дня в карточке «Задания»: дорастают плавно, выполненное — зелёное с галочкой */
+  .rw-qrings { display: inline-flex; gap: 3px; flex-shrink: 0; }
+  .rw-qring { position: relative; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; color: var(--ds-ok); }
+  .rw-qring > svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .rw-qring circle { fill: none; stroke-width: 3.2; }
+  .rw-qring .bg { stroke: var(--ds-rule); }
+  .rw-qring .fg { stroke: var(--u); stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.3,.8,.4,1), stroke .3s; }
+  .rw-qring[data-done="true"] .fg { stroke: var(--ds-ok); }
+  .rw-tasks-entry.grew { animation: rw-tasks-glow 1.4s ease-out 1; }
+  .rw-tasks-news { color: var(--u-ink); font-weight: 700; animation: rw-news-in .35s ease-out both; }
+  @keyframes rw-tasks-glow { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--u) 45%, transparent) } 60% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--u) 0%, transparent) } }
+  @keyframes rw-news-in { from { opacity: 0; transform: translateY(4px) } }
+  @media (prefers-reduced-motion: reduce) { .rw-qring .fg { transition: none; } .rw-tasks-entry.grew, .rw-tasks-news { animation: none; } }
   .rw-money { display: grid; gap: 8px; margin: 0 0 12px; font-size: 14px; line-height: 1.4; }
   .rw-money > div:not(.rw-money-rate) { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: center; }
   .rw-money-ico { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; }
@@ -269,6 +282,9 @@ export const REWARD_CSS = `
   .sh-rate:hover { border-color: var(--u); }
   .sh-rate-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .sh-rate-k { font: 600 12px var(--ds-sans); letter-spacing: .05em; text-transform: uppercase; color: var(--ds-ink3); }
+  .sh-infl { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; padding: 0 4px; font: 13px/1.4 var(--ds-sans); color: var(--ds-ink2); }
+  .sh-infl svg { flex-shrink: 0; margin-top: 2px; color: var(--ds-bad, #A4462A); }
+  .sh-infl b { color: var(--ds-ink); font-weight: 700; }
   .sh-rate-prev { font-size: 12.5px; color: var(--ds-ink2); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
   .sh-chev { flex: none; color: var(--ds-ink3); transition: transform .2s ease; }
   .sh-rate[aria-expanded="true"] .sh-chev { transform: rotate(180deg); }
@@ -311,22 +327,58 @@ export function WalletStat({ learn }) {
 }
 
 /* Карточка «Задания» наверху Пути: сколько заданий дня сделано, цель в минутах и испытание
-   месяца — одной строкой. Касание открывает экран заданий (задания дня, испытание, практика). */
+   месяца — одной строкой. Касание открывает экран заданий (задания дня, испытание, практика).
+   Прогресс виден без открытия: три маленьких кольца заданий дня; продвинулось с прошлого показа —
+   кольцо дорастает от прежнего значения, карточка вспыхивает, на 4 с — строка «что продвинулось»
+   (docs/mechanics.md, «Навигация»). Показанное помнит устройство на сегодня. */
+const QUESTS_SEEN = 'ems-quests-seen';
+const readQuestsSeen = (day) => { try { const v = JSON.parse(localStorage.getItem(QUESTS_SEEN)); return v && v.day === day && v.have ? v.have : null; } catch { return null; } };
+function QuestRing({ have, target, done, id }) {
+  const r = 8; const len = 2 * Math.PI * r; const k = target ? Math.min(1, have / target) : 0;
+  return (
+    <span className="rw-qring" data-testid="tasks-ring" data-quest={id} data-have={have} data-done={String(done)} aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 22 22"><circle className="bg" cx="11" cy="11" r={r} />
+        <circle className="fg" cx="11" cy="11" r={r} strokeDasharray={len} strokeDashoffset={len * (1 - k)} /></svg>
+      {done && <Check size={10} strokeWidth={3.2} />}
+    </span>
+  );
+}
 export function TasksEntry({ learn, onOpen, now = Date.now() }) {
   const quests = questsFor(learn, now);
   const g = goalToday(learn, now);
   const m = monthChallenge(learn, now);
+  const day = dayOf(now);
   const done = quests.filter((q) => q.done).length;
   const goalOk = g.done >= g.goal;
   const month = m.claimed ? 'выполнено' : m.waiting ? `с ${m.startsText}` : `${m.have} из ${m.target}`;
   const text = `Задания дня: ${done} из 3 · цель ${Math.min(g.done, g.goal)}/${g.goal} мин · испытание месяца ${month}`;
+  // кольца рисуются сначала с прежним значением, потом — с новым: так они плавно дорастают
+  const haveKey = quests.map((q) => `${q.id}:${q.have}`).join(',');
+  const [shown, setShown] = useState(() => { const prev = readQuestsSeen(day); return Object.fromEntries(quests.map((q) => [q.id, prev ? Math.min(q.have, prev[q.id] || 0) : q.have])); });
+  const [news, setNews] = useState(null);
+  useEffect(() => {
+    const ch = questNews(readQuestsSeen(day), quests);
+    const now2 = Object.fromEntries(quests.map((q) => [q.id, q.have]));
+    try { localStorage.setItem(QUESTS_SEEN, JSON.stringify({ day, have: now2 })); } catch { /* приватный режим */ }
+    if (!ch.length) { setShown(now2); return undefined; }
+    const grow = setTimeout(() => setShown(now2), 120);
+    setNews(ch[ch.length - 1]);
+    const hide = setTimeout(() => setNews(null), 4000);
+    return () => { clearTimeout(grow); clearTimeout(hide); };
+  }, [day, haveKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const newsText = news ? (news.done ? `${news.title} — выполнено, +${news.coins} ${coinsWord(news.coins)}` : `${news.title}: ${news.to} из ${news.target}`) : null;
   return (
-    <button type="button" className="ds-card ds-card--button rw-tasks-entry" data-testid="tasks-card" data-nav-target="tasks" aria-label={`Задания. ${text}`}
+    <button type="button" className={`ds-card ds-card--button rw-tasks-entry${news ? ' grew' : ''}`} data-testid="tasks-card" data-nav-target="tasks" aria-label={`Задания. ${text}`}
       onClick={() => { Audio.play('paper'); onOpen(); }}>
       <span className={`rw-ico ${done === 3 && goalOk ? 'ok' : ''}`}>{done === 3 && goalOk ? <Check size={16} aria-hidden="true" /> : <ListChecks size={16} aria-hidden="true" />}</span>
       <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
         <span style={{ display: 'block', fontWeight: 700, fontSize: 15.5 }}>Задания</span>
-        <span className="ds-sub" style={{ display: 'block', fontSize: 13, lineHeight: 1.35 }} data-testid="tasks-card-text">{text}</span>
+        {newsText
+          ? <span className="rw-tasks-news" style={{ display: 'block', fontSize: 13, lineHeight: 1.35 }} data-testid="tasks-news" role="status">{newsText}</span>
+          : <span className="ds-sub" style={{ display: 'block', fontSize: 13, lineHeight: 1.35 }} data-testid="tasks-card-text">{text}</span>}
+      </span>
+      <span className="rw-qrings" data-testid="tasks-rings">
+        {quests.map((q) => <QuestRing key={q.id} id={q.id} have={shown[q.id] ?? q.have} target={q.target} done={(shown[q.id] ?? q.have) >= q.target} />)}
       </span>
       <ChevronRight size={20} color="var(--ds-ink3)" aria-hidden="true" />
     </button>
@@ -491,7 +543,7 @@ function ShopItem({ o, learn, day, wear, b, onBuy, onToggle, deal = false, goal 
           {hw && <div className="rw-goal" role="progressbar" aria-label="Собрано тыкв" aria-valuemin={0} aria-valuemax={hw.goal} aria-valuenow={hw.pumpkins}><i style={{ width: `${(hw.pumpkins / hw.goal) * 100}%` }} /></div>}
           <div className="ds-sub" style={{ fontSize: 12.5 }}>{hw && hw.ready ? 'Заберите её на Пути' : 'Каждый урок — тыква'}</div>
         </> : <>
-          <div className="rw-price">{price < full && !calm && <s>{full}</s>}{price} <span style={{ fontWeight: 400 }}>мон.</span><small>{o.crowns} кр.</small></div>
+          <div className="rw-price">{price < full && !calm && <s>{full}</s>}{price} <span style={{ fontWeight: 400 }}>мон.</span><small>{crownsOn(o.id, day)} кр.</small></div>
           {/* цена отказа: чего стоит вещь, кроме монет */}
           <div className="rw-forgone" data-testid="shop-forgone" title={`Цена отказа: ${forgone(price).text} или +${forgone(price).week} в копилке за неделю`}>{forgone(price).text} · копилка дала бы +{forgone(price).week}</div>
           {goal && b < price && <div className="rw-goal" role="progressbar" aria-label="Накоплено на покупку" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor((b / price) * 100)}><i style={{ width: `${Math.min(100, (b / price) * 100)}%` }} /></div>}
@@ -646,6 +698,9 @@ const SHOP_TABS = [
   { id: 'dust', label: 'Протереть', icon: Sparkles },
 ];
 let lastShopTab = 'showcase';
+// «за ноябрь»; проценты — до десятых, с запятой
+const MONTH_IN = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const pct = (x) => `${(Math.round(x * 1000) / 10).toFixed(1).replace('.', ',')}%`;
 export function ShopView({ learn, update, now = Date.now(), focus = null }) {
   // аналитика: раздел открыт — не чаще раза в день с устройства (docs/mechanics.md, «Аналитика»)
   useEffect(() => { trackDaily('shop_open'); }, []);
@@ -671,6 +726,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
   const boosted = boostActive(learn, now);
   const pig = piggyState(learn, now);
   const Trend = rate > prev ? TrendingUp : rate < prev ? TrendingDown : Minus;
+  const infl = inflationInfo(day);
   const doBuy = (id) => {
     const r = buy(learn, id, now);
     if (!r.ok) { Audio.play('down'); setMsg({ ok: false, text: r.reason }); return; }
@@ -714,6 +770,13 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <span className="ds-num sh-rate-prev"><Trend size={14} aria-hidden="true" />вчера {fmtRate(prev)}</span>
             <ChevronDown size={18} className="sh-chev" aria-hidden="true" />
           </button>
+          {/* инфляция в Лавке: цены в кронах растут каждый месяц (docs/mechanics.md, «Лавка») */}
+          <div className="sh-infl" data-testid="shop-inflation" data-rate={infl.rate} data-capped={infl.capped ? 'true' : undefined}>
+            <TrendingUp size={15} aria-hidden="true" />
+            {infl.capped ? <span>Инфляция в Лавке: цены держатся — дороже не будет, пока не выйдет новый юнит</span>
+              : infl.since === 0 ? <span>Инфляция в Лавке — с ноября 2026: цены будут расти на 1–2% в месяц</span>
+              : <span>Инфляция в Лавке: за {MONTH_IN[Number(infl.month.slice(5)) - 1]} <b className="ds-num">+{pct(infl.rate)}</b>, с октября 2026 <b className="ds-num">+{pct(infl.since)}</b></span>}
+          </div>
           {rateOpen && (
             <div className="sh-more" data-testid="rate-more">
               {/* новичок не знает, что такое кроны и «кр.»: две строки — что своё, что чужое, и как одно меняется на другое */}
@@ -725,6 +788,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
               </div>
               <RateChart hist={rateHistory(day, 14)} />
               <div className="rw-money-rate">Платите монетами по курсу дня. Курс ниже — покупка дешевле: можно подождать удачного дня.</div>
+              <div className="rw-money-rate" data-testid="shop-inflation-more"><b>Инфляция.</b> Цены Лавки в кронах растут каждый месяц на 1–2%: те же вещи стоят всё больше крон. Монеты в кошельке от этого дешевеют, а в копилке растут быстрее цен — её ставка 1–3% в день. Отложенная покупка дорожает; сбережения под процент — нет.</div>
             </div>
           )}
         </Card>
@@ -802,7 +866,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700 }}>{BOOST.title}{boosted && <span className="ds-badge" style={{ marginLeft: 6 }} data-testid="boost-on">действует до {new Date(learn.boost).toTimeString().slice(0, 5)}</span>}</div>
                   <div className="ds-sub" style={{ fontSize: 13, lineHeight: 1.35 }}>{BOOST.text}</div>
-                  <div className="rw-price">{priceOf(BOOST.id, day)} <span style={{ fontWeight: 400 }}>мон.</span><small>{BOOST.crowns} кр.</small></div>
+                  <div className="rw-price">{priceOf(BOOST.id, day)} <span style={{ fontWeight: 400 }}>мон.</span><small>{crownsOn(BOOST.id, day)} кр.</small></div>
                 </div>
                 <Button small disabled={boosted} onClick={() => doBuy(BOOST.id)} data-testid="buy-boost">Купить</Button>
               </div>

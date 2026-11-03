@@ -34,10 +34,9 @@ export const STATS_CSS = `
   .st-bars { position: relative; margin: 8px 0 0; padding: 0 0 4px; }
   .st-bars-plot { position: relative; height: 112px; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--ds-rule2, var(--c-border, #ccc)); }
   .st-goal { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--ds-ink3, var(--c-faint, #888)); opacity: .55; pointer-events: none; }
-  .st-goal span { position: absolute; right: 0; bottom: 2px; font: 12px/1 var(--ds-sans, sans-serif); color: var(--ds-ink3, var(--c-faint, #777)); background: var(--ds-card, var(--c-panel, #fff)); padding: 0 0 0 4px; }
   .st-col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; padding: 0; border: 0; background: none; cursor: pointer; position: relative; }
   .st-col i { display: block; width: 100%; max-width: 24px; border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--st-tone, var(--u, #4D7C0F)) 42%, var(--ds-card, var(--c-panel, #fff))); transition: height .5s ease; }
-  .st-col i { animation: st-grow .6s cubic-bezier(.3,.9,.4,1) both; animation-delay: calc(var(--i, 0) * 14ms); transform-origin: 50% 100%; }
+  .st-col i { animation: st-grow .6s cubic-bezier(.3,.9,.4,1) backwards; animation-delay: calc(var(--i, 0) * 14ms); transform-origin: 50% 100%; }
   @keyframes st-grow { from { transform: scaleY(0) } to { transform: scaleY(1) } }
   .st-meter-fill { animation: st-fill .9s cubic-bezier(.3,.8,.4,1) both; transform-origin: 0 50%; }
   @keyframes st-fill { from { transform: scaleX(0) } to { transform: scaleX(1) } }
@@ -56,6 +55,7 @@ export const STATS_CSS = `
   .st-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font: 12px/1.3 var(--ds-sans, sans-serif); color: var(--ds-ink3, var(--c-faint, #777)); }
   .st-legend span { display: inline-flex; align-items: center; gap: 5px; }
   .st-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--st-tone, var(--u, #4D7C0F)); }
+  .st-legend i.goal { width: 14px; height: 0; border-radius: 0; background: none; border-top: 1px solid var(--ds-ink3, var(--c-faint, #888)); opacity: .55; }
   .st-legend i.half { background: color-mix(in srgb, var(--st-tone, var(--u, #4D7C0F)) 42%, var(--ds-card, var(--c-panel, #fff))); }
 `;
 
@@ -112,7 +112,8 @@ export function DayBars({ days, goal = null, tone, testid }) {
   return (
     <div className="st-bars" style={tone ? { '--st-tone': tone } : undefined} data-testid={testid} onMouseLeave={() => setSel(null)}>
       <div className="st-bars-plot">
-        {goal ? <div className="st-goal" style={{ bottom: `${(goal / top) * 100}%` }}><span>цель {goal} мин</span></div> : null}
+        {/* подпись цели — в легенде: на линии она закрывала верхушки последних столбиков */}
+        {goal ? <div className="st-goal" style={{ bottom: `${(goal / top) * 100}%` }} /> : null}
         {days.map((d, k) => {
           // без цели (журнал учебника) — каждый день с занятиями полным цветом
           const cls = d.future ? 'future' : d.minutes <= 0 ? 'none' : !goal || d.minutes >= goal ? 'met' : '';
@@ -134,7 +135,7 @@ export function DayBars({ days, goal = null, tone, testid }) {
         {[0, 7, 14, 21].map((k) => days[k] && <span key={k}>{k === 21 ? 'эта неделя' : `с ${weekName(days[k].key)}`}</span>)}
       </div>
       {goal ? (
-        <div className="st-legend"><span><i />цель выполнена</span><span><i className="half" />меньше цели</span><span><i style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ds-gold, #C9A227)' }} />сегодня</span></div>
+        <div className="st-legend"><span data-testid="bars-goal"><i className="goal" />цель {goal} мин</span><span><i />цель выполнена</span><span><i className="half" />меньше цели</span><span><i style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ds-gold, #C9A227)' }} />сегодня</span></div>
       ) : null}
     </div>
   );

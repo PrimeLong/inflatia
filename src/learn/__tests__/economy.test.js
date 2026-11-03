@@ -71,3 +71,45 @@ describe('копилка: честно про проценты', () => {
     expect(c[10].value).toBe(2159);
   });
 });
+
+describe('инфляция в Лавке (docs/mechanics.md, «Лавка»)', async () => {
+  const { monthInflation, priceIndex, priceIndexCap, crownsOn, inflationInfo, priceOf, INFL } = await import('../rewards.js');
+  const months = Array.from({ length: 120 }, (_, k) => { const y = 2026 + Math.floor((10 + k) / 12); const m = ((10 + k) % 12) + 1; return `${y}-${String(m).padStart(2, '0')}`; });
+  it('инфляция месяца — 0,6–1,8%, до десятой процента, одна у всех; до ноября 2026 — нет', () => {
+    expect(INFL.base).toBe('2026-10');
+    expect(monthInflation('2026-10')).toBe(0);
+    expect(monthInflation('2026-09')).toBe(0);
+    months.forEach((m) => {
+      const r = monthInflation(m);
+      expect(r).toBeGreaterThanOrEqual(0.006);
+      expect(r).toBeLessThanOrEqual(0.018);
+      expect(Math.round(r * 1000)).toBeCloseTo(r * 1000, 9);
+      expect(monthInflation(m)).toBe(r);
+    });
+    // месяцы не одинаковые
+    expect(new Set(months.slice(0, 12).map(monthInflation)).size).toBeGreaterThan(4);
+  });
+  it('индекс цен — произведение инфляций с октября 2026; цена в кронах и в монетах — от него', () => {
+    expect(priceIndex('2026-10-20')).toBe(1);
+    expect(priceIndex('2026-11-03')).toBeCloseTo(1 + monthInflation('2026-11'), 12);
+    expect(priceIndex('2026-12-01')).toBeCloseTo((1 + monthInflation('2026-11')) * (1 + monthInflation('2026-12')), 12);
+    expect(crownsOn('tophat', '2026-10-20')).toBe(OUTFITS.find((o) => o.id === 'tophat').crowns);
+    const day = '2027-03-15';
+    expect(crownsOn('tophat', day)).toBe(Math.round(140 * priceIndex(day)));
+    expect(priceOf('tophat', day)).toBe(Math.ceil(crownsOn('tophat', day) * rateOn(day)));
+    expect(crownsOn('tophat', day)).toBeGreaterThan(140);
+  });
+  it('предел: и через десять лет самая дорогая вещь по худшему курсу — не больше 70% заработка курса', () => {
+    expect(priceIndexCap()).toBeGreaterThan(1);
+    months.forEach((m) => {
+      const day = `${m}-15`;
+      OUTFITS.filter((o) => !o.reward).forEach((o) => expect(crownsOn(o.id, day) * RATE_MAX, `${o.id} ${m}`).toBeLessThanOrEqual(0.7 * courseIncome().total));
+    });
+    const late = inflationInfo('2036-06-15');
+    expect(late.capped).toBe(true);
+    expect(late.since).toBeCloseTo(priceIndexCap() - 1, 12);
+    const now = inflationInfo('2026-11-03');
+    expect(now).toMatchObject({ month: '2026-11', rate: monthInflation('2026-11'), capped: false });
+    expect(now.since).toBeCloseTo(monthInflation('2026-11'), 12);
+  });
+});

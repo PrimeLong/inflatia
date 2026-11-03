@@ -10,7 +10,8 @@
 import { earn, hasClaim, shopDay } from './rewards.js';
 import { dayOf } from '../textbook/learn-state.js';
 
-export const DUST = { coins: 3, perDay: 3, clean: 0.9, wipe: 0.65, thr: 0.25 };
+// 2 монеты за витрину, до пяти витрин в день (было 3 × 3) — docs/mechanics.md, «Лавка»
+export const DUST = { coins: 2, perDay: 5, clean: 0.9, wipe: 0.65, thr: 0.25 };
 
 export const dustKey = (day, n) => `dust:${day}:${n}`;
 // сколько витрин уже оплачено сегодня и сколько ещё можно

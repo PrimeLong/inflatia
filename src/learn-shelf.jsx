@@ -12,11 +12,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Card, IconButton, Sheet, Button } from './ds.jsx';
-import { shelfBooks, BOOK_BY_ID, wordsIn, bookReadAt, bookSpeech, speechSeconds } from './learn/shelf.js';
+import { shelfBooks, BOOK_BY_ID, wordsIn, bookReadAt, bookSpeech, speechSeconds, readLockSeconds } from './learn/shelf.js';
 import { useBookPlayer, MiniPlayer, MINI_CSS, clock, rateText, Bars } from './learn-bookdock.jsx';
 import { bookPlayer, getState as getBookState } from './learn/book-player.js';
 import { plural } from './lib/plural.js';
-import { markBook } from './textbook/learn-state.js';
+import { markBook, XP } from './textbook/learn-state.js';
 import { fullDate } from './learn/collections.js';
 import { galleryOf } from './learn/people.js';
 import { READING_BY_UNIT } from './learn/reading.js';
@@ -50,6 +50,10 @@ const CSS = `
   .lb-end { margin-top: 30px; text-align: center; }
   .lb-stamp { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border: 2.5px solid var(--b); border-radius: 10px; color: var(--b); font: 700 15px var(--ds-sans); letter-spacing: .08em; text-transform: uppercase; transform: rotate(-3deg); }
   .ds-dark .lb-stamp { color: color-mix(in srgb, var(--b) 45%, #fff); border-color: color-mix(in srgb, var(--b) 45%, #fff); }
+  .lb-wait { margin-top: 8px; font: 13px/1.4 var(--ds-sans); color: var(--ds-ink3); font-variant-numeric: tabular-nums; }
+  .lb-xp { margin-top: 10px; font: 700 14px var(--ds-sans); color: var(--b); animation: lb-xp .5s .25s ease-out backwards; }
+  .ds-dark .lb-xp { color: color-mix(in srgb, var(--b) 45%, #fff); }
+  @keyframes lb-xp { from { opacity: 0; transform: translateY(6px) } }
   .lb-stamp.fresh { animation: lb-stamp .5s cubic-bezier(.3, 1.4, .5, 1) backwards; }
   .lb-stamp small { font: 600 13px var(--ds-sans); letter-spacing: 0; text-transform: none; opacity: .85; }
   @keyframes lb-stamp { from { transform: rotate(-3deg) scale(1.8); opacity: 0 } }
@@ -120,7 +124,7 @@ const CSS = `
   .lb-think svg { position: absolute; left: 16px; top: 15px; color: var(--ds-gold); }
   .lb-orn { text-align: center; color: var(--ds-ink3); letter-spacing: .6em; margin-top: 26px; }
   .lb-note { margin-top: 30px; font-size: 13px; color: var(--ds-ink3); line-height: 1.5; border-top: 1px dashed var(--ds-rule); padding-top: 12px; }
-  @media (prefers-reduced-motion: reduce) { .lb-cover, .lb-stamp, .lb-ribbon, .lb-tick, .lb-mini, .lb-bars i, .lb-listen.on .lb-play::after, .lb-passage.now::before { animation: none !important; } .lb-book { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .lb-cover, .lb-stamp, .lb-xp, .lb-ribbon, .lb-tick, .lb-mini, .lb-bars i, .lb-listen.on .lb-play::after, .lb-passage.now::before { animation: none !important; } .lb-book { transition: none; } }
 `;
 
 /* ПРОИГРЫВАТЕЛЬ КНИГИ — один на всё приложение (src/learn/book-player.js): включили книгу — она звучит и
@@ -161,9 +165,33 @@ function ListenCard({ b, p, cardRef }) {
   );
 }
 
+/* Сколько книга была открыта (секунды, на этом устройстве; ems-book-time): «Отметить прочитанной» открывается
+   через половину примерного времени чтения (readLockSeconds). Время идёт, только пока читалка открыта и экран
+   виден; закрыли — накопленное не теряется. Возвращает, сколько секунд ещё ждать. */
+const TIME_KEY = 'ems-book-time';
+const readTimes = () => { try { const m = JSON.parse(localStorage.getItem(TIME_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; } catch { return {}; } };
+function useReadClock(id, need, on) {
+  const spent = useRef(Math.min(need, Math.max(0, Number(readTimes()[id]) || 0)));
+  const [left, setLeft] = useState(need - spent.current);
+  useEffect(() => {
+    if (!on || spent.current >= need) return undefined;
+    const save = () => { try { localStorage.setItem(TIME_KEY, JSON.stringify({ ...readTimes(), [id]: spent.current })); } catch { /* приватный режим — время только до закрытия */ } };
+    const t = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      spent.current = Math.min(need, spent.current + 1);
+      setLeft(need - spent.current);
+      if (spent.current % 5 === 0 || spent.current >= need) save();
+      if (spent.current >= need) clearInterval(t);
+    }, 1000);
+    return () => { clearInterval(t); save(); };
+  }, [id, need, on]);
+  return left;
+}
+
 export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null }) {
   const b = BOOK_BY_ID[id];
   const [fresh, setFresh] = useState(false);
+  const wait = useReadClock(id, readLockSeconds(b), !readAt && !!onRead);
   const root = useRef(null);
   const parts = useMemo(() => bookSpeech(b), [b]);
   const player = useBookPlayer(b, parts, speechSeconds(b));
@@ -225,9 +253,15 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
         {/* в конце — отметить книгу прочитанной: на полке у неё появится закладка */}
         <div className="lb-end" data-testid="book-end">
           {readAt ? (
-            <span className={`lb-stamp${fresh ? ' fresh' : ''}`} data-testid="book-read-stamp" role="status"><Check size={18} aria-hidden="true" />Прочитано<small>{fullDate(readAt)}</small></span>
+            <>
+              <span className={`lb-stamp${fresh ? ' fresh' : ''}`} data-testid="book-read-stamp" role="status"><Check size={18} aria-hidden="true" />Прочитано<small>{fullDate(readAt)}</small></span>
+              {fresh && <div className="lb-xp" data-testid="book-xp">+{XP.book} опыта</div>}
+            </>
           ) : onRead ? (
-            <Button icon={Check} data-testid="book-mark-read" onClick={() => { Audio.play('up'); setFresh(true); onRead(id); }}>Отметить прочитанной</Button>
+            <>
+              <Button icon={Check} data-testid="book-mark-read" disabled={wait > 0} onClick={() => { if (wait > 0) return; Audio.play('up'); setFresh(true); onRead(id); }}>Отметить прочитанной</Button>
+              {wait > 0 && <div className="lb-wait" data-testid="book-read-wait" data-left={wait}>Откроется через {clock(wait)} — книгу нужно сначала прочитать</div>}
+            </>
           ) : null}
         </div>
         <div className="lb-note">Перевод — редакции «Инфляции», с сокращениями: пропуски отмечены «[…]». Текст {b.year} года — в общественном достоянии.</div>

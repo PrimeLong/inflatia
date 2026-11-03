@@ -25,7 +25,8 @@ import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
 import { askSave } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
-import { track, trackOnce } from './lib/client.js';
+import { track, trackOnce, reportsMe } from './lib/client.js';
+import { TRACK, rememberTeam } from './learn/track.js';
 import { Audio, getPlayerId, syncProfile } from './MacroSimulator.jsx';
 import { Blocks, Inline, ChartSvg, ChartLegend, TEXTBOOK_CSS, TextbookScreen } from './textbook.jsx';
 import { CHARTS, chartDefaults } from './textbook/charts.js';
@@ -34,7 +35,7 @@ import { afterPathAnswer, dropFromReview } from './textbook/review-sync.js';
 import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
   UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, levelUnits, LESSON_BY_ID, KIND_LABEL, SHIFT_CURVES, LESSON_KIND, GAME_KINDS, SELF_CHECK, OPEN_MIN, buildLesson, buildUnitCheck, buildLevelCheck, buildPractice, practiceIds, canPractice, PRACTICE_MAX, check, ready, answerText, unitFor, pathState,
-  buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix,
+  buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix, EXAM_LETTERS,
 } from './learn/course.js';
 import {
   startLesson, recordAttempt, abandonLesson, addMistake, resolveMistake, skipLesson, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak,
@@ -42,7 +43,7 @@ import {
   markShown, shownWith, markFixed,
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
-import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth } from './learn/rewards.js';
+import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote } from './learn/rewards.js';
 import { DeskDecor, tellAnswer } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
@@ -338,13 +339,13 @@ const CSS = `
   .ln-peek-verdict.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 10%, var(--ds-card)); color: var(--ds-ink); }
   @media (prefers-reduced-motion: reduce) { .ln-peek { animation: none; } }
   .ln-head { display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 14px 4px; max-width: 592px; width: 100%; margin: 0 auto; }
-  /* молния «подряд верно» — верные ответы подряд в уроке (огонёк — только серия дней) */
+  /* молния с числом — верные ответы подряд, бессрочная серия (огонёк — только серия дней) */
   .ln-fire { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 10px 0 7px; border-radius: 999px;
     background: linear-gradient(135deg, #FFB547, #FF6A3D); color: #fff; font: 800 14px var(--ds-head); box-shadow: 0 3px 0 #C2410C, 0 8px 16px -8px rgba(255, 106, 61, .8);
     animation: ln-fire-in .45s cubic-bezier(.3, 1.6, .5, 1) both; }
   .ln-fire b { display: inline-block; min-width: 1ch; text-align: center; animation: ln-fire-bump .35s cubic-bezier(.3, 1.8, .5, 1); }
-  .ln-fire-cap { font: 700 12px/1 var(--ds-sans); margin-left: 2px; white-space: nowrap; }
-  .ln-fire-ic { animation: ln-flicker 1.2s ease-in-out infinite; transform-origin: 50% 90%; }
+  /* молния покачивается медленно и мягко — раньше дёргалась и раздувалась раз в 1,2 с (жалоба «качается быстро и странно») */
+  .ln-fire-ic { animation: ln-fire-sway 3.2s ease-in-out infinite; transform-origin: 50% 85%; }
   .ln-fire.big { animation: ln-fire-big .6s cubic-bezier(.3, 1.6, .5, 1); }
   .ln-fire.out { background: linear-gradient(135deg, #B9B2A6, #8E877C); box-shadow: 0 3px 0 #6F695F; animation: ln-fire-out .9s ease-in forwards; }
   .ln-fire.out .ln-fire-ic { animation: none; }
@@ -353,12 +354,14 @@ const CSS = `
   @keyframes ln-fire-in { from { transform: scale(.3); opacity: 0 } }
   @keyframes ln-fire-bump { 0% { transform: scale(1.7) } 100% { transform: scale(1) } }
   @keyframes ln-flicker { 0%, 100% { transform: scale(1) rotate(-4deg) } 50% { transform: scale(1.14) rotate(5deg) } }
+  @keyframes ln-fire-sway { 0%, 100% { transform: rotate(-4deg) } 50% { transform: rotate(4deg) } }
   @keyframes ln-fire-big { 0% { transform: scale(1) } 40% { transform: scale(1.3) } 100% { transform: scale(1) } }
   @keyframes ln-fire-out { 0% { transform: none; opacity: 1 } 30% { transform: rotate(-7deg) } 60% { transform: rotate(5deg); opacity: .8 } 100% { transform: scale(.6); opacity: 0 } }
   @keyframes ln-plus { 0% { transform: translateY(0); opacity: 0 } 15% { opacity: 1 } 100% { transform: translateY(-22px); opacity: 0 } }
   @keyframes ln-spark { from { transform: rotate(var(--a)) translateX(4px); opacity: 1 } to { transform: rotate(var(--a)) translateX(28px); opacity: 0 } }
-  .ln-xp-bonus { display: inline-flex; align-items: center; gap: 3px; margin-top: 2px; font: 700 12px var(--ds-sans); color: #C2490B; }
-  .ds.ds-dark .ln-xp-bonus { color: #FFB27A; }
+  .ln-xp-bonus { display: inline-flex; align-items: center; gap: 2px; margin-top: 3px; padding: 1px 7px 1px 5px; border-radius: 999px; font: 700 13px/1.4 var(--ds-sans); color: #C2490B; background: color-mix(in srgb, #C2490B 10%, transparent); white-space: nowrap; }
+  .ln-xp-note { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 8px 0 0; font: 600 13.5px/1.35 var(--ds-sans); color: #C2490B; text-align: center; }
+  .ds.ds-dark .ln-xp-bonus, .ds.ds-dark .ln-xp-note { color: #FFB27A; }
   @media (prefers-reduced-motion: reduce) { .ln-fire, .ln-fire b, .ln-fire-ic, .ln-fire-plus, .ln-fire-sparks i { animation: none !important; } .ln-fire-plus, .ln-fire-sparks { display: none; } }
   /* прокрутка урока — только по вертикали и только когда содержимое правда длиннее экрана:
      встряска после ошибки и свайп карточки двигают его вбок (без overflow-x: hidden из-за
@@ -384,6 +387,25 @@ const CSS = `
   .ln-inner { max-width: 560px; margin: 0 auto; }
   .ln-foot { border-top: 2px solid var(--ds-rule); padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--ds-paper); }
   .ln-foot.fb { padding: 0; border-top: none; }
+  /* задание в формате экзамена: метка, номера пунктов, бланк ответа клетками */
+  .ln-exam-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12.5px; }
+  .ln-exam-tag { font: 800 12px/1 var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ds-paper); background: var(--u-ink); padding: 5px 8px 4px; border-radius: 6px; }
+  .ln-exam .ln-exam-opt { display: flex; gap: 10px; align-items: flex-start; }
+  .ln-exam-no { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--ds-rule2); display: inline-flex; align-items: center; justify-content: center; font: 700 13px var(--ds-sans); color: var(--ds-ink2); margin-top: 1px; }
+  .ln-exam .ln-exam-opt[aria-pressed="true"] .ln-exam-no { background: var(--u-ink); border-color: var(--u-ink); color: var(--ds-paper); }
+  .ln-exam-bins { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 8px; font-size: 14px; }
+  .ln-exam-bins b { display: inline-flex; width: 20px; height: 20px; border-radius: 6px; background: var(--ds-card2); border: 1.5px solid var(--ds-rule2); align-items: center; justify-content: center; margin-right: 6px; font-size: 12.5px; }
+  .ln-exam-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 6px 0; border: 2px solid var(--ds-rule2); border-radius: 12px; background: var(--ds-card); }
+  .ln-exam-row.right { border-color: var(--ds-ok); } .ln-exam-row.wrong { border-color: var(--ds-bad); }
+  .ln-exam-text { flex: 1; min-width: 0; font-size: 15px; line-height: 1.35; }
+  .ln-exam-digits { display: inline-flex; gap: 4px; flex: none; }
+  .ln-exam-digit { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--ds-rule2); background: var(--ds-card); font: 700 15px var(--ds-sans); color: var(--ds-ink); cursor: pointer; }
+  .ln-exam-digit[aria-pressed="true"] { background: var(--u-ink); border-color: var(--u-ink); color: var(--ds-paper); }
+  .ln-exam-form { display: flex; align-items: center; gap: 10px; margin-top: 10px; font: 700 14px var(--ds-sans); color: var(--ds-ink2); }
+  .ln-exam-grid { display: inline-flex; gap: 3px; }
+  .ln-exam-grid > span { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ln-exam-grid small { font-size: 11px; color: var(--ds-ink3); }
+  .ln-exam-grid b { width: 26px; height: 30px; border: 1.5px solid var(--ds-ink3); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font: 700 17px var(--ds-mono, monospace); color: var(--ds-ink); background: var(--ds-card); }
   .ln-match { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .ln-match-tag { display: block; font: 700 11.5px/1.2 var(--ds-sans); letter-spacing: .02em; margin-bottom: 3px; }
   @media (max-width: 560px) {
@@ -444,6 +466,8 @@ const CSS = `
   .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; }
   .ln-explain-flag .ln-flag:hover, .ln-explain-flag .ln-flag:focus-visible { opacity: 1; background: none; color: var(--ds-bad); }
   .ln-book { min-height: 100vh; margin: -12px -16px 0; }
+  .ln-track { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; padding: 7px 12px; border-radius: 10px; font: 600 13px/1.3 var(--ds-sans); color: #7A1F31; background: color-mix(in srgb, #8C2337 10%, var(--ds-card)); border: 1px dashed color-mix(in srgb, #8C2337 45%, transparent); }
+  .ds-dark .ln-track { color: #F0B9C4; }
   /* кнопки учебника-справочника — те же, что у дизайн-системы: объёмные, со скруглением */
   .ln-textbook .ems-btn { font: 700 13.5px/1.25 var(--ds-sans); border: 2px solid var(--ds-rule2); border-bottom-width: 4px; border-radius: 12px; background: var(--ds-card);
     color: var(--u-ink); box-shadow: none; letter-spacing: 0; }
@@ -464,6 +488,8 @@ const testAnswer = (inst) => {
     case 'tf': return JSON.stringify(inst.answer);
     case 'match': return JSON.stringify(Object.fromEntries(inst.left.map((l) => [l.key, l.key])));
     case 'sort': return JSON.stringify(Object.fromEntries(inst.items.map((it) => [it.key, it.bin])));
+    case 'exam': return JSON.stringify(inst.form === 'match' ? { form: 'match', map: Object.fromEntries(inst.items.map((it) => [it.key, it.bin])) }
+      : inst.form === 'one' ? { form: 'one', key: inst.options.find((o) => o.correct).key } : { form: 'pick', keys: inst.options.filter((o) => o.correct).map((o) => o.key) });
     case 'calc': return JSON.stringify(String(Math.round(inst.answer * 100) / 100).replace('.', ','));
     case 'shift': return JSON.stringify(inst.answer);
     case 'news': return JSON.stringify(inst.expect);
@@ -484,6 +510,10 @@ function useLearn() {
   const [progress, setProgress] = useState(loadProgress);
   const playerId = useMemo(getPlayerId, []);
   const timer = useRef(null);
+  /* выплаты при действии вне урока (лавка, копилка, сад, витрина): settle выдаёт накопленное — цель дня,
+     задания, печати; раньше монеты приходили молча (жалоба «откуда-то 10 монет»), теперь — плашкой */
+  const gainsRef = useRef([]);
+  const [gains, setGains] = useState([]);
   // opts.settle — после изменения выдать всё выполненное: задания дня, печати, бонусы серии
   // opts.whole — fn получает весь прогресс (с задачами учебника), а не только Путь
   const update = (fn, opts = {}) => {
@@ -491,7 +521,7 @@ function useLearn() {
       const p = latestProgress(mem);
       if (opts.whole) { const next = fn(p); return next === p ? mem : saveProgress(next); }
       let learn = fn(p.learn);
-      if (opts.settle) learn = settle(learn, courseCtx(learn)).s;
+      if (opts.settle) { const r = settle(learn, courseCtx(learn)); learn = r.s; if (r.gains.length) gainsRef.current = r.gains; }
       return learn === p.learn ? mem : saveProgress({ ...p, learn });
     });
     if (timer.current) clearTimeout(timer.current);
@@ -530,8 +560,11 @@ function useLearn() {
     return () => { alive = false; if (timer.current) clearTimeout(timer.current); syncProfile(playerId).catch(() => {}); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId]);
-  return [progress.learn, update];
+  // выплата из settle — после записи прогресса, один раз (апдейтер setProgress может вызываться дважды)
+  useEffect(() => { if (gainsRef.current.length) { const g = gainsRef.current; gainsRef.current = []; setGains(g); } }, [progress]);
+  return [progress.learn, update, gains, () => setGains([])];
 }
+
 
 // значок вида урока: на остановке Пути и в билете урока
 export const KIND_ICON = { intro: BookOpen, practice: Dumbbell, words: Languages, story: MessageCircle, listen: Headphones, game: Gamepad2, review: Repeat, summary: Flag };
@@ -583,11 +616,38 @@ function CardPicture({ c }) {
     </>
   );
 }
-function MiniChart({ type, attrs, values = null }) {
+/* «Куда сдвинется?»: новое положение кривой — не сразу, а плавным переходом от того, что на экране
+   (docs/mechanics.md); перебили новым выбором — едет от того места, где была. «Уменьшить движение» — сразу. */
+const TWEEN_MS = 1100;
+function useTweened(v, on) {
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(v);
+  const from = useRef(v);
+  const key = JSON.stringify(v);
+  const lastKey = useRef(key);
+  useEffect(() => {
+    // без перехода (шаги урока со своим движением) — ничего не держим и лишний раз не перерисовываем
+    if (!on || key === lastKey.current) return undefined;
+    lastKey.current = key;
+    if (reduced) { from.current = v; setShown(v); return undefined; }
+    const a = from.current; const t0 = performance.now(); let raf = 0;
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / TWEEN_MS); const e = easeIO(k);
+      const mid = Object.fromEntries(Object.entries(v).map(([id, x]) => [id, typeof x === 'number' && typeof a[id] === 'number' ? a[id] + (x - a[id]) * e : x]));
+      from.current = mid; setShown(mid);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [key, on, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
+  return on ? shown : v;
+}
+function MiniChart({ type, attrs, values = null, tween = false }) {
   const def = CHARTS[type];
   const moving = useAnimValues(type, attrs);
+  const target = def ? { ...chartDefaults(type, attrs), ...moving, ...values } : {};
+  const v = useTweened(target, tween);
   if (!def) return null;
-  const v = { ...chartDefaults(type, attrs), ...moving, ...values };
   // на Пути деньги — в кронах (src/learn/money.js)
   // под графиком — ключ: что значит каждая линия, простыми словами
   return <div style={{ maxWidth: 360, margin: '8px auto' }}><ChartSvg scene={sceneInCrowns(def.build(attrs, v))} />{def.legend && <ChartLegend items={def.legend(attrs, v)} />}</div>;
@@ -712,7 +772,7 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
       return (
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
-          <MiniChart type={inst.chart} attrs={inst.chartAttrs} values={values} />
+          <MiniChart type={inst.chart} attrs={inst.chartAttrs} values={values} tween />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {inst.choices.map((c) => (
               <button key={c.key} type="button" className={`ds-opt ${optClass(c.key, c.key === inst.answer)}`} style={{ textAlign: 'center', margin: 0 }}
@@ -777,6 +837,53 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
                 {x.key in rightOwner && <span className="ln-match-tag" data-testid="match-tag" style={{ color: tone(pairNo[rightOwner[x.key]]) }}><Inline nodes={inst.left.find((l) => l.key === rightOwner[x.key]).text} ctx={ctx} /></span>}
                 <Inline nodes={x.text} ctx={ctx} /></button>
             ))}</div>
+          </div>
+        </div>
+      );
+    }
+    /* задание в формате экзамена: метка «ЕГЭ · задание N», пронумерованные пункты, ответ — цифрами, как в бланке */
+    case 'exam': {
+      const tag = `${inst.test}${inst.no ? ` · задание ${inst.no}` : ''}`;
+      const sel = inst.form === 'pick' ? (Array.isArray(resp) ? resp : []) : [];
+      const toggle = (key) => pick(sel.includes(key) ? sel.filter((k) => k !== key) : [...sel, key]);
+      const r = inst.form === 'match' ? (resp || {}) : null;
+      // клетки бланка: выбранные номера по возрастанию, у соответствия — цифра под каждой буквой
+      const cells = inst.form === 'match' ? inst.items.map((it) => (r[it.key] ? String(inst.bins.indexOf(r[it.key]) + 1) : ''))
+        : inst.form === 'one' ? [resp ? String(inst.options.findIndex((o) => o.key === resp) + 1) : '']
+          : inst.options.map((o, k) => (sel.includes(o.key) ? String(k + 1) : null)).filter(Boolean);
+      const mark = (o) => (!fb ? '' : o.correct ? 'right' : (inst.form === 'one' ? resp === o.key : sel.includes(o.key)) ? 'wrong' : '');
+      return (
+        <div className="ln-exam" data-form={inst.form}>
+          <div className="ln-exam-head"><span className="ln-exam-tag" data-testid="exam-tag">{tag}</span><span className="ds-faint">в формате экзамена</span></div>
+          <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          {inst.form === 'match' ? (
+            <>
+              <div className="ln-exam-bins">{inst.bins.map((b, i) => <span key={b}><b>{i + 1}</b>{b}</span>)}</div>
+              {inst.items.map((it, k) => (
+                <div key={it.key} className={`ln-exam-row ${fb ? (r[it.key] === it.bin ? 'right' : 'wrong') : ''}`}>
+                  <span className="ln-exam-no">{EXAM_LETTERS[k]}</span>
+                  <span className="ln-exam-text"><Inline nodes={it.text} ctx={ctx} /></span>
+                  <span className="ln-exam-digits">{inst.bins.map((b, i) => (
+                    <button key={b} type="button" className="ln-exam-digit" aria-label={`${EXAM_LETTERS[k]} — ${i + 1}`} aria-pressed={r[it.key] === b} data-item={it.key} data-bin={b} disabled={locked}
+                      onClick={() => pick({ ...r, [it.key]: b })}>{i + 1}</button>
+                  ))}</span>
+                </div>
+              ))}
+            </>
+          ) : inst.options.map((o, k) => {
+            const on = inst.form === 'one' ? resp === o.key : sel.includes(o.key);
+            return (
+              <button key={o.key} type="button" className={`ds-opt ln-exam-opt ${mark(o)}`} aria-pressed={on} data-pick={o.key} disabled={locked}
+                onClick={() => (inst.form === 'one' ? pick(o.key) : toggle(o.key))}>
+                <span className="ln-exam-no">{k + 1}</span><span style={{ minWidth: 0 }}><Inline nodes={o.text} ctx={ctx} /></span>
+              </button>
+            );
+          })}
+          <div className="ln-exam-form" data-testid="exam-form" aria-label={`Ответ: ${cells.join('') || 'пусто'}`}>
+            <span>Ответ:</span>
+            {inst.form === 'match'
+              ? <span className="ln-exam-grid">{inst.items.map((it, k) => <span key={it.key}><small>{EXAM_LETTERS[k]}</small><b>{cells[k] || ' '}</b></span>)}</span>
+              : <span className="ln-exam-grid">{(cells.length ? cells : ['']).map((c, k) => <span key={k}><b>{c || ' '}</b></span>)}</span>}
           </div>
         </div>
       );
@@ -925,7 +1032,7 @@ function newPlan(run, learn) {
   return { items: buildPractice(practiceIds(learn), Math.random, { weak: weakLessons(learn).map((w) => w.id) }).items, cards: {} };
 }
 /* Верные ответы подряд — молния в шапке урока (огонёк — только серия дней, docs/mechanics.md, «Экономика
-   наград»). С третьего верного подряд: «⚡ 3 подряд верно», каждый новый верный ответ раздувает число и
+   наград»). С третьего верного подряд: «⚡ 3» — значок и число, без подписи; серия бессрочная. Каждый новый верный ответ раздувает число и
    выпускает «+1» (опыт за верные подряд); на 5, 10, 15… — вспышка искр. Ошибка — молния сереет, качается и
    гаснет. plus — показывать «+1» (на повторе урока опыт почти не идёт). */
 function StreakFlame({ n, plus = true }) {
@@ -948,7 +1055,7 @@ function StreakFlame({ n, plus = true }) {
   return (
     <span className={`ln-fire${on ? '' : ' out'}${milestone ? ' big' : ''}`} data-testid="lesson-streak" data-streak={shown} role="status" aria-label={`${shown} подряд верно`}>
       <Zap size={15} className="ln-fire-ic" aria-hidden="true" />
-      <b key={shown}>{shown}</b><small className="ln-fire-cap" aria-hidden="true">подряд верно</small>
+      <b key={shown}>{shown}</b>
       {on && plus && grew && <span key={`p${n}`} className="ln-fire-plus" data-testid="lesson-streak-plus" aria-hidden="true">+1</span>}
       {milestone && <span key={`s${n}`} className="ln-fire-sparks" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} style={{ '--a': `${i * 45}deg` }} />)}</span>}
     </span>
@@ -1600,10 +1707,12 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
               {result.streakUp > 0 && <StreakBurst days={result.streakUp} />}
               <div className="ln-tickets">
                 <div data-testid="result-xp" data-bonus={result.bonus || 0}><div className="ds-eyebrow" style={{ fontSize: 12 }}>Опыт{result.boosted ? ' ×2' : ''}</div><div className="v"><CountUp value={result.xp} prefix="+" /></div>
-                  {result.bonus > 0 && <div className="ln-xp-bonus"><Zap size={12} aria-hidden="true" />+{result.bonus} {result.game ? 'за игру и верные подряд' : 'за верные подряд'}</div>}</div>
+                  {result.bonus > 0 && <div className="ln-xp-bonus" data-testid="result-xp-bonus" title={`+${result.bonus} ${result.game ? 'за игру и верные ответы подряд' : 'за верные ответы подряд'}`}><Zap size={15} strokeWidth={2.4} aria-hidden="true" />+{result.bonus}</div>}</div>
                 <div data-testid="result-acc"><div className="ds-eyebrow" style={{ fontSize: 12 }}>Точность</div><div className="v">{Math.round(result.accuracy)}%</div></div>
                 <div data-testid="result-time"><div className="ds-eyebrow" style={{ fontSize: 12 }}>Время</div><div className="v">{mmss(result.ms)}</div></div>
               </div>
+              {/* пояснение к молнии — под плитками, а не в плитке: на узком телефоне оно растягивало все три */}
+              {result.bonus > 0 && <div className="ln-xp-note" data-testid="result-xp-note"><Zap size={15} strokeWidth={2.4} aria-hidden="true" />+{result.bonus} опыта — {result.game ? 'за игру и верные ответы подряд' : 'за верные ответы подряд'}</div>}
               <GainsList coins={result.coins} gains={result.gains} />
               {lesson && run.mode === 'lesson' && !replay && partsOfLesson(lesson.id).length > 0 && (
                 <div className="ds-sub" style={{ fontSize: 14.5, marginTop: 10 }} data-testid="result-model">
@@ -2609,6 +2718,7 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
     <div ref={rootRef} className={`ln-wrap${wide ? ' ln-path-wide' : ''}`} data-testid="path" data-layout={wide ? 'columns' : 'column'}>
       <div className="ln-path-main">
       <TopStats learn={learn} bell={bell} />
+      {TRACK === 'politics' && <div className="ln-track" data-testid="track-badge"><Landmark size={15} aria-hidden="true" />Курс «Политология» — проба для команды</div>}
       {!wide && <TasksEntry learn={learn} onOpen={onTasks} />}
       {!wide && races}
       {!wide && <HalloweenCard learn={learn} update={update} />}
@@ -2829,7 +2939,15 @@ function GuestSave({ learn, afterLesson = false }) {
 }
 
 export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {
-  const [learn, update] = useLearn();
+  const [learn, update, gains, gainsDone] = useLearn();
+  // курс политологии (проба для команды, src/learn/track.js): сервер больше не считает вошедшего командой — обратно к экономике
+  useEffect(() => {
+    if (TRACK !== 'politics') return;
+    let acc = null;
+    try { acc = JSON.parse(localStorage.getItem('ems-account') || 'null'); } catch { /* повреждённая запись */ }
+    if (!acc || !acc.token) return;
+    reportsMe(acc.token).then((r) => { if (r && r.owner === false) { rememberTeam(acc.login, false); window.location.reload(); } }).catch(() => {});
+  }, []);
   const [run, setRun] = useState(null);
   // «Чтение» юнита — подборка цитат поверх Пути (src/learn-reading.jsx)
   const [reading, setReading] = useState(null);
@@ -2999,6 +3117,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {friendLogin && <FriendProfile login={friendLogin} data={friends} learn={learn} update={update} myWear={outfit} onBack={() => setFriendLogin(null)} />}
       {bell && <NotifyCenter notify={notify} onClose={() => setBell(false)} onGo={goNotify} />}
       {toast && <NotifyToast n={toast} onGo={(n) => { toastDone(); goNotify(n); }} onClose={toastDone} onRead={(n) => notify.markOne(n.id)} />}
+      {!toast && !run && gains.length > 0 && <NotifyToast n={gainsNote(gains)} onGo={gainsDone} onClose={gainsDone} />}
       {reports && <ReportsView onBack={() => { Audio.play('paper'); setReports(false); }} />}
       {analytics && <AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} />}
       {chest && <ChestSheet unitId={chest} place={placeOf(chest).place} learn={learn} update={update}

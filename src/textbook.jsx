@@ -2,7 +2,7 @@
    вместе с KaTeX и текстами глав — в меню и в партии этот код не нужен.
    Тексты — src/textbook/chapters/*.md (разметка — src/textbook/markdown.js), порядок и
    ссылки на настоящие учебники — src/textbook/toc.js, прогресс — src/textbook/progress.js. */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { ArrowLeft, BookOpenText, BookOpen, Calculator, Gamepad2, Play, Check, RotateCcw, ChevronLeft, ChevronRight, Info, Target, ListChecks, TriangleAlert, Brain, ChevronDown, ChevronUp, ArrowDown, ArrowUp, Lightbulb, X, Lock } from 'lucide-react';
@@ -21,8 +21,8 @@ import { TYCOON_TASKS } from './textbook/tycoon-tasks.js';
 import { CHAPTER_BLOCKS, APPENDIX_BLOCKS, CHAPTER_SECTIONS, PROBLEMS, RECALLS, problemsOf, keyFormulas } from './textbook/content.js';
 import { sectionDone, sectionProgress, dueItems, chapterRead, chapterShare } from './textbook/study.js';
 import { COIN, bookFirstTry, earn } from './learn/rewards.js';
-import { emptyLearn } from './textbook/learn-state.js';
-import { CHARTS, chartDefaults, checkGraph, captionVars } from './textbook/charts.js';
+import { emptyLearn, recallXp, addXp } from './textbook/learn-state.js';
+import { CHARTS, chartDefaults, checkGraph, captionVars, chartExit } from './textbook/charts.js';
 import { actionOf, parseInline, checkAnswer, matchTraps, LEVELS, typo } from './textbook/markdown.js';
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, markRead, unmarkRead, recordAnswer, scheduleAfter, reviewQueue, chapterScore, setLast, daysUntil, confidenceStats, addStudyMinute } from './textbook/progress.js';
 import { afterBookAnswer, dropFromReview } from './textbook/review-sync.js';
@@ -48,6 +48,7 @@ export const TEXTBOOK_CSS = `
     padding: 0; border-radius: 50%; border: 1px solid var(--ds-rule2, var(--c-border)); background: var(--ds-card, var(--c-panel)); color: var(--u-ink, var(--c-gold-soft)); box-shadow: 0 4px 14px var(--ds-shade, rgba(0,0,0,.18)); cursor: pointer; }
   .tb-to-top.with-nav { bottom: calc(84px + env(safe-area-inset-bottom)); }
   /* решённая задача — видно издалека: зелёная кайма слева, лёгкий зелёный фон, плашка «Решена» */
+  .tb-chart-axes { margin: 2px auto 0; max-width: 560px; text-align: center; font: italic 12.5px/1.4 var(--ds-sans, sans-serif); color: var(--c-muted, #777); }
   .tb-solved { border-left: 4px solid var(--c-teal, #2E7D5B) !important; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 7%, var(--c-panel, #fff)) !important; }
   .tb-solved-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--c-teal, #2E7D5B); color: #fff; }
   .tb-todo-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 2px dashed var(--c-border); color: var(--c-muted); font: 700 12px/1 var(--ds-sans, sans-serif); }
@@ -123,6 +124,9 @@ export const TEXTBOOK_CSS = `
   /* неверный — сплошная рамка и крестик: пунктир на толстой левой кромке рассыпался на рваные куски (жалоба mvgosm0p) */
   .tb-recall-opt.wrong { border-color: var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 8%, var(--c-panel)); color: var(--c-text); }
   .tb-recall-opt.dim { opacity: .62; }
+  .tb-recall-xp { font: 700 12px/1 var(--ds-sans, sans-serif); color: var(--c-teal, #2E7D5B); padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 12%, transparent); animation: tb-xp-in .4s ease-out both; }
+  @keyframes tb-xp-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+  @media (prefers-reduced-motion: reduce) { .tb-recall-xp { animation: none; } }
   .tb-recall-why { font-size: 13px; line-height: 1.5; color: var(--c-text); margin: -4px 0 10px; padding: 6px 10px; border-left: 3px solid var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 6%, transparent); }
   .tb-box-head { display: flex; align-items: center; gap: 7px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
   .tb-link { background: none; border: none; padding: 0; font: inherit; color: var(--c-gold-soft); cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
@@ -545,14 +549,18 @@ function RecallCard({ b, ctx, from }) {
     const all = b.parts.every((_, j) => next[j] != null);
     const good = all && b.parts.every((p, j) => p.options[next[j]].correct);
     Audio.play(!b.parts[i].options[k].correct ? 'tick' : all && good ? 'stamp' : 'click');
-    if (all) { setAfter({ ...scheduleAfter(rec, good, Date.now()), wasOk: !!(rec && rec.ok) }); ctx.onAnswer(b.id, good, {}); }
+    if (all) { const now = Date.now(); setAfter({ ...scheduleAfter(rec, good, now), wasOk: !!(rec && rec.ok), xp: recallXp(rec, good, now) }); ctx.onAnswer(b.id, good, {}); }
   };
   return (
     <div className="tb-box" style={{ borderLeftColor: COLOR.blue }} data-testid="tb-recall" data-recall={b.id} data-answer={JSON.stringify(b.parts.map((p) => p.options.findIndex((o) => o.correct)))}>
       <div className="row-between" style={{ alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
         <div className="tb-box-head" style={{ color: COLOR.blue, marginBottom: 6 }}><Brain size={13} />{from ? `${from} · ` : ''}Вспомните</div>
-        {rec && !done && <span className="tb-chip" style={{ color: rec.ok ? COLOR.teal : COLOR.rust, borderColor: rec.ok ? COLOR.teal : COLOR.rust }}>
-          {rec.ok ? 'отвечено верно' : 'была ошибка'}{rec.due ? ` · повтор ${daysUntil(rec.due)}` : ''}</span>}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {rec && !done && <span className="tb-chip" style={{ color: rec.ok ? COLOR.teal : COLOR.rust, borderColor: rec.ok ? COLOR.teal : COLOR.rust }}>
+            {rec.ok ? 'отвечено верно' : 'была ошибка'}{rec.due ? ` · повтор ${daysUntil(rec.due)}` : ''}</span>}
+          {/* пожаловаться на вопрос «Вспомните» — и в главе, и в повторении прочитанного (раньше флажок был только у задач) */}
+          {ctx.reportFlag && <span data-testid="tb-report">{ctx.reportFlag(() => recallContext(b, picks))}</span>}
+        </span>
       </div>
       {b.parts.map((p, i) => {
         const chosen = picks[i];
@@ -585,6 +593,7 @@ function RecallCard({ b, ctx, from }) {
           </div>
           <div data-testid="tb-recall-verdict" style={{ fontSize: 13, marginBottom: 10, color: ok ? COLOR.teal : COLOR.rust, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{recallVerdict(ok, after)}</span>
+            {ok && after && after.xp > 0 && <span className="tb-recall-xp" data-testid="tb-recall-xp">+{after.xp} опыта</span>}
             {!ok && !ctx.inReview && <button type="button" className="ems-btn" style={{ padding: '6px 12px', fontSize: 12.5 }} data-testid="tb-recall-again"
               onClick={() => { Audio.play('click'); setOrder(mix()); setPicks({}); setAfter(null); }}>Ещё раз</button>}
           </div>
@@ -759,6 +768,7 @@ export function ChartSvg({ scene }) {
   const clipId = useMemo(() => `tbclip${Math.random().toString(36).slice(2, 8)}`, []);
   const path = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ');
   const inside = (p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
+  const exitPoint = (pts) => chartExit(pts, scene.xDomain, scene.yDomain);
   const labelAt = (pts, pos) => {
     if (pos === 'start') return { x: sx(pts[0].x) + 6, y: sy(pts[0].y) - 6 };
     // доля пути по кривой: 0,3 — треть от начала
@@ -773,8 +783,9 @@ export function ChartSvg({ scene }) {
       const m = { x: (pts[0].x + pts[pts.length - 1].x) / 2, y: (pts[0].y + pts[pts.length - 1].y) / 2 };
       return { x: sx(m.x) + 8, y: sy(m.y) - 8 };
     }
-    const vis = pts.filter(inside);
-    const p = vis[vis.length - 1] || pts[pts.length - 1];
+    // там, где кривая уходит за край поля, а не у последней точки внутри: пока кривая сдвигается, подпись
+    // едет вслед, а не прыгает к другому концу, когда конец линии заходит в поле (docs/mechanics.md)
+    const p = exitPoint(pts);
     // в стороне от линии и не на оси
     return { x: Math.min(W - M.r - 4, sx(p.x) + 6), y: Math.min(H - M.b - 8, Math.max(M.t + 12, sy(p.y) - 8)) };
   };
@@ -794,7 +805,7 @@ export function ChartSvg({ scene }) {
         <g key={`y${t}`}>
           <line x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke={COLOR.border} strokeOpacity={0.45} />
           {/* у самого верха стоит подпись оси — число там не пишем, чтобы они не слиплись */}
-          {sy(t) - M.t > 9 && <text x={M.l - 6} y={sy(t) + 3.5} fontSize={12} fill={COLOR.faint} textAnchor="end">{fmtNum(t)}</text>}
+          {sy(t) - M.t > 16 && <text x={M.l - 6} y={sy(t) + 3.5} fontSize={12} fill={COLOR.faint} textAnchor="end">{fmtNum(t)}</text>}
         </g>
       ))}
       <line x1={M.l} x2={W - M.r} y1={H - M.b} y2={H - M.b} stroke={COLOR.muted} />
@@ -819,12 +830,17 @@ export function ChartSvg({ scene }) {
           <path key={c.id} d={path(c.points)} fill="none" stroke={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()}
             strokeWidth={c.ghost ? 1.5 : 2.4} strokeOpacity={c.ghost ? 0.35 : 1} strokeDasharray={c.ghost || c.dashed ? '5 4' : undefined} />
         ))}
-        {(scene.segments || []).map((s, i) => (
-          <g key={`s${i}`}>
-            <line x1={sx(s.x0)} x2={sx(s.x1)} y1={sy(s.y)} y2={sy(s.y)} stroke={COLOR.gold} strokeWidth={5} strokeOpacity={0.8} />
-            <text x={(sx(s.x0) + sx(s.x1)) / 2} y={sy(s.y) + 16} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle">{s.label}</text>
-          </g>
-        ))}
+        {(scene.segments || []).map((s, i) => {
+          /* подпись отрезка — с той стороны, где нет точки равновесия: у минимальной зарплаты точка E под
+             отрезком, и подпись снизу ложилась прямо на «E» (docs/mechanics.md) */
+          const under = (scene.points || []).some((p) => p.y < s.y && p.x >= s.x0 && p.x <= s.x1);
+          return (
+            <g key={`s${i}`}>
+              <line x1={sx(s.x0)} x2={sx(s.x1)} y1={sy(s.y)} y2={sy(s.y)} stroke={COLOR.gold} strokeWidth={5} strokeOpacity={0.8} />
+              <text x={(sx(s.x0) + sx(s.x1)) / 2} y={under ? sy(s.y) - 9 : sy(s.y) + 16} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle" data-seg-side={under ? 'above' : 'below'}>{s.label}</text>
+            </g>
+          );
+        })}
         {scene.points.filter((p) => p.guide && inside(p)).map((p, i) => (
           <g key={`g${i}`} stroke={COLOR.muted} strokeDasharray="3 3" strokeOpacity={0.8}>
             <line x1={sx(p.x)} x2={sx(p.x)} y1={sy(p.y)} y2={H - M.b} />
@@ -864,6 +880,7 @@ export function ChartSvg({ scene }) {
         </g>
       ))}
     </svg>
+    {scene.axes && <div className="tb-chart-axes" data-testid="chart-axes">{scene.axes.join(' · ')}</div>}
     </div>
   );
 }
@@ -952,6 +969,13 @@ const DIR_WORD = { '+': 'растёт', '-': 'падает', 0: 'не меняе
 const KIND_LABEL = { number: 'Задача', truefalse: 'Верно или неверно', graph: 'Графическая задача' };
 
 // контекст для «Сообщить об ошибке»: задача, условие, что ввёл ученик и правильный ответ
+// контекст жалобы на вопрос «Вспомните»: вопросы, выбранные и верные ответы
+const recallContext = (b, picks) => ({
+  screen: 'textbook-recall', kind: 'recall', exercise: b.id, unit: b.chapter || '',
+  prompt: b.parts.map((p) => flatProblem(p.question)).join(' | ').slice(0, 1500),
+  answer: b.parts.map((p, i) => (picks[i] != null ? flatProblem(p.options[picks[i]].text) : '—')).join(' | ').slice(0, 480),
+  correct: b.parts.map((p) => flatProblem((p.options.find((o) => o.correct) || {}).text)).join(' | ').slice(0, 480),
+});
 const problemContext = (block, given, answerText) => ({
   screen: 'textbook-problem', kind: block.kind, exercise: block.id, unit: block.chapter || '',
   prompt: flatProblem(block.statement).slice(0, 1500), answer: given == null ? '' : String(given).slice(0, 480), correct: String(answerText || '').slice(0, 480),
@@ -979,17 +1003,34 @@ function ProblemFrame({ block, no, ctx, from, children, verdict, answerText, onS
   const [collapsed, setCollapsed] = useState(() => !ctx.inReview && !!(rec && rec.ok && !(rec.due && rec.due <= Date.now())));
   const canCollapse = !ctx.inReview;
   const solved = !!(rec && rec.ok);
-  const collapse = () => {
-    Audio.play('click'); setCollapsed(true);
-    setTimeout(() => { const el = document.getElementById(`problem-${block.id}`); if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: 'start' }); }, 0);
-  };
+  /* Свернуть — плавно (docs/mechanics.md): перед сменой запоминаем высоту карточки, после — складываем её
+     по высоте в строку (тот же узел: обе ветки — один div), строка проявляется. Начало ушло выше экрана —
+     страница подъезжает к строке. */
+  const root = useRef(null); const fromH = useRef(null);
+  const collapse = () => { Audio.play('click'); fromH.current = root.current ? root.current.offsetHeight : null; setCollapsed(true); };
+  useLayoutEffect(() => {
+    const el = root.current; const h0 = fromH.current;
+    fromH.current = null;
+    if (!collapsed || !el || h0 == null) return;
+    const calm = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!calm && el.animate && h0 - el.offsetHeight > 4) {
+      el.style.overflow = 'hidden';
+      const a = el.animate([{ height: `${h0}px` }, { height: `${el.offsetHeight}px` }], { duration: 320, easing: 'cubic-bezier(.3, .8, .3, 1)' });
+      const done = () => { el.style.overflow = ''; };
+      a.onfinish = done; a.oncancel = done;
+      if (el.firstElementChild) el.firstElementChild.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 80, easing: 'ease-out', fill: 'backwards' });
+    }
+    // как прежний scrollIntoView со scrollMarginTop 64: строка — под шапкой
+    const top = el.getBoundingClientRect().top;
+    if (top < 0) window.scrollBy({ top: top - 64, behavior: calm ? 'auto' : 'smooth' });
+  }, [collapsed]);
   const statement = useMemo(() => markTerms(block.statement), [block]);
   const hints = block.hints || [];
   const status = rec ? (rec.ok ? 'решена' : 'была ошибка') : null;
   const open = solMode != null ? solMode : !!(verdict && verdict.reveal);
   if (collapsed) {
     return (
-      <div id={`problem-${block.id}`} className={`ems-panel${solved ? ' tb-solved' : ''}`} style={{ padding: '8px 14px', margin: '8px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-collapsed="true" data-solved={solved ? 'true' : undefined}>
+      <div ref={root} id={`problem-${block.id}`} className={`ems-panel${solved ? ' tb-solved' : ''}`} style={{ padding: '8px 14px', margin: '8px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-collapsed="true" data-solved={solved ? 'true' : undefined}>
         <button type="button" className="tb-link" style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', fontSize: 13.5, textDecoration: 'none' }} aria-expanded="false"
           data-testid="tb-problem-expand" onClick={() => { Audio.play('click'); setCollapsed(false); }}>
           {solved ? <span className="tb-solved-mark" aria-hidden="true"><Check size={15} strokeWidth={3} /></span>
@@ -1003,7 +1044,7 @@ function ProblemFrame({ block, no, ctx, from, children, verdict, answerText, onS
     );
   }
   return (
-    <div id={`problem-${block.id}`} className={`tb-prob${rec && rec.ok ? ' tb-solved' : ''}${verdict && verdict.ok ? ' tb-win' : ''}`} style={{ margin: '14px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-solved={rec && rec.ok ? 'true' : undefined}>
+    <div ref={root} id={`problem-${block.id}`} className={`tb-prob${rec && rec.ok ? ' tb-solved' : ''}${verdict && verdict.ok ? ' tb-win' : ''}`} style={{ margin: '14px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-solved={rec && rec.ok ? 'true' : undefined}>
       <div className="tb-prob-head">
         <span className="tb-prob-title">{KIND_LABEL[block.kind] || 'Задача'} {no}</span>
         {LEVELS[block.level] && <span className="tb-lv" data-level={block.level} data-testid="tb-level">{LEVELS[block.level]}</span>}
@@ -2292,6 +2333,14 @@ const pageKey = (pg) => (pg.kind === 'toc' ? 'toc' : `${pg.kind}:${pg.id}`);
 const readJSON = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch { return d; } };
 const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* приватный режим */ } };
 const saveScroll = (key) => { const m = readJSON(SCROLL_KEY, {}); m[key] = Math.round(window.scrollY); writeJSON(SCROLL_KEY, m); };
+/* глава под замком (уровень выше нынешнего на Пути): её страница всегда с начала — не восстанавливает место
+   чтения, запомненное, пока глава была открыта (короткая страница замка упиралась низом, и замок с названием
+   уходили под шапку), и сама места не запоминает (docs/mechanics.md) */
+const lockedPage = (pg, learn) => {
+  if (!pg || pg.kind !== 'chapter' || unlockBypass()) return false;
+  const lv = chapterLevel(pg.id);
+  return !!lv && !openBookLevels(learn).has(lv.id);
+};
 
 function ReaderBar({ scale, setScale }) {
   const i = SCALES.indexOf(scale);
@@ -2377,13 +2426,15 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
   // прокрутка текущей страницы — запоминается на ходу (не чаще раза в 300 мс)
   const pageRef = React.useRef(page);
   pageRef.current = page;
+  const lockedNow = React.useRef(false);
+  lockedNow.current = lockedPage(page, progress.learn);
   React.useEffect(() => {
     let t = null;
     const onScroll = () => {
       if (t) return;
       // ключ страницы — тот, где прокрутили, а не тот, что откроется к моменту записи
       const key = pageKey(pageRef.current);
-      t = setTimeout(() => { t = null; if (key !== pageKey(pageRef.current)) return; saveScroll(key); }, 300);
+      t = setTimeout(() => { t = null; if (key !== pageKey(pageRef.current) || lockedNow.current) return; saveScroll(key); }, 300);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => { window.removeEventListener('scroll', onScroll); if (t) clearTimeout(t); };
@@ -2401,23 +2452,24 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [page]);
-  // открыли страницу — вернуть туда, где остановились (у якоря своё место)
-  React.useEffect(() => {
+  // открыли страницу — вернуть туда, где остановились (у якоря своё место); глава под замком — с начала.
+  // Первый шаг — до отрисовки: ни кадра на прокрутке прошлой страницы
+  React.useLayoutEffect(() => {
     if (page.anchor || typeof window === 'undefined' || !window.scrollTo) return undefined;
-    const y = readJSON(SCROLL_KEY, {})[pageKey(page)] || 0;
+    const y = lockedNow.current ? 0 : readJSON(SCROLL_KEY, {})[pageKey(page)] || 0;
     let n = 0; let raf = 0;
     // графики и формулы дорисовываются не сразу — несколько кадров догоняем нужную высоту;
     // ученик сам что-то нажал или прокрутил — догонять перестаём, его действие важнее
     const tick = () => { window.scrollTo(0, y); n += 1; if (n < 20 && Math.abs(window.scrollY - y) > 2) raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
+    tick();
     const stop = () => cancelAnimationFrame(raf);
     const evs = ['pointerdown', 'wheel', 'touchstart', 'keydown'];
     evs.forEach((ev) => window.addEventListener(ev, stop, { passive: true, capture: true }));
     return () => { stop(); evs.forEach((ev) => window.removeEventListener(ev, stop, { capture: true })); };
   }, [page]);
   const go = (next, { push = true } = {}) => {
-    // уходя, запомнить, где остановились на этой странице
-    if (typeof window !== 'undefined') saveScroll(pageKey(page));
+    // уходя, запомнить, где остановились на этой странице (на странице замка — нечего)
+    if (typeof window !== 'undefined' && !lockedNow.current) saveScroll(pageKey(page));
     if (push && pageKey(next) !== pageKey(page)) setStack((st) => [...st, page].slice(-30));
     if (pageKey(next) !== pageKey(page)) Audio.play('paper');
     setPage(next);
@@ -2457,8 +2509,10 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
       let next = afterBookAnswer(recordAnswer(p, id, ok, now, RECALLS[id] ? { ...opts, settle: true } : opts), id, ok, why);
       // задача главы решена с первой попытки — немного монет в кошелёк Пути (rewards.js, bookFirstTry)
       if (PROBLEMS[id] && bookFirstTry(prev, ok, opts && opts.sawSolution)) next = { ...next, learn: earn(next.learn || emptyLearn(), COIN.book, null, now) };
-      // пройден последний раздел главы — глава прочитана сама, кнопку нажимать не нужно
       const rc = RECALLS[id];
+      // «Вспомните»: немного опыта — за новый вопрос или подошедший срок повторения (recallXp)
+      if (rc && recallXp(prev, ok, now)) next = { ...next, learn: addXp(next.learn || emptyLearn(), recallXp(prev, ok, now), now) };
+      // пройден последний раздел главы — глава прочитана сама, кнопку нажимать не нужно
       if (rc && ok && !next.read[rc.chapter] && chapterRead(next, rc.chapter)) next = markRead(next, rc.chapter, now);
       return next;
     }),

@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import katex from 'katex';
 import {
   UNITS, UNIT_BY_ID, LESSONS, EXERCISES, pilotUnits, buildLesson, buildUnitCheck, buildPractice, practiceIds, canPractice, instantiate, check, ready, answerText, estimate, pathState, SECONDS, KIND_LABEL, STEP_PICS,
-  GAME_KINDS, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, retryWorth, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart,
+  GAME_KINDS, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, retryWorth, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart, examPoints,
 } from '../course.js';
 import { CAST } from '../cast.js';
 import { WALLET, bestOf, gapOf } from '../wallet.js';
@@ -180,6 +180,33 @@ describe('упражнения: ровно один верный ответ', ()
           break;
         }
         case 'tf': expect(check(inst, inst.answer).ok).toBe(true); expect(check(inst, !inst.answer).ok).toBe(false); break;
+        // задание в формате экзамена: верный бланк — засчитано; одна ошибка — «1 балл из 2», ответ — цифрами
+        case 'exam': {
+          expect(['ЕГЭ', 'ОГЭ']).toContain(inst.test);
+          if (inst.form === 'match') {
+            const right = Object.fromEntries(inst.items.map((it) => [it.key, it.bin]));
+            expect(check(inst, right).ok).toBe(true);
+            const it0 = inst.items[0];
+            const one = { ...right, [it0.key]: inst.bins.find((b) => b !== it0.bin) };
+            expect(check(inst, one).ok).toBe(false);
+            expect(examPoints(inst, one)).toBe(1);
+            expect(plain(check(inst, one).why)).toMatch(/1 балл из 2/);
+            expect(answerText(inst)).toMatch(/^\d{4,6} \(А\d Б\d/);
+          } else {
+            const right = inst.options.filter((o) => o.correct).map((o) => o.key);
+            expect(check(inst, inst.form === 'one' ? right[0] : right).ok).toBe(true);
+            if (inst.form === 'pick') {
+              const wrong = inst.options.find((o) => !o.correct);
+              expect(plain(check(inst, [...right, wrong.key]).why)).toMatch(/1 балл из 2.*Пункт \d: /);
+              expect(examPoints(inst, [...right, wrong.key])).toBe(1);
+              expect(answerText(inst)).toMatch(/^[1-6]{2,4}$/);
+              // цифры ответа — по возрастанию, как в бланке
+              expect([...answerText(inst)].map(Number)).toEqual([...answerText(inst)].map(Number).sort());
+            }
+            inst.options.filter((o) => !o.correct).forEach((o) => expect(o.why, `${ex.id}: у неверного пункта «${o.raw}» нет «почему»`).toBeTruthy());
+          }
+          break;
+        }
         case 'match': {
           expect(inst.left.length).toBeGreaterThanOrEqual(3);
           expect(new Set(inst.left.map((x) => x.raw)).size).toBe(inst.left.length);

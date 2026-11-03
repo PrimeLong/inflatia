@@ -134,17 +134,18 @@ describe('книги полки: больше текста и озвучка о�
 });
 
 describe('«Пыльная витрина» в лавке (src/learn/dust.js)', () => {
-  it('за витрину — 3 монеты, до трёх в день; четвёртая — без монет; назавтра снова', async () => {
+  it('за витрину — 2 монеты, до пяти в день; шестая — без монет; назавтра снова', async () => {
     const { DUST, dustClaim, dustDone, dustLeft } = await import('../dust.js');
     const { balance } = await import('../rewards.js');
     const { emptyLearn } = await import('../../textbook/learn-state.js');
+    expect(DUST).toMatchObject({ coins: 2, perDay: 5 });
     const T = Date.parse('2026-10-28T10:00:00Z');
     let s = emptyLearn();
-    for (let k = 0; k < 4; k += 1) s = dustClaim(s, T + k * 60000);
-    expect(balance(s)).toBe(DUST.coins * DUST.perDay);
-    expect(dustDone(s, T)).toBe(3);
+    for (let k = 0; k < 6; k += 1) s = dustClaim(s, T + k * 60000);
+    expect(balance(s)).toBe(10);
+    expect(dustDone(s, T)).toBe(5);
     expect(dustLeft(s, T)).toBe(0);
-    expect(dustLeft(s, T + 86400000)).toBe(3);
+    expect(dustLeft(s, T + 86400000)).toBe(5);
     s = dustClaim(s, T + 86400000);
     expect(balance(s)).toBe(DUST.coins * (DUST.perDay + 1));
   });

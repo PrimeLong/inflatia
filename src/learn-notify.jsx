@@ -16,6 +16,7 @@ import {
   Gauge, Store, Anchor, Shirt, WandSparkles, Settings,
   Ghost, Users, Flag, UserPlus, Gem,
   Wallet, MessageCircle, Lamp, Coins, TrendingUp, Gamepad2, Lock, Globe,
+  Zap,
 } from 'lucide-react';
 import { IconButton, TopBar } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
@@ -46,6 +47,8 @@ export const NOTIFY_CSS = `
   .nt-page { position: fixed; inset: 0; z-index: 110; overflow-y: auto; background: var(--ds-paper); padding: 8px 16px calc(100px + env(safe-area-inset-bottom)); animation: nt-fade .22s ease-out; }
   /* под окном (марка, аккаунт): страница замирает — не прокручивается и не ловит фокус */
   .nt-page.nt-under { overflow: hidden; }
+  /* пока открыт экран поверх, страница под ним не прокручивается — иначе на ПК два ползунка */
+  html:has(.nt-page) { overflow: hidden; }
   .nt-page-in { max-width: 560px; margin: 0 auto; animation: nt-page-in .3s cubic-bezier(.2,.9,.3,1); }
   @keyframes nt-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes nt-page-in { from { transform: translateY(18px) } to { transform: none } }
@@ -164,7 +167,7 @@ const ICON = {
   sparkles: Sparkles, croissant: Croissant, stamp: Stamp, scale: Scale, moon: Moon, palette: Palette, devices: MonitorSmartphone, headphones: Headphones, book: BookOpen,
   landmark: Landmark, chart: BarChart3, gauge: Gauge, store: Store, anchor: Anchor, shirt: Shirt, wand: WandSparkles, bell: Bell, settings: Settings,
   pumpkin: Ghost, ghost: Ghost, fire: Flame, users: Users, flag: Flag, 'user-plus': UserPlus, gem: Gem, wallet: Wallet, message: MessageCircle,
-  lamp: Lamp, coins: Coins, 'trending-up': TrendingUp, game: Gamepad2, lock: Lock, globe: Globe,
+  lamp: Lamp, coins: Coins, 'trending-up': TrendingUp, game: Gamepad2, lock: Lock, globe: Globe, zap: Zap,
 };
 export const NIcon = ({ name, size = 20, ...rest }) => { const I = ICON[name] || Bell; return <I size={size} aria-hidden="true" {...rest} />; };
 

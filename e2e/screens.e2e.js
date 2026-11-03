@@ -116,6 +116,11 @@ async function answer(page, wrong = false) {
       else await ex.getByRole('group', { name: 'Цифровая клавиатура' }).getByRole('button', { name: ch, exact: true }).click();
     }
   } else if (kind === 'sort') { for (const [it, b] of Object.entries(ans)) await ex.locator(`[data-item="${it}"][data-bin="${b}"]`).click(); }
+  else if (kind === 'exam') {
+    if (ans.form === 'match') { for (const [it, b] of Object.entries(ans.map)) await ex.locator(`[data-item="${it}"][data-bin="${b}"]`).click(); }
+    else if (ans.form === 'one') await ex.locator(`[data-pick="${ans.key}"]`).click();
+    else { for (const k of ans.keys) await ex.locator(`[data-pick="${k}"]`).click(); }
+  }
   else if (kind === 'news') { for (const [v, d] of Object.entries(ans)) await ex.locator(`[data-var="${v}"][data-dir="${d}"]`).click(); }
   else if (kind === 'point') {
     const svg = ex.getByTestId('market-chart'); const pl = JSON.parse(await svg.getAttribute('data-plot')); const box = await svg.boundingBox();

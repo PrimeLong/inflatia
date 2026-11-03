@@ -24,6 +24,7 @@ import { BellButton, browserNotifySupported } from './learn-notify.jsx';
 import { learnDark, setLearnDark, learnMusic, setLearnMusic, learnSfx, setLearnSfx } from './ds-tokens.js';
 import { ProfileModal, loadAccount } from './account.jsx';
 import { reportsMe } from './lib/client.js';
+import { TRACK, rememberTeam, switchTrack } from './learn/track.js';
 import { PrivacyPage, PRIVACY_TITLE } from './privacy.jsx';
 import { BUILD } from './learn-report.jsx';
 import { antistressHidden, setAntistressShown } from './learn-antistress.jsx';
@@ -105,7 +106,7 @@ export const PROFILE_CSS = `
   .pf-mstamp .pf-frame { background: var(--u); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--u) 65%, #000), inset 0 0 0 3px color-mix(in srgb, #fff 45%, var(--u)); }
   .pf-mstamp .pf-frame svg { display: block; }
   .pf-mstamp.big .pf-frame { width: 156px; height: 122px; padding: 0; display: grid; }
-  .pf-mstamp[data-state="current"] .pf-frame { background: #FFFBF1; box-shadow: none; outline: 1.5px dashed var(--u); outline-offset: -3px; }
+  .pf-mstamp[data-state="current"] .pf-frame { background: #FFFBF1; box-shadow: none; outline: 1.5px dashed color-mix(in srgb, var(--u) 75%, #FFFBF1); outline-offset: -3px; }
   .pf-mstamp[data-state="current"] .pf-frame > * { opacity: 1; filter: none; }
   /* полученная марка месяца больше не вспыхивает свечением раз в 4 секунды: это мигание принимали за
      сбой («марка странно мигает, будто сайт сам обновляется»). Отклик — только на наведение */
@@ -463,7 +464,8 @@ export function SettingsView({ learn, update, notify, onBack, onThemeChange, onP
     const a = loadAccount();
     if (!a) return undefined;
     let alive = true;
-    reportsMe(a.token).then((r) => { if (alive) setOwner(!!r.owner); }).catch(() => {});
+    // ответ сервера запоминается: курс политологии включается только у команды (src/learn/track.js)
+    reportsMe(a.token).then((r) => { if (!alive) return; setOwner(!!r.owner); rememberTeam(a.login, !!r.owner); }).catch(() => {});
     return () => { alive = false; };
   }, []);
   const [dark, setDark] = useState(learnDark);
@@ -538,6 +540,10 @@ export function SettingsView({ learn, update, notify, onBack, onThemeChange, onP
               text="Что заметили ученики: новые и разобранные, «скопировать всё», разбор пачкой по id" onClick={() => { Audio.play('paper'); onReports(); }} />
             <MenuCard icon={Target} tone="var(--u-ink)" title="Аналитика" data-testid="prof-analytics" data-nav-target="analytics" right={arrow}
               text="Воронка за 30 дней и 20 самых трудных упражнений — без персональных данных" onClick={() => { Audio.play('paper'); onAnalytics(); }} />
+            {/* курс политологии — проба только для команды: один начальный юнит и глава; переключение перезапускает приложение */}
+            <SetRow title="Курс «Политология» (проба)" testid="set-politics" on={TRACK === 'politics'}
+              note={TRACK === 'politics' ? 'Сейчас Путь и учебник — по политологии. Выключите, чтобы вернуться к экономике; приложение перезапустится.' : 'Путь и учебник переключатся на политологию: один начальный юнит «Власть и государство» и его глава. Видно только команде; приложение перезапустится.'}
+              onChange={(v) => { Audio.play('click'); switchTrack(v ? 'politics' : 'econ', (loadAccount() || {}).login); }} />
           </SetGroup>
         )}
         <div className="pf-version">Инфляция · версия {BUILD}</div>
