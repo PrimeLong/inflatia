@@ -93,3 +93,35 @@ describe('черновик: штрихи', () => {
     expect(restoreStrokes([{ id: 1 }, { id: 2 }], [{ id: 3 }]).map((s) => s.id)).toEqual([1, 2, 3]);
   });
 });
+
+describe('черновик страницы: прокрутка без перерисовки всего (docs/mechanics.md)', () => {
+  it('куски и границы штриха считаются один раз; штрих вырос — пересчёт', async () => {
+    const { strokePrep } = await import('../sketch.js');
+    const s = stroke([[0, 100], [10, 140], [20, 120]]);
+    const a = strokePrep(s);
+    expect(strokePrep(s)).toBe(a);
+    expect(a.segs).toEqual(segmentsOf(s.points));
+    expect(a.y0).toBeLessThan(100);
+    expect(a.y1).toBeGreaterThan(140);
+    s.points.push({ x: 30, y: 400 });
+    const b = strokePrep(s);
+    expect(b).not.toBe(a);
+    expect(b.y1).toBeGreaterThan(400);
+  });
+  it('рисуются только штрихи, задевающие полосу экрана с запасом', async () => {
+    const { strokeIn } = await import('../sketch.js');
+    const s = stroke([[0, 1000], [40, 1100]]);
+    expect(strokeIn(s, 0, 900)).toBe(false);
+    expect(strokeIn(s, 1050, 1500)).toBe(true);
+    expect(strokeIn(s, 1200, 1800)).toBe(false);
+    expect(strokeIn(stroke([]), 0, 1e6)).toBe(false);
+  });
+  it('холст с запасом ov: сдвиг, пока прокрутка не подошла к краю запаса', async () => {
+    const { scrollNeedsPaint } = await import('../sketch.js');
+    expect(scrollNeedsPaint(150, 500)).toBe(false);
+    expect(scrollNeedsPaint(-480, 500)).toBe(false);
+    expect(scrollNeedsPaint(490, 500)).toBe(true);
+    expect(scrollNeedsPaint(-900, 500)).toBe(true);
+    expect(scrollNeedsPaint(10, 0)).toBe(true);
+  });
+});

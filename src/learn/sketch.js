@@ -69,6 +69,24 @@ export function pieceAt(points, k) {
   return { op: 'quad', from: mid(points[k - 2], points[k - 1]), via: points[k - 1], to: mid(points[k - 1], points[k]), w: weight(points[k - 1]) };
 }
 
+/* Готовый штрих не меняется: его куски и границы по высоте считаются один раз (кэш по самому штриху).
+   Живой штрих растёт — кэш пересчитывается, когда точек стало больше. y0–y1 — с запасом на толщину. */
+const PREP = new WeakMap();
+export function strokePrep(s) {
+  const p = PREP.get(s);
+  if (p && p.n === s.points.length) return p;
+  let y0 = Infinity; let y1 = -Infinity;
+  for (const q of s.points) { if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y; }
+  const pad = strokeWidth(s.tool, s.size) * 2 + 2;
+  const next = { n: s.points.length, segs: segmentsOf(s.points), y0: y0 - pad, y1: y1 + pad };
+  PREP.set(s, next);
+  return next;
+}
+// штрих задевает полосу страницы [top, bottom] — рисовать; нет — пропустить (и ластик: он стирает только у себя)
+export const strokeIn = (s, top, bottom) => { const p = strokePrep(s); return p.n > 0 && p.y1 >= top && p.y0 <= bottom; };
+/* Холст страницы выше экрана на ov сверху и снизу (ov — половина экрана): прокрутка на d от последней
+   перерисовки — сдвиг холста, пока |d| не подошёл к краю запаса; дальше — перерисовка. */
+export const scrollNeedsPaint = (d, ov, margin = 16) => !ov || Math.abs(d) > ov - margin;
 // готовый штрих — в список; самые старые уходят, если черновик разросся сверх меры
 export function pushStroke(list, stroke) {
   const next = [...list, stroke];

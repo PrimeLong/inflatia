@@ -4685,6 +4685,25 @@ test('учебник на широком ПК: черновик на полях,
   // справа от учебника — тоже поле
   await page.mouse.move(1700, 400); await page.mouse.down(); await page.mouse.move(1820, 460, { steps: 8 }); await page.mouse.up();
   await expect(canvas).toHaveAttribute('data-strokes', '2');
+  // прокрутка не перерисовывает черновик каждый кадр: в пределах запаса (полэкрана) холст только сдвигается,
+  // запись едет вместе со страницей; ушли дальше — одна перерисовка, вернулись — запись на прежнем месте
+  const inkAt = (x, y) => canvas.evaluate((c, [px, py]) => {
+    const b = c.getBoundingClientRect(); const k = c.width / b.width;
+    const d = c.getContext('2d').getImageData(Math.round((px - b.left) * k) - 3, Math.round((py - b.top) * k) - 3, 7, 7).data;
+    let a = 0; for (let i = 3; i < d.length; i += 4) a = Math.max(a, d[i]);
+    return a;
+  }, [x, y]);
+  const y0 = await page.evaluate(() => window.scrollY);
+  expect(await inkAt(200, 320)).toBeGreaterThan(0);
+  const paints = Number(await canvas.getAttribute('data-paints'));
+  await page.evaluate((y) => window.scrollTo(0, y + 150), y0);
+  await expect.poll(() => canvas.evaluate((c) => c.style.transform)).toContain('-150px');
+  expect(await inkAt(200, 170)).toBeGreaterThan(0);
+  expect(Number(await canvas.getAttribute('data-paints'))).toBe(paints);
+  await page.evaluate((y) => window.scrollTo(0, y + 1600), y0);
+  await expect.poll(async () => Number(await canvas.getAttribute('data-paints'))).toBeGreaterThan(paints);
+  await page.evaluate((y) => window.scrollTo(0, y), y0);
+  await expect.poll(() => inkAt(200, 320)).toBeGreaterThan(0);
   // по тексту главы — не рисует: учебник работает как обычно
   const main = page.locator('.tb-ch-main');
   const box = await main.boundingBox();

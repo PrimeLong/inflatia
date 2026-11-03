@@ -11,7 +11,7 @@
    нарисованный кусками он темнел бы на стыках. */
 import React, { useEffect, useRef, useState } from 'react';
 import { PenLine, Highlighter, Eraser, Undo2, Redo2, Trash2, RotateCcw } from 'lucide-react';
-import { SKETCH, SKETCH_TOOLS, SKETCH_SIZES, SKETCH_COLORS, strokeWidth, addPoint, segmentsOf, pieceAt, pushStroke, restoreStrokes } from './learn/sketch.js';
+import { SKETCH, SKETCH_TOOLS, SKETCH_SIZES, SKETCH_COLORS, strokeWidth, addPoint, strokePrep, strokeIn, scrollNeedsPaint, pieceAt, pushStroke, restoreStrokes } from './learn/sketch.js';
 import { useReducedMotion } from './ds-art.jsx';
 import { Audio } from './MacroSimulator.jsx';
 
@@ -202,7 +202,7 @@ function trace(ctx, seg, width) {
 /* Ручка — кусками разной толщины (нажим), маркер и ластик — одной линией: у полупрозрачного
    маркера стыки кусков не темнеют. Ластик выбивает уже нарисованное. */
 function drawStroke(ctx, s, color, alpha) {
-  const segs = segmentsOf(s.points);
+  const { segs } = strokePrep(s);
   if (!segs.length) return;
   const width = strokeWidth(s.tool, s.size);
   ctx.save();
@@ -234,10 +234,15 @@ function wipeCanvas(c) {
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height); ctx.restore();
   return ctx;
 }
-function fit(c, f, dpr) {
-  if (c.width !== Math.round(f.w * dpr) || c.height !== Math.round(f.h * dpr)) { c.width = Math.round(f.w * dpr); c.height = Math.round(f.h * dpr); }
+/* ov — запас холста страницы сверху и снизу (половина экрана): холст выше экрана, и прокрутку в пределах
+   запаса он догоняет сдвигом, без перерисовки (docs/mechanics.md, «Черновик на полях») */
+function fit(c, f, dpr, ov = 0) {
+  const H = f.h + 2 * ov;
+  if (c.width !== Math.round(f.w * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(f.w * dpr); c.height = Math.round(H * dpr); }
+  if (ov) { c.style.top = `${-ov}px`; c.style.bottom = 'auto'; c.style.height = `${H}px`; }
+  c.style.transform = '';
   const ctx = c.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, f.cx * dpr, -f.sy * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, f.cx * dpr, (ov - f.sy) * dpr);
   wipeCanvas(c);
   return ctx;
 }
@@ -283,14 +288,20 @@ export function Sketch({ mode = 'lesson' }) {
     r.style.setProperty('--sk-r', `${Math.round(b.right - dx)}px`);
   };
   // весь черновик заново: окно сменило размер или тему, отмена, «Стереть всё»
+  const painted = useRef({ sy: 0, ov: 0 });
   const paint = () => {
     const r = rootOf();
     if (!r || !r.clientWidth) return;
     const f = frameOf(mode, r); const dpr = window.devicePixelRatio || 1;
-    const ctx = fit(mainRef.current, f, dpr);
+    const ov = M.page ? Math.round(f.h / 2) : 0;
+    const ctx = fit(mainRef.current, f, dpr, ov);
     fit(liveRef.current, f, dpr);
+    painted.current = { sy: f.sy, ov };
+    mainRef.current.dataset.paints = String((Number(mainRef.current.dataset.paints) || 0) + 1);
     const ink = inks(r); const alpha = markerAlpha(r);
-    for (const s of strokes.current) drawStroke(ctx, s, ink[s.color], alpha);
+    // только штрихи, задевающие холст: на странице — экран с запасом, в уроке и разборе — весь холст
+    const top = f.sy - ov; const bottom = f.sy + f.h + ov;
+    for (const s of strokes.current) if (!M.page || strokeIn(s, top, bottom)) drawStroke(ctx, s, ink[s.color], alpha);
     if (live.current && live.current.s.tool !== 'eraser') drawLive();
     measure(r);
   };
@@ -391,7 +402,12 @@ export function Sketch({ mode = 'lesson' }) {
     if (mo) mo.observe(r, { attributes: true, attributeFilter: ['class', 'data-ds-theme'] });
     // страница прокручивается — холст на экране перерисовывает запись на новом месте; док — над нижней панелью
     let scrollFrame = 0;
-    const onScroll = () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; paint(); }); };
+    // в пределах запаса холст только сдвигается вслед за страницей; дальше (или пока рисуют) — перерисовка
+    const onScroll = () => {
+      const P = painted.current; const d = window.scrollY - P.sy;
+      if (!live.current && !scrollNeedsPaint(d, P.ov)) { if (mainRef.current) mainRef.current.style.transform = `translate3d(0, ${-d}px, 0)`; return; }
+      if (!scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; paint(); });
+    };
     const nav = () => { const n = document.querySelector('[data-testid="bottom-nav"]'); setNavH(n ? Math.round(n.getBoundingClientRect().height) : 0); };
     if (M.page) {
       window.addEventListener('scroll', onScroll, { passive: true });
