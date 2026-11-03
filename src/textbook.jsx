@@ -827,12 +827,17 @@ export function ChartSvg({ scene }) {
           <path key={c.id} d={path(c.points)} fill="none" stroke={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()}
             strokeWidth={c.ghost ? 1.5 : 2.4} strokeOpacity={c.ghost ? 0.35 : 1} strokeDasharray={c.ghost || c.dashed ? '5 4' : undefined} />
         ))}
-        {(scene.segments || []).map((s, i) => (
-          <g key={`s${i}`}>
-            <line x1={sx(s.x0)} x2={sx(s.x1)} y1={sy(s.y)} y2={sy(s.y)} stroke={COLOR.gold} strokeWidth={5} strokeOpacity={0.8} />
-            <text x={(sx(s.x0) + sx(s.x1)) / 2} y={sy(s.y) + 16} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle">{s.label}</text>
-          </g>
-        ))}
+        {(scene.segments || []).map((s, i) => {
+          /* подпись отрезка — с той стороны, где нет точки равновесия: у минимальной зарплаты точка E под
+             отрезком, и подпись снизу ложилась прямо на «E» (docs/mechanics.md) */
+          const under = (scene.points || []).some((p) => p.y < s.y && p.x >= s.x0 && p.x <= s.x1);
+          return (
+            <g key={`s${i}`}>
+              <line x1={sx(s.x0)} x2={sx(s.x1)} y1={sy(s.y)} y2={sy(s.y)} stroke={COLOR.gold} strokeWidth={5} strokeOpacity={0.8} />
+              <text x={(sx(s.x0) + sx(s.x1)) / 2} y={under ? sy(s.y) - 9 : sy(s.y) + 16} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle" data-seg-side={under ? 'above' : 'below'}>{s.label}</text>
+            </g>
+          );
+        })}
         {scene.points.filter((p) => p.guide && inside(p)).map((p, i) => (
           <g key={`g${i}`} stroke={COLOR.muted} strokeDasharray="3 3" strokeOpacity={0.8}>
             <line x1={sx(p.x)} x2={sx(p.x)} y1={sy(p.y)} y2={H - M.b} />

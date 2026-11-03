@@ -6339,3 +6339,22 @@ test('политология — проба для команды: перекл�
   await expect(page.getByTestId('track-badge')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+/* Подписи на графике рынка труда не налезают друг на друга (жалобы 02.11): «безработица» у минимальной
+   зарплаты — над отрезком, а не на подписи точки E */
+test('график рынка труда: подпись «безработица» не ложится на точку E', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await openBook(page);
+  await page.getByTestId('textbook').locator('[data-chapter="labor"]').first().click();
+  const chart = page.locator('[data-chart="labor"]').first();
+  await chart.scrollIntoViewIfNeeded();
+  await chart.getByRole('slider', { name: 'Минимальная зарплата' }).fill('220');
+  const seg = chart.locator('text[data-seg-side]');
+  await expect(seg).toHaveText('безработица');
+  await expect(seg).toHaveAttribute('data-seg-side', 'above');
+  const boxes = await chart.locator('svg text').evaluateAll((els) => els.map((e) => ({ t: e.textContent, b: e.getBoundingClientRect().toJSON() })));
+  const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+  const u = boxes.find((x) => x.t === 'безработица'); const e = boxes.find((x) => x.t === 'E');
+  expect(hit(u.b, e.b)).toBe(false);
+  expect(errors).toEqual([]);
+});
