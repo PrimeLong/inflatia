@@ -1496,3 +1496,21 @@ export function checkGraph(type, attrs, values, { expect, still = [] }) {
   });
   return { moved, touched, rows, ok: moved && touched.length === 0 && rows.every((r) => r.ok) };
 }
+
+/* последняя точка кривой внутри поля графика: если кривая выходит за край между вершинами, — точка
+   выхода на краю (по прямой между вершинами); вся кривая вне поля — её последняя вершина */
+export function chartExit(pts, [x0, x1], [y0, y1]) {
+  const inside = (p) => p.x >= x0 - 1e-9 && p.x <= x1 + 1e-9 && p.y >= y0 - 1e-9 && p.y <= y1 + 1e-9;
+  for (let k = pts.length - 1; k >= 0; k -= 1) {
+    if (!inside(pts[k])) continue;
+    const a = pts[k]; const b = pts[k + 1];
+    if (!b) return a;
+    // доля пути от a к b, на которой линия пересекает край поля
+    const ts = [];
+    if (b.x > x1) ts.push((x1 - a.x) / (b.x - a.x)); if (b.x < x0) ts.push((x0 - a.x) / (b.x - a.x));
+    if (b.y > y1) ts.push((y1 - a.y) / (b.y - a.y)); if (b.y < y0) ts.push((y0 - a.y) / (b.y - a.y));
+    const t = Math.max(0, Math.min(1, ...ts.filter((v) => Number.isFinite(v) && v >= 0)));
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  }
+  return pts[pts.length - 1];
+}

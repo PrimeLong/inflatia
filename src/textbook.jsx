@@ -22,7 +22,7 @@ import { CHAPTER_BLOCKS, APPENDIX_BLOCKS, CHAPTER_SECTIONS, PROBLEMS, RECALLS, p
 import { sectionDone, sectionProgress, dueItems, chapterRead, chapterShare } from './textbook/study.js';
 import { COIN, bookFirstTry, earn } from './learn/rewards.js';
 import { emptyLearn, recallXp, addXp } from './textbook/learn-state.js';
-import { CHARTS, chartDefaults, checkGraph, captionVars } from './textbook/charts.js';
+import { CHARTS, chartDefaults, checkGraph, captionVars, chartExit } from './textbook/charts.js';
 import { actionOf, parseInline, checkAnswer, matchTraps, LEVELS, typo } from './textbook/markdown.js';
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, markRead, unmarkRead, recordAnswer, scheduleAfter, reviewQueue, chapterScore, setLast, daysUntil, confidenceStats, addStudyMinute } from './textbook/progress.js';
 import { afterBookAnswer, dropFromReview } from './textbook/review-sync.js';
@@ -767,6 +767,7 @@ export function ChartSvg({ scene }) {
   const clipId = useMemo(() => `tbclip${Math.random().toString(36).slice(2, 8)}`, []);
   const path = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ');
   const inside = (p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
+  const exitPoint = (pts) => chartExit(pts, scene.xDomain, scene.yDomain);
   const labelAt = (pts, pos) => {
     if (pos === 'start') return { x: sx(pts[0].x) + 6, y: sy(pts[0].y) - 6 };
     // доля пути по кривой: 0,3 — треть от начала
@@ -781,8 +782,9 @@ export function ChartSvg({ scene }) {
       const m = { x: (pts[0].x + pts[pts.length - 1].x) / 2, y: (pts[0].y + pts[pts.length - 1].y) / 2 };
       return { x: sx(m.x) + 8, y: sy(m.y) - 8 };
     }
-    const vis = pts.filter(inside);
-    const p = vis[vis.length - 1] || pts[pts.length - 1];
+    // там, где кривая уходит за край поля, а не у последней точки внутри: пока кривая сдвигается, подпись
+    // едет вслед, а не прыгает к другому концу, когда конец линии заходит в поле (docs/mechanics.md)
+    const p = exitPoint(pts);
     // в стороне от линии и не на оси
     return { x: Math.min(W - M.r - 4, sx(p.x) + 6), y: Math.min(H - M.b - 8, Math.max(M.t + 12, sy(p.y) - 8)) };
   };

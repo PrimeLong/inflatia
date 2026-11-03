@@ -82,3 +82,23 @@ describe('опыт за «Вспомните» и книги полки; кно�
     expect(readLockSeconds(BOOK_BY_ID['smith-wealth'])).toBeLessThan(240);
   });
 });
+
+describe('подпись кривой — там, где кривая уходит за край графика (жалоба mvz57qqa)', async () => {
+  const { chartExit, CHARTS } = await import('../../textbook/charts.js');
+  it('конец внутри поля — сам конец; снаружи — точка выхода на краю', () => {
+    expect(chartExit([{ x: 0, y: 0 }, { x: 10, y: 10 }], [0, 20], [0, 20])).toEqual({ x: 10, y: 10 });
+    expect(chartExit([{ x: 0, y: 60 }, { x: 390, y: 450 }], [0, 390], [0, 420])).toEqual({ x: 360, y: 420 });
+    expect(chartExit([{ x: 50, y: 50 }, { x: 60, y: 60 }], [0, 20], [0, 20])).toEqual({ x: 60, y: 60 });
+  });
+  it('«Студентов стало больше»: пока предложение труда сдвигается, подпись едет плавно, без прыжка', () => {
+    const A = { a: 300, b: 1, c: -60, d: 1 };
+    let prev = null;
+    for (let dC = 0; dC <= 60; dC += 2) {
+      const sc = CHARTS.labor.build(A, { dA: 0, dC, min: null });
+      const S = sc.curves.find((c) => c.id === 'S');
+      const p = chartExit(S.points, sc.xDomain, sc.yDomain);
+      if (prev) expect(Math.hypot(p.x - prev.x, p.y - prev.y), `dC=${dC}`).toBeLessThan(12);
+      prev = p;
+    }
+  });
+});
