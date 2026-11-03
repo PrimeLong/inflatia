@@ -2,7 +2,7 @@
    вместе с KaTeX и текстами глав — в меню и в партии этот код не нужен.
    Тексты — src/textbook/chapters/*.md (разметка — src/textbook/markdown.js), порядок и
    ссылки на настоящие учебники — src/textbook/toc.js, прогресс — src/textbook/progress.js. */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { ArrowLeft, BookOpenText, BookOpen, Calculator, Gamepad2, Play, Check, RotateCcw, ChevronLeft, ChevronRight, Info, Target, ListChecks, TriangleAlert, Brain, ChevronDown, ChevronUp, ArrowDown, ArrowUp, Lightbulb, X, Lock } from 'lucide-react';
@@ -994,17 +994,34 @@ function ProblemFrame({ block, no, ctx, from, children, verdict, answerText, onS
   const [collapsed, setCollapsed] = useState(() => !ctx.inReview && !!(rec && rec.ok && !(rec.due && rec.due <= Date.now())));
   const canCollapse = !ctx.inReview;
   const solved = !!(rec && rec.ok);
-  const collapse = () => {
-    Audio.play('click'); setCollapsed(true);
-    setTimeout(() => { const el = document.getElementById(`problem-${block.id}`); if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: 'start' }); }, 0);
-  };
+  /* Свернуть — плавно (docs/mechanics.md): перед сменой запоминаем высоту карточки, после — складываем её
+     по высоте в строку (тот же узел: обе ветки — один div), строка проявляется. Начало ушло выше экрана —
+     страница подъезжает к строке. */
+  const root = useRef(null); const fromH = useRef(null);
+  const collapse = () => { Audio.play('click'); fromH.current = root.current ? root.current.offsetHeight : null; setCollapsed(true); };
+  useLayoutEffect(() => {
+    const el = root.current; const h0 = fromH.current;
+    fromH.current = null;
+    if (!collapsed || !el || h0 == null) return;
+    const calm = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!calm && el.animate && h0 - el.offsetHeight > 4) {
+      el.style.overflow = 'hidden';
+      const a = el.animate([{ height: `${h0}px` }, { height: `${el.offsetHeight}px` }], { duration: 320, easing: 'cubic-bezier(.3, .8, .3, 1)' });
+      const done = () => { el.style.overflow = ''; };
+      a.onfinish = done; a.oncancel = done;
+      if (el.firstElementChild) el.firstElementChild.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 80, easing: 'ease-out', fill: 'backwards' });
+    }
+    // как прежний scrollIntoView со scrollMarginTop 64: строка — под шапкой
+    const top = el.getBoundingClientRect().top;
+    if (top < 0) window.scrollBy({ top: top - 64, behavior: calm ? 'auto' : 'smooth' });
+  }, [collapsed]);
   const statement = useMemo(() => markTerms(block.statement), [block]);
   const hints = block.hints || [];
   const status = rec ? (rec.ok ? 'решена' : 'была ошибка') : null;
   const open = solMode != null ? solMode : !!(verdict && verdict.reveal);
   if (collapsed) {
     return (
-      <div id={`problem-${block.id}`} className={`ems-panel${solved ? ' tb-solved' : ''}`} style={{ padding: '8px 14px', margin: '8px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-collapsed="true" data-solved={solved ? 'true' : undefined}>
+      <div ref={root} id={`problem-${block.id}`} className={`ems-panel${solved ? ' tb-solved' : ''}`} style={{ padding: '8px 14px', margin: '8px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-collapsed="true" data-solved={solved ? 'true' : undefined}>
         <button type="button" className="tb-link" style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', fontSize: 13.5, textDecoration: 'none' }} aria-expanded="false"
           data-testid="tb-problem-expand" onClick={() => { Audio.play('click'); setCollapsed(false); }}>
           {solved ? <span className="tb-solved-mark" aria-hidden="true"><Check size={15} strokeWidth={3} /></span>
@@ -1018,7 +1035,7 @@ function ProblemFrame({ block, no, ctx, from, children, verdict, answerText, onS
     );
   }
   return (
-    <div id={`problem-${block.id}`} className={`tb-prob${rec && rec.ok ? ' tb-solved' : ''}${verdict && verdict.ok ? ' tb-win' : ''}`} style={{ margin: '14px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-solved={rec && rec.ok ? 'true' : undefined}>
+    <div ref={root} id={`problem-${block.id}`} className={`tb-prob${rec && rec.ok ? ' tb-solved' : ''}${verdict && verdict.ok ? ' tb-win' : ''}`} style={{ margin: '14px 0', scrollMarginTop: 64 }} data-testid="tb-problem" data-problem={block.id} data-kind={block.kind} data-solved={rec && rec.ok ? 'true' : undefined}>
       <div className="tb-prob-head">
         <span className="tb-prob-title">{KIND_LABEL[block.kind] || 'Задача'} {no}</span>
         {LEVELS[block.level] && <span className="tb-lv" data-level={block.level} data-testid="tb-level">{LEVELS[block.level]}</span>}

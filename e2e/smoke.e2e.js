@@ -3993,8 +3993,14 @@ test('учебник: калькулятор по полям а → б → в, �
   await expect(done).not.toHaveAttribute('data-collapsed', 'true');
   await expect(done.getByRole('textbox').first()).toBeVisible();
   // развёрнутую — и свернуть обратно: кнопкой вверху карточки и внизу, у «Решения»
+  // сворачивается плавно: карточка складывается по высоте в строку, а не пропадает мгновенно
+  // (запоминаем вызовы animate — сама анимация короче, чем проверка на загруженной машине)
+  await done.evaluate((el) => { const orig = el.animate.bind(el); el.dataset.fold = ''; el.animate = (k, o) => { if (k.some((f) => f.height)) el.dataset.fold = `${k[0].height}>${k[k.length - 1].height}`; return orig(k, o); }; });
   await done.getByTestId('tb-problem-collapse').click();
   await expect(done).toHaveAttribute('data-collapsed', 'true');
+  const fold = (await done.getAttribute('data-fold')).match(/^(\d+)px>(\d+)px$/);
+  expect(Number(fold[1])).toBeGreaterThan(Number(fold[2]) + 100);
+  await expect.poll(() => done.evaluate((el) => el.getAnimations().length === 0 && el.style.overflow === '')).toBe(true);
   await done.getByTestId('tb-problem-expand').click();
   await done.getByTestId('tb-problem-collapse-bottom').click();
   await expect(done).toHaveAttribute('data-collapsed', 'true');
