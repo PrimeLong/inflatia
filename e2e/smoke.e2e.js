@@ -1096,6 +1096,19 @@ test('учебник: оглавление, формулы KaTeX, график �
   // новый вопрос верно — немного опыта
   await expect(recall2.getByTestId('tb-recall-xp')).toHaveText('+5 опыта');
   await expectNoSidewaysScroll(page);
+  // вышли и вернулись — отвеченное верно осталось отвеченным: верные варианты, разбор, «Отвечено верно», без опыта
+  await toToc(page);
+  await toc.getByRole('button', { name: /Спрос и предложение/ }).click();
+  const again2 = page.getByTestId('chapter').getByTestId('tb-recall').nth(1);
+  await again2.scrollIntoViewIfNeeded();
+  await expect(again2).toHaveAttribute('data-kept', 'true');
+  await expect(again2.getByTestId('tb-recall-verdict')).toContainText('Отвечено верно');
+  await expect(again2.getByTestId('tb-recall-answer')).toBeVisible();
+  await expect(again2.getByTestId('tb-recall-xp')).toHaveCount(0);
+  await expect(again2.locator('.tb-recall-opt.right')).toHaveCount(rightKeys2.length);
+  await expect(again2.locator('.tb-recall-opt:not([disabled])')).toHaveCount(0);
+  // первый — с ошибкой и верным ответом после неё — тоже отвечен; повторение — через два дня
+  await expect(page.getByTestId('chapter').getByTestId('tb-recall').first().getByTestId('tb-recall-verdict')).toContainText('вернётся на повторение');
   await toToc(page);
   await expect(toc.locator('.tb-toc-row', { hasText: 'Спрос и предложение' }).locator('[data-testid=tb-ch-sections][data-done="2"][data-total="4"]')).toHaveCount(1);
   // ни «На сегодня», ни «Оглавления» на страницах: один «назад» вверху

@@ -529,17 +529,21 @@ function recallVerdict(ok, s) {
   if (s.why === 'early') return s.wasOk ? `Верно. Повторение остаётся по плану — ${daysUntil(s.due)}.` : `Верно. Раздел пройден, а вопрос вернётся на повторение ${daysUntil(s.due)} — чтобы закрепить.`;
   if (s.why === 'advance') return `Верно. Следующее повторение — ${daysUntil(s.due)}.`;
   if (s.why === 'done') return 'Верно. Вопрос ушёл из повторения.';
+  if (s.why === 'kept') return s.due ? `Отвечено верно. Вопрос вернётся на повторение ${daysUntil(s.due)}.` : 'Отвечено верно — раздел пройден.';
   return 'Верно.';
 }
 const shuffled = (n) => { const a = Array.from({ length: n }, (_, k) => k); for (let k = n - 1; k > 0; k -= 1) { const j = Math.floor(Math.random() * (k + 1)); [a[k], a[j]] = [a[j], a[k]]; } return a; };
 function RecallCard({ b, ctx, from }) {
   const rec = ctx.progress.problems[b.id];
+  /* уже отвечено верно и срок повторения не подошёл — карточка открывается отвеченной: верные варианты,
+     разбор, «Отвечено верно» (раньше она всякий раз была пустой, и вопрос можно было проходить снова и снова) */
+  const [kept] = useState(() => !ctx.inReview && !!(rec && rec.ok && !(rec.due != null && rec.due <= Date.now())));
   // что стало с повторением после ответа — для вердикта (расписание считаем до записи ответа)
-  const [after, setAfter] = useState(null);
+  const [after, setAfter] = useState(() => (kept ? { why: 'kept', due: rec.due } : null));
   const questions = useMemo(() => b.parts.map((p) => markTerms(p.question)), [b]);
   const mix = () => b.parts.map((p) => shuffled(p.options.length));
   const [order, setOrder] = useState(mix);
-  const [picks, setPicks] = useState({});
+  const [picks, setPicks] = useState(() => (kept ? Object.fromEntries(b.parts.map((p, i) => [i, p.options.findIndex((o) => o.correct)])) : {}));
   const done = b.parts.every((_, i) => picks[i] != null);
   const ok = done && b.parts.every((p, i) => p.options[picks[i]].correct);
   const pick = (i, k) => {
@@ -552,7 +556,7 @@ function RecallCard({ b, ctx, from }) {
     if (all) { const now = Date.now(); setAfter({ ...scheduleAfter(rec, good, now), wasOk: !!(rec && rec.ok), xp: recallXp(rec, good, now) }); ctx.onAnswer(b.id, good, {}); }
   };
   return (
-    <div className="tb-box" style={{ borderLeftColor: COLOR.blue }} data-testid="tb-recall" data-recall={b.id} data-answer={JSON.stringify(b.parts.map((p) => p.options.findIndex((o) => o.correct)))}>
+    <div className="tb-box" style={{ borderLeftColor: COLOR.blue }} data-testid="tb-recall" data-recall={b.id} data-kept={kept ? 'true' : undefined} data-answer={JSON.stringify(b.parts.map((p) => p.options.findIndex((o) => o.correct)))}>
       <div className="row-between" style={{ alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
         <div className="tb-box-head" style={{ color: COLOR.blue, marginBottom: 6 }}><Brain size={13} />{from ? `${from} · ` : ''}Вспомните</div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
