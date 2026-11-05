@@ -6082,6 +6082,35 @@ test('«Пыльная витрина»: протирка не выделяет 
   expect(errors).toEqual([]);
 });
 
+test('«Пыльная витрина»: тряпка одна — второй палец не стирает (два пальца чистили витрину за секунду)', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await page.getByTestId('shop-tabs').locator('[data-tab="dust"]').click();
+  await page.getByTestId('shop-dust').getByTestId('dust-open').click();
+  const game = page.getByTestId('dust-game');
+  await expect(game).toHaveAttribute('data-phase', 'play');
+  // первый палец стоит в левом краю, второй проходит по правому краю сверху вниз: раньше каждое движение
+  // стирало полосу от одного пальца до другого — веер на полвитрины; теперь стирает только первый
+  await game.getByTestId('dust-glass').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const ev = (type, id, x, y) => el.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: id === 1, clientX: r.left + x * r.width, clientY: r.top + y * r.height, bubbles: true, cancelable: true }));
+    ev('pointerdown', 1, 0.1, 0.5); ev('pointerdown', 2, 0.9, 0.05);
+    for (let k = 0; k <= 30; k += 1) { ev('pointermove', 1, 0.1 + (k % 2) * 0.01, 0.5); ev('pointermove', 2, 0.9, 0.05 + k * 0.03); }
+    ev('pointerup', 2, 0.9, 0.95); ev('pointerup', 1, 0.1, 0.5);
+  });
+  const pct = Number(await game.getByTestId('dust-percent').getAttribute('data-value'));
+  expect(pct).toBeLessThan(8);
+  // а один палец по-прежнему протирает
+  const box = await game.getByTestId('dust-glass').boundingBox();
+  await page.mouse.move(box.x + 10, box.y + box.height * 0.3); await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 10, box.y + box.height * 0.3, { steps: 12 }); await page.mouse.up();
+  await expect.poll(async () => Number(await game.getByTestId('dust-percent').getAttribute('data-value'))).toBeGreaterThan(pct);
+  expect(errors).toEqual([]);
+});
+
 test('лавка: «Пыльная витрина» — тряпкой по стеклу, 100% — блик и 2 монеты; до пяти витрин в день', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;

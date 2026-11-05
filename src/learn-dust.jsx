@@ -275,19 +275,23 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
     el.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${tilt.current.toFixed(1)}deg)`;
     el.classList.add('on');
   };
+  /* тряпка одна: протирает только первый палец на стекле (down.current.id). Раньше любой палец двигал общую
+     «прошлую точку» — два пальца стирали полосу между собой, и витрина чистилась за секунду */
   const onDown = (e) => {
     if (phaseRef.current !== 'play' || !size) return;
     e.preventDefault();
+    if (down.current) return;
     try { dust.current.setPointerCapture(e.pointerId); } catch { /* без захвата */ }
-    const p = at(e); down.current = p; moveRag(p, null); wipeTo(p, null);
+    const p = at(e); down.current = { id: e.pointerId, ...p }; moveRag(p, null); wipeTo(p, null);
   };
   const onMove = (e) => {
     if (!size) return;
+    if (down.current && e.pointerId !== down.current.id) return;
     const p = at(e); moveRag(p, down.current || p);
     if (!down.current) return;
-    wipeTo(p, down.current); down.current = p;
+    wipeTo(p, down.current); down.current = { id: down.current.id, ...p };
   };
-  const onUp = () => { down.current = null; };
+  const onUp = (e) => { if (down.current && (!e || e.pointerId === down.current.id)) down.current = null; };
   const onLeave = (e) => { if (e.pointerType === 'mouse' && rag.current) rag.current.classList.remove('on'); };
   // клавиатура: полоса за полосой сверху вниз, по два прохода
   const onKey = (e) => {
