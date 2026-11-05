@@ -5717,6 +5717,16 @@ test('книгу на полке можно слушать: голос брау�
   // скорость: 1× → 1,25×
   await listen.getByTestId('book-speed').click();
   await expect(listen.getByTestId('book-speed')).toHaveText('1,25×');
+  // громкость — ползунок с динамиком; динамик выключает звук и возвращает прежнюю громкость; громкость помнит устройство
+  const vol = listen.getByTestId('book-volume');
+  await expect(vol).toHaveValue('100');
+  await vol.fill('40');
+  await expect(vol).toHaveAttribute('aria-valuetext', '40%');
+  await listen.getByTestId('book-mute').click();
+  await expect(vol).toHaveValue('0');
+  await listen.getByTestId('book-mute').click();
+  await expect(vol).toHaveValue('40');
+  expect(await page.evaluate(() => localStorage.getItem('ems-book-volume'))).toBe('0.4');
   expect(await page.evaluate(() => window.__tape.playbackRate)).toBe(1.25);
   // «слушать» у отрывка — запись перематывается к его началу
   const taxes = book.locator('[data-testid=book-passage][data-passage="taxes"]');

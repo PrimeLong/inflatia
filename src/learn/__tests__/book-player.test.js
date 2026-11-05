@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { BOOKS, BOOK_BY_ID, bookSpeech, speechScript, passageScript, speechSeconds } from '../shelf.js';
 import { listBookAudio } from '../../../scripts/voice-files-plugin.js';
-import { bookPlayer, getState, viewOf, resetBookPlayer, passageTracks, audioMode } from '../book-player.js';
+import { bookPlayer, getState, viewOf, resetBookPlayer, passageTracks, audioMode, canSetVolume, clampVolume } from '../book-player.js';
 
 // подмена проигрывателя: запоминает адреса; длина каждой записи — 100 с
 class FakeTape {
@@ -98,5 +98,43 @@ describe('книга по отрывкам', () => {
     expect(audioMode(b)).toBe('file');
     bookPlayer.play(b, bookSpeech(b), speechSeconds(b), 0);
     expect(FakeTape.played).toEqual(['smith-wealth.mp3']);
+  });
+});
+
+describe('громкость книги (docs/mechanics.md, «Книжная полка»)', () => {
+  const book = () => BOOK_BY_ID['smith-wealth'];
+  beforeEach(() => {
+    const m = new Map();
+    globalThis.localStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { webdriver: true } });
+    globalThis.window = globalThis;
+    localStorage.setItem('ems-book-audio-test', '2');
+    globalThis.Audio = FakeTape; FakeTape.played = [];
+    resetBookPlayer();
+  });
+  it('ползунок двигает громкость записи, она в пределах 0…1 и запоминается на устройстве', async () => {
+    const b = book(); const parts = bookSpeech(b);
+    bookPlayer.play(b, parts, speechSeconds(b), 0);
+    expect(getState().volume).toBe(1);
+    bookPlayer.setVolume(0.4);
+    expect(getState().volume).toBe(0.4);
+    expect(FakeTape.last.volume).toBe(0.4);
+    expect(localStorage.getItem('ems-book-volume')).toBe('0.4');
+    bookPlayer.setVolume(7); expect(getState().volume).toBe(1);
+    bookPlayer.setVolume(-1); expect(getState().volume).toBe(0);
+    expect(clampVolume('x')).toBe(1);
+    // новая сессия — та же громкость; новая дорожка получает её сразу
+    localStorage.setItem('ems-book-volume', '0.3');
+    resetBookPlayer();
+    expect(getState().volume).toBe(0.3);
+    bookPlayer.play(b, parts, speechSeconds(b), 0.5);
+    expect(FakeTape.last.volume).toBe(0.3);
+  });
+  it('там, где страница громкость не меняет (iPhone), ползунка нет', () => {
+    class IosTape extends FakeTape { set volume(v) { this.v = v; } get volume() { return 1; } }
+    globalThis.Audio = IosTape; resetBookPlayer();
+    expect(canSetVolume()).toBe(false);
+    globalThis.Audio = FakeTape; resetBookPlayer();
+    expect(canSetVolume()).toBe(true);
   });
 });

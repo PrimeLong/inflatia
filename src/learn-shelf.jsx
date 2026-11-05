@@ -9,12 +9,12 @@
    рамах: знакомые — в цвете, остальные — силуэтом; касание знакомого — карточка с главной идеей.
    Отдельный ленивый чанк: тексты книг не грузятся, пока профиль не открыт. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw } from 'lucide-react';
+import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Card, IconButton, Sheet, Button } from './ds.jsx';
 import { shelfBooks, BOOK_BY_ID, wordsIn, bookReadAt, bookSpeech, speechSeconds, readLockSeconds } from './learn/shelf.js';
 import { useBookPlayer, MiniPlayer, MINI_CSS, clock, rateText, Bars } from './learn-bookdock.jsx';
-import { bookPlayer, getState as getBookState } from './learn/book-player.js';
+import { bookPlayer, getState as getBookState, canSetVolume } from './learn/book-player.js';
 import { plural } from './lib/plural.js';
 import { markBook, XP } from './textbook/learn-state.js';
 import { fullDate } from './learn/collections.js';
@@ -114,6 +114,14 @@ const CSS = `
     background: color-mix(in srgb, var(--b) 11%, transparent); color: var(--ds-ink); font: 700 13.5px var(--ds-sans); font-variant-numeric: tabular-nums; transition: background .15s; }
   .lb-ctl button:hover, .lb-rate:hover { background: color-mix(in srgb, var(--b) 20%, transparent); }
   .lb-ctl small { font: 800 12px var(--ds-sans); }
+  .lb-vol { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .lb-vol-btn { width: 36px; height: 36px; border: 0; border-radius: 50%; display: inline-grid; place-items: center; cursor: pointer; color: var(--ds-ink); background: color-mix(in srgb, var(--b) 11%, transparent); }
+  .lb-vol input { width: min(220px, 60%); height: 22px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+  .lb-vol input::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; background: linear-gradient(var(--b), var(--b)) 0 0 / var(--v, 100%) 100% no-repeat, color-mix(in srgb, var(--b) 16%, var(--ds-rule2)); }
+  .lb-vol input::-moz-range-track { height: 5px; border-radius: 3px; background: linear-gradient(var(--b), var(--b)) 0 0 / var(--v, 100%) 100% no-repeat, color-mix(in srgb, var(--b) 16%, var(--ds-rule2)); }
+  .lb-vol input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: #fff; border: 3px solid var(--b); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .lb-vol input::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 3px solid var(--b); }
+  .lb-vol-hint { font: 500 12.5px var(--ds-sans); color: var(--ds-ink3); }
   .lb-cap { grid-column: 1 / -1; text-align: center; font: 500 12px var(--ds-sans); color: var(--ds-ink3); }
   .lb-listen-t .lb-bars { color: var(--b); }
   .lb-passage .where { font: 600 12.5px var(--ds-sans); color: var(--ds-ink2); margin-top: 2px; letter-spacing: .02em; }
@@ -160,6 +168,7 @@ function ListenCard({ b, p, cardRef }) {
         <button type="button" className="lb-rate" onClick={p.nextRate} aria-label={`Скорость ${rateText(p.rate)} — сменить`} data-testid="book-speed">{rateText(p.rate)}</button>
         <button type="button" onClick={() => p.skip(15)} aria-label="Вперёд на 15 секунд" data-testid="book-fwd"><small>15</small><RotateCw size={17} aria-hidden="true" /></button>
       </div>
+      <Volume p={p} />
       <div className="lb-cap" data-testid="book-voice-caption">{p.mode === 'speech' ? 'читает голос браузера — запись книги появится позже' : 'голос синтезирован'}</div>
     </div>
   );
@@ -186,6 +195,22 @@ function useReadClock(id, need, on) {
     return () => { clearInterval(t); save(); };
   }, [id, need, on]);
   return left;
+}
+
+/* громкость книги: ползунок с динамиком (касание динамика — без звука и обратно); на iPhone, где громкость
+   страница не меняет, — подпись «кнопками телефона» (docs/mechanics.md, «Книжная полка») */
+function Volume({ p }) {
+  const last = useRef(p.volume > 0 ? p.volume : 1);
+  if (p.volume > 0) last.current = p.volume;
+  if (!canSetVolume()) return <div className="lb-vol lb-vol-hint" data-testid="book-volume-hint"><Volume2 size={16} aria-hidden="true" />Громкость — кнопками телефона</div>;
+  const Icon = p.volume === 0 ? VolumeX : p.volume < 0.5 ? Volume1 : Volume2;
+  return (
+    <div className="lb-vol">
+      <button type="button" className="lb-vol-btn" aria-label={p.volume === 0 ? 'Включить звук' : 'Выключить звук'} data-testid="book-mute" onClick={() => p.setVolume(p.volume === 0 ? last.current : 0)}><Icon size={18} aria-hidden="true" /></button>
+      <input type="range" min="0" max="100" step="1" value={Math.round(p.volume * 100)} onChange={(e) => p.setVolume(Number(e.target.value) / 100)}
+        aria-label="Громкость" aria-valuetext={`${Math.round(p.volume * 100)}%`} data-testid="book-volume" style={{ '--v': `${p.volume * 100}%` }} />
+    </div>
+  );
 }
 
 export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null }) {
