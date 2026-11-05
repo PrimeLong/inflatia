@@ -89,8 +89,9 @@ describe('физика вещиц', () => {
   it('колыбель: оттянутый крайний шарик передаёт удар — отлетает противоположный', () => {
     const H = 48; const m = decorModel('desk-cradle', 400, H);
     kick(m, true);
+    // крайний шарик сначала плавно поднимается (0,4 с), потом падает и бьёт по ряду
     let far = 0;
-    for (let k = 0; k < 40; k += 1) { decorStep(m, 1 / 60, H); far = Math.max(far, m.balls[4].a); }
+    for (let k = 0; k < 70; k += 1) { decorStep(m, 1 / 60, H); far = Math.max(far, m.balls[4].a); }
     expect(far).toBeGreaterThan(0.3);
     expect(m.clicks).toBeGreaterThan(0);
   });
@@ -141,5 +142,50 @@ describe('колыбель: несколько шариков сразу', () =>
     const seen = m.balls.map(() => 0);
     for (let k = 0; k < 30; k += 1) { decorStep(m, 1 / 60, H); m.balls.forEach((b, i) => { seen[i] = Math.max(seen[i], Math.abs(b.w)); }); }
     seen.forEach((w) => expect(w).toBeGreaterThan(1));
+  });
+});
+
+describe('колыбель на подставке: плавный подъём и предел размаха (docs/mechanics.md)', () => {
+  it('верный ответ — шарик поднимается плавно, а не перескакивает наверх', async () => {
+    const { CRADLE_LIFT } = await import('../../learn-decor.jsx');
+    const H = 120; const m = decorModel('desk-cradle', 200, H);
+    kick(m, true);
+    const path = [];
+    for (let k = 0; k < 30; k += 1) { decorStep(m, 1 / 60, H); path.push(m.balls[0].a); }
+    expect(Math.abs(path[0])).toBeLessThan(0.15);
+    for (let k = 1; k < 22; k += 1) expect(Math.abs(path[k] - path[k - 1]), `кадр ${k}`).toBeLessThan(0.12);
+    expect(Math.min(...path)).toBeLessThan(CRADLE_LIFT.to + 0.05);
+  });
+  it('как ни взмахни — шарики остаются на холсте подставки', async () => {
+    const { holdCradle, cradleWidth, CRADLE_MAX } = await import('../../learn-decor.jsx');
+    [[120], [170]].forEach(([H]) => {
+      const W = cradleWidth(H); const m = decorModel('desk-cradle', W, H);
+      holdCradle(m, 0, -500);
+      expect(Math.abs(m.balls[0].a)).toBeLessThanOrEqual(CRADLE_MAX + 1e-9);
+      // взмах с предельной скоростью руки
+      m.balls.forEach((b) => { if (b.drag) b.w = -7; b.drag = false; });
+      for (let k = 0; k < 600; k += 1) {
+        decorStep(m, 1 / 60, H);
+        m.balls.forEach((b) => {
+          const x = b.ax + Math.sin(b.a) * m.L; const y = m.top + Math.cos(b.a) * m.L;
+          expect(x - m.r).toBeGreaterThanOrEqual(0); expect(x + m.r).toBeLessThanOrEqual(W);
+          expect(y + m.r).toBeLessThanOrEqual(H); expect(Math.abs(b.a)).toBeLessThanOrEqual(CRADLE_MAX + 1e-9);
+        });
+      }
+    });
+  });
+});
+
+describe('подставка колыбели: место на экране', () => {
+  it('по умолчанию — справа от урока на ПК, справа внизу на телефоне; всегда целиком на экране', async () => {
+    const { defaultStand, clampStand } = await import('../../learn-decor.jsx');
+    const pc = { w: 276, h: 202 }; const ph = { w: 206, h: 152 };
+    const a = defaultStand(pc, 1440, 900);
+    expect(a.x).toBeGreaterThanOrEqual(720 + 300);
+    expect(a.x + pc.w).toBeLessThanOrEqual(1440);
+    const b = defaultStand(ph, 360, 740);
+    expect(b.x + ph.w).toBeLessThanOrEqual(360);
+    expect(b.y).toBeGreaterThan(740 / 2);
+    expect(clampStand({ x: 5000, y: -300 }, ph, 360, 740)).toEqual({ x: 360 - ph.w - 4, y: 4 });
   });
 });

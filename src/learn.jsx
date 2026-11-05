@@ -44,7 +44,7 @@ import {
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
 import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote } from './learn/rewards.js';
-import { DeskDecor, tellAnswer } from './learn-decor.jsx';
+import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
 import { lessonOpts, weakLessons, recommend, courseCtx, theoryNotice } from './learn/program.js';
@@ -1439,7 +1439,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         <InflaMeter streak={run3} mood={fb && !fb.empty ? (fb.ok ? 'joy' : 'cheer') : 'hello'} size={34} />
       </div>
       {/* украшение урока из лавки — живое, его можно трогать */}
-      {desk && stage !== 'done' && <div className="ln-desk"><DeskDecor id={desk} height={48} /></div>}
+      {/* колыбель — на подставке сбоку (урок не сдвигается), гирлянда и мобиле — полосой под шапкой */}
+      {desk && stage !== 'done' && (desk === 'desk-cradle' ? <><style>{CRADLE_CSS}</style><CradleStand id={desk} /></> : <div className="ln-desk"><DeskDecor id={desk} height={48} /></div>)}
 
       {asking && (
         <Sheet label="Выйти из урока?" onClose={() => setAsking(false)}>

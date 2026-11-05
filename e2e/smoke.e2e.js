@@ -5379,7 +5379,7 @@ test('«Чтение» — урок на дороге юнита: после у�
   expect(errors).toEqual([]);
 });
 
-test('украшения урока: своя витрина с живыми превью, покупка вешает вещицу в уроки, она отзывается на ответ', async ({ page }) => {
+test('украшения урока: своя витрина с живыми превью, покупка вешает вещицу в уроки, она отзывается на ответ', async ({ page, isMobile }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
@@ -5415,17 +5415,46 @@ test('украшения урока: своя витрина с живыми п�
   await shopTab(page, 'wardrobe');
   await expect(page.getByTestId('shop-wardrobe')).toBeVisible();
   await expect(page.getByTestId('shop-wardrobe').locator('[data-item^="desk-"]')).toHaveCount(0);
-  // в уроке — полоса с колыбелью под шапкой; ответ её будит
+  // в уроке колыбель — на подставке сбоку, а не полосой над заданием: урок не сдвигается вниз; ответ её будит
   await openTab(page, 'path');
   await startLesson(page, 'sc-l1');
   const decor = page.getByTestId('lesson').getByTestId('lesson-decor');
   await expect(decor).toHaveAttribute('data-decor', 'desk-cradle');
   await expect(decor).toHaveAttribute('data-awake', 'false', { timeout: 5000 });
+  const stand = page.getByTestId('cradle-stand');
+  expect(await stand.evaluate((el) => getComputedStyle(el).position)).toBe('fixed');
+  await expect(page.getByTestId('lesson').locator('.ln-desk')).toHaveCount(0);
+  const sb = await stand.boundingBox();
+  expect(sb.width).toBeGreaterThanOrEqual(isMobile ? 180 : 250);
   const width = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(width[0]).toBeLessThanOrEqual(width[1]);
   while (!(await page.getByTestId('ex').count())) await page.getByTestId('lesson').locator('.ln-foot button').last().click();
   await answerExercise(page);
   await expect(decor).toHaveAttribute('data-awake', 'true');
+  // перетащили за ручку — подставка едет за пальцем и остаётся на экране; место помнит устройство
+  const grip = await page.getByTestId('cradle-grip').boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2 - 60, grip.y + grip.height / 2 - 80, { steps: 6 });
+  await page.mouse.up();
+  const moved = await stand.boundingBox();
+  expect(Math.round(sb.x - moved.x)).toBeGreaterThan(40);
+  expect(Math.round(sb.y - moved.y)).toBeGreaterThan(50);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ems-cradle-pos')))).toEqual({ x: Math.round(moved.x), y: Math.round(moved.y) });
+  // подставка не мешает уроку: нажатие мимо шариков уходит тому, что под ней; шарик на подставке тянется
+  const through = await stand.evaluate((el) => { const r = el.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + 12, r.top + r.height / 2); return !!hit && !el.contains(hit); });
+  expect(through).toBe(true);
+  const cv = await decor.locator('canvas').boundingBox();
+  const m = await decor.evaluate((el) => { const c = el.querySelector('canvas'); return { w: c.clientWidth, h: c.clientHeight }; });
+  const r = Math.max(7, Math.min(13, Math.round(m.h * 0.075))); const top = 14; const L = m.h - top - r - 12;
+  // средний шарик: после ответа крайние ещё качаются, средний стоит на месте
+  const bx = cv.x + m.w / 2; const by = cv.y + top + L;
+  await page.mouse.move(bx, by);
+  await page.mouse.down();
+  await page.mouse.move(bx - 30, by - 8, { steps: 5 });
+  await expect(decor).toHaveAttribute('data-drag', 'true');
+  await page.mouse.up();
+  await expect(decor).toHaveAttribute('data-drag', 'false');
   // убрали в лавке — в уроке полосы нет
   await page.getByTestId('lesson').locator('[data-nav="back"]').first().click();
   const leave = page.getByRole('button', { name: 'Выйти', exact: true });
