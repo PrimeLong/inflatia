@@ -27,3 +27,19 @@ describe('темы урока: свои звуки ответа', () => {
     expect(answerSound(null, false)).toBe('down');
   });
 });
+
+describe('«Биржа»: график котировок плывёт по кругу без обрыва', async () => {
+  const { loopWalk } = await import('../skin-sounds.js');
+  it('два одинаковых периода, конец периода сходится с началом, линия в поле', () => {
+    [[40, 7, 14], [30, 91, 18]].forEach(([n, seed, amp]) => {
+      const pts = loopWalk(n, seed, amp);
+      expect(pts.length).toBe(2 * n - 1);
+      expect(pts[0][0]).toBe(0);
+      expect(pts[pts.length - 1][0]).toBeCloseTo(200, 9);
+      expect(pts[0][1]).toBeCloseTo(pts[n - 1][1], 9);
+      expect(pts[pts.length - 1][1]).toBeCloseTo(pts[0][1], 9);
+      for (let i = 0; i < n; i += 1) { expect(pts[i + n - 1][0]).toBeCloseTo(pts[i][0] + 100, 9); expect(pts[i + n - 1][1]).toBe(pts[i][1]); }
+      pts.forEach(([, y]) => { expect(y).toBeGreaterThanOrEqual(8); expect(y).toBeLessThanOrEqual(92); });
+    });
+  });
+});

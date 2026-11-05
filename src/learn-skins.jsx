@@ -26,6 +26,7 @@ export const SKINS = {
 
 // звуки ответа темы — src/learn/skin-sounds.js
 export { SKIN_SOUNDS, answerSound } from './learn/skin-sounds.js';
+import { loopWalk } from './learn/skin-sounds.js';
 
 /* своя палитра темы: урок с тёмной темой — тёмный при светлом приложении, «Монетный двор» — светлый
    при тёмном. Учебные тексты внутри урока берут цвета приложения (--c-text и др.) — их тема
@@ -37,8 +38,8 @@ export function skinVars(s) {
   return Object.fromEntries(Object.entries(c).filter(([, v]) => typeof v === 'string').map(([k, v]) => [`--c-${kebab(k)}`, v]));
 }
 
-// случайное блуждание цены — для графиков «Биржи» (постоянное: из номера точки)
-const walk = (n, seed, amp) => { let y = 50; let x = seed; return Array.from({ length: n }, (_, i) => { x = (x * 9301 + 49297) % 233280; y = Math.max(12, Math.min(88, y + ((x / 233280) - 0.48) * amp)); return `${(i / (n - 1)) * 200},${y.toFixed(1)}`; }).join(' '); };
+// линия котировок «Биржи» — замкнутая по кругу (src/learn/skin-sounds.js, loopWalk)
+const walkPts = (n, seed, amp) => loopWalk(n, seed, amp).map(([x, y]) => `${x.toFixed(2)},${y.toFixed(1)}`).join(' ');
 const TICKER = 'НФТ ▲ 2,31% · ЗРН ▼ 0,84% · КФЕ ▲ 1,12% · СТЛ ▲ 0,40% · КРН/МОН 1,04 · ИНФЛ 4,1% · СТАВКА 2,0% · ЗЛТ ▲ 0,95% · ХЛБ ▼ 0,22% · ';
 
 export const SKIN_CSS = `
@@ -54,7 +55,9 @@ export const SKIN_CSS = `
   .sk-ex-chart.b { top: 44%; opacity: .5; animation-duration: 70s; }
   .sk-ex-chart.a { top: 20%; opacity: .35; }
   @keyframes sk-pan { to { transform: translateX(-50%) } }
-  .sk-ex-tape { position: absolute; left: 0; bottom: 92px; white-space: nowrap; font: 700 12px var(--ds-mono); color: rgba(25,195,125,.55); letter-spacing: .06em; animation: sk-pan 38s linear infinite; }
+  /* лента — над нижней панелью урока, какой бы высоты она ни была (высоту меряет Backdrop); высокая панель ответа — ленты нет */
+  .sk-ex-tape { position: absolute; left: 0; bottom: calc(var(--sk-foot, 92px) + 6px); white-space: nowrap; font: 700 12px var(--ds-mono); color: rgba(25,195,125,.55); letter-spacing: .06em; animation: sk-pan 38s linear infinite; transition: opacity .2s; }
+  .sk-ex[data-tall="true"] .sk-ex-tape { opacity: 0; }
   .sk-on[data-skin="exchange"] .ds-opt { background: rgba(8,26,18,.9); border: 1px solid #1E5A3E; border-radius: 6px; color: #D7F5E6; font-family: var(--ds-mono); font-size: 15px; --edge: #0B2418; }
   .sk-on[data-skin="exchange"] .ds-opt::before { content: '> '; color: #19C37D; font-weight: 700; }
   .sk-on[data-skin="exchange"] .ds-opt:hover:not(:disabled) { background: rgba(14,44,30,.95); border-color: #19C37D; }
@@ -149,6 +152,32 @@ export const SKIN_CSS = `
   .sk-candle.l { left: max(6px, calc(50% - 420px)); } .sk-candle.r { right: max(6px, calc(50% - 420px)); }
   .sk-candle.l b { left: 0; transform: none; } .sk-candle.r b { left: auto; right: 0; transform: none; }
 
+  /* ---------- во всех темах: панели урока — в цветах, рамке и шрифте темы (docs/mechanics.md) ---------- */
+  .sk-on[data-skin="exchange"] { --sk-panel: #07160F; --sk-rule: #1E5A3E; --sk-ok: #19C37D; --sk-bad: #F0505A; --sk-font: var(--ds-mono); --sk-radius: 6px; }
+  .sk-on[data-skin="mint"] { --sk-panel: #FFFBEE; --sk-rule: #C9A548; --sk-ok: #2E8B57; --sk-bad: #B8423A; --sk-font: var(--ds-news, Georgia, serif); --sk-radius: 4px; }
+  .sk-on[data-skin="blueprint"] { --sk-panel: #0D345C; --sk-rule: rgba(234,244,255,.5); --sk-ok: #7CE0A3; --sk-bad: #FF8A7A; --sk-font: var(--ds-mono); --sk-radius: 2px; }
+  .sk-on[data-skin="aurora"] { --sk-panel: rgba(12,16,44,.95); --sk-rule: rgba(255,255,255,.22); --sk-ok: #2BE3A0; --sk-bad: #FF6B8B; --sk-font: var(--ds-sans); --sk-radius: 18px; }
+  /* нижняя панель и панель ответа — над откликом темы (свеча не ложится на разбор) */
+  .sk-on[data-skin] .ln-foot { position: relative; z-index: 6; }
+  .sk-on[data-skin] .ds-answer { background: var(--sk-panel); border-top: 2px solid var(--sk-rule); border-radius: var(--sk-radius) var(--sk-radius) 0 0; color: var(--sk-ink); }
+  .sk-on[data-skin] .ds-answer.ok { border-top-color: var(--sk-ok); background: linear-gradient(color-mix(in srgb, var(--sk-ok) 13%, transparent), transparent 75%), var(--sk-panel); }
+  .sk-on[data-skin] .ds-answer.bad { border-top-color: var(--sk-bad); background: linear-gradient(color-mix(in srgb, var(--sk-bad) 13%, transparent), transparent 75%), var(--sk-panel); }
+  .sk-on[data-skin] .ds-answer-say, .sk-on[data-skin] .ds-answer-stamp { font-family: var(--sk-font); }
+  .sk-on[data-skin] .ds-answer.ok .ds-answer-say, .sk-on[data-skin] .ds-answer.ok .ds-answer-stamp { color: var(--sk-ok); }
+  .sk-on[data-skin] .ds-answer.bad .ds-answer-say, .sk-on[data-skin] .ds-answer.bad .ds-answer-stamp { color: var(--sk-bad); }
+  .sk-on[data-skin="aurora"] .ds-answer, .sk-on[data-skin="aurora"] .ln-term-sheet, .sk-on[data-skin="aurora"] .ds-sheet { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  /* словарь по нажатию на слово и шторки поверх урока («Сообщить об ошибке») */
+  .sk-on[data-skin] .ln-term-sheet, .sk-on[data-skin] .ds-sheet { background: var(--sk-panel); border-top: 2px solid var(--sk-rule); border-radius: var(--sk-radius) var(--sk-radius) 0 0; color: var(--sk-ink); }
+  .sk-on[data-skin] .ln-term-sheet .ds-eyebrow, .sk-on[data-skin] .ds-sheet .ds-eyebrow { color: var(--sk-ok); font-family: var(--sk-font); }
+  .sk-on[data-skin="exchange"] .ln-term-sheet .ds-h2, .sk-on[data-skin="exchange"] .ds-sheet .ds-h2, .sk-on[data-skin="blueprint"] .ln-term-sheet .ds-h2, .sk-on[data-skin="blueprint"] .ds-sheet .ds-h2 { font-family: var(--sk-font); }
+  .sk-on[data-skin] .ds-sheet textarea, .sk-on[data-skin] .ds-sheet input { background: color-mix(in srgb, var(--sk-panel) 70%, #000); border-color: var(--sk-rule); color: var(--sk-ink); border-radius: var(--sk-radius); }
+  /* «Газета» — в «Монетном дворе» остаётся старой газетой: она и так из той же бумаги */
+  .sk-on[data-skin]:not([data-skin="mint"]) .tb-news { background: var(--sk-panel); border-color: var(--sk-rule); color: var(--sk-ink); border-radius: var(--sk-radius); }
+  .sk-on[data-skin]:not([data-skin="mint"]) .tb-news-mast { color: var(--sk-ok); border-bottom-color: var(--sk-rule); font-family: var(--sk-font); }
+  .sk-on[data-skin]:not([data-skin="mint"]) .tb-news-head { font-family: var(--sk-font); }
+  .sk-on[data-skin="exchange"] .tb-news-mast { font-size: 0; }
+  .sk-on[data-skin="exchange"] .tb-news-mast::after { content: '▸ ЛЕНТА НОВОСТЕЙ · ВЕСТНИК'; font-size: 12px; letter-spacing: .12em; }
+
   /* ---------- превью в лавке: тот же фон и те же кнопки, в карточке ---------- */
   .sk-on[data-skin="exchange"] { --sk-ink: #D7F5E6; } .sk-on[data-skin="mint"] { --sk-ink: #2A2112; }
   .sk-on[data-skin="blueprint"] { --sk-ink: #EAF4FF; } .sk-on[data-skin="aurora"] { --sk-ink: #EEF2FF; }
@@ -179,13 +208,37 @@ function Rosette({ color = '#9A7413' }) {
   );
 }
 
+/* высота нижней панели урока — для ленты «Биржи»: лента стоит над панелью, высокая панель ответа её прячет */
+function useFootHeight(ref, on) {
+  useEffect(() => {
+    const el = ref.current;
+    const root = el && el.closest('.ln-overlay');
+    if (!on || !root || typeof ResizeObserver === 'undefined') return undefined;
+    let foot = null; let raf = 0;
+    const ro = new ResizeObserver(() => measure());
+    const measure = () => {
+      const f = root.querySelector('.ln-foot');
+      if (f !== foot) { if (foot) ro.unobserve(foot); foot = f; if (f) ro.observe(f); }
+      const h = f ? Math.round(f.getBoundingClientRect().height) : 0;
+      el.style.setProperty('--sk-foot', `${h}px`);
+      el.dataset.tall = h > 170 ? 'true' : 'false';
+    };
+    const mo = new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); });
+    mo.observe(root, { childList: true, subtree: true });
+    measure();
+    return () => { mo.disconnect(); ro.disconnect(); cancelAnimationFrame(raf); };
+  }, [ref, on]);
+}
+
 function Backdrop({ k, preview = false }) {
+  const exRef = useRef(null);
+  useFootHeight(exRef, k === 'exchange' && !preview);
   const dust = useMemo(() => Array.from({ length: preview ? 8 : 18 }, (_, i) => ({ left: `${(i * 37) % 100}%`, t: `${11 + (i % 5) * 2}s`, d: `${-(i * 1.7)}s`, x: `${((i % 3) - 1) * 40}px` })), []);
   if (k === 'exchange') {
     return (
-      <div className="ln-skin sk-ex" data-testid={preview ? undefined : 'lesson-skin'} data-skin="exchange">
-        <svg className="sk-ex-chart a" viewBox="0 0 200 100" preserveAspectRatio="none"><polyline points={walk(80, 7, 14)} fill="none" stroke="#19C37D" strokeWidth=".5" vectorEffect="non-scaling-stroke" /></svg>
-        <svg className="sk-ex-chart b" viewBox="0 0 200 100" preserveAspectRatio="none"><polyline points={walk(60, 91, 18)} fill="none" stroke="#F0505A" strokeWidth=".5" vectorEffect="non-scaling-stroke" /></svg>
+      <div ref={exRef} className="ln-skin sk-ex" data-testid={preview ? undefined : 'lesson-skin'} data-skin="exchange">
+        <svg className="sk-ex-chart a" viewBox="0 0 200 100" preserveAspectRatio="none"><polyline points={walkPts(40, 7, 14)} fill="none" stroke="#19C37D" strokeWidth=".5" vectorEffect="non-scaling-stroke" /></svg>
+        <svg className="sk-ex-chart b" viewBox="0 0 200 100" preserveAspectRatio="none"><polyline points={walkPts(30, 91, 18)} fill="none" stroke="#F0505A" strokeWidth=".5" vectorEffect="non-scaling-stroke" /></svg>
         <div className="sk-ex-tape">{TICKER.repeat(6)}</div>
       </div>
     );

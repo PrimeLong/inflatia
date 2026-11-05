@@ -5478,8 +5478,19 @@ test('темы урока: живые превью во вкладке «Для 
   while (!(await page.getByTestId('ex').count())) await lesson.locator('.ln-foot button').last().click();
   const fx = lesson.getByTestId('lesson-skin-fx');
   await expect(fx).toHaveAttribute('data-fired', '0');
+  // лента тикеров — целиком над нижней панелью урока (на ПК панель выше, и лента уходила под неё)
+  await expect.poll(async () => {
+    const tape = await lesson.locator('.sk-ex-tape').boundingBox(); const foot = await lesson.locator('.ln-foot').first().boundingBox();
+    return tape && foot ? Math.round(foot.y - (tape.y + tape.height)) : -1;
+  }).toBeGreaterThanOrEqual(0);
   await answerExercise(page);
   await expect(fx).not.toHaveAttribute('data-fired', '0');
+  // панель ответа — терминал темы, а не тёплая плашка приложения: тёмно-зелёный фон, моноширинный заголовок
+  const answer = lesson.locator('.ds-answer');
+  await expect(answer).toBeVisible();
+  const look = await answer.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, img: getComputedStyle(el).backgroundImage, font: getComputedStyle(el.querySelector('.ds-answer-say, .ds-answer-stamp')).fontFamily }));
+  expect(`${look.bg} ${look.img}`).toMatch(/rgb\(7, 22, 15\)/);
+  expect(look.font).toMatch(/mono/i);
   // фон не ловит касаний и не расширяет страницу
   expect(await lesson.getByTestId('lesson-skin').evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
   const width = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
