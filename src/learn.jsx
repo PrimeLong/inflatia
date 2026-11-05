@@ -16,7 +16,7 @@ import {
   X, ArrowLeft, Flame, Zap, Coins, Target, Lock, Check, Gem, ChevronLeft, Calculator, BookOpenText, BookOpen, Trophy, Timer, Delete, ChevronRight, RotateCcw, Sparkles, Dumbbell,
   Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link, Utensils, Boxes, Users,
   Snowflake, ArrowDownToLine, ArrowUpToLine, Languages, MessageCircle, Headphones, Gamepad2, Repeat, Flag, Croissant, Landmark, Radio, MapPin, ArrowUp, ChevronDown, SkipForward,
-  Wrench, Feather, ChartSpline, PenLine,
+  Wrench, Feather, ChartSpline, PenLine, Factory,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
@@ -656,7 +656,7 @@ function MiniChart({ type, attrs, values = null, tween = false }) {
 }
 const PICS = {
   clock: Clock, scale: Scale, hourglass: Hourglass, ticket: Ticket, 'trending-up': TrendingUp, 'circle-check': CircleCheck, medal: Medal,
-  'arrow-left-right': ArrowLeftRight, handshake: Handshake, coffee: Coffee, wallet: Wallet, link: Link, utensils: Utensils, boxes: Boxes, users: Users,
+  'arrow-left-right': ArrowLeftRight, handshake: Handshake, coffee: Coffee, wallet: Wallet, link: Link, utensils: Utensils, boxes: Boxes, users: Users, factory: Factory,
   snowflake: Snowflake, 'arrow-down-to-line': ArrowDownToLine, 'arrow-up-to-line': ArrowUpToLine, croissant: Croissant, landmark: Landmark, radio: Radio, flag: Flag,
 };
 // картинка шага — значок в медальоне с розеткой, как клеймо на купюре

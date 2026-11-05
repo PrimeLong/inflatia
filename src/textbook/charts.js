@@ -1462,7 +1462,120 @@ phillipsChart.measureNames = { pi: 'инфляция', u: 'безработиц�
 taylorChart.measureNames = { i: 'ставка', real: 'реальная ставка' };
 solowChart.measureNames = { k: 'капитал на работника', y: 'выпуск на работника', c: 'потребление на работника', i: 'инвестиции на работника' };
 
-export const CHARTS = { 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
+/* ---------------- ПРОИЗВОДСТВЕННАЯ ФУНКЦИЯ: ОБЩИЙ, СРЕДНИЙ И ПРЕДЕЛЬНЫЙ ПРОДУКТ ----------------
+   Короткий период: капитал цеха неизменен, меняется число работников L. Учебная функция
+   TP = A·(a·L² − b·L³): сначала каждый следующий работник прибавляет всё больше (разделение
+   труда), потом всё меньше — убывающая предельная отдача. MP = A·(2a·L − 3b·L²),
+   AP = A·(a·L − b·L²); MP пересекает AP в максимуме AP. view=tp — кривая общего продукта,
+   view=avg — средний и предельный продукт. Ползунок A — новые станки и технологии. */
+const prodParams = (A) => ({ a: num(A, 'a', 6), b: num(A, 'b', 0.5) });
+export function prodFns(p, tech = 1) {
+  return {
+    tp: (L) => tech * (p.a * L * L - p.b * L ** 3),
+    mp: (L) => tech * (2 * p.a * L - 3 * p.b * L * L),
+    ap: (L) => tech * (p.a * L - p.b * L * L),
+    mpMaxL: p.a / (3 * p.b), apMaxL: p.a / (2 * p.b), tpMaxL: (2 * p.a) / (3 * p.b),
+  };
+}
+const productChart = {
+  title: 'Общий, средний и предельный продукт',
+  controls: (A) => {
+    const p = prodParams(A); const top = Math.round(prodFns(p).tpMaxL);
+    return [
+      { id: 'L', label: 'Работников в цехе L', min: 1, max: top, step: 0.5, def: num(A, 'l', Math.round(p.a / (3 * p.b))), fmt: (v) => r1(v) },
+      { id: 'A', label: 'Станки и технологии (во сколько раз лучше)', min: 1, max: 1.5, step: 0.05, def: num(A, 'tech', 1), fmt: (v) => `×${r2(v)}` },
+    ];
+  },
+  measure: (A, v) => { const f = prodFns(prodParams(A), v.A || 1); const L = v.L || 1; return { Q: f.tp(L), MP: f.mp(L), AP: f.ap(L) }; },
+  build: (A, v) => {
+    const p = prodParams(A); const tech = v.A || 1; const f = prodFns(p, tech); const f0 = prodFns(p, 1);
+    const Lend = f.tpMaxL * 1.12; const L = Math.min(v.L || 1, f.tpMaxL);
+    const samp = (fn, from = 0, to = Lend) => Array.from({ length: 80 }, (_, i) => { const x = from + ((to - from) * i) / 79; return { x, y: fn(x) }; });
+    const avg = A.view === 'avg';
+    const stage = f.mp(L) > f.ap(L) ? 'AP растёт: MP > AP' : f.mp(L) > 0.01 ? 'AP падает: MP < AP' : 'выпуск не растёт: MP = 0';
+    const readout = [
+      { label: 'Общий продукт TP', value: `${r1(f.tp(L))} шт.` },
+      { label: 'Предельный продукт MP', value: `${r1(f.mp(L))} шт.` },
+      { label: 'Средний продукт AP', value: `${r1(f.ap(L))} шт.` },
+      { label: 'Что происходит', value: stage },
+    ];
+    if (avg) {
+      const yMax = Math.ceil((f0.mp(f0.mpMaxL) * 1.5 * 1.15) / 10) * 10;
+      return {
+        xDomain: [0, Math.ceil(Lend)], yDomain: [0, yMax], xLabel: 'L, чел.', yLabel: 'шт.',
+        axes: ['L — число работников, чел.', 'MP и AP — выпуск, шт. на работника'],
+        curves: [
+          ...(tech !== 1 ? [{ id: 'MP0', points: samp(f0.mp, 0, f0.tpMaxL), ghost: true, color: 'blue' }] : []),
+          { id: 'MP', label: 'MP', labelPos: 0.92, points: samp(f.mp, 0, f.tpMaxL), color: 'blue' },
+          { id: 'AP', label: 'AP', labelPos: 0.97, points: samp(f.ap, 0, Lend), color: 'rust' },
+        ],
+        points: [
+          { x: f.apMaxL, y: f.ap(f.apMaxL), label: 'max AP', guide: true },
+          { x: f.mpMaxL, y: f.mp(f.mpMaxL), label: 'max MP', small: true },
+        ],
+        readout,
+      };
+    }
+    const yMax = Math.ceil((f0.tp(f0.tpMaxL) * 1.5 * 1.08) / 20) * 20;
+    return {
+      xDomain: [0, Math.ceil(Lend)], yDomain: [0, yMax], xLabel: 'L, чел.', yLabel: 'Q, шт.',
+      axes: ['L — число работников, чел.', 'Q — выпуск цеха, шт.'],
+      curves: [
+        ...(tech !== 1 ? [{ id: 'TP0', points: samp(f0.tp), ghost: true, color: 'gold' }] : []),
+        { id: 'TP', label: 'TP', labelPos: 0.97, points: samp(f.tp), color: 'gold' },
+      ],
+      points: [{ x: L, y: f.tp(L), label: 'L', guide: true }],
+      readout,
+    };
+  },
+};
+productChart.measureNames = { Q: 'выпуск', MP: 'предельный продукт', AP: 'средний продукт' };
+
+/* ---------------- ИЗОКВАНТА И ИЗОКОСТА ----------------
+   Длинный период: Q = A·√(K·L). Изокванта — сочетания работников L и станков K с одним выпуском;
+   изокоста — сочетания, которые стоят одну сумму C при зарплате w и аренде станка r. Лучшее
+   сочетание — касание: MP_L/w = MP_K/r, у этой функции — K/L = w/r, L* = C/(2w), K* = C/(2r). */
+const isoParams = (A) => ({ A: num(A, 'a', 10), C: num(A, 'c', 8000), w: num(A, 'w', 100), r: num(A, 'r', 400) });
+export const isoOptimum = (p) => { const L = p.C / (2 * p.w); const K = p.C / (2 * p.r); return { L, K, Q: p.A * Math.sqrt(L * K) }; };
+const isoquantChart = {
+  title: 'Изокванта и изокоста',
+  controls: (A) => {
+    const p = isoParams(A);
+    return [
+      { id: 'w', label: 'Зарплата рабочего в день w', min: Math.round(p.w * 0.5), max: Math.round(p.w * 2), step: 10, def: p.w, fmt: (v) => `${v} кр.` },
+      { id: 'r', label: 'Аренда станка в день r', min: Math.round(p.r * 0.5), max: Math.round(p.r * 2), step: 20, def: p.r, fmt: (v) => `${v} кр.` },
+    ];
+  },
+  measure: (A, v) => { const o = isoOptimum({ ...isoParams(A), w: v.w, r: v.r }); return { L: o.L, K: o.K, Q: o.Q }; },
+  build: (A, v) => {
+    const p0 = isoParams(A); const p = { ...p0, w: v.w ?? p0.w, r: v.r ?? p0.r };
+    const o = isoOptimum(p); const o0 = isoOptimum(p0);
+    const Lmax = Math.ceil((p0.C / p0.w) * 1.15 / 10) * 10; const Kmax = Math.ceil((p0.C / p0.r) * 1.6 / 5) * 5;
+    const iso = (Q) => Array.from({ length: 90 }, (_, i) => { const L = 1 + ((Lmax - 1) * i) / 89; return { x: L, y: (Q / p.A) ** 2 / L }; }).filter((q) => q.y <= Kmax * 1.05);
+    const cost = (pp) => [{ x: 0, y: pp.C / pp.r }, { x: pp.C / pp.w, y: 0 }];
+    const moved = p.w !== p0.w || p.r !== p0.r;
+    return {
+      xDomain: [0, Lmax], yDomain: [0, Kmax], xLabel: 'L, чел.', yLabel: 'K, станков',
+      axes: ['L — рабочих в день, чел.', 'K — станков, шт.'],
+      curves: [
+        ...(moved ? [{ id: 'C0', points: cost(p0), ghost: true, color: 'blue' }] : []),
+        { id: 'Qlow', points: iso(o.Q * 0.7), color: 'gold', ghost: true },
+        { id: 'Q', label: `Q = ${r1(o.Q)}`, labelPos: 0.9, points: iso(o.Q), color: 'gold' },
+        { id: 'Qhigh', points: iso(o.Q * 1.3), color: 'gold', ghost: true },
+        { id: 'C', label: 'изокоста', labelPos: 0.12, points: cost(p), color: 'blue' },
+      ],
+      points: [{ x: o.L, y: o.K, label: 'E', guide: true }],
+      readout: [
+        { label: 'Лучшее сочетание', value: `${r1(o.L)} рабочих и ${r1(o.K)} станков` },
+        { label: 'Выпуск за те же деньги', value: `${r1(o.Q)} шт.${moved ? ` (было ${r1(o0.Q)})` : ''}` },
+        { label: 'Станков на рабочего K/L = w/r', value: r2(o.K / o.L) },
+      ],
+    };
+  },
+};
+isoquantChart.measureNames = { L: 'рабочих', K: 'станков', Q: 'выпуск' };
+
+export const CHARTS = { product: productChart, isoquant: isoquantChart, 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
 /* Переменные подписи: {{имя}} в тексте подписи заменяется числом из модели графика при
    текущих ползунках — величины measure и свои vars графика; с приставкой d_ — при исходных. */
 const fmtVar = (x) => (typeof x === 'number' ? (Number.isInteger(Math.round(x * 100) / 100) ? String(Math.round(x)) : r1(x)).replace('-', '−') : String(x));

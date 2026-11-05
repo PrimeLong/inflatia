@@ -585,6 +585,37 @@ T.push({ id: 'v-lm-min', chapter: 'labor', level: 2, source: 'labor-min', gen: (
     check: ([j]) => near(j, jobless),
   };
 } });
+// производство: предельный и средний продукт по таблице цеха (убывающая отдача)
+T.push({ id: 'v-pr-mp', chapter: 'production', level: 1, source: 'production-mp', gen: (rand) => {
+  const k = draw(rand, () => {
+    const m1 = ri(rand, 8, 12); const m2 = m1 + ri(rand, 2, 5); const m3 = m2 - ri(rand, 1, 3); const m4 = m3 - ri(rand, 3, 5);
+    return { mp: [m1, m2, m3, m4] };
+  }, ({ mp }) => mp[3] > 0 && (mp[0] + mp[1] + mp[2] + mp[3]) % 4 === 0);
+  const q = k.mp.reduce((acc, m) => [...acc, (acc[acc.length - 1] || 0) + m], []);
+  const ap = q[3] / 4;
+  return {
+    statement: `Цех с двумя станками: один сборщик собирает ${q[0]} велосипедов в день, двое — ${q[1]}, трое — ${q[2]}, четверо — ${q[3]}.\n\nа) Каков предельный продукт четвёртого сборщика?\n\nб) Каков средний продукт четверых?`,
+    parts: [{ answer: k.mp[3], unit: 'шт.', pos: true }, { answer: ap, unit: 'шт.', pos: true }],
+    traps: [
+      { part: 0, value: q[3], text: `Это выпуск всех четверых. Четвёртый прибавил $${q[3]} - ${q[2]}$.` },
+      { part: 1, value: k.mp[3], text: 'Это предельный продукт. Средний — весь выпуск, делённый на число сборщиков.' },
+    ].filter((t) => t.value !== (t.part ? ap : k.mp[3])),
+    solution: `а) $MP_L = ${q[3]} - ${q[2]} = ${k.mp[3]}$.\n\nб) $AP_L = ${q[3]}/4 = ${ap}$ велосипеда на сборщика.`,
+    check: ([m, x]) => near(m, q[3] - q[2]) && near(x, q[3] / 4),
+  };
+} });
+// производство: лучшее сочетание труда и капитала при Q = A√(KL) — K/L = w/r, на каждый фактор половина денег
+T.push({ id: 'v-pr-opt', chapter: 'production', level: 2, source: 'production-opt', gen: (rand) => {
+  const k = draw(rand, () => ({ w: ri(rand, 80, 200, 20), r: ri(rand, 200, 600, 100), L: ri(rand, 10, 50, 10) }), ({ w, r, L }) => (w * L) % r === 0);
+  const C = 2 * k.w * k.L; const K = (k.w * k.L) / k.r;
+  return {
+    statement: `Выпуск завода $Q = 10\\sqrt{K \\cdot L}$. Рабочий стоит ${k.w} кр. в день, аренда станка — ${k.r} кр., на день у завода ${C} кр.\n\nа) Сколько рабочих выгодно взять?\n\nб) Сколько станков?`,
+    parts: [{ answer: k.L, unit: 'чел.', pos: true }, { answer: K, unit: 'шт.', pos: true }],
+    traps: [{ part: 0, value: C / k.w, text: 'Это если все деньги потратить на рабочих. Нужны и станки: $K/L = w/r$.' }],
+    solution: `$K/L = w/r = ${k.w}/${k.r}$, бюджет $${k.w}L + ${k.r}K = ${C}$: на каждый фактор уходит половина денег.\n\nа) $L = ${C / 2}/${k.w} = ${k.L}$.\n\nб) $K = ${C / 2}/${k.r} = ${K}$.`,
+    check: ([L, KK]) => near(k.w * L + k.r * KK, C) && near(KK / L, k.w / k.r),
+  };
+} });
 // Курно, симметричный
 T.push({ id: 'v-olig-cournot', chapter: 'oligopoly', level: 1, source: 'olig-cournot-price', gen: (rand) => {
   const c = ri(rand, 5, 40); const q = ri(rand, 10, 40); const a = c + 3 * q; const P = a - 2 * q;

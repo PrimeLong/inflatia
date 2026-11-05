@@ -175,8 +175,9 @@ describe('оглавление', () => {
       .toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures']);
     expect(CHAPTERS.filter((c) => c.part === 'macro').map((c) => c.id))
       .toEqual(['gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth', 'open-economy', 'public-debt', 'inequality']);
-    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
-    expect(CHAPTERS.filter((c) => c.part === 'micro' && c.status !== 'ready').map((c) => c.id)).toEqual(['production']);
+    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
+    // блок микро готов целиком: «Производство» (юнит «Завод») написано 5 ноября 2026
+    expect(CHAPTERS.filter((c) => c.part === 'micro' && c.status !== 'ready').map((c) => c.id)).toEqual([]);
   });
   it('у каждой готовой главы есть текст, у ненаписанной — нет; карточки приложения существуют', () => {
     CHAPTERS.forEach((c) => {
@@ -357,6 +358,13 @@ describe('структура готовых глав', () => {
 /* Ответы пересчитаны здесь заново — формулой, а не копией числа из главы. Если в
    условии поменяют число, а ответ забудут, тест упадёт. */
 const INDEPENDENT = {
+  // производство (юнит «Завод») — по таблице цеха, функции Кобба — Дугласа и правилу K/L = w/r
+  'production-mp': () => { const Q = [0, 10, 24, 36, 44]; return [Q[4] - Q[3], Q[4] / 4]; },
+  'production-returns': () => [10 * Math.sqrt(4 * 9), 10 * Math.sqrt(8 * 18)],
+  'production-hire': () => { const mp = [10, 14, 12, 8, 4]; const n = (w) => mp.filter((m) => 30 * m >= w).length; return [n(300), n(200)]; },
+  'production-cd': () => [2 ** 0.8, 2 ** (1 / 0.8)],
+  'production-opt': () => { let best = null; for (let L = 1; L < 80; L += 1) { const K = (8000 - 100 * L) / 400; const Q = 10 * Math.sqrt(K * L); if (!best || Q > best.Q) best = { L, K, Q }; } return [best.L, best.K]; },
+  'production-subst': () => { let best = null; for (let L = 1; L < 20; L += 1) { const K = (8000 - 400 * L) / 400; const Q = 10 * Math.sqrt(K * L); if (!best || Q > best.Q) best = { L, Q }; } return [best.L, best.Q]; },
   // рынок труда — перебором работников по правилу MRP ≥ w и функцией равновесия графика
   'labor-hire': () => {
     const mp = [40, 30, 20, 10]; const hire = (w) => mp.filter((m) => 8 * m >= w).length;
@@ -1250,10 +1258,9 @@ const studySecRecall = (ch) => CHAPTER_SECTIONS[ch].find((x) => x.recall).recall
 
 describe('итоговая проверка и задачи вперемешку', () => {
   const micro = CHAPTERS.filter((c) => c.part === 'micro' && c.status === 'ready');
-  it('проверка «Микро»: 15–20 задач — варианты типов из каждой главы блока, соседние — из разных глав', () => {
+  it('проверка «Микро»: по два типа задач из каждой главы блока (11 глав — 22 задачи), соседние — из разных глав', () => {
     const blocks = examSet('micro', 12345);
-    expect(blocks.length).toBeGreaterThanOrEqual(15);
-    expect(blocks.length).toBeLessThanOrEqual(20);
+    expect(blocks.length).toBe(2 * micro.length);
     expect(new Set(blocks.map((b) => b.template)).size).toBe(blocks.length);
     blocks.forEach((b) => { expect(b.kind).toBe('number'); expect(CHAPTER_BY_ID[b.chapter].part).toBe('micro'); expect(PROBLEMS[b.source], b.source).toBeTruthy(); });
     expect(new Set(blocks.map((b) => b.chapter))).toEqual(new Set(micro.map((c) => c.id)));

@@ -535,7 +535,7 @@ export const LESSON_KIND = {
 };
 // картинки шагов «Знакомства» (pic=…): значки, которые рисует src/learn.jsx
 export const STEP_PICS = ['clock', 'scale', 'hourglass', 'ticket', 'trending-up', 'circle-check', 'medal', 'arrow-left-right', 'handshake',
-  'coffee', 'wallet', 'link', 'utensils', 'boxes', 'users', 'snowflake', 'arrow-down-to-line', 'arrow-up-to-line', 'croissant', 'landmark', 'radio', 'flag'];
+  'coffee', 'wallet', 'link', 'utensils', 'boxes', 'users', 'snowflake', 'arrow-down-to-line', 'arrow-up-to-line', 'croissant', 'landmark', 'radio', 'flag', 'factory'];
 // шаг читается секунд за пятнадцать, карточка слова — за восемь, пункт итогов — за десять
 export const STEP_SECONDS = 15;
 // «Откройте сами»: пять-шесть дней в кофейне — около сорока пяти секунд

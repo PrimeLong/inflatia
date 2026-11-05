@@ -47,7 +47,7 @@ export const PLACES = {
   'supply-demand': { place: 'Рынок', building: 'market', color: '#C2490B', region: 'capital', at: [320, 220], note: 'кофе, мука и цены' },
   consumer: { place: 'Универмаг', building: 'store', color: '#B0198F', region: 'capital', at: [785, 300], note: 'выбор покупателя' },
   elasticity: { place: 'Кофейня', building: 'cafe', color: '#C21E56', region: 'agri', at: [440, 180], note: 'реакция на цену' },
-  production: { place: 'Завод', building: 'factory', color: '#B25E00', region: 'industry', at: [690, 395], note: 'труд и капитал' },
+  production: { place: 'Завод', building: 'factory', color: '#B25E00', region: 'industry', at: [660, 345], note: 'труд и капитал' },
   costs: { place: 'Пекарня', building: 'bakery', color: '#9A6300', region: 'agri', at: [715, 505], note: 'издержки и прибыль' },
   'competition-monopoly': { place: 'Биржа', building: 'exchange', color: '#C9372C', region: 'finance', at: [610, 590], note: 'конкуренция и монополия' },
   monopolistic: { place: 'Ярмарка', building: 'fair', color: '#9B2C8F', region: 'agri', at: [490, 615], note: 'похожие товары' },
