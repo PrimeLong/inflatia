@@ -149,9 +149,17 @@ export function leftText(ms, { short = false } = {}) {
   const min = Math.ceil(ms / 60000);
   if (min <= 0) return 'готово';
   const d = Math.floor(min / 1440); const h = Math.floor((min % 1440) / 60); const m = min % 60;
-  const pre = short ? '' : 'ещё ';
+  /* на табличке грядки — коротко и в одну строку (на ПК «3 дн 22 ч» переносилось на две): от двух суток — дни,
+     от трёх часов — часы, от часа — часы с десятой, меньше — минуты */
+  if (short) {
+    if (min >= 48 * 60) return `${Math.round(min / 1440)} дн`;
+    if (min >= 180) return `${Math.floor(min / 60)} ч`;
+    if (min >= 60) return `${String(Math.round(min / 6) / 10).replace('.', ',')} ч`;
+    return `${min} мин`;
+  }
+  const pre = 'ещё ';
   if (d) return `${pre}${d} дн${h ? ` ${h} ч` : ''}`;
-  if (h) return `${pre}${h} ч${m && !(short && h >= 3) ? ` ${m} мин` : ''}`;
+  if (h) return `${pre}${h} ч${m ? ` ${m} мин` : ''}`;
   return `${pre}${m} мин`;
 }
 // посадить: { s, ok, reason, plot, price } — монеты списываются как покупка в лавке

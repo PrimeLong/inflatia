@@ -48,7 +48,13 @@ describe('сад: посадка и рост', () => {
     expect(leftText(growMs('moneytree'))).toBe('ещё 4 дн');
     // на грядке — коротко: без «ещё», от трёх часов без минут
     expect(leftText(12 * HOUR + 60000, { short: true })).toBe('12 ч');
-    expect(leftText(2 * HOUR + 20 * 60000, { short: true })).toBe('2 ч 20 мин');
+    expect(leftText(2 * HOUR + 20 * 60000, { short: true })).toBe('2,3 ч');
+    // на табличке — в одну строку: «3 дн 22 ч» на ПК переносилось на две
+    expect(leftText(3 * 24 * HOUR + 22 * HOUR, { short: true })).toBe('4 дн');
+    expect(leftText(45 * HOUR + 10 * 60000, { short: true })).toBe('45 ч');
+    expect(leftText(61 * 60000, { short: true })).toBe('1 ч');
+    expect(leftText(13 * 60000, { short: true })).toBe('13 мин');
+    expect(leftText(3 * 24 * HOUR + 22 * HOUR)).toBe('ещё 3 дн 22 ч');
   });
   it('собрать можно только созревшее; собранное — в гербарии, грядка свободна', () => {
     const { s, at } = plant(rich(), 'chamomile', T);

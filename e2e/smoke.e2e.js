@@ -2664,8 +2664,8 @@ test('лавка → сад: урожай с редкостью — продат
   await expect(garden.locator('[data-testid=garden-plot][data-plant="sunflower"]')).toHaveAttribute('data-stage', 'seed');
   expect(Number(await garden.getByTestId('garden-balance').innerText())).toBeLessThan(before);
   await expect(garden.getByTestId('garden-free')).toHaveText('4');
-  // долгим растениям нужен полив: на пакетике — «поливать раз в 12 ч», на грядке — запас воды
-  await expect(garden.locator('[data-testid=garden-seed][data-plant="peony"] [data-testid=garden-seed-water]')).toContainText('поливать раз в 12 ч');
+  // долгим растениям нужен полив: на пакетике — «полив раз в 12 ч», на грядке — запас воды
+  await expect(garden.locator('[data-testid=garden-seed][data-plant="peony"] [data-testid=garden-seed-water]')).toContainText('полив раз в 12 ч');
   await expect(garden.locator('[data-testid=garden-seed][data-plant="sunflower"] [data-testid=garden-seed-water]')).toHaveCount(0);
   await garden.locator('[data-testid=garden-seed][data-plant="peony"] [data-testid=garden-plant]').click();
   await expect(garden.locator('[data-testid=garden-plot][data-plant="peony"] [data-testid=garden-water]')).toContainText('12 ч');
