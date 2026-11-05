@@ -43,3 +43,23 @@ describe('«Биржа»: график котировок плывёт по кр
     });
   });
 });
+
+describe('гравюры зданий стоят на земле (марка Порта была сломанной: склад висел над землёй)', () => {
+  it('ничего прямоугольного ниже земли (y = 82); склад Порта стоит на земле, а не висит над ней', async () => {
+    const React = (await import('react')).default;
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { Engraving } = await import('../../ds-art.jsx');
+    ['market', 'fair', 'workshop', 'bakery', 'bank', 'exchange', 'ministry', 'port', 'store', 'factory', 'tower'].forEach((kind) => {
+      [false, true].forEach((alive) => {
+        const svg = renderToStaticMarkup(React.createElement(Engraving, { kind, alive }));
+        const rects = [...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => ({ y: +m[2], w: +m[3], h: +m[4] }));
+        if (kind === 'port') {
+          const main = rects.reduce((a, r) => (r.w * r.h > a.w * a.h ? r : a), { w: 0, h: 0, y: 0 });
+          expect(main.y + main.h, `склад${alive ? ' жив' : ''}`).toBe(82);
+        }
+        // ничего прямоугольного ниже земли
+        rects.forEach((r) => expect(r.y + r.h, kind).toBeLessThanOrEqual(82.5));
+      });
+    });
+  });
+});

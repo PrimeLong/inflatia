@@ -201,15 +201,28 @@ const B = {
       <path d="M60,8 L74,11 L60,15 Z" fill={h.alive ? h.flag : 'none'} stroke="currentColor" strokeWidth=".8" />
     </>
   ),
+  /* порт: склад стоит на причале (земля — y = 82, как у всех зданий), у стенки причала — кран, стрела над водой и груз на
+     тросе; справа — корабль, корпус по ватерлинию в воде, волны — под линией воды. Прежняя гравюра была сломанной: склад
+     висел над землёй, волны шли поперёк земли и под складом, кран был двумя палками с лишними штрихами */
   port: (h) => (
     <>
-      <rect x="10" y="54" width="48" height="24" fill={h.body} stroke="currentColor" strokeWidth="1.1" />
-      <path d="M10,54 L34,44 L58,54 Z" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth="1" />
-      <rect x="26" y="62" width="16" height="16" fill={h.hatch} stroke="currentColor" strokeWidth=".8" />
-      <path d="M74,78 L74,24 M74,24 L106,32 M74,30 L100,34 M80,24 L80,78" stroke="currentColor" strokeWidth="1.1" fill="none" />
-      {[30, 40, 50, 60, 70].map((y) => <line key={y} x1="74" y1={y} x2="80" y2={y + 6} stroke="currentColor" strokeWidth=".6" />)}
-      <line x1="102" y1="33" x2="102" y2="48" stroke="currentColor" strokeWidth=".7" /><rect x="97" y="48" width="10" height="8" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".8" />
-      {[82, 86].map((y) => <path key={y} d={`M6,${y - 4} q6,-3 12,0 t12,0 t12,0 t12,0 t12,0 t12,0 t12,0 t12,0 t12,0`} fill="none" stroke="currentColor" strokeWidth=".6" opacity=".7" />)}
+      <rect x="6" y="54" width="42" height="28" fill={h.body} stroke="currentColor" strokeWidth="1.1" />
+      <path d="M3,54 L27,41 L51,54 Z" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth="1" />
+      <rect x="19" y="64" width="16" height="18" fill={h.hatch} stroke="currentColor" strokeWidth=".8" />
+      <line x1="27" y1="64" x2="27" y2="82" stroke="currentColor" strokeWidth=".6" />
+      {[10, 39].map((x) => <rect key={x} x={x} y="60" width="5" height="6" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".6" />)}
+      {[[52, 76], [52, 70], [57, 76]].map(([x, y]) => <rect key={`${x}${y}`} x={x} y={y} width="6" height="6" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".6" />)}
+      <line x1="62" y1="82" x2="62" y2="24" stroke="currentColor" strokeWidth="1.1" /><line x1="68" y1="82" x2="68" y2="28" stroke="currentColor" strokeWidth="1.1" />
+      {[34, 46, 58, 70].map((y) => <path key={y} d={`M62,${y} L68,${y + 12} M68,${y} L62,${y + 12}`} stroke="currentColor" strokeWidth=".5" fill="none" />)}
+      <path d="M62,24 L112,30 L68,32 Z" fill="none" stroke="currentColor" strokeWidth="1" />
+      <line x1="98" y1="29" x2="98" y2="40" stroke="currentColor" strokeWidth=".7" />
+      <rect x="93" y="40" width="10" height="8" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".8" />
+      <path d="M72,74 L116,74 L110,86 L78,86 Z" fill={h.body} stroke="currentColor" strokeWidth="1.1" />
+      <rect x="86" y="64" width="16" height="10" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth=".9" />
+      {[89, 95].map((x) => <rect key={x} x={x} y="67" width="3.5" height="3.5" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".5" />)}
+      <rect x="76" y="62" width="5" height="12" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".8" />
+      {h.smoke(78.5, 57)}
+      <path d="M70,89 q4,-2.4 8,0 t8,0 t8,0 t8,0 t8,0 t8,0" fill="none" stroke="currentColor" strokeWidth=".6" opacity=".7" />
     </>
   ),
   store: (h) => (
