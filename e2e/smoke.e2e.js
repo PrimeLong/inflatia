@@ -6595,3 +6595,40 @@ test('«Нарисуй сам» — остановка за графиком ю�
   expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.draws['draw-labor'])).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('юнит пройден — после «Дальше» на итогах сам открывается сундук юнита (раньше Путь уезжал дальше, сундук оставался позади)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('ems-chest-test', '1');
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await expect(page.getByTestId('chest')).toHaveCount(0);
+  // урок, который ничего не завершает (повтор первого), сундук не открывает
+  await startLesson(page, 'sc-i1', /Повторить/);
+  await playLesson(page);
+  await page.getByTestId('lesson-result').getByRole('button', { name: 'Дальше', exact: true }).click();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  await page.waitForTimeout(900);
+  await expect(page.getByTestId('chest-sheet')).toHaveCount(0);
+  // «Итоги юнита» — юнит пройден: «Дальше» — и сундук открыт сам
+  await startLesson(page, 'sc-sum');
+  await playLesson(page);
+  await page.getByTestId('lesson-result').getByRole('button', { name: 'Дальше', exact: true }).click();
+  const sheet = page.getByTestId('chest-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('Мастерская');
+  await sheet.getByTestId('chest-open').click();
+  await expect(sheet.getByTestId('chest-coins')).toBeVisible();
+  await sheet.getByTestId('chest-take').click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.locator('[data-testid=path-unit][data-unit="scarcity"]')).toHaveAttribute('data-folded', 'true');
+  // второй раз не открывается
+  await page.waitForTimeout(900);
+  await expect(page.getByTestId('chest-sheet')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

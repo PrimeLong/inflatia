@@ -3003,6 +3003,26 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   const [moment, celebrated] = useCelebrations(learn, update);
   const celebrate = moment && !run && !sheet && !chest && !morning ? moment : null;
   const [toast, toastDone] = useToasts(notify, !!run || !!sheet || !!chest || morning || bell || !!celebrate);
+  /* Юнит пройден — сундук открывается сам (docs/mechanics.md, «Путь»): после «Дальше» на итогах и марки юнита.
+     Раньше Путь уезжал к следующему уроку — часто на следующий уровень, — и сундук оставался позади.
+     Автотест — без этого, если сам не попросил (ems-chest-test), как и церемонии. */
+  const chestBefore = useRef(null);
+  const [chestNext, setChestNext] = useState(null);
+  useEffect(() => {
+    const waiting = () => pathState(learn).filter((x) => x.complete && !hasClaim(learn, chestKey(x.course.id))).map((x) => x.course.id);
+    if (run) { if (!chestBefore.current) chestBefore.current = new Set(waiting()); return; }
+    if (!chestBefore.current) return;
+    const fresh = waiting().filter((id) => !chestBefore.current.has(id));
+    chestBefore.current = null;
+    let off = false; try { off = !!navigator.webdriver && localStorage.getItem('ems-chest-test') !== '1'; } catch { /* приватный режим */ }
+    if (fresh.length === 1 && !off) setChestNext(fresh[0]);
+  }, [run, learn]);
+  useEffect(() => {
+    if (!chestNext || run || moment || sheet || morning || chest || tab !== 'path') return undefined;
+    // пауза: марка юнита появляется не в тот же миг — она идёт первой
+    const id = setTimeout(() => { setChest(chestNext); setChestNext(null); }, 450);
+    return () => clearTimeout(id);
+  }, [chestNext, run, moment, sheet, morning, chest, tab]);
   useBrowserReminders(notify);
   const openBook = (page, resume = false) => { setBook({ page, resume }); setBookKey((k) => k + 1); window.scrollTo(0, 0); };
   // смена вкладки закрывает подэкраны; переход из уведомления может открыть нужный сразу
