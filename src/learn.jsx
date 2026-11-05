@@ -45,7 +45,7 @@ import {
 import { courseLevel } from './learn/grade.js';
 import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote } from './learn/rewards.js';
 import { DeskDecor, tellAnswer } from './learn-decor.jsx';
-import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars } from './learn-skins.jsx';
+import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
 import { lessonOpts, weakLessons, recommend, courseCtx, theoryNotice } from './learn/program.js';
 import {
@@ -1225,10 +1225,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       if (!helped) update((p) => afterPathAnswer(p, baseId), { whole: true });
       // серия: с третьего верного подряд каждый — ещё +1 опыта (огонёк в шапке показывает «+1»)
       if (firstTime && firstOk) { a.bonus += streakBonus(run3 + 1); setRun3(run3 + 1); } else if (r.partial) setRun3(0);
-      Audio.play('coin'); vibrate(15);
+      // у темы урока — свои звуки ответа (docs/mechanics.md, «Темы урока»)
+      Audio.play(answerSound(skin, true)); vibrate(15);
     } else {
       setRun3(0);
-      Audio.play('down'); vibrate([30, 40, 30]);
+      Audio.play(answerSound(skin, false)); vibrate([30, 40, 30]);
       // в «Повторить ошибки» — только то, что там можно решить: мини-игра и открытый вопрос — не задача на повтор
       if (run.mode === 'lesson' && canPractice(cur.of || cur.id)) update((s) => addMistake(s, cur.of || cur.id));
       // повтор в конце урока — не та же задача: новые числа или похожий вопрос на ту же мысль;

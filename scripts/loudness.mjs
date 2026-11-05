@@ -33,7 +33,10 @@ const WORKERS = 4;
 /* Звуки ответов (верно, неверно, касса в конце урока, «вверх») — к одной громкости. Цель —
    их средняя сырая громкость: общий уровень не меняется, выравнивается разброс. Остальные
    звуки (интерфейс и события партии) только замеряются — их баланс подобран на слух в игре. */
-const ANSWER_SFX = ['coin', 'down', 'up', 'register'];
+// звуки ответов, в том числе свои у каждой темы урока (src/learn-skins.jsx, SKIN_SOUNDS)
+const ANSWER_SFX = ['coin', 'down', 'up', 'register', 'ex-up', 'ex-down', 'mint-up', 'mint-down', 'bp-up', 'bp-down', 'au-up', 'au-down'];
+// ключ таблицы: имя с дефисом («ex-up») — в кавычках, иначе файл не разберётся
+const key = (id) => (/^[A-Za-z_$][\w$]*$/.test(id) ? id : `'${id}'`);
 async function measureSfx(page) {
   const sfx = await page.evaluate(async () => {
     const eng = await import('/src/audio/engine.js');
@@ -67,7 +70,7 @@ try {
     if (write) {
       const file = new URL('../src/audio/loudness.js', import.meta.url);
       const cur = readFileSync(file, 'utf8');
-      const block = `// звуки ответов — к одной громкости (scripts/loudness.mjs --sfx --write)\nexport const SFX_GAIN_DB = {\n${sfx.filter((x) => ANSWER_SFX.includes(x.id)).map((x) => `  ${x.id}: ${x.gain},`).join('\n')}\n};\n`;
+      const block = `// звуки ответов — к одной громкости (scripts/loudness.mjs --sfx --write)\nexport const SFX_GAIN_DB = {\n${sfx.filter((x) => ANSWER_SFX.includes(x.id)).map((x) => `  ${key(x.id)}: ${x.gain},`).join('\n')}\n};\n`;
       writeFileSync(file, cur.replace(/(\/\/ звуки [^\n]*\n)?export const SFX_GAIN_DB = \{[^}]*\};\n?/, block));
       console.log('поправки звуков записаны в src/audio/loudness.js');
     }
@@ -121,7 +124,7 @@ try {
   const spreadOf = (xs) => (Math.max(...xs) - Math.min(...xs)).toFixed(1);
   console.log(`разброс громкости: сырой ${spreadOf(rows.map((r) => r.raw.rms))} дБ, с действующими поправками ${spreadOf(rows.map((r) => r.now))} дБ, с новыми ${spreadOf(rows.map((r) => r.raw.rms + r.gain))} дБ (цель ${TARGET} дБ)`);
   if (write && !only.length) {
-    const body = rows.map((r) => `  ${r.id}: ${r.gain},`).join('\n');
+    const body = rows.map((r) => `  ${key(r.id)}: ${r.gain},`).join('\n');
     writeFileSync(new URL('../src/audio/loudness.js', import.meta.url),
       `/* Поправки громкости пьес в дБ — сгенерировано scripts/loudness.mjs (npm run loudness -- --write).
    Не править руками: перезапустить скрипт после изменения аранжировки. Цель ${TARGET} дБ полной шкалы. */
@@ -129,11 +132,11 @@ export const TRACK_GAIN_DB = {
 ${body}
 };
 export const STINGER_GAIN_DB = {
-${stingers.map((x) => `  ${x.id}: ${x.gain},`).join('\n')}
+${stingers.map((x) => `  ${key(x.id)}: ${x.gain},`).join('\n')}
 };
 // звуки ответов — к одной громкости (scripts/loudness.mjs --sfx --write)
 export const SFX_GAIN_DB = {
-${sfx.filter((x) => ANSWER_SFX.includes(x.id)).map((x) => `  ${x.id}: ${x.gain},`).join('\n')}
+${sfx.filter((x) => ANSWER_SFX.includes(x.id)).map((x) => `  ${key(x.id)}: ${x.gain},`).join('\n')}
 };
 `);
     console.log('поправки записаны в src/audio/loudness.js');

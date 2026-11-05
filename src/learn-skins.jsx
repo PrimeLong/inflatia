@@ -24,6 +24,9 @@ export const SKINS = {
   'theme-aurora': { id: 'theme-aurora', key: 'aurora', title: 'Северное сияние', dark: true },
 };
 
+// звуки ответа темы — src/learn/skin-sounds.js
+export { SKIN_SOUNDS, answerSound } from './learn/skin-sounds.js';
+
 /* своя палитра темы: урок с тёмной темой — тёмный при светлом приложении, «Монетный двор» — светлый
    при тёмном. Учебные тексты внутри урока берут цвета приложения (--c-text и др.) — их тема
    переопределяет на корне урока, вместе с палитрой дизайн-системы (theme у DsRoot). */
