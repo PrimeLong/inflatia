@@ -1133,19 +1133,10 @@ test('учебник: оглавление, формулы KaTeX, график �
   await expect(flow).toContainText('кредиты дорожают');
   await flow.getByRole('button', { name: 'Ставка ЦБ: вниз' }).click();
   await expect(flow).toContainText('кредиты дешевеют');
-  // «Как это устроено в игре» — коротко, подробности по кнопке
-  const game = page.getByTestId('tb-box-game');
-  await expect(game.getByTestId('tb-more')).toHaveCount(0);
-  await game.getByRole('button', { name: /Подробнее/ }).click();
-  await expect(game.getByTestId('tb-more')).toContainText('расходы разово выше навсегда');
+  // «Как это устроено в игре» и «Проверьте в игре» убраны — их никто не нажимал
+  await expect(page.getByTestId('tb-box-game')).toHaveCount(0);
+  await expect(page.getByTestId('tb-box-try')).toHaveCount(0);
   await expectNoSidewaysScroll(page);
-  await page.getByRole('button', { name: 'Лаборатория: госзакупки при неподвижной ставке' }).click();
-  await expect(page.getByTestId('lab-charts')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'ставка стоит' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'расходы разово выше навсегда' })).toHaveAttribute('aria-pressed', 'true');
-  // назад — в ту же главу учебника, а не в меню
-  await page.getByRole('button', { name: '← Назад в меню' }).click();
-  await expect(page.getByTestId('chapter')).toHaveAttribute('data-chapter', 'is-lm');
 
   // AD-AS: кривая AD из IS-LM, те же числа; шок издержек — стагфляция
   await toToc(page);
@@ -1164,7 +1155,6 @@ test('учебник: оглавление, формулы KaTeX, график �
   await expect(mono.getByTestId('tb-readout')).toContainText('Цена: 60');
   await mono.getByRole('slider', { name: 'Предельные издержки MC' }).fill('30');
   await expect(mono.getByTestId('tb-readout')).toContainText('Цена: 65');
-  await expect(page.getByRole('button', { name: 'Своё дело: правило Лернера' })).toBeVisible();
   await expectNoSidewaysScroll(page);
 
   // издержки: огибающая LRAC и ссылка на производную в приложении «Математика для экономиста»
@@ -1366,19 +1356,15 @@ test('учебник: на телефоне ни одна блочная фор�
   expect(wide, `колонка ${widths.column} px, предел ${Math.round(limit)} px`).toEqual([]);
 });
 
-test('учебник → «Своё дело»: задание открывает нужную вкладку и висит плашкой', async ({ page }) => {
+test('учебник: в главах нет «Проверьте в игре» и «Как это устроено в игре» (решение владельца 5 ноября 2026)', async ({ page }) => {
   const { errors } = await openApp(page);
   await openBook(page);
   await page.getByTestId('textbook').getByRole('button', { name: /Эластичность/ }).first().click();
-  await page.getByRole('button', { name: 'Своё дело: измерить эластичность хлеба' }).click();
-  // сохранённой компании нет — анкета с выбранной лавкой
-  await page.getByRole('button', { name: /Начать|Открыть дело|Принять/ }).last().click();
-  const lesson = page.getByTestId('tycoon-lesson');
-  await expect(lesson).toContainText('Измерьте эластичность спроса на свой товар');
-  // новая «Лавка» печёт хлеб — задание про хлеб с его эластичностью
-  await expect(lesson).toContainText('«Хлеб»');
-  await expect(lesson).toContainText('1,2');
-  await expect(page.getByRole('tab', { name: /Склад и рынок/ })).toHaveAttribute('aria-pressed', 'true');
+  const ch = page.getByTestId('chapter');
+  await expect(ch).toBeVisible();
+  await expect(ch).not.toContainText('Проверьте в игре');
+  await expect(ch).not.toContainText('Как это устроено в игре');
+  await expect(ch.getByRole('button', { name: /^Своё дело:/ })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

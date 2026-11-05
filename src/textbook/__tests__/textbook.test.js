@@ -249,15 +249,14 @@ describe('ссылки из глав', () => {
       expect(CHAPTER_BY_ID[t.chapter]).toBeTruthy();
     });
   });
-  it('каждое задание тайкуна вызывается из своей главы', () => {
-    Object.entries(TYCOON_TASKS).forEach(([id, t]) => {
-      expect(all.some((l) => l.kind === 'tycoon' && l.target === id && l.ch === t.chapter), id).toBe(true);
-    });
+  // «Проверьте в игре» убрано (решение владельца 5 ноября 2026): главы больше не зовут в тайкун, Лабораторию и сценарии
+  it('главы не зовут в игру: ссылок на «Своё дело», Лабораторию, сценарии и тренажёры нет', () => {
+    expect(all.filter((l) => ['tycoon', 'lab', 'scenario', 'drill'].includes(l.kind)).map((l) => `${l.ch}: ${l.kind}:${l.target}`)).toEqual([]);
   });
 });
 
 describe('структура готовых глав', () => {
-  it.each(READY.map((c) => [c.id]))('%s: теория с формулами и графиком, пример, «проверьте в игре», 10–12 задач трёх уровней, модель и игра раздельно, учебник', (id) => {
+  it.each(READY.map((c) => [c.id]))('%s: теория с формулами и графиком, пример, 10–12 задач трёх уровней, модель, учебник; без «в игре»', (id) => {
     const blocks = CHAPTER_BLOCKS[id];
     const kinds = (k) => collectBlocks(blocks, (b) => b.type === 'box' && b.kind === k);
     expect(collectBlocks(blocks, (b) => b.type === 'math').length).toBeGreaterThan(2);
@@ -266,10 +265,9 @@ describe('структура готовых глав', () => {
     charts.forEach((c) => expect(CHARTS[c.chart], c.chart).toBeTruthy());
     expect(kinds('example')).toHaveLength(1);
     expect(kinds('model')).toHaveLength(1);
-    expect(kinds('game')).toHaveLength(1);
-    const tries = kinds('try');
-    expect(tries).toHaveLength(1);
-    expect(tries[0].children.filter((b) => actionOf(b)).length).toBeGreaterThan(0);
+    // «Как это устроено в игре» и «Проверьте в игре» убраны (решение владельца 5 ноября 2026): их никто не нажимал
+    expect(kinds('game')).toHaveLength(0);
+    expect(kinds('try')).toHaveLength(0);
     const probs = collectBlocks(blocks, (b) => b.type === 'problem');
     const numeric = probs.filter((p) => p.kind === 'number');
     expect(numeric.length).toBeGreaterThanOrEqual(5);
@@ -325,25 +323,9 @@ describe('структура готовых глав', () => {
       expect(x.minutes, `«${x.title}»: минут`).toBeLessThanOrEqual(15);
     });
     expect(secs.find((x) => x.title === 'Итоги').blocks.map((b) => b.kind)).toEqual(['summary', 'mistakes']);
-    // «как это устроено в игре» — 3–4 фразы, подробности — под «Подробнее»
-    const game = kinds('game')[0];
-    expect(game.more, 'подробности игры под «Подробнее»').toBeTruthy();
-    const brief = game.children.filter((b) => b.type === 'p').map((b) => plainText(b.inline)).join(' ');
-    const sentences = brief.split(/(?<=[.!?])\s+(?=[А-ЯA-Z«])/).filter((x) => x.trim()).length;
-    expect(sentences, `игра: ${sentences} фраз`).toBeGreaterThanOrEqual(2);
-    expect(sentences, `игра: ${sentences} фраз`).toBeLessThanOrEqual(4);
-    expect(game.children.every((b) => b.type === 'p')).toBe(true);
     const ch = CHAPTER_BY_ID[id];
     expect(ch.refs.length).toBeGreaterThan(0);
     ch.refs.forEach((r) => expect(BOOKS[r.book]).toBeTruthy());
-  });
-  it('в «проверьте в игре» у микроглав — задания тайкуна, у IS-LM — Лаборатория и задачи', () => {
-    const actions = (id) => collectBlocks(CHAPTER_BLOCKS[id], (b) => b.type === 'box' && b.kind === 'try')[0].children.map(actionOf).filter(Boolean);
-    CHAPTERS.filter((c) => c.part === 'micro' && c.status === 'ready').forEach((c) => {
-      expect(actions(c.id).length, c.id).toBeGreaterThanOrEqual(2);
-      expect(actions(c.id).some((a) => a.kind === 'tycoon'), c.id).toBe(true);
-    });
-    expect(actions('is-lm').map((a) => a.kind).sort()).toEqual(['drill', 'drill', 'lab', 'lab']);
   });
   /* «Вспомните»: верный вариант не угадывается по длине. Раньше он был самым длинным в 92 вопросах
      из 98 — с пояснением, а неверные — короткими словами. Пояснение живёт в разборе после «---». */
@@ -1173,16 +1155,8 @@ describe('новые графики считают то же, что текст'
   });
 });
 
-describe('макроглавы: «проверьте в игре» и статистика', () => {
+describe('макроглавы: статистика', () => {
   const MACRO_NEW = ['gdp', 'money-banks', 'inflation', 'ad-as', 'phillips', 'policy', 'growth'];
-  it('в «проверьте в игре» — Лаборатория или задача и сценарий с исторической тенью', () => {
-    MACRO_NEW.forEach((id) => {
-      const acts = collectBlocks(CHAPTER_BLOCKS[id], (b) => b.type === 'box' && b.kind === 'try')[0].children.map(actionOf).filter(Boolean);
-      expect(acts.length, id).toBeGreaterThanOrEqual(3);
-      expect(acts.some((a) => a.kind === 'lab' || a.kind === 'drill'), id).toBe(true);
-      expect(acts.some((a) => a.kind === 'scenario' && (SCENARIOS.find((x) => x.id === a.target) || {}).shadow), `${id}: историческая тень`).toBe(true);
-    });
-  });
   it('настоящая статистика — только с источником: абзац с годом и числом в процентах или рублях называет источник', () => {
     const SOURCE = /Росстат|Банк России|ЦБ РФ|ФРС|МВФ/;
     MACRO_NEW.forEach((id) => {
