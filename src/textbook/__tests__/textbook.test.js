@@ -341,6 +341,21 @@ describe('структура готовых глав', () => {
     expect(stat.filter((x) => x.right > x.wrong * 1.25 + 3).map((x) => `${x.id}: ${x.right} против ${x.wrong}`)).toEqual([]);
     expect(stat.filter((x) => x.longest).length / stat.length).toBeLessThan(0.15);
   });
+  // «Разбор на числах» — по одному порядку (docs/mechanics.md, «Учебник: разбор на числах»): ученики не понимали, что ищут и почему
+  it.each(READY.map((c) => [c.id]))('%s: разбор на числах: дано, что найти, правило и почему, шаги, что это значит', (id) => {
+    const [ex] = collectBlocks(CHAPTER_BLOCKS[id], (b) => b.type === 'box' && b.kind === 'example');
+    const paras = ex.children.filter((b) => b.type === 'p').map((b) => plainText(b.inline));
+    const at = (re) => paras.findIndex((t) => re.test(t));
+    const order = [/^Дано\./, /^Что найти\./, /^Как(ое|ие) (правил|формул)/, /^Что это значит\./].map(at);
+    order.forEach((k, n) => expect(k, `${id}: пункт ${n + 1}`).toBeGreaterThanOrEqual(0));
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const steps = ex.children.filter((b) => b.type === 'ol').flatMap((b) => b.items);
+    expect(steps.length, `${id}: шаги`).toBeGreaterThanOrEqual(2);
+    // у шага — заголовок жирным
+    steps.forEach((it) => expect(it[0] && it[0].t, `${id}: у шага нет заголовка`).toBe('b'));
+    // вывод — последний абзац
+    expect(at(/^Что это значит\./)).toBe(paras.length - 1);
+  });
   it('id задач и вопросов на вспоминание уникальны во всём учебнике', () => {
     const ids = Object.values(CHAPTER_BLOCKS).flatMap((b) => collectBlocks(b, (x) => x.type === 'problem' || x.type === 'recall').map((p) => p.id));
     ids.forEach((id) => expect(id, 'у задачи нет id').toBeTruthy());
