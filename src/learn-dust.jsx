@@ -15,7 +15,9 @@ import { OUTFIT_BY_ID, priceOf, coinsWord, outfitOf } from './learn/rewards.js';
 import { dayOf } from './textbook/learn-state.js';
 
 const CSS = `
+  /* протирка — не выделение текста: ни мышью по подписям, ни долгим касанием */
   .dg { position: fixed; inset: 0; z-index: 330; overflow-y: auto; overscroll-behavior: contain; color: #F6EEE2; padding: 14px 16px 32px;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
     background: radial-gradient(120% 70% at 50% 0%, #4A3628 0%, #21180F 55%, #120D09 100%); animation: dg-in .35s ease-out; }
   @keyframes dg-in { from { opacity: 0 } }
   .dg-wrap { width: min(420px, 100%); margin: 0 auto; }

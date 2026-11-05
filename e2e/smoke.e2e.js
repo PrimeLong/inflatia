@@ -6063,6 +6063,25 @@ test('лавка: младше 16 — без «−30%» и «ещё N дней, 
   expect(errors).toEqual([]);
 });
 
+test('«Пыльная витрина»: протирка не выделяет текст', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await page.getByTestId('shop-tabs').locator('[data-tab="dust"]').click();
+  await page.getByTestId('shop-dust').getByTestId('dust-open').click();
+  const game = page.getByTestId('dust-game');
+  await expect(game).toHaveAttribute('data-phase', 'play');
+  expect(await game.evaluate((el) => getComputedStyle(el).userSelect)).toBe('none');
+  // тряпка соскользнула со стекла на подпись под ним и прошлась по ней — выделения нет
+  const hint = await game.getByTestId('dust-hint').boundingBox();
+  await page.mouse.move(hint.x + 4, hint.y + hint.height / 2); await page.mouse.down();
+  await page.mouse.move(hint.x + hint.width - 4, hint.y + hint.height / 2, { steps: 12 }); await page.mouse.up();
+  expect(await page.evaluate(() => String(window.getSelection()))).toBe('');
+  expect(errors).toEqual([]);
+});
+
 test('лавка: «Пыльная витрина» — тряпкой по стеклу, 100% — блик и 2 монеты; до пяти витрин в день', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
