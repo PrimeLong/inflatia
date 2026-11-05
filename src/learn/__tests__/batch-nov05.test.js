@@ -63,3 +63,18 @@ describe('гравюры зданий стоят на земле (марка П�
     });
   });
 });
+
+describe('марки месяцев: цвета насыщенные (ноябрь выглядел чёрным)', () => {
+  it('у каждого месяца насыщенность по HSL не ниже 0,32 — тёмный серо-синий и приглушённый индиго не проходят', async () => {
+    const { MONTH_ART } = await import('../../award-art.js');
+    const sat = (hex) => {
+      const [r, g, b] = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16) / 255);
+      const max = Math.max(r, g, b); const min = Math.min(r, g, b); const l = (max + min) / 2;
+      return max === min ? 0 : (max - min) / (l > 0.5 ? 2 - max - min : max + min);
+    };
+    MONTH_ART.forEach(([, color], k) => expect(sat(color), `месяц ${k + 1}: ${color}`).toBeGreaterThanOrEqual(0.32));
+    // прежние цвета ноября проверку не прошли бы
+    expect(sat('#5B5DA6')).toBeLessThan(0.32);
+    expect(sat('#5A6E8C')).toBeLessThan(0.32);
+  });
+});
