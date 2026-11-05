@@ -6437,7 +6437,8 @@ test('политология — проба для команды: перекл�
   owner = false;
   await page.evaluate(() => { localStorage.setItem('ems-track', 'politics'); localStorage.setItem('ems-team', 'tester'); });
   await page.reload({ waitUntil: 'networkidle' });
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('ems-track'))).toBe(null);
+  // «не команда» — приложение само сбрасывает курс и перезапускается: чтение может попасть на перезагрузку
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('ems-track')).catch(() => 'перезагрузка')).toBe(null);
   await expect(page.getByTestId('track-badge')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
