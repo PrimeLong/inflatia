@@ -8,7 +8,7 @@
 const DAY = 24 * 3600 * 1000;
 /* recall — верный ответ на «Вспомните» учебника (новый вопрос или подошёл срок повторения, recallXp);
    book — книга полки отмечена прочитанной (один раз, markBook) */
-export const XP = { correct: 2, finish: 5, replayShare: 0.1, diamond: 1.5, streakFrom: 3, gameMax: 20, gameRate: 40, recall: 1, book: 5 };
+export const XP = { correct: 2, finish: 5, replayShare: 0.1, diamond: 1.5, streakFrom: 3, gameMax: 20, gameRate: 40, recall: 5, book: 5 };
 /* Серия верных ответов подряд (с первой попытки): начиная с третьего в серии, каждый ответ — ещё +1
    опыта. Мини-игра: её очки (там серия умножает очки ×2…×4) идут в опыт — очко опыта за 40 очков игры,
    не больше 20. n — длина серии вместе с этим ответом. */

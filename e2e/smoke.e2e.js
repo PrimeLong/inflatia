@@ -1094,7 +1094,7 @@ test('учебник: оглавление, формулы KaTeX, график �
   for (let i = 0; i < rightKeys2.length; i += 1) await recall2.getByTestId('tb-recall-part').nth(i).locator(`[data-key="${rightKeys2[i]}"]`).click();
   await expect(recall2.getByTestId('tb-recall-verdict')).toContainText('Раздел пройден');
   // новый вопрос верно — немного опыта
-  await expect(recall2.getByTestId('tb-recall-xp')).toHaveText('+1 опыта');
+  await expect(recall2.getByTestId('tb-recall-xp')).toHaveText('+5 опыта');
   await expectNoSidewaysScroll(page);
   await toToc(page);
   await expect(toc.locator('.tb-toc-row', { hasText: 'Спрос и предложение' }).locator('[data-testid=tb-ch-sections][data-done="2"][data-total="4"]')).toHaveCount(1);

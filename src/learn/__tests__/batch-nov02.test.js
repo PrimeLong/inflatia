@@ -45,11 +45,11 @@ describe('монеты не появляются молча (жалоба «35 �
 describe('опыт за «Вспомните» и книги полки; кнопка «Отметить прочитанной» — через половину времени чтения', () => {
   const now = Date.UTC(2026, 10, 2, 12);
   const DAY = 86400000;
-  it('«Вспомните»: +1 за новый вопрос и за подошедший срок повторения', () => {
-    expect(XP.recall).toBe(1);
-    expect(recallXp(undefined, true, now)).toBe(1);
-    expect(recallXp({ ok: false, due: now - 1 }, true, now)).toBe(1);
-    expect(recallXp({ ok: true, box: 0, due: now - DAY }, true, now)).toBe(1);
+  it('«Вспомните»: +5 за новый вопрос и за подошедший срок повторения (было +1 — «смешно мало»)', () => {
+    expect(XP.recall).toBe(5);
+    expect(recallXp(undefined, true, now)).toBe(5);
+    expect(recallXp({ ok: false, due: now - 1 }, true, now)).toBe(5);
+    expect(recallXp({ ok: true, box: 0, due: now - DAY }, true, now)).toBe(5);
   });
   it('без опыта: ошибка, выученный вопрос заново (перезагрузили главу), верно сразу после ошибки', () => {
     expect(recallXp(undefined, false, now)).toBe(0);
