@@ -6474,3 +6474,76 @@ test('итоги урока на телефоне 360: плитки ровные
   expect(Math.max(...tiles)).toBeLessThan(110);
   expect(errors).toEqual([]);
 });
+
+test('«Нарисуй сам» — остановка за графиком юнита: точки по условию, ошибка — подсказка, вторая — «вот как надо», сдвиг ползунком, +15 опыта', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  // «Биржа труда»: разбора графика нет — «Нарисуй сам» сразу после урока, где график появился
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"]').first();
+  await stop.scrollIntoViewIfNeeded();
+  await expect(stop).toHaveAttribute('data-state', 'open');
+  await stop.click();
+  await expect(page.getByTestId('extra-sheet')).toContainText('Постройте график сами');
+  await expect(page.getByTestId('extra-sheet')).toContainText('15');
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  await expect(g).toHaveAttribute('data-id', 'draw-labor');
+  const ink = g.getByTestId('draw-ink');
+  const at = async (vx, vy) => { const b = await ink.boundingBox(); return [b.x + (vx / 360) * b.width, b.y + (vy / 290) * b.height]; };
+  const tap = async (vx, vy) => { const [x, y] = await at(vx, vy); await page.mouse.click(x, y); };
+  const answer = async () => JSON.parse(await ink.getAttribute('data-answer'));
+  // шаг 1 — спрос на труд: «Проверить» ждёт двух точек
+  await expect(g.getByTestId('draw-task')).toHaveAttribute('data-do', 'line');
+  await expect(g.getByTestId('draw-check')).toBeDisabled();
+  await tap(60, 30); await tap(140, 60);
+  await expect(ink).toHaveAttribute('data-ready', 'true');
+  // ошибка — что не так и подсказка, можно ещё раз
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'false');
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-shown', 'false');
+  await expect(g.getByTestId('draw-feedback')).toContainText('Попробуйте ещё раз');
+  // вторая ошибка — график показывает, как надо, урок идёт дальше
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-shown', 'true');
+  await expect(g.locator('[data-testid=graph-el][data-el="D"]')).toBeVisible();
+  await g.getByTestId('draw-next').click();
+  // шаг 2 — предложение труда: верно с первого раза
+  for (const [x, y] of (await answer()).pts) await tap(x, y);
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+  await expect(g.locator('[data-testid=graph-el][data-el="S"]')).toBeVisible();
+  await g.getByTestId('draw-next').click();
+  // шаг 3 — равновесие: точку ставят не туда и перетаскивают на место
+  const [[ex, ey]] = (await answer()).pts;
+  const [fx, fy] = await at(ex + 50, ey - 40); const [tx, ty] = await at(ex, ey);
+  await page.mouse.move(fx, fy); await page.mouse.down(); await page.mouse.move(tx, ty, { steps: 6 }); await page.mouse.up();
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+  await expect(g.locator('[data-testid=graph-el][data-el="pt:E"]')).toBeVisible();
+  await g.getByTestId('draw-next').click();
+  // шаг 4 — сдвиг предложения: прежнее равновесие спрятано (не подсказывает), прежняя линия — бледная
+  await expect(g.getByTestId('draw-task')).toHaveAttribute('data-do', 'shift');
+  await expect(g.locator('[data-testid=graph-el][data-el="pt:E"]')).toHaveCount(0);
+  await g.getByTestId('draw-slider').fill(String((await answer()).v));
+  await expect(g.getByTestId('draw-shift')).toHaveText('вправо на 60');
+  await expect(g.locator('[data-testid=graph-el][data-el="S0"]')).toBeVisible();
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+  await g.getByTestId('draw-next').click();
+  // шаг 5 — новое равновесие
+  for (const [x, y] of (await answer()).pts) await tap(x, y);
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toContainText('150 крон');
+  await g.getByTestId('draw-next').click();
+  await expect(g.getByTestId('draw-done')).toContainText('+15 опыта');
+  await expect(g.getByTestId('draw-done')).toContainText('с первой попытки — 4 из 5');
+  await g.getByTestId('draw-finish').click();
+  await expect(stop).toHaveAttribute('data-state', 'done');
+  expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.draws['draw-labor'])).toBe(true);
+  expect(errors).toEqual([]);
+});

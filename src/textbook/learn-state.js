@@ -53,7 +53,7 @@ export const emptyLearn = () => ({
   coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
   policyAt: 0, policyOff: 0, policyLapse: 0, premiums: {}, monthPlan: {},
   seen: {}, best: {}, boost: 0, piggy: {}, piggyOut: {}, piggyTop: {}, piggyAdd: {}, garden: {}, harvest: {}, water: {},
-  shown: {}, read: {}, met: {}, fixed: {}, books: {}, graphs: {},
+  shown: {}, read: {}, met: {}, fixed: {}, books: {}, graphs: {}, draws: {},
 });
 /* Показанное ученику — общее для всех его устройств (жалоба: «прошёл юнит на ПК — марка и уведомления
    повторяются на телефоне»): ключ → когда впервые показали. Префиксы: c: — церемония (марка, печать),
@@ -98,6 +98,11 @@ export const recallXp = (prev, ok, now = Date.now()) => (ok && (!prev || (prev.d
 export function markGraph(s, id, now = Date.now()) {
   if (!okKey(id) || (s.graphs || {})[id]) return s;
   return upd(s, { graphs: { ...s.graphs, [id]: now } });
+}
+// «Нарисуй сам» юнита пройден (src/learn/draws.js): так же — id → когда, опыт один раз
+export function markDraw(s, id, now = Date.now()) {
+  if (!okKey(id) || (s.draws || {})[id]) return s;
+  return upd(s, { draws: { ...s.draws, [id]: now } });
 }
 export function markFixed(s, unitId, now = Date.now()) {
   if (!okKey(unitId) || (s.fixed || {})[unitId]) return s;
@@ -624,7 +629,7 @@ function normalizeProgram(r) {
     seen: countMap(r.seen, MAX_SEEN, 9999), best: countMap(r.best, MAX_BEST, 1e6), boost: cnt(r.boost, 1e14),
     piggy: piggyMap(r.piggy), piggyOut: piggyMap(r.piggyOut), piggyTop: piggyTopMap(r.piggyTop), piggyAdd: piggyAddMap(r.piggyAdd), garden: gardenMap(r.garden), harvest: harvestMap(r.harvest), water: waterMap(r.water),
     // показанное: самые свежие SHOWN_MAX по времени
-    read: tsMap(r.read, 200), met: tsMap(r.met, 200), fixed: tsMap(r.fixed, 200), books: tsMap(r.books, 100), graphs: tsMap(r.graphs, 100),
+    read: tsMap(r.read, 200), met: tsMap(r.met, 200), fixed: tsMap(r.fixed, 200), books: tsMap(r.books, 100), graphs: tsMap(r.graphs, 100), draws: tsMap(r.draws, 100),
     shown: Object.fromEntries(Object.entries(tsMap(r.shown, 5000)).sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)).slice(-SHOWN_MAX)),
   };
 }
@@ -653,7 +658,7 @@ function mergeProgram(x, y) {
     harvest: minTs(x.harvest, y.harvest),
     water: Object.fromEntries([...new Set([...Object.keys(x.water), ...Object.keys(y.water)])].map((k) => [k, [x.water[k], y.water[k]].filter(Boolean).sort()[0]])),
     shown: minTs(x.shown, y.shown),
-    read: minTs(x.read, y.read), met: minTs(x.met, y.met), fixed: minTs(x.fixed, y.fixed), books: minTs(x.books, y.books), graphs: minTs(x.graphs, y.graphs),
+    read: minTs(x.read, y.read), met: minTs(x.met, y.met), fixed: minTs(x.fixed, y.fixed), books: minTs(x.books, y.books), graphs: minTs(x.graphs, y.graphs), draws: minTs(x.draws, y.draws),
   };
 }
 /* Слияние двух устройств: счётчики — по максимуму (одно и то же занятие не удваивается),

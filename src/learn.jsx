@@ -16,7 +16,7 @@ import {
   X, ArrowLeft, Flame, Zap, Coins, Target, Lock, Check, Gem, ChevronLeft, Calculator, BookOpenText, BookOpen, Trophy, Timer, Delete, ChevronRight, RotateCcw, Sparkles, Dumbbell,
   Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link, Utensils, Boxes, Users,
   Snowflake, ArrowDownToLine, ArrowUpToLine, Languages, MessageCircle, Headphones, Gamepad2, Repeat, Flag, Croissant, Landmark, Radio, MapPin, ArrowUp, ChevronDown, SkipForward,
-  Wrench, Feather, ChartSpline,
+  Wrench, Feather, ChartSpline, PenLine,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
@@ -77,6 +77,7 @@ import { countryPath, RIVER, curveTo } from './lib/mapgeo.js';
 import { levelRegions, mapSlots } from './learn/levelmap.js';
 import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
 import { GRAPH_BY_CHART, GRAPH_EVENT, openGraph, GRAPH_BY_ID, GRAPH_XP } from './learn/graphs.js';
+import { DRAW_BY_ID, DRAW_XP } from './learn/draws.js';
 import { READING_BY_ID, READ_XP } from './learn/reading.js';
 import { BrandLoader } from './logo.jsx';
 import { FRIENDS_CSS, FriendsPage, FriendProfile, RaceCard, RaceOffer, racesToShow } from './learn-friends.jsx';
@@ -309,6 +310,7 @@ const CSS = `
     background: color-mix(in srgb, var(--x) 9%, var(--ds-card)); box-shadow: 0 5px 0 color-mix(in srgb, var(--x) 35%, var(--ds-rule2)); }
   .ln-token.ln-extra.read { --x: #8A5A2B; }
   .ln-token.ln-extra.graph { --x: #2459A6; }
+  .ln-token.ln-extra.draw { --x: #0E7A72; }
   .ln-graph-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
     border: 1.5px solid color-mix(in srgb, #2459A6 45%, var(--ds-rule2)); background: color-mix(in srgb, #2459A6 8%, var(--ds-card)); color: var(--ds-ink);
     font: 700 14px var(--ds-sans); transition: transform .15s, background .2s; }
@@ -2208,7 +2210,7 @@ function propsFor(id, i, W, y, left, spooky = false) {
 /* Остановки дороги: уроки юнита и особые уроки между ними («Персоналии», «Чтение», «Работа над
    ошибками» — src/learn/stops.js). У особого — свой значок и цвет; «Работа над ошибками» — с меткой
    «сначала ошибки» и закрывает следующий урок. */
-const EXTRA_ICON = { people: Users, read: Feather, graph: ChartSpline, fix: Wrench };
+const EXTRA_ICON = { people: Users, read: Feather, graph: ChartSpline, draw: PenLine, fix: Wrench };
 
 /* КАРТОЧКА ОСОБОГО УРОКА (docs/mechanics.md, «Особые уроки»): «Персоналии», «Чтение», «Разбор графика» —
    как у обычного урока: вид и место юнита, название, что внутри, ≈ минут и опыт, «Начать». Раньше касание
@@ -2229,6 +2231,11 @@ export function extraInfo(x) {
     const g = GRAPH_BY_ID[x.id];
     const n = g ? g.steps.length : 0;
     return g && { title: g.title, inside: `График собирается на глазах: ${n} ${plural(n, 'шаг', 'шага', 'шагов')}, на каждом — одна мысль простыми словами, в конце — вопрос на понимание.`, min: Math.max(2, Math.round(n * 0.35 + 1)), xp: GRAPH_XP, unitId: g.unitId };
+  }
+  if (x.type === 'draw') {
+    const d = DRAW_BY_ID[x.id];
+    const n = d ? d.tasks.length : 0;
+    return d && { title: d.title, inside: `Постройте график сами: ${n} ${plural(n, 'шаг', 'шага', 'шагов')} — по условию отметить точки, провести и сдвинуть линии. Каждый шаг проверяется, после ошибки — подсказка.`, min: Math.max(3, Math.round(n * 0.8)), xp: DRAW_XP, unitId: d.unitId };
   }
   return null;
 }
@@ -2885,6 +2892,7 @@ const PeopleView = React.lazy(() => import('./learn-people.jsx'));
 // книга поверх вкладки — из мини-проигрывателя над вкладками (src/learn-bookdock.jsx); читалка — в чанке полки
 const BookOverlay = React.lazy(() => import('./learn-shelf.jsx').then((m) => ({ default: m.BookOverlay })));
 const GraphLesson = React.lazy(() => import('./learn-graph.jsx'));
+const DrawLesson = React.lazy(() => import('./learn-draw.jsx'));
 const Lazy = ({ children }) => <React.Suspense fallback={<BrandLoader compact text="Открываем" />}>{children}</React.Suspense>;
 const Celebration = React.lazy(() => import('./learn-celebrate.jsx'));
 /* Церемонии (src/learn/celebrate.js): что из полученного ещё не праздновали. Показанное помнит
@@ -3025,8 +3033,10 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     window.addEventListener(GRAPH_EVENT, on);
     return () => window.removeEventListener(GRAPH_EVENT, on);
   }, []);
+  // «Нарисуй сам» — только с дороги юнита
+  const [draw, setDraw] = useState(null);
   const [extraLocked, setExtraLocked] = useState(null);
-  // «Персоналии», «Чтение», «Разбор графика» — сначала карточка урока, «Начать» — сам урок
+  // «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам» — сначала карточка урока, «Начать» — сам урок
   const [extraSheet, setExtraSheet] = useState(null);
   const onExtra = (x) => {
     if (!x.open && !x.done) { Audio.play('down'); setExtraLocked(x); return; }
@@ -3038,6 +3048,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     if (x.type === 'read') setReading(x.id);
     else if (x.type === 'people') setPeople(x.id);
     else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
+    else if (x.type === 'draw') setDraw(x.id);
     // вышли посреди «Работы над ошибками» — она продолжается с того же места (сутки, как обычный урок)
     else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId, resume: getResume(`fix:${x.unitId}`) });
   };
@@ -3151,6 +3162,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {run && <Runner key={JSON.stringify({ ...run, resume: !!run.resume })} run={run} learn={learn} update={update} hidden={!!book} guest={guest}
         onClose={() => setRun(null)} onOpenBook={(page) => openBook(page)} />}
       {graph && <Lazy><GraphLesson id={graph.id} learn={learn} update={update} peek={graph.peek} onClose={() => setGraph(null)} /></Lazy>}
+      {draw && <Lazy><DrawLesson id={draw} learn={learn} update={update} onClose={() => setDraw(null)} /></Lazy>}
     </DsRoot>
     </OutfitContext.Provider>
   );
