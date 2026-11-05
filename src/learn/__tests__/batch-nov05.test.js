@@ -78,3 +78,16 @@ describe('марки месяцев: цвета насыщенные (ноябр
     expect(sat('#5A6E8C')).toBeLessThan(0.32);
   });
 });
+
+describe('подпись автора портрета — один раз и по-русски (у Кларка было «Unknown author» дважды)', () => {
+  it('повтор схлопывается, «Unknown author» — «автор неизвестен», настоящие имена не трогаем', async () => {
+    const { cleanAuthor, photoFromCommons } = await import('../commons.js');
+    expect(cleanAuthor('<span class="fn">Unknown author</span><span style="display:none">Unknown author</span>')).toBe('автор неизвестен');
+    expect(cleanAuthor('Unknown author Unknown author')).toBe('автор неизвестен');
+    expect(cleanAuthor("Unknown author (The World's Work, published no later than 1913)")).toBe("автор неизвестен (The World's Work, published no later than 1913)");
+    expect(cleanAuthor('John Palmer Clarke')).toBe('John Palmer Clarke');
+    expect(cleanAuthor('Elliott &amp; Fry')).toBe('Elliott & Fry');
+    const ph = photoFromCommons({ url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Clark.jpg', extmetadata: { LicenseShortName: { value: 'Public domain' }, Artist: { value: '<span>Unknown author</span> <span>Unknown author</span>' } } });
+    expect(ph.author).toBe('автор неизвестен');
+  });
+});

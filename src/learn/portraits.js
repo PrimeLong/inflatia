@@ -6,7 +6,7 @@
    Commons). Файла нет — гравированный медальон с инициалами (src/learn-people.jsx). */
 import { PHOTOS } from './people-photos.js';
 import PEOPLE_FILES from 'virtual:people-files';
-import { commonsFile, photoFromCommons, isFreeLicense, FREE_LICENSE, NONFREE_LICENSE } from './commons.js';
+import { commonsFile, photoFromCommons, isFreeLicense, FREE_LICENSE, NONFREE_LICENSE, cleanAuthor } from './commons.js';
 
 export { commonsFile, photoFromCommons, isFreeLicense, FREE_LICENSE, NONFREE_LICENSE };
 
@@ -18,7 +18,7 @@ export function localPhoto(id) {
   const file = (PEOPLE_FILES.files || {})[id];
   if (!file) return null;
   const c = PHOTOS[id] || (PEOPLE_FILES.credits || {})[id] || {};
-  return { file: `/people/${file}`, author: c.author || '', license: c.license || '', source: c.source || '' };
+  return { file: `/people/${file}`, author: cleanAuthor(c.author || ''), license: c.license || '', source: c.source || '' };
 }
 // сразу, без сети: положенный руками или скачанный при сборке; иначе null — медальон
 export function cachedPhoto(p) {
@@ -26,7 +26,7 @@ export function cachedPhoto(p) {
   if (local) return local;
   const built = PHOTOS[p.id];
   // скачанное при сборке лежит у нас (/people/…); чужой адрес не показываем
-  return built && String(built.file || '').startsWith('/people/') ? built : null;
+  return built && String(built.file || '').startsWith('/people/') ? { ...built, author: cleanAuthor(built.author || '') } : null;
 }
 // то же обещанием — для экрана, который ждёт фото (сети нет, ответ сразу)
 export const loadPhoto = (p) => Promise.resolve(cachedPhoto(p));
