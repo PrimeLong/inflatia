@@ -2683,6 +2683,11 @@ test('лиги: на вкладке нет «остаться хватит ок�
   await page.getByTestId('league-rules-toggle').click();
   await expect(page.getByTestId('league-rules')).toContainText('Чем выше лига, тем сильнее соперники');
   await expect(page.getByTestId('league-rules')).not.toContainText('минут');
+  // награда растёт с лигой; в Бронзовой 4-е и 5-е (повышение) — тоже с монетами
+  await expect(page.getByTestId('league-prize')).toContainText('в лиге N — в N раз больше');
+  await expect(page.locator('[data-testid=league-row][data-place="1"]').getByTestId('league-row-coins')).toHaveText('+50 мон.');
+  await expect(page.locator('[data-testid=league-row][data-place="5"]').getByTestId('league-row-coins')).toHaveText('+10 мон.');
+  await expect(page.locator('[data-testid=league-row][data-place="6"]').getByTestId('league-row-coins')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
