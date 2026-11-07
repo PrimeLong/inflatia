@@ -22,7 +22,7 @@ import { IconButton, TopBar } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { Mascot } from './mascot.jsx';
 import { Audio, useAccount } from './MacroSimulator.jsx';
-import { notificationsOf, unreadOf, readSeen, markSeen, readPrefs, writePrefs, firstDayOf, agoText, readPushed, markPushed, readToasted, markToasted } from './learn/notify.js';
+import { notificationsOf, unreadOf, readSeen, markSeen, readPrefs, writePrefs, firstDayOf, agoText, readPushed, markPushed, readToasted, markToasted, rememberNotes, readHistory, earlierOf } from './learn/notify.js';
 import { leagueState, LEAGUE_BY_ID } from './learn/league.js';
 import { useFriends } from './lib/friends-store.js';
 import { loadProgress, reviewQueue } from './textbook/progress.js';
@@ -215,8 +215,10 @@ export function useNotify(learn, update = null) {
   }, [learn, now]);
   return {
     list, unread, seen: allSeen, prefs, now, leaguePlace,
-    markAll: () => { const ids = list.filter((n) => !allSeen[n.id]).map((n) => n.id); setSeen(markSeen(list.map((n) => n.id))); share('n:', ids); },
-    markOne: (id) => { setSeen(markSeen([id])); if (!allSeen[id]) share('n:', [id]); },
+    markAll: () => { const ids = list.filter((n) => !allSeen[n.id]).map((n) => n.id); rememberNotes(list); setSeen(markSeen(list.map((n) => n.id))); share('n:', ids); },
+    markOne: (id) => { rememberNotes(list.filter((n) => n.id === id)); setSeen(markSeen([id])); if (!allSeen[id]) share('n:', [id]); },
+    // «Ранее»: последние три прочитанных, свежее сверху; fresh — новые на экране, их в «Ранее» нет
+    earlier: (fresh = new Set()) => earlierOf(list, readHistory(), allSeen, { ...dismissed, ...Object.fromEntries([...fresh].map((id) => [id, 1])) }),
     // убрать из списка насовсем: и прочитано, и больше не показывается в «Ранее»
     dismissed,
     dismiss: (id) => { setGone((g) => ({ ...g, [id]: Date.now() })); setSeen(markSeen([id])); share('x:', [id]); if (!allSeen[id]) share('n:', [id]); },
@@ -286,7 +288,7 @@ export function useSwipe(onCommit, { threshold = 80, axis = 'x' } = {}) {
 function NoteRow({ n, unread, i, now, onGo, onRead }) {
   const swipe = useSwipe(() => onRead(n));
   return (
-    <button type="button" className="nt-item" style={{ '--t': n.tone, '--i': i, ...swipe.style }} data-unread={String(unread)} data-testid="notify-item" data-kind={n.kind} data-id={n.id}
+    <button type="button" className="nt-item" style={{ '--t': n.tone, '--i': i, ...swipe.style }} data-unread={String(unread)} data-testid="notify-item" data-kind={n.kind} data-id={n.id} data-at={n.at}
       {...swipe.handlers} onClick={() => { Audio.play('click'); onGo(n); }}>
       <span className="nt-ico"><NIcon name={n.icon} size={21} /></span>
       <span className="nt-title">{n.title}</span>
@@ -304,7 +306,8 @@ export function NotifyCenter({ notify, onClose, onGo }) {
   useEffect(() => () => ref.current.markAll(), []);
   const shown = notify.list.filter((n) => !(notify.dismissed || {})[n.id]);
   const news = shown.filter((n) => fresh.has(n.id));
-  const old = shown.filter((n) => !fresh.has(n.id));
+  // «Ранее» — последние три прочитанных, свежее сверху, и те, чего в расчёте уже нет (docs/mechanics.md)
+  const old = notify.earlier ? notify.earlier(fresh) : shown.filter((n) => !fresh.has(n.id));
   /* смахнули — уведомление убрано совсем: не переезжает в «Ранее» (жалоба), и на других устройствах
      тоже (x:); счётчик на колокольчике уменьшается сразу. Касание — открыть, «Прочитано» — всё в «Ранее» */
   const read = (n) => { if (notify.dismiss) notify.dismiss(n.id); else notify.markOne(n.id); setFresh((s) => { const t = new Set(s); t.delete(n.id); return t; }); };
@@ -313,7 +316,7 @@ export function NotifyCenter({ notify, onClose, onGo }) {
       <div className="nt-page-in">
         <TopBar back={<IconButton label="Назад" icon={ArrowLeft} data-nav="back" onClick={() => { Audio.play('paper'); onClose(); }} />} title="Уведомления"
           right={news.length > 0 ? <button type="button" className="nt-readall" data-testid="notify-read-all" onClick={() => { Audio.play('tick'); notify.markAll(); onClose(); }}><CheckCheck size={18} aria-hidden="true" />Прочитано</button> : null} />
-        {!shown.length ? (
+        {!shown.length && !old.length ? (
           <div className="nt-empty" data-testid="notify-empty">
             <div style={{ display: 'flex', justifyContent: 'center' }}><Mascot mood="hello" size={84} /></div>
             <div className="ds-h3" style={{ marginTop: 10 }}>Пока тихо</div>

@@ -6815,3 +6815,29 @@ test('после урока: «Забег с другом?» — компакт�
   await expect(offer).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+/* «Ранее» (пункт 7 от 06.11): последние три прочитанных, свежее сверху; прочитанное, которого в расчёте уже нет
+   (обогнали в лиге, а потом сами обогнали), остаётся в «Ранее» снимком на устройстве */
+test('уведомления: «Ранее» — последние три прочитанных, свежее сверху; прошедшее событие не пропадает', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 3 * 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 } }, done: { [new Date(at).toISOString().slice(0, 10)]: 1 } } }));
+    const n = (id, h, title) => ({ id, kind: 'league', icon: 'trophy', tone: '#9A7413', title, text: 'Загляните во вкладку «Лиги».', at: Date.now() - h * 3600000, go: 'league' });
+    localStorage.setItem('ems-notify-history', JSON.stringify([n('lg-pass:e2e', 1, 'Вас обогнали в лиге'), n('lg-old:e2e1', 50, 'Старое 1'), n('lg-old:e2e2', 60, 'Старое 2'), n('lg-old:e2e3', 70, 'Старое 3')]));
+    localStorage.setItem('ems-notify-seen', JSON.stringify({ 'lg-pass:e2e': Date.now() - 3000000 }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await page.getByTestId('bell').first().click();
+  const center = page.getByTestId('notifications');
+  const old = center.locator('[data-testid=notify-item][data-unread="false"]');
+  await expect(old.first()).toBeVisible();
+  // события «обогнали» в расчёте нет — а в «Ранее» оно есть, первым как самое свежее
+  await expect(center.locator('[data-id="lg-pass:e2e"]')).toHaveCount(1);
+  expect(await old.count()).toBeLessThanOrEqual(3);
+  const ats = (await old.evaluateAll((els) => els.map((e) => Number(e.dataset.at))));
+  expect(ats).toEqual([...ats].sort((a, b) => b - a));
+  await expect(center.locator('[data-id="lg-old:e2e3"]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -72,6 +72,27 @@ export function markToasted(id, now = Date.now()) {
   const t = { ...readToasted(), [id]: now };
   store.set('ems-notify-toasted', Object.fromEntries(Object.entries(t).sort((a, b) => b[1] - a[1]).slice(0, 200)));
 }
+/* «Ранее» (docs/mechanics.md, «Уведомления»): последние EARLIER_MAX прочитанных — свежее сверху. Прочитанное
+   запоминается снимком (ems-notify-history, до 30), поэтому в «Ранее» остаётся и то, чего в расчёте уже нет. */
+export const EARLIER_MAX = 3;
+const HISTORY_KEY = 'ems-notify-history';
+export const readHistory = () => { const v = store.get(HISTORY_KEY, []); return Array.isArray(v) ? v.filter((n) => n && n.id && Number.isFinite(n.at)) : []; };
+export function rememberNotes(notes) {
+  if (!notes.length) return readHistory();
+  const by = new Map(readHistory().map((n) => [n.id, n]));
+  notes.forEach((n) => { const { id, kind, icon, tone, title, text, at, go, chapter, login } = n; by.set(id, { id, kind, icon, tone, title, text, at, go, chapter, login }); });
+  const keep = [...by.values()].sort((a, b) => b.at - a.at).slice(0, 30);
+  store.set(HISTORY_KEY, keep);
+  return keep;
+}
+// list — уведомления сейчас, history — снимки прочитанного, seen — прочитанные id, skip — id, которых в «Ранее» нет
+// (новые на экране и смахнутые)
+export function earlierOf(list, history, seen, skip = {}, max = EARLIER_MAX) {
+  const by = new Map(history.map((n) => [n.id, n]));
+  list.forEach((n) => { if (seen[n.id] || by.has(n.id)) by.set(n.id, n); });
+  return [...by.values()].filter((n) => !skip[n.id] && (seen[n.id] || history.some((h) => h.id === n.id)))
+    .sort((a, b) => b.at - a.at).slice(0, max);
+}
 export const readPushed = () => store.get('ems-notify-pushed', {});
 export function markPushed(id, now = Date.now()) {
   const p = { ...readPushed(), [id]: now };

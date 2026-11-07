@@ -93,3 +93,20 @@ describe('«Повторение» — и задания прошлых юнит
     for (let s = 1; s <= 5; s += 1) expect(pastForReview(unit, seeded(s), { seen: { [seenOne.id]: 1 } }).map((e) => e.id)).toContain(seenOne.id);
   });
 });
+
+describe('уведомления: «Ранее» — последние три прочитанных (пункт 7 от 06.11)', () => {
+  it('свежее сверху, не больше трёх; прошедшее событие остаётся снимком; новые и смахнутые — не в «Ранее»', async () => {
+    const { earlierOf, EARLIER_MAX } = await import('../notify.js');
+    const H = 3600000; const now = Date.UTC(2026, 10, 7, 12);
+    const n = (id, h) => ({ id, kind: 'league', icon: 'trophy', tone: '#000', title: id, text: '', at: now - h * H, go: 'league' });
+    // выпуск новостей 2 ноября — старый; обгон в лиге час назад — его в расчёте уже нет, он только в снимках
+    const list = [n('news:nov02', 120), n('goal:today', 2), n('ripe:1', 5), n('lg-down', 0.5), n('streak:today', 0.2)];
+    const history = [n('lg-pass:old', 1), n('news:nov02', 120)];
+    const seen = { 'news:nov02': 1, 'goal:today': 1, 'ripe:1': 1, 'lg-down': 1 };
+    const got = earlierOf(list, history, seen, { 'lg-down': 1 });
+    expect(EARLIER_MAX).toBe(3);
+    expect(got.map((x) => x.id)).toEqual(['lg-pass:old', 'goal:today', 'ripe:1']);
+    // непрочитанное («Новые») в «Ранее» не попадает
+    expect(got.some((x) => x.id === 'streak:today')).toBe(false);
+  });
+});
