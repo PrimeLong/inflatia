@@ -6123,7 +6123,7 @@ test('«Пыльная витрина»: тряпка одна — второй 
   expect(errors).toEqual([]);
 });
 
-test('лавка: «Пыльная витрина» — тряпкой по стеклу, 100% — блик и 2 монеты; до пяти витрин в день', async ({ page }) => {
+test('лавка: «Пыльная витрина» — тряпкой по стеклу; 90% — засчитано, 2 монеты и «можно дотереть»; 100% — блик; до пяти витрин в день', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, coins: { '2026-10-01': 50 } } }));
@@ -6153,7 +6153,19 @@ test('лавка: «Пыльная витрина» — тряпкой по ст
   await expect.poll(async () => Number(await game.getByTestId('dust-percent').getAttribute('data-value'))).toBeGreaterThan(0);
   // остальное — с клавиатуры: Enter протирает полосу за полосой
   await glass.focus();
-  for (let k = 0; k < 40 && (await game.getAttribute('data-phase')) === 'play'; k += 1) await page.keyboard.press('Enter');
+  const enough = game.getByTestId('dust-enough');
+  for (let k = 0; k < 40 && !(await enough.count()); k += 1) await page.keyboard.press('Enter');
+  // 90% — засчитано: монеты сразу, плашка «можно дотереть до 100%», игра идёт дальше
+  await expect(enough).toHaveAttribute('data-paid', '2');
+  await expect(enough).toContainText('+2 монеты');
+  await expect(enough).toContainText('Можно дотереть до 100%');
+  await expect(enough.getByTestId('dust-next')).toBeVisible();
+  await expect(game).toHaveAttribute('data-phase', 'play');
+  const mid = Number(await game.getByTestId('dust-percent').getAttribute('data-value'));
+  expect(mid).toBeGreaterThanOrEqual(90);
+  expect(mid).toBeLessThan(100);
+  // перфекционист дотирает до 100% — блик и «Блестит!», второй раз монеты не платятся
+  for (let k = 0; k < 120 && (await game.getAttribute('data-phase')) === 'play'; k += 1) await page.keyboard.press('Enter');
   await expect(game.getByTestId('dust-percent')).toHaveAttribute('data-value', '100');
   const res = game.getByTestId('dust-result');
   await expect(res).toHaveAttribute('data-paid', '2');

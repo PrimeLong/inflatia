@@ -10,7 +10,7 @@ import { Audio } from './MacroSimulator.jsx';
 import { Mascot } from './mascot.jsx';
 import { Button } from './ds.jsx';
 import { CoinShower, useReducedMotion } from './ds-art.jsx';
-import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent } from './learn/dust.js';
+import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent, dustCounted } from './learn/dust.js';
 import { OUTFIT_BY_ID, priceOf, coinsWord, outfitOf } from './learn/rewards.js';
 import { dayOf } from './textbook/learn-state.js';
 
@@ -60,6 +60,11 @@ const CSS = `
   @keyframes dg-sweep { to { left: 130%; } }
   .dg-foot { margin-top: 24px; text-align: center; font: 500 14px/1.45 var(--ds-sans, sans-serif); color: rgba(246,238,226,.78); }
   .dg-foot b { color: #F3D98E; }
+  /* 90% — витрина засчитана: плашка под стеклом, тереть дальше можно */
+  .dg-enough { margin-top: 18px; padding: 12px 14px; border-radius: 18px; text-align: center; background: rgba(243,217,142,.12); border: 1px solid rgba(233,194,90,.45);
+    font: 500 14px/1.45 var(--ds-sans, sans-serif); color: rgba(246,238,226,.86); animation: dg-up .35s cubic-bezier(.2, 1.2, .4, 1) backwards; }
+  .dg-enough b { color: #F3D98E; }
+  .dg-enough .dg-acts { margin-top: 10px; }
   .dg-res { position: relative; margin-top: 22px; padding: 18px 18px 16px; border-radius: 22px; text-align: center; overflow: hidden;
     background: linear-gradient(160deg, rgba(246,238,226,.12), rgba(246,238,226,.04)); border: 1px solid rgba(233,194,90,.35); animation: dg-up .45s cubic-bezier(.2, 1.2, .4, 1) backwards; }
   @keyframes dg-up { from { opacity: 0; transform: translateY(14px) } }
@@ -70,7 +75,7 @@ const CSS = `
   @keyframes dg-pop { from { transform: scale(.4); opacity: 0 } }
   .dg-acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
   .dg .ds-coins { position: fixed; }
-  @media (prefers-reduced-motion: reduce) { .dg, .dg-res, .dg-coins, .dg-shine { animation: none; } .dg-shine { display: none; } .dg-dust { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .dg, .dg-res, .dg-enough, .dg-coins, .dg-shine { animation: none; } .dg-shine { display: none; } .dg-dust { transition: none; } }
 `;
 
 // повторяемый шум: одно зерно — одна и та же пыль
@@ -166,8 +171,9 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
   const [pct, setPct] = useState(0);
   const [size, setSize] = useState(null);
   const [paid, setPaid] = useState(0);
+  const [counted, setCounted] = useState(false);
   const glass = useRef(null); const dust = useRef(null); const fx = useRef(null); const rag = useRef(null);
-  const grid = useRef(null); const down = useRef(null); const phaseRef = useRef('play'); const pctRef = useRef(0);
+  const grid = useRef(null); const down = useRef(null); const phaseRef = useRef('play'); const pctRef = useRef(0); const countedRef = useRef(false);
   const parts = useRef([]); const raf = useRef(0); const lastSound = useRef(0); const keyRow = useRef(0); const tilt = useRef(0);
   const left = dustLeft(learn);
   const item = dustItem(learn, day, n);
@@ -195,7 +201,7 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
       const px = Math.min(cw - 1, Math.floor(x * dpr)); const py = Math.min(ch - 1, Math.floor(y * dpr));
       return img.data[(py * cw + px) * 4 + 3] / 255;
     });
-    keyRow.current = 0; pctRef.current = 0; setPct(0);
+    keyRow.current = 0; pctRef.current = 0; setPct(0); countedRef.current = false; setCounted(false);
   }, [size, seed]);
 
   // частицы: пыль сыплется и тает, искры всплывают
@@ -232,13 +238,18 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
     runFx();
   };
 
-  const finish = () => {
-    phaseRef.current = 'shine'; setPhase('shine'); setPct(100);
+  /* 90% — витрина засчитана: монеты сразу, плашка «можно дотереть до 100% или дальше»; тряпка работает дальше */
+  const count = () => {
+    countedRef.current = true; setCounted(true);
     const pay = dustLeft(learn) > 0;
     if (pay) update((s) => dustClaim(s, Date.now()), { settle: true });
     setPaid(pay ? DUST.coins : 0);
+    if (pay) Audio.play('coin');
+  };
+  // 100% — чисто всё стекло: блик, искры, «Блестит!»; монеты уже выплачены на 90%
+  const finish = () => {
+    phaseRef.current = 'shine'; setPhase('shine'); setPct(100);
     Audio.play('shine');
-    if (pay) setTimeout(() => Audio.play('coin'), 260);
     try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* нет вибрации */ }
     sparkle();
     setTimeout(() => { phaseRef.current = 'done'; setPhase('done'); }, reduced ? 0 : 950);
@@ -263,7 +274,8 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
     const share = cleanShare(g);
     const shown = shownPercent(share);
     if (shown !== pctRef.current) { pctRef.current = shown; setPct(shown); }
-    if (share >= DUST.clean) finish();
+    if (!countedRef.current && dustCounted(share)) count();
+    if (share >= 1) finish();
   };
   const at = (e) => {
     const rect = dust.current.getBoundingClientRect();
@@ -303,7 +315,7 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
   };
   const again = () => {
     Audio.play('paper');
-    phaseRef.current = 'play'; setPhase('play'); setPaid(0);
+    phaseRef.current = 'play'; setPhase('play'); setPaid(0); countedRef.current = false; setCounted(false);
     setN((k) => k + 1); setSeed((s) => s + 101);
   };
 
@@ -333,7 +345,16 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
             {phase !== 'play' && !reduced && <div className="dg-shine" aria-hidden="true" />}
           </div>
         </div>
-        {phase === 'play' && (
+        {phase === 'play' && counted && (
+          <div className="dg-enough" data-testid="dust-enough" data-paid={paid} aria-live="polite">
+            {paid > 0 ? <>Витрина засчитана: <b>+{paid} {coinsWord(paid)}</b>.</> : <>Витрина засчитана.</>} Можно дотереть до 100% — или перейти к следующей.
+            <div className="dg-acts">
+              <Button variant="secondary" icon={RotateCcw} onClick={again} data-testid="dust-next">Следующая витрина</Button>
+              {o && onShowcase && <Button icon={Store} onClick={() => { Audio.play('paper'); onShowcase(); }} data-testid="dust-showcase">К витрине</Button>}
+            </div>
+          </div>
+        )}
+        {phase === 'play' && !counted && (
           <div className="dg-foot" data-testid="dust-hint">
             {left > 0
               ? <>За чистую витрину — <b>{DUST.coins} {coinsWord(DUST.coins)}</b>. Сегодня ещё {left} из {DUST.perDay}.</>
@@ -344,6 +365,7 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
           <div className="dg-res" data-testid="dust-result" data-paid={paid}>
             <Sparkles size={26} color="#F3D98E" aria-hidden="true" />
             <h3>Блестит!</h3>
+            <p style={{ marginTop: 0 }}>Чисто до последнего пятнышка.</p>
             {paid > 0 && <div className="dg-coins" data-testid="dust-coins"><i aria-hidden="true"><Coins size={15} /></i>+{paid} {coinsWord(paid)}</div>}
             <p>{o ? <>За стеклом — Инфля в «{o.title}». На витрине дня — {price} мон.</> : 'Витрина как новая.'}</p>
             <p style={{ fontSize: 13 }}>{dustLeft(learn) > 0 ? `Сегодня можно протереть ещё ${dustLeft(learn)} из ${DUST.perDay}.` : 'Монеты за сегодня собраны — дальше только ради удовольствия.'}</p>

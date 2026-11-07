@@ -5,7 +5,8 @@
 
    Модель стекла — сетка клеток с уровнем пыли от 0 до 1. Тряпка — круг радиуса r: под ней пыль
    убывает в (1 − wipe·(1 − d/r)) раз, сильнее в середине — так же, как холст стирает пыль радиальной
-   кистью. Чистая клетка — пыли меньше DUST.thr; витрина протёрта, когда чистых DUST.clean. За один
+   кистью. Чистая клетка — пыли меньше DUST.thr; витрина засчитана (монеты), когда чистых DUST.clean, а «Блестит!» —
+   когда чистое всё стекло: дотереть до 100% можно по желанию. За один
    проход середина ещё мутная — нужно пройтись дважды: в этом и есть «тереть». Модуль чистый. */
 import { earn, hasClaim, shopDay } from './rewards.js';
 import { dayOf } from '../textbook/learn-state.js';
@@ -63,5 +64,7 @@ export function cleanShare(g, thr = DUST.thr) {
   for (let i = 0; i < g.v.length; i += 1) if (g.v[i] < thr) n += 1;
   return n / g.v.length;
 }
-// что показать ученику: 100% — витрина протёрта (порог DUST.clean, а не всё до последней клетки)
-export const shownPercent = (share) => Math.min(100, Math.floor((share / DUST.clean) * 100));
+// что показать ученику: честная доля чистого стекла; 100% — только когда чисто всё (не округляем 99,6% до 100)
+export const shownPercent = (share) => (share >= 1 ? 100 : Math.min(99, Math.floor(share * 100)));
+// витрина засчитана — монеты; дотереть до 100% можно дальше
+export const dustCounted = (share) => share >= DUST.clean;
