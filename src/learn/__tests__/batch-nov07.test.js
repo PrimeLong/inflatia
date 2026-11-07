@@ -143,3 +143,14 @@ describe('график наценки: цена на спросе, выпуск 
     expect(powerModel(0.12).markup).toBeGreaterThan(2);
   });
 });
+
+describe('эфир «Слушай»: в репликах нет формул (жалоба mw4b5spn «нейронка плохо читает формулы»)', () => {
+  it('реплики эфиров — живая речь: без $…$, «=», индексов и степеней', async () => {
+    const { LESSONS } = await import('../course.js');
+    const { plainText } = await import('../../textbook/content.js');
+    const { voiceLines } = await import('../voice-lines.js');
+    const lines = voiceLines(LESSONS, plainText, 'host');
+    expect(lines.length).toBeGreaterThan(50);
+    lines.forEach((l) => expect(l.text, `${l.lesson}: ${l.text}`).not.toMatch(/[$=^_]|\b[PQ]\s*[-+]/));
+  });
+});
