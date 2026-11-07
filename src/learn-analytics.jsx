@@ -197,6 +197,12 @@ export function AnalyticsView({ onBack }) {
               <div className="an-tile-value">{t.coinsGuard ? t.coinsGuard.now : 0}</div>
               <div className="an-tile-delta">за неделю; за прошлую — {t.coinsGuard ? t.coinsGuard.prev : 0}</div>
             </div>
+            {/* списание монет дюпа: у скольких учеников нашлись лишние монеты (docs/mechanics.md, «Защита монет») */}
+            <div className="an-tile" data-testid="analytics-tile-coins-clawback">
+              <div className="an-tile-label">Списано за дюп: учеников</div>
+              <div className="an-tile-value">{t.coinsClawback ? t.coinsClawback.now : 0}</div>
+              <div className="an-tile-delta">за неделю; за прошлую — {t.coinsClawback ? t.coinsClawback.prev : 0}</div>
+            </div>
           </div>
         )}
         {data && data.daily && (

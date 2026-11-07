@@ -31,6 +31,7 @@ import { Audio, getPlayerId, syncProfile } from './MacroSimulator.jsx';
 import { Blocks, Inline, ChartSvg, ChartLegend, TEXTBOOK_CSS, TextbookScreen } from './textbook.jsx';
 import { CHARTS, chartDefaults } from './textbook/charts.js';
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, reviewQueue } from './textbook/progress.js';
+import { applyDupeAudit, fineOf } from './learn/audit.js';
 import { afterPathAnswer, dropFromReview } from './textbook/review-sync.js';
 import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
@@ -572,7 +573,16 @@ function useLearn() {
   }, []);
   useEffect(() => {
     let alive = true;
-    syncProfile(playerId).then((pf) => { if (alive && pf) setProgress(loadProgress()); }).catch(() => {});
+    /* списание монет дюпа (src/learn/audit.js, docs/mechanics.md, «Защита монет») — один раз, после первой
+       синхронизации: считаем по общему прогрессу всех устройств */
+    const audit = () => update((p) => {
+      const learn = applyDupeAudit(p.learn, Date.now(), { bookFirst: Object.values(p.problems || {}).filter((r) => r && r.ok && (r.tries || 0) <= 1).length });
+      if (learn === p.learn) return p;
+      const f = fineOf(learn);
+      if (f && f.coins > 0 && !AUDIT_TRACKED.size) { AUDIT_TRACKED.add(1); track('coins_clawback'); }
+      return { ...p, learn };
+    }, { whole: true });
+    syncProfile(playerId).then((pf) => { if (alive && pf) setProgress(loadProgress()); }).catch(() => {}).finally(() => { if (alive) audit(); });
     // уроки, которые не продолжили за сутки, — брошенные: только они портят долю доведённых
     const expired = takeExpiredResumes();
     if (expired.length) update((s) => expired.reduce((acc, r) => abandonLesson(acc, r.kind || 'choice', r.pos || 0), s));
@@ -2935,6 +2945,8 @@ const GraphLesson = React.lazy(() => import('./learn-graph.jsx'));
 const DrawLesson = React.lazy(() => import('./learn-draw.jsx'));
 // предохранитель выплат остановил повторную выплату — в аналитику, без логина и имени (docs/mechanics.md, «Защита монет»)
 onCoinGuard(() => track('coins_guard'));
+// списание дюпа уходит в аналитику один раз за запуск
+const AUDIT_TRACKED = new Set();
 const Lazy = ({ children }) => <React.Suspense fallback={<BrandLoader compact text="Открываем" />}>{children}</React.Suspense>;
 const Celebration = React.lazy(() => import('./learn-celebrate.jsx'));
 /* Церемонии (src/learn/celebrate.js): что из полученного ещё не праздновали. Показанное помнит

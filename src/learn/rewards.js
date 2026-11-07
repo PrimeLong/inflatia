@@ -37,8 +37,10 @@ export const bookFirstTry = (prev, ok, sawSolution = false) => !!ok && !sawSolut
 // цель дня — столько монет, сколько минут в цели (10 минут — COIN.goal)
 export const goalCoins = (minutes) => Math.round((minutes * COIN.goal) / 10);
 export const earned = (s) => sum(s.coins);
-// в кошельке: заработано − потрачено − взносы страховки − лежит в копилке + проценты забранных вкладов
-export const balance = (s) => Math.max(0, sum(s.coins) - sum(s.spent) - sum(s.premiums) - piggyLocked(s) + piggyGain(s));
+// в кошельке: заработано − потрачено − взносы страховки − лежит в копилке + проценты забранных вкладов − списания
+// списания (src/learn/audit.js): списано минус возвращённое за откаченные вещи
+export const finesNet = (s) => Object.values(s.fines || {}).reduce((a, f) => a + (f.coins || 0) - (f.refund || 0), 0);
+export const balance = (s) => Math.max(0, sum(s.coins) - sum(s.spent) - sum(s.premiums) - piggyLocked(s) + piggyGain(s) - finesNet(s));
 export const hasClaim = (s, key) => !!(s.claimed || {})[key];
 // начислить монеты; с ключом — только один раз
 export function earn(s, n, key = null, now = Date.now()) {
@@ -409,6 +411,8 @@ const QUEST = {
   xp: { coins: 10, target: (s, now) => goalMinutes(s, now) * 3, have: (d, s, day) => (s.xp || {})[day] || 0, title: (t) => `Набрать ${t} опыта` },
   fresh: { coins: 15, target: () => 1, have: (d, s, day) => Math.max(d.n || 0, newToday(s, day)), title: () => 'Пройти новый урок на Пути' },
 };
+// монеты за каждое задание дня — для проверки выплат (src/learn/audit.js)
+export const QUEST_COINS = Object.fromEntries(Object.entries(QUEST).map(([k, q]) => [k, q.coins]));
 export const QUEST_ICON = { lessons: 'map', perfect: 'check', correct: 'coins', run: 'flame', xp: 'spark', fresh: 'target' };
 export function questsFor(s, now = Date.now()) {
   const day = dayOf(now); const d = dailyOf(s, now);

@@ -6866,3 +6866,43 @@ test('сад: шесть ромашек на соседних грядках —
   expect(await page.getByTestId('garden').getByTestId('garden-look').evaluateAll((els) => els.map((e) => Number(e.dataset.k)))).toEqual(ks);
   expect(errors).toEqual([]);
 });
+
+/* Списание монет дюпа (решение владельца от 07.11, docs/legal-todo.md, п. 16): лишнее сверх честного заработка
+   списывается, минус в кошельке закрывают покупки на эти монеты — с самых новых; ученику — уведомление */
+test('дюп: лишние монеты списаны, купленная на них вещь вернулась в лавку и снята; уведомление объясняет почему', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const now = Date.now(); const day = new Date(now - 86400000).toISOString().slice(0, 10);
+    // шесть уроков (лавка открыта), а монет — 4000 за один день (повторные бонусы серии), и всё потрачено на корону и медаль
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: {
+      lessons: Object.fromEntries(ids.map((id) => [id, { at: now - 86400000, runs: 1, best: 90 }])),
+      done: { [day]: 6 }, xp: { [day]: 120 }, coins: { [day]: 4000 }, spent: { [day]: 4000 },
+      owned: { crown: now - 7200000, medal: now - 3600000 }, wear: { head: 'crown', neck: 'medal', at: now - 3600000 },
+    } }));
+  });
+  await page.addInitScript(() => { try { localStorage.setItem('ems-learn-morning', new Date().toISOString().slice(0, 10)); } catch { /* нет хранилища */ } });
+  const { errors } = await openApp(page, '/', '{}', { tab: null });
+  // плашка сверху — почему баланс изменился
+  const toast = page.getByTestId('notify-toast');
+  await expect(toast).toHaveAttribute('data-id', 'fine:dupe-2026-11');
+  await expect(toast).toContainText('Исправили ошибку с монетами');
+  await expect(toast).toContainText('вернулось в лавку');
+  const learn = () => page.evaluate(() => JSON.parse(localStorage.getItem('ems-textbook-v1')).learn);
+  await expect.poll(async () => Object.keys((await learn()).fines || {})).toEqual(['dupe-2026-11']);
+  const s = await learn();
+  const f = s.fines['dupe-2026-11'];
+  expect(f.coins).toBeGreaterThan(3000);
+  // откатывается с самой новой покупки — медаль; она снята
+  expect(Object.keys(f.items)[0]).toBe('medal');
+  expect(s.owned.medal).toBeUndefined();
+  expect(s.wear.neck).toBeNull();
+  // в кошельке не минус
+  await openTab(page, 'shop');
+  expect(Number((await page.getByTestId('shop-balance').innerText()).replace(/\D/g, ''))).toBeGreaterThanOrEqual(0);
+  // после перезагрузки — не списывается второй раз
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect.poll(async () => (await learn()).fines['dupe-2026-11'].at).toBe(f.at);
+  expect(errors).toEqual([]);
+});

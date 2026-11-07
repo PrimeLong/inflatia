@@ -53,7 +53,7 @@ export const emptyLearn = () => ({
   coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
   policyAt: 0, policyOff: 0, policyLapse: 0, premiums: {}, monthPlan: {},
   seen: {}, best: {}, boost: 0, piggy: {}, piggyOut: {}, piggyTop: {}, piggyAdd: {}, garden: {}, harvest: {}, water: {},
-  shown: {}, read: {}, met: {}, fixed: {}, books: {}, graphs: {}, draws: {},
+  shown: {}, read: {}, met: {}, fixed: {}, books: {}, graphs: {}, draws: {}, fines: {},
 });
 /* Показанное ученику — общее для всех его устройств (жалоба: «прошёл юнит на ПК — марка и уведомления
    повторяются на телефоне»): ключ → когда впервые показали. Префиксы: c: — церемония (марка, печать),
@@ -597,12 +597,31 @@ const harvestMap = (v) => {
   Object.keys(obj(v)).filter((k) => TIME_KEY.test(k)).sort().slice(-200).forEach((k) => { const x = cnt(v[k], 1e14); if (x) out[k] = x; });
   return out;
 };
+/* Списания (src/learn/audit.js, docs/mechanics.md, «Защита монет»): ключ → { at, coins, refund, items: id → время покупки }.
+   При слиянии остаётся более раннее (одно на ученика); откаченные вещи убираются из owned — если вещь купили заново
+   после списания, её время покупки позже записанного, и она остаётся. */
+const fineRec = (v) => {
+  const f = obj(v); const items = {};
+  Object.keys(obj(f.items)).filter(okKey).slice(0, 200).forEach((k) => { const t = cnt(f.items[k], 1e14); if (t) items[k] = t; });
+  const at = cnt(f.at, 1e14);
+  return at ? { at, coins: cnt(f.coins, 1e7), refund: cnt(f.refund, 1e7), items } : null;
+};
+const finesMap = (v) => Object.fromEntries(Object.keys(obj(v)).filter(okKey).slice(0, 20).map((k) => [k, fineRec(v[k])]).filter(([, f]) => f));
+const earlierFine = (a, b) => (!a ? b : !b ? a : b.at < a.at || (b.at === a.at && JSON.stringify(b) < JSON.stringify(a)) ? b : a);
+const withoutRevoked = (owned, fines) => {
+  const out = { ...owned };
+  Object.values(fines).forEach((f) => Object.entries(f.items).forEach(([id, t]) => { if (out[id] && out[id] <= t) delete out[id]; }));
+  return out;
+};
 // переименованные вещи лавки: купленное остаётся у ученика под новым именем
 const RENAMED = { goldbar: 'balloon' };
 const renamed = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [RENAMED[k] || k, v]));
 function normalizeProgram(r) {
   const e = emptyLearn();
   const p = obj(r.profile); const pl = obj(r.placement); const w = obj(r.wear);
+  const fines = finesMap(r.fines);
+  const owned = withoutRevoked(renamed(tsMap(r.owned, 500)), fines);
+  const revokedIds = new Set(Object.values(fines).flatMap((f) => Object.keys(f.items)));
   const topics = {};
   Object.keys(obj(r.topics)).filter(okKey).slice(0, MAX_KEYS).forEach((k) => {
     const t = obj(r.topics[k]); const n = cnt(t.n, TOPIC_WINDOW);
@@ -627,8 +646,9 @@ function normalizeProgram(r) {
     coins: dayMap(r.coins, 1e6), spent: dayMap(r.spent, 1e6), freezeBuy: dayMap(r.freezeBuy, MAX_FREEZES * 5),
     frozen: Object.fromEntries(Object.keys(obj(r.frozen)).filter(isDay).sort().slice(-MAX_DAYS).map((k) => [k, 1])),
     policyAt: cnt(r.policyAt, 1e14), policyOff: cnt(r.policyOff, 1e14), policyLapse: cnt(r.policyLapse, 1e14), premiums: dayMap(r.premiums, PREMIUM * 10), monthPlan: monthPlanMap(r.monthPlan),
-    claimed: claimedMap(r.claimed), owned: renamed(tsMap(r.owned, 500)), skipped: tsMap(r.skipped, 60),
-    wear: { ...Object.fromEntries(SLOTS.map((sl) => [sl, okKey(w[sl]) ? RENAMED[w[sl]] || w[sl] : null])), at: cnt(w.at, 1e14) },
+    claimed: claimedMap(r.claimed), owned, skipped: tsMap(r.skipped, 60), fines,
+    // откаченная списанием вещь снимается
+    wear: { ...Object.fromEntries(SLOTS.map((sl) => [sl, okKey(w[sl]) && !(revokedIds.has(RENAMED[w[sl]] || w[sl]) && !owned[RENAMED[w[sl]] || w[sl]]) ? RENAMED[w[sl]] || w[sl] : null])), at: cnt(w.at, 1e14) },
     seen: countMap(r.seen, MAX_SEEN, 9999), best: countMap(r.best, MAX_BEST, 1e6), boost: cnt(r.boost, 1e14),
     piggy: piggyMap(r.piggy), piggyOut: piggyMap(r.piggyOut), piggyTop: piggyTopMap(r.piggyTop), piggyAdd: piggyAddMap(r.piggyAdd), garden: gardenMap(r.garden), harvest: harvestMap(r.harvest), water: waterMap(r.water),
     // показанное: самые свежие SHOWN_MAX по времени
@@ -653,6 +673,7 @@ function mergeProgram(x, y) {
     recent: laterRecent ? y.recent : x.recent, recentAt: Math.max(x.recentAt, y.recentAt),
     coins: maxMap(x.coins, y.coins), spent: maxMap(x.spent, y.spent), freezeBuy: maxMap(x.freezeBuy, y.freezeBuy),
     frozen: { ...x.frozen, ...y.frozen }, claimed: minTs(x.claimed, y.claimed), owned: minTs(x.owned, y.owned), skipped: minTs(x.skipped, y.skipped),
+    fines: Object.fromEntries([...new Set([...Object.keys(x.fines), ...Object.keys(y.fines)])].map((k) => [k, earlierFine(x.fines[k], y.fines[k])])),
     policyAt: Math.max(x.policyAt, y.policyAt), policyOff: Math.max(x.policyOff, y.policyOff), policyLapse: Math.max(x.policyLapse, y.policyLapse), premiums: maxMap(x.premiums, y.premiums), monthPlan: mergeMonthPlan(x.monthPlan, y.monthPlan),
     seen: maxMap(x.seen, y.seen), best: maxMap(x.best, y.best), boost: Math.max(x.boost, y.boost),
     piggy: maxMap(x.piggy, y.piggy), piggyOut: maxMap(x.piggyOut, y.piggyOut), piggyTop: { ...x.piggyTop, ...y.piggyTop }, piggyAdd: { ...x.piggyAdd, ...y.piggyAdd },

@@ -9,7 +9,7 @@
 import { streak, goalToday, dayOf, addDays, dayAt } from '../textbook/learn-state.js';
 import { leagueState, pendingRewards, standings, LEAGUE_BY_ID, LESSON_XP } from './league.js';
 import { gardenPlots, growth, PLANT_BY_ID } from './garden.js';
-import { piggyState, monthChallenge, hasClaim, chestKey, coinsWord, plural } from './rewards.js';
+import { piggyState, monthChallenge, hasClaim, chestKey, coinsWord, plural, OUTFIT_BY_ID } from './rewards.js';
 import { pathState, practiceIds, unitTitle } from './course.js';
 import { placeOf } from '../ds-tokens.js';
 import { NEWS, newsForLearner, learnerSince } from './news.js';
@@ -122,6 +122,16 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
   const at = (key, h) => Math.min(now, dayAt(key, h));
   const hour = new Date(now).getHours();
   const out = [];
+  /* списание монет дюпа (src/learn/audit.js): честно и один раз — сколько списано и что вернулось в лавку;
+     всплывает плашкой и не отключается в настройках, как и «Смените ник» */
+  const fine = (learn.fines || {})['dupe-2026-11'];
+  if (fine && fine.coins > 0) {
+    const names = Object.keys(fine.items || {}).map((id) => (OUTFIT_BY_ID[id] ? `«${OUTFIT_BY_ID[id].title}»` : null)).filter(Boolean);
+    out.push({ id: 'fine:dupe-2026-11', kind: 'path', icon: 'shield-alert', tone: '#B8423A', at: Math.min(now, fine.at), go: 'shop', toast: true,
+      title: 'Исправили ошибку с монетами',
+      text: `Из-за ошибки бонусы серии выплачивались снова и снова. Лишние ${fine.coins} ${coinsWord(fine.coins)} списаны.`
+        + (names.length ? ` Купленное на них вернулось в лавку: ${names.join(', ')} — ${fine.refund} ${coinsWord(fine.refund)} снова в кошельке.` : '') });
+  }
   const add = (n) => { if (prefs[n.kind] !== false) out.push(n); };
   const started = Object.keys(learn.done || {}).length > 0 || Object.keys(learn.lessons || {}).length > 0;
 
