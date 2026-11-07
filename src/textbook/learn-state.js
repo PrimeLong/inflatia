@@ -618,7 +618,9 @@ const fineRec = (v) => {
   const f = obj(v); const items = {};
   Object.keys(obj(f.items)).filter(okKey).slice(0, 200).forEach((k) => { const t = cnt(f.items[k], 1e14); if (t) items[k] = t; });
   const at = cnt(f.at, 1e14);
-  return at ? { at, coins: cnt(f.coins, 1e7), refund: cnt(f.refund, 1e7), items } : null;
+  // piggy — вклад копилки, закрытый списанием: { at — время вклада, n — сколько из него ушло на списание }
+  const pg = obj(f.piggy); const pgAt = cnt(pg.at, 1e14);
+  return at ? { at, coins: cnt(f.coins, 1e7), refund: cnt(f.refund, 1e7), items, ...(pgAt ? { piggy: { at: pgAt, n: cnt(pg.n, 1e7) } } : {}) } : null;
 };
 const finesMap = (v) => Object.fromEntries(Object.keys(obj(v)).filter(okKey).slice(0, 20).map((k) => [k, fineRec(v[k])]).filter(([, f]) => f));
 const earlierFine = (a, b) => (!a ? b : !b ? a : b.at < a.at || (b.at === a.at && JSON.stringify(b) < JSON.stringify(a)) ? b : a);

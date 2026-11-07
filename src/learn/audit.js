@@ -9,7 +9,7 @@
    эти монеты — с самых новых: вещь уходит из гардероба, её цена возвращается в кошелёк, — пока минус не уйдёт.
    Запись переживает слияние устройств: остаётся самая ранняя, а откаченная вещь не возвращается с другого
    устройства (normalizeLearn убирает её из owned). Купленная заново после списания — остаётся. Модуль чистый. */
-import { COIN, STREAK_BONUS, ACHIEVEMENTS, achievementKey, chestCoins, MONTH_COINS, RATE_MAX, priceIndex, priceOf, earned, balance, OUTFIT_BY_ID, hasClaim, QUEST_COINS, goalCoins } from './rewards.js';
+import { COIN, STREAK_BONUS, ACHIEVEMENTS, achievementKey, chestCoins, MONTH_COINS, RATE_MAX, priceIndex, priceOf, earned, walletRaw, piggyOpen, OUTFIT_BY_ID, hasClaim, QUEST_COINS, goalCoins } from './rewards.js';
 import { dayOf, longestStreak } from '../textbook/learn-state.js';
 import { leagueState, PLACE_COINS, PROMO_COINS, LEAGUES } from './league.js';
 import { RACE } from './friends.js';
@@ -17,6 +17,9 @@ import { PLANT_BY_ID, GRADE_BY_ID, gradeOf } from './garden.js';
 import { UNITS } from './course.js';
 
 export const DUPE_FINE = 'dupe-2026-11';
+/* второй проход (8 ноября 2026): у кого списание прошло, когда копилку ещё не трогали, а минус кошелька остался —
+   его прятал открытый вклад с монетами дюпа (кошелёк показывал 0, вклад рос дальше) */
+export const DUPE_PIGGY = 'dupe-2026-11-piggy';
 // за активный день — пять витрин по 2 монеты; цель дня (до 20 минут → 20 монет) — по ключам g: или по максимуму
 export const DAY_CEILING = 10;
 const GOAL_MAX = goalCoins(20);
@@ -86,9 +89,10 @@ export function coinCeiling(s, now = Date.now(), { bookFirst = null } = {}) {
   return { total: Math.ceil(raw * index * MARGIN) + MARGIN_ABS, parts };
 }
 
-// покупки, которые можно откатить: вещи лавки за монеты (не подарки за печати и сезон), новые — первыми
+// покупки, которые можно откатить: вещи лавки за монеты (не подарки за печати и сезон), новые — первыми; уже откаченные — нет
+const revoked = (s, id, at) => Object.values(s.fines || {}).some((f) => (f.items || {})[id] >= at);
 const refundable = (s) => Object.entries(s.owned || {})
-  .filter(([id, at]) => OUTFIT_BY_ID[id] && !OUTFIT_BY_ID[id].reward && OUTFIT_BY_ID[id].crowns > 0 && at > 0)
+  .filter(([id, at]) => OUTFIT_BY_ID[id] && !OUTFIT_BY_ID[id].reward && OUTFIT_BY_ID[id].crowns > 0 && at > 0 && !revoked(s, id, at))
   .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
 
 /* Расчёт списания: { at, coins — сколько списано, refund — сколько вернулось за откаченные вещи, items — id → время
@@ -97,23 +101,42 @@ export function dupeFine(s, now = Date.now(), opts = {}) {
   if (!Object.keys(s.lessons || {}).length) return null;
   const { total } = coinCeiling(s, now, opts);
   const coins = Math.max(0, Math.round(earned(s) - total));
-  const items = {}; let refund = 0;
-  if (coins > 0) {
-    let bal = balance(s) - coins;
-    for (const [id, at] of refundable(s)) {
-      if (bal >= 0) break;
-      const price = priceOf(id, dayOf(at));
-      items[id] = at; refund += price; bal += price;
-    }
+  return { at: now, coins, ...(coins > 0 ? cover(s, walletRaw(s) - coins) : { refund: 0, items: {} }) };
+}
+/* Покрыть минус кошелька bal (< 0): сначала открытый вклад копилки — закрывается досрочно, вложенное идёт на минус,
+   остаток — в кошелёк, процент сгорает (он наращён и на монеты дюпа); потом — покупки, с самых новых. */
+function cover(s, bal) {
+  const items = {}; let refund = 0; let piggy = null;
+  const dep = bal < 0 ? piggyOpen(s) : null;
+  if (dep) { piggy = { at: dep.at, n: Math.min(dep.amount, -bal) }; bal += dep.amount; }
+  for (const [id, at] of refundable(s)) {
+    if (bal >= 0) break;
+    const price = priceOf(id, dayOf(at));
+    items[id] = at; refund += price; bal += price;
   }
-  return { at: now, coins, refund, items };
+  return { refund, items, ...(piggy ? { piggy } : {}) };
+}
+// записать списание: вклад, закрытый им, — забран (выдано вложенное, без процента)
+const withFine = (s, key, f) => {
+  const t = { ...s, fines: { ...s.fines, [key]: f } };
+  if (!f.piggy) return t;
+  const dep = piggyOpen(s);
+  return { ...t, piggyOut: { ...s.piggyOut, [f.piggy.at]: dep && dep.at === f.piggy.at ? dep.amount : f.piggy.n } };
+};
+// второй проход: списание было, второго прохода не было, а кошелёк в минусе — есть что покрывать
+export const needsPiggyPass = (s) => !!(s.fines || {})[DUPE_FINE] && !(s.fines || {})[DUPE_PIGGY] && walletRaw(s) < 0;
+export function piggyPass(s, now = Date.now()) {
+  if (!needsPiggyPass(s)) return null;
+  const c = cover(s, walletRaw(s));
+  return c.piggy || Object.keys(c.items).length ? { at: now, coins: 0, ...c } : null;
 }
 export const needsDupeAudit = (s) => !((s.fines || {})[DUPE_FINE]) && Object.keys(s.lessons || {}).length > 0;
 // записать списание (один раз); вернуть то же состояние, если записывать нечего
 export function applyDupeAudit(s, now = Date.now(), opts = {}) {
-  if (!needsDupeAudit(s)) return s;
-  const f = dupeFine(s, now, opts);
-  return f ? { ...s, fines: { ...s.fines, [DUPE_FINE]: f } } : s;
+  let t = s;
+  if (needsDupeAudit(t)) { const f = dupeFine(t, now, opts); if (f) t = withFine(t, DUPE_FINE, f); }
+  const p = piggyPass(t, now);
+  return p ? withFine(t, DUPE_PIGGY, p) : t;
 }
 // что увидит ученик: сколько списано и какие вещи вернулись в лавку
 export const fineOf = (s) => (s.fines || {})[DUPE_FINE] || null;

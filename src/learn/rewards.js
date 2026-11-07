@@ -40,7 +40,9 @@ export const earned = (s) => sum(s.coins);
 // в кошельке: заработано − потрачено − взносы страховки − лежит в копилке + проценты забранных вкладов − списания
 // списания (src/learn/audit.js): списано минус возвращённое за откаченные вещи
 export const finesNet = (s) => Object.values(s.fines || {}).reduce((a, f) => a + (f.coins || 0) - (f.refund || 0), 0);
-export const balance = (s) => Math.max(0, sum(s.coins) - sum(s.spent) - sum(s.premiums) - piggyLocked(s) + piggyGain(s) - finesNet(s));
+// кошелёк без нижней границы: минус бывает только после списания дюпа (src/learn/audit.js) — его покрывает копилка, потом покупки
+export const walletRaw = (s) => sum(s.coins) - sum(s.spent) - sum(s.premiums) - piggyLocked(s) + piggyGain(s) - finesNet(s);
+export const balance = (s) => Math.max(0, walletRaw(s));
 export const hasClaim = (s, key) => !!(s.claimed || {})[key];
 // начислить монеты; с ключом — только один раз
 export function earn(s, n, key = null, now = Date.now()) {
@@ -292,6 +294,8 @@ const deposits = (s) => Object.entries(s.piggy || {}).map(([at, first]) => {
   const t = Number(at); const adds = addsOf(s, t);
   return { at: t, first, adds, amount: first + adds.reduce((a, x) => a + x.n, 0), out: (s.piggyOut || {})[at] || 0, topup: isTopup(s, t) };
 });
+// открытый вклад (один за раз): { at, amount } или null
+export const piggyOpen = (s) => deposits(s).filter((d) => !d.out).sort((a, b) => b.at - a.at)[0] || null;
 export function piggyLocked(s) { return deposits(s).filter((d) => !d.out).reduce((a, d) => a + d.amount, 0); }
 export function piggyGain(s) { return deposits(s).filter((d) => d.out).reduce((a, d) => a + Math.max(0, d.out - d.amount), 0); }
 // сколько стоит вклад через days дней под ставку rate: монеты — целые, дробь копится, но выдаётся по целой части
