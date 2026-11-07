@@ -4585,14 +4585,12 @@ test('урок на ПК: «Предыдущая карточка» не зак�
   await page.getByTestId('lesson').locator('.ln-foot button').last().click();
   await page.getByTestId('lesson-back').click();
   await expect(page.getByTestId('lesson-peek')).toBeVisible();
-  // слой прошлой карточки прозрачен над полем: там, где запись, — не бумага, а то, что под ним
+  // слой прошлой карточки прозрачен: поле с записью — не под бумагой; текущая карточка на это время спрятана
   const clear = await page.evaluate(() => {
-    const peek = document.querySelector('.ln-peek');
-    const left = parseFloat(getComputedStyle(peek).getPropertyValue('--sk-l'));
-    return { grad: getComputedStyle(peek).backgroundImage, left };
+    const peek = document.querySelector('.ln-peek'); const cur = document.querySelector('[data-testid=lesson] > .ln-body');
+    return { bg: getComputedStyle(peek).backgroundColor, img: getComputedStyle(peek).backgroundImage, cur: getComputedStyle(cur).visibility };
   });
-  expect(clear.grad).toContain('linear-gradient');
-  expect(clear.left - 14).toBeGreaterThan(240);
+  expect(clear).toEqual({ bg: 'rgba(0, 0, 0, 0)', img: 'none', cur: 'hidden' });
   // и на полях можно писать дальше, пока смотрим назад
   await draw([[80, 420], [240, 420]]);
   await expect(canvas).toHaveAttribute('data-strokes', '2');
@@ -5553,6 +5551,21 @@ test('темы урока: живые превью во вкладке «Для 
   const look = await answer.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, img: getComputedStyle(el).backgroundImage, font: getComputedStyle(el.querySelector('.ds-answer-say, .ds-answer-stamp')).fontFamily }));
   expect(`${look.bg} ${look.img}`).toMatch(/rgb\(7, 22, 15\)/);
   expect(look.font).toMatch(/mono/i);
+  // назад к прошлой карточке — на фоне темы, а не на чёрной плашке (пункт владельца 08.11); внизу — «Вернуться»,
+  // а не «Проверить» текущей карточки (нижняя панель темы раньше перекрывала кнопку)
+  await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  await lesson.getByTestId('lesson-back').click();
+  const peek = page.getByTestId('lesson-peek');
+  await expect(peek).toBeVisible();
+  const behind = await page.evaluate(() => {
+    const pk = document.querySelector('.ln-peek'); const cur = document.querySelector('[data-testid=lesson] > .ln-body');
+    const at = document.elementFromPoint(innerWidth / 2, innerHeight - 30);
+    return { bg: getComputedStyle(pk).backgroundColor, img: getComputedStyle(pk).backgroundImage, cur: getComputedStyle(cur).visibility, at: at && at.closest('button') ? at.closest('button').textContent : '' };
+  });
+  expect(behind).toEqual({ bg: 'rgba(0, 0, 0, 0)', img: 'none', cur: 'hidden', at: 'Вернуться' });
+  await page.getByTestId('lesson-peek-return').click();
+  await expect(peek).toHaveCount(0);
+  expect(await lesson.locator(':scope > .ln-body').evaluate((el) => getComputedStyle(el).visibility)).toBe('visible');
   // фон не ловит касаний и не расширяет страницу
   expect(await lesson.getByTestId('lesson-skin').evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
   const width = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);

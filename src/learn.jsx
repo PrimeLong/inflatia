@@ -335,7 +335,10 @@ const CSS = `
   .ln-skip-tag { font: 700 12px var(--ds-sans); color: var(--ds-ink2); }
   .ln-overlay { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; }
   /* «предыдущая карточка» — слой под шапкой урока: своё тело с прокруткой и «Вернуться» внизу */
-  .ln-peek { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; flex-direction: column; background: var(--ds-paper); animation: ln-peek-in .28s cubic-bezier(.2, .9, .3, 1); }
+  /* прошлая карточка — на фоне самого урока (тема из лавки, украшения, черновик): слой прозрачный, а текущая карточка
+     с нижней панелью на это время прячется — ответ, ход и прокрутка целы (раньше слой цвета бумаги в теме урока был чёрным прямоугольником) */
+  .ln-peek { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; flex-direction: column; background: transparent; animation: ln-peek-in .28s cubic-bezier(.2, .9, .3, 1); }
+  .ln-overlay[data-peek] > .ln-body, .ln-overlay[data-peek] > .ln-foot { visibility: hidden; }
   @keyframes ln-peek-in { from { opacity: 0; transform: translateX(-18px) } }
   .ln-peek-verdict { margin-top: 12px; padding: 10px 12px; border-radius: 12px; font-size: 15.5px; line-height: 1.45; border-left: 4px solid var(--ds-ok); background: var(--ds-ok-bg); color: var(--ds-ok-ink); }
   .ln-peek-verdict.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 10%, var(--ds-card)); color: var(--ds-ink); }
@@ -1477,7 +1480,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
 
   return (
     <DsRoot theme={skin ? skinTheme(skin) : dsThemeId()} accent={color} className={skin ? 'ln-overlay sk-on' : 'ln-overlay'} data-testid="lesson" data-mode={run.mode} data-diamond={diamond ? 'true' : undefined} role="dialog" aria-label={title}
-      data-skin={skin ? skin.key : undefined} style={{ ...(skin ? skinVars(skin) : null), display: hidden ? 'none' : undefined }}>
+      data-peek={peek && prevShot && stage !== 'done' ? 'true' : undefined} data-skin={skin ? skin.key : undefined} style={{ ...(skin ? skinVars(skin) : null), display: hidden ? 'none' : undefined }}>
       <ArtStyle /><style>{CSS + PLAY_CSS + FEED_CSS + REPORT_CSS + MODEL_CSS + DOMINO_CSS + (sketch ? SKETCH_CSS : '') + (skin ? SKIN_CSS : '')}</style>
       {skin && <LessonSkin id={skin.id} />}
       <div className="ln-head" ref={headRef}>
