@@ -1879,15 +1879,11 @@ test('путь: выход после первого ответа — урок �
   await page.getByTestId('lesson-result').getByRole('button', { name: 'Дальше', exact: true }).click();
   await expect(page.getByTestId('practice-mistakes')).toBeDisabled();
 
-  // проверка юнита: сдана — все уроки открыты, но пройденными становятся только уроками
+  // проверки юнита у непройденного юнита нет (пункт владельца от 06.11: «доступна проверка юнита, что не пройден, и того,
+  // что вообще не открыт»); у закрытого — тем более
   await openTab(page, 'path');
-  await (await showUnit(page, 'supply-demand')).getByTestId('unit-check').click();
-  await expect(page.getByTestId('lesson')).toHaveAttribute('data-mode', 'check');
-  await playLesson(page);
-  await expect(page.getByTestId('lesson-result')).toContainText('Проверка сдана');
-  await page.getByTestId('lesson-result').getByRole('button', { name: 'Дальше', exact: true }).click();
-  await expect(path.locator('[data-testid="path-unit"][data-unit="supply-demand"] [data-testid="path-lesson"][data-state="done"]')).toHaveCount(5);
-  await expect(path.locator('[data-testid="path-unit"][data-unit="supply-demand"] [data-testid="path-lesson"][data-state="locked"]')).toHaveCount(0);
+  await expect((await showUnit(page, 'supply-demand')).getByTestId('unit-check')).toHaveCount(0);
+  await expect(path.locator('[data-testid="path-unit"][data-unit="elasticity"]').getByTestId('unit-check')).toHaveCount(0);
   // юнит не пройден — сундука нет, пока уроки не пройдены по-настоящему
   await expect(path.locator('[data-testid="path-unit"][data-unit="supply-demand"]').getByTestId('chest')).toHaveCount(0);
   // «уровня легенды» больше нет: пройденный урок берут на алмазном уровне — задачи и теория сложнее

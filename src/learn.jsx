@@ -2829,8 +2829,9 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
             </div>
             <div className="ln-bill-btns">
               <Button variant="secondary" small icon={BookOpenText} data-testid="unit-guide" data-nav-target={`book:chapter:${u.id}`} onClick={() => { Audio.play('paper'); onOpenBook({ kind: 'chapter', id: u.id }); }}>Гайд юнита</Button>
-              {/* и у пройденного юнита: проверить себя можно в любой момент */}
-              <Button variant="secondary" small icon={Sparkles} data-testid="unit-check" data-nav-target={`check:${u.id}`} onClick={() => { Audio.prime(); onStart({ mode: 'check', unitId: u.id, ...(st.complete ? { review: true } : {}) }); }}>Проверка юнита</Button>
+              {/* проверка юнита — только у пройденного: не забылось ли (docs/mechanics.md, «Тест уровня»); у непройденного
+                  и закрытого её нет — перескочить вперёд можно тестом уровня */}
+              {st.complete && <Button variant="secondary" small icon={Sparkles} data-testid="unit-check" data-nav-target={`check:${u.id}`} onClick={() => { Audio.prime(); onStart({ mode: 'check', unitId: u.id, review: true }); }}>Проверка юнита</Button>}
               {st.complete && hasClaim(learn, chestKey(u.id)) && (
                 <Button variant="ghost" small icon={ChevronRight} data-testid="unit-fold" aria-expanded={!folded}
                   onClick={() => { Audio.play('paper'); setUnfolded((m) => ({ ...m, [u.id]: !m[u.id] })); }}>{folded ? `Уроки: ${st.lessons.length}` : 'Свернуть'}</Button>
