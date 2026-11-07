@@ -5991,7 +5991,7 @@ test('книгу на полке можно слушать: голос брау�
 });
 
 // читалка книги (пункты владельца 08.11): размер текста, «Сообщить об ошибке», «Наверх», один ползунок прокрутки
-test('читалка книги: размер текста — пять ступеней, помнит устройство', async ({ page }) => {
+test('читалка книги: размер текста — пять ступеней, помнит устройство; «Наверх» после экрана прокрутки', async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, met: { 'people-scarcity': Date.now() - 86400000 } } }));
   });
@@ -6021,6 +6021,13 @@ test('читалка книги: размер текста — пять ступ
   await open();
   await expect(book).toHaveAttribute('data-font', '3');
   expect(await size()).toBeCloseTo(22.5, 1);
+  // «Наверх»: у обложки кнопки нет; прокрутили больше экрана — есть; касание — к обложке (пункт владельца 08.11)
+  await expect(book.getByTestId('book-top')).toHaveCount(0);
+  await book.evaluate((el) => { el.scrollTop = el.clientHeight * 2; });
+  await expect(book.getByTestId('book-top')).toBeVisible();
+  await book.getByTestId('book-top').click();
+  await expect.poll(() => book.evaluate((el) => el.scrollTop)).toBeLessThan(5);
+  await expect(book.getByTestId('book-top')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
