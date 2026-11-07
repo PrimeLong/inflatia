@@ -5134,6 +5134,13 @@ test('урок: назад ровно на одну карточку — про�
   await expect(page.getByTestId('lesson-peek-verdict')).toContainText('Вы ответили верно');
   // назад — касанием отрезка полосы прогресса перед текущим, без отдельной кнопки-стрелки в шапке
   expect(await page.getByTestId('lesson').locator('.ln-head [data-testid=lesson-progress]').count()).toBe(1);
+  // и обратно к текущей — тоже сверху: текущий отрезок — стрелка «вперёд» (жалоба mw0f1tkr); «Вернуться» внизу тоже есть
+  await expect(page.getByTestId('lesson-peek-return')).toBeVisible();
+  await page.getByTestId('lesson-forward').click();
+  await expect(peek).toHaveCount(0);
+  await expect(page.getByTestId('lesson-forward')).toHaveCount(0);
+  await page.getByTestId('lesson-back').click();
+  await expect(peek).toBeVisible();
   // на прошлой карточке есть флажок «Сообщить об ошибке»: нажали «Дальше» на автомате — вернулись и пожаловались
   await peek.getByRole('button', { name: 'Сообщить об ошибке' }).click();
   await expect(page.getByTestId('report-sheet')).toBeVisible();

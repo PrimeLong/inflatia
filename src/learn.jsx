@@ -1452,7 +1452,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         {stage !== 'done' && <IconButton label="Выйти из урока" icon={X} data-nav="back" onClick={exit} />}
         {/* на одну карточку назад — касанием отрезка перед текущим на полосе прогресса; идущую мини-игру не прерываем */}
         <ProgressChart answers={log} total={total} pulse={pulse}
-          onBack={!feed && stage !== 'done' && prevShot && !peek && !(stage === 'work' && cur && GAME_KINDS.includes(cur.kind) && !fb) ? () => { Audio.play('paper'); setPeek(true); } : null} />
+          onBack={!feed && stage !== 'done' && prevShot && !peek && !(stage === 'work' && cur && GAME_KINDS.includes(cur.kind) && !fb) ? () => { Audio.play('paper'); setPeek(true); } : null}
+          onForward={peek && prevShot && stage !== 'done' ? () => { Audio.play('paper'); setPeek(false); } : null} />
         {/* Инфля надувается с каждым верным ответом подряд и мягко сдувается после ошибки */}
         <StreakFlame n={run3} plus={!(run.mode === 'lesson' && replay && !diamond)} />
         <InflaMeter streak={run3} mood={fb && !fb.empty ? (fb.ok ? 'joy' : 'cheer') : 'hello'} size={34} />

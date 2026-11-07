@@ -361,7 +361,7 @@ export function segWindow(n, done, w, gap = 3) {
   const from = Math.max(0, Math.min(n - cap, done + 3 - cap));
   return { from, to: from + cap, cut: from > 0 };
 }
-export function ProgressChart({ answers = [], total, pulse = 0, testid = 'lesson-progress', onBack = null }) {
+export function ProgressChart({ answers = [], total, pulse = 0, testid = 'lesson-progress', onBack = null, onForward = null }) {
   const n = Math.max(1, total);
   const done = Math.min(answers.length, n);
   const pct = Math.round((done / n) * 100);
@@ -386,6 +386,11 @@ export function ProgressChart({ answers = [], total, pulse = 0, testid = 'lesson
           if (i === backAt) {
             return <button key={`b${i === done - 1 ? pulse : i}`} type="button" className={`${cls} ds-level-back`} data-testid="lesson-back"
               aria-label="Назад: предыдущая карточка" title="Предыдущая карточка" onClick={onBack} />;
+          }
+          // смотрим прошлую карточку — текущий отрезок ведёт обратно, тоже сверху (жалоба mw0f1tkr)
+          if (onForward && i === done) {
+            return <button key="fwd" type="button" className={`${cls} ds-level-back ds-level-fwd`} data-testid="lesson-forward"
+              aria-label="Вперёд: к текущей карточке" title="К текущей карточке" onClick={onForward} />;
           }
           return <i key={i === done - 1 ? `p${pulse}` : i} className={cls} />;
         })}
