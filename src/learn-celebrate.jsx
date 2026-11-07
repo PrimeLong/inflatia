@@ -17,7 +17,7 @@ import { ArrowRight, ArrowUp, ArrowDown, Award, Gift, Trophy, ShoppingBag, Piggy
 import { Engraving, Medal, Stamp, CountUp, useReducedMotion } from './ds-art.jsx';
 import { ACH_ICON, MONTH_ART, MONTH_ABBR } from './award-art.js';
 import { albumItems, monthItems } from './learn/collections.js';
-import { coinsWord } from './learn/rewards.js';
+import { coinsWord, indexed } from './learn/rewards.js';
 import { LEAGUE_BY_ID, LEAGUES, GROUP, PROMOTE, DEMOTE } from './learn/league.js';
 import { LeagueBadge } from './learn-league.jsx';
 import { Audio } from './MacroSimulator.jsx';
@@ -385,7 +385,7 @@ function MonthScene({ m, learn, onDone, onGo }) {
         art={<Icon size={104} strokeWidth={1.6} aria-hidden="true" />} />}
       eyebrow="Марка месяца" title={`${it.title} ${it.year}`} textAt={POST.text}
       sub="Испытание месяца выполнено — марка месяца в альбоме"
-      extra={<><Coins n={it.coins} at={POST.text + 570} /><Strip items={items} idx={idx} at={POST.album} mini={(x) => { const I = MONTH_ART[x.month - 1][0]; return <I size={20} strokeWidth={2} />; }} /></>}
+      extra={<><Coins n={indexed(it.coins, m.at || Date.now())} at={POST.text + 570} /><Strip items={items} idx={idx} at={POST.album} mini={(x) => { const I = MONTH_ART[x.month - 1][0]; return <I size={20} strokeWidth={2} />; }} /></>}
       buttonsAt={POST.buttons} primary="Дальше" secondary="Открыть альбом" />
   );
 }
@@ -444,7 +444,7 @@ function SealScene({ m, onDone, onGo }) {
         </>
       )}
       eyebrow="Новая печать" title={it.title} textAt={SEAL.text} sub={it.text}
-      extra={<Coins n={it.coins} at={SEAL.text + 570} />}
+      extra={<Coins n={indexed(it.coins, it.at || m.at || Date.now())} at={SEAL.text + 570} />}
       buttonsAt={SEAL.buttons} primary="Дальше" secondary="Все печати" />
   );
 }

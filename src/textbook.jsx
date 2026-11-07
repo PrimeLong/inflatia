@@ -20,7 +20,7 @@ import { PARTS, CHAPTERS, CHAPTER_BY_ID, APPENDICES, BOOKS, chapterNo, READY_CHA
 import { TYCOON_TASKS } from './textbook/tycoon-tasks.js';
 import { CHAPTER_BLOCKS, APPENDIX_BLOCKS, CHAPTER_SECTIONS, PROBLEMS, RECALLS, problemsOf, keyFormulas } from './textbook/content.js';
 import { sectionDone, sectionProgress, dueItems, chapterRead, chapterShare } from './textbook/study.js';
-import { COIN, bookFirstTry, earn } from './learn/rewards.js';
+import { COIN, bookFirstTry, earn, indexed, coinsWord } from './learn/rewards.js';
 import { emptyLearn, recallXp, addXp } from './textbook/learn-state.js';
 import { CHARTS, chartDefaults, checkGraph, captionVars, chartExit } from './textbook/charts.js';
 import { actionOf, parseInline, checkAnswer, matchTraps, LEVELS, typo } from './textbook/markdown.js';
@@ -1150,7 +1150,7 @@ function SurePick({ value, onChange, disabled = false }) {
 // что будет с повторением после верного ответа — словами (см. scheduleAfter)
 function okText(ctx, id, head, sawSolution) {
   // решено с первой попытки — монеты; пишем об этом в конце
-  const coins = PROBLEMS[id] && bookFirstTry(ctx.progress.problems[id], true, sawSolution) ? ` +${COIN.book} монеты в кошелёк — за решение с первой попытки.` : '';
+  const coins = PROBLEMS[id] && bookFirstTry(ctx.progress.problems[id], true, sawSolution) ? ` +${indexed(COIN.book)} ${coinsWord(indexed(COIN.book))} в кошелёк — за решение с первой попытки.` : '';
   return okSchedule(ctx, id, head, sawSolution) + coins;
 }
 function okSchedule(ctx, id, head, sawSolution) {
@@ -2512,7 +2512,7 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
       // «Вспомните»: верный ответ сразу после ошибки засчитывает раздел (повторение остаётся по плану)
       let next = afterBookAnswer(recordAnswer(p, id, ok, now, RECALLS[id] ? { ...opts, settle: true } : opts), id, ok, why);
       // задача главы решена с первой попытки — немного монет в кошелёк Пути (rewards.js, bookFirstTry)
-      if (PROBLEMS[id] && bookFirstTry(prev, ok, opts && opts.sawSolution)) next = { ...next, learn: earn(next.learn || emptyLearn(), COIN.book, null, now) };
+      if (PROBLEMS[id] && bookFirstTry(prev, ok, opts && opts.sawSolution)) next = { ...next, learn: earn(next.learn || emptyLearn(), indexed(COIN.book, now), null, now) };
       const rc = RECALLS[id];
       // «Вспомните»: немного опыта — за новый вопрос или подошедший срок повторения (recallXp)
       if (rc && recallXp(prev, ok, now)) next = { ...next, learn: addXp(next.learn || emptyLearn(), recallXp(prev, ok, now), now) };

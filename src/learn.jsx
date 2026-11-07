@@ -43,7 +43,7 @@ import {
   markShown, shownWith, markFixed,
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
-import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
+import { runCoins, runKey, earn, settle, indexed, COIN, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
 import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
@@ -1329,7 +1329,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     const boosted = xp > 0 && boostActive(learn, now);
     if (boosted) xp *= 2;
     // монеты за урок и всё, что он выполнил: цель дня, задания, серия, печати
-    const coins = runCoins({ mode: run.mode, replay, accuracy, pass, items: total, diamond, gem });
+    // с индексацией месяца (docs/mechanics.md, «Индексация наград»)
+    const coins = indexed(runCoins({ mode: run.mode, replay, accuracy, pass, items: total, diamond, gem }), now);
     const key = runKey({ mode: run.mode, lessonId: run.lessonId, replay, diamond, gem });
     const full = (s) => { const t = earn(apply(s), coins, key, now); return settle(t, courseCtx(t), now); };
     const preview = full(learn);
@@ -1974,7 +1975,7 @@ function LessonSheet({ l, learn, weak = false, onStart, onClose, onOpenBook, onS
             })()}
             <div className="ds-sub" style={{ fontSize: 13.5, textAlign: 'center' }} data-testid="lesson-diamond-info">
               {/* число и единица — неразрывно: «≈4 мин» и «до 45 опыта» не рвутся на две строки */}
-              Алмазный уровень: задачи сложнее{lesson.inner.some((c) => c.diamond) ? ', теория глубже' : ''}, <span className="nw">≈{gemInfo.min}{'\u00a0'}мин</span>, <span className="nw">до {gemInfo.xp}{'\u00a0'}опыта</span> и <span className="nw">{l.diamond ? '5' : '25–35'}{'\u00a0'}монет</span>.
+              Алмазный уровень: задачи сложнее{lesson.inner.some((c) => c.diamond) ? ', теория глубже' : ''}, <span className="nw">≈{gemInfo.min}{'\u00a0'}мин</span>, <span className="nw">до {gemInfo.xp}{'\u00a0'}опыта</span> и <span className="nw">{l.diamond ? indexed(COIN.diamondReplay) : `${indexed(COIN.diamond)}–${indexed(COIN.diamond + COIN.diamondPerfect)}`}{'\u00a0'}монет</span>.
               {weak && ' Тема пока даётся трудно — сначала стоит повторить.'}
             </div>
           </div>

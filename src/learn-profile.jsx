@@ -16,7 +16,7 @@ import { StatHero, StatTile, Meter, DayBars } from './learn-stats.jsx';
 import { Mascot } from './mascot.jsx';
 import { Audio } from './MacroSimulator.jsx';
 import { streak, longestStreak, bestWeek, learnStats, studyWeeks, goalToday, ownedFreezes, rolloverLocal, UTC_NOTE } from './textbook/learn-state.js';
-import { balance, policyActive, coinsWord, plural } from './learn/rewards.js';
+import { balance, policyActive, coinsWord, plural, indexed } from './learn/rewards.js';
 import { albumItems, sealItems, monthItems, monthsByYear, shelfOrder, fullDate } from './learn/collections.js';
 import { NOTIFY_KINDS, REMIND_HOURS } from './learn/notify.js';
 import { ProgramCard } from './learn-rewards.jsx';
@@ -242,7 +242,7 @@ export function ItemSheet({ it, onClose }) {
             <i style={{ width: `${Math.round((Math.min(it.progress.have, it.progress.total) / Math.max(1, it.progress.total)) * 100)}%` }} />
           </div>
         )}
-        {it.coins ? <div className="pf-fact"><Coins size={20} color="var(--ds-gold)" aria-hidden="true" /><span>{it.got ? 'Принесла' : 'Принесёт'} <b>{it.coins} {coinsWord(it.coins)}</b></span></div> : null}
+        {it.coins ? <div className="pf-fact"><Coins size={20} color="var(--ds-gold)" aria-hidden="true" /><span>{it.got ? 'Принесла' : 'Принесёт'} <b>{indexed(it.coins, it.got && it.at ? it.at : Date.now())} {coinsWord(indexed(it.coins, it.got && it.at ? it.at : Date.now()))}</b></span></div> : null}
       </div>
       <Button wide onClick={onClose}>Хорошо</Button>
     </Sheet>

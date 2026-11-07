@@ -13,7 +13,7 @@ import { Audio } from './MacroSimulator.jsx';
 import { loadAccount, emblemIcon } from './account.jsx';
 import { LeagueBadge } from './learn-league.jsx';
 import { friendsApi } from './lib/friends-store.js';
-import { ACHIEVEMENTS, coinsWord, plural } from './learn/rewards.js';
+import { ACHIEVEMENTS, coinsWord, plural, indexed } from './learn/rewards.js';
 import { LEAGUE_BY_ID } from './learn/league.js';
 import { dayOf, addDays } from './textbook/learn-state.js';
 import { eventText, EVENT_ICON, friendFeed, seenText, lastSeenDays, friendStreak, raceable, raceReadyIn, raceView, raceCoins, raceClaimed, claimRace, levelTitle, raceRest, raceRestText, RACE } from './learn/friends.js';
@@ -275,7 +275,7 @@ export function RaceCard({ v, learn, update, myWear, compact = false }) {
       {(v.status === 'incoming' || v.status === 'outgoing') && (
         <div className="fr-race-facts">
           <span>{RACE.days} дня, кто больше опыта</span>
-          <span>победа: {RACE.win} монет</span>
+          <span>победа: {indexed(RACE.win)} монет</span>
           <span>ответ: ещё {v.hoursLeft} ч</span>
         </div>
       )}
@@ -331,7 +331,7 @@ export function RaceOffer({ friends, onDone }) {
         <div>
           <div className="ds-eyebrow">Забег с другом</div>
           <div className="fr-offer-title">Кто за три дня наберёт больше опыта?</div>
-          <div className="ds-sub" style={{ fontSize: 13.5, marginTop: 2 }}>Победителю — {RACE.win} монет и печать «Забег».</div>
+          <div className="ds-sub" style={{ fontSize: 13.5, marginTop: 2 }}>Победителю — {indexed(RACE.win)} монет и печать «Забег».</div>
         </div>
       </div>
       {state === 'sent' ? (

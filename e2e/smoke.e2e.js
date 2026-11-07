@@ -3380,6 +3380,9 @@ test('вход: программа — вступительный тест, су
   await expect(shop.getByTestId('coins-crowns')).toBeVisible();
   await expect(shop.getByTestId('rate-chart')).toBeVisible();
   await expect(shop.getByTestId('shop-inflation-more')).toContainText('в копилке растут быстрее цен');
+  // индексация наград: каждый месяц — на инфляцию прошлого (пункт 3 от 06.11)
+  await expect(shop.getByTestId('reward-index')).toContainText(/Награды за учёбу(: \+\d+,\d% к начальным| растут вслед за ценами)/);
+  await expect(shop.getByTestId('shop-inflation-more')).toContainText('Награды за учёбу догоняют цены с опозданием на месяц');
   // палец ведёт по графику — текст вокруг не выделяется
   expect(await shop.locator('.rw-rate-box').evaluate((el) => getComputedStyle(el).userSelect || getComputedStyle(el).webkitUserSelect)).toBe('none');
   // подсказка графика курса у правого края не расширяет страницу (иначе телефон перемасштабирует её и панель внизу «уезжает»)

@@ -200,6 +200,19 @@ export const priceIndexCap = () => capMemo || (capMemo = (0.7 * courseIncome().t
 export const priceIndex = (day) => Math.min(priceIndexRaw(day), Math.max(1, priceIndexCap()));
 // цена вещи в кронах сегодня: базовая × индекс (семена сада и взнос страховки — без инфляции)
 export const crownsOn = (id, day) => Math.round(itemOf(id).crowns * priceIndex(day));
+/* ИНДЕКСАЦИЯ НАГРАД (docs/mechanics.md, «Индексация наград»): награды за учёбу в монетах растут каждый месяц
+   на инфляцию Лавки прошлого месяца — индекс наград месяца = индекс цен прошлого месяца (с тем же пределом).
+   В декабре 2026 — на инфляцию ноября. Сад (продажа урожая), «Пыльная витрина» и проценты копилки — без индексации. */
+function prevMonth(month) { const [y, m] = month.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; }
+export const rewardIndex = (day) => priceIndex(`${prevMonth(monthOf(day))}-01`);
+// награда n монет в день day — с индексацией, до целой монеты
+export const indexedOn = (n, day) => (n > 0 ? Math.round(n * rewardIndex(day)) : n);
+export const indexed = (n, now = Date.now()) => indexedOn(n, dayOf(now));
+// для кошелька: насколько награды выше начальных и на сколько вырастут с 1-го числа следующего месяца
+export function rewardInfo(day) {
+  const m = monthOf(day);
+  return { since: rewardIndex(day) - 1, next: Math.max(0, priceIndex(`${m}-01`) / rewardIndex(day) - 1), nextMonth: nextMonth(m) };
+}
 // для лавки: инфляция этого месяца, рост с базы, держатся ли цены у предела
 export function inflationInfo(day) {
   const m = monthOf(day);
@@ -417,7 +430,7 @@ export const questNews = (prev, quests) => (prev ? quests
 /* ------------------------------ СУНДУК ЮНИТА ------------------------------ */
 export const chestCoins = (unitId) => 40 + Math.floor(hash01(`chest:${unitId}`) * 41);
 export const chestKey = (unitId) => `c:${unitId}`;
-export const openChest = (s, unitId, now = Date.now()) => earn(s, chestCoins(unitId), chestKey(unitId), now);
+export const openChest = (s, unitId, now = Date.now()) => earn(s, indexed(chestCoins(unitId), now), chestKey(unitId), now);
 
 /* ------------------------------ СЕРИЯ ------------------------------ */
 export const STREAK_BONUS = [[3, 15], [7, 40], [14, 80], [30, 200], [60, 300], [100, 500]];
@@ -497,7 +510,6 @@ const firstDay = (s) => {
   const reg = s.profile && s.profile.at ? dayOf(s.profile.at) : null;
   return [days[0], reg].filter(Boolean).sort()[0] || null;
 };
-const prevMonth = (month) => { const [y, m] = month.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; };
 export function monthChallenge(s, now = Date.now()) {
   const day = dayOf(now); const month = day.slice(0, 7);
   const key = `m:${month}`;
@@ -580,8 +592,10 @@ export function settle(s, ctx, now = Date.now()) {
       if (guardHook) { try { guardHook({ key, coins: n }); } catch { /* аналитика не мешает выплатам */ } }
       return { ...t, claimed: { ...t.claimed, [key]: paid } };
     }
-    const before = t; const next = earn(t, n, key, now);
-    if (next !== before) { gains.push({ key, coins: n, title, kind }); if (key && paid == null) SESSION_PAID.set(key, now); }
+    // награда — с индексацией месяца (docs/mechanics.md, «Индексация наград»)
+    const coins = indexed(n, now);
+    const before = t; const next = earn(t, coins, key, now);
+    if (next !== before) { gains.push({ key, coins, title, kind }); if (key && paid == null) SESSION_PAID.set(key, now); }
     return next;
   };
   let t = fixMonth(chargePremiums(s, now), now);

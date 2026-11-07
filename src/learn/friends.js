@@ -6,7 +6,7 @@
    Забег: друг принял приглашение — три дня, считая день принятия, кто наберёт больше опыта.
    Победа — 40 монет и печать «Забег», ничья — по 25, второе место — 15 (если сам хоть урок прошёл). */
 import { streak, addDays, dayOf, weekOf } from '../textbook/learn-state.js';
-import { achievementsOf, ACHIEVEMENTS, outfitOf, earn, hasClaim, mix01, plural } from './rewards.js';
+import { achievementsOf, ACHIEVEMENTS, outfitOf, earn, hasClaim, mix01, plural, indexedOn } from './rewards.js';
 import { leagueState, LEAGUE_BY_ID, LEAGUE_DAYS } from './league.js';
 import { albumItems } from './collections.js';
 import { pathState, levelOf, LEVEL_BY_ID } from './course.js';
@@ -152,7 +152,8 @@ export function raceView(race, learn, friend, now = Date.now()) {
 }
 // награда за законченный забег: один раз (ключ race:<id>, у победы — race:<id>:won для печати)
 export const raceKey = (v) => (v.result === 'won' ? `race:${v.id}:won` : `race:${v.id}`);
-export const raceCoins = (v) => (v.result === 'won' ? RACE.win : v.result === 'tie' ? RACE.tie : v.my > 0 ? RACE.lose : 0);
+// с индексацией месяца дня финиша (docs/mechanics.md, «Индексация наград»): забрать позже — сумма та же
+export const raceCoins = (v) => { const n = v.result === 'won' ? RACE.win : v.result === 'tie' ? RACE.tie : v.my > 0 ? RACE.lose : 0; return v.end ? indexedOn(n, v.end) : n; };
 export const raceClaimed = (learn, v) => hasClaim(learn, `race:${v.id}`) || hasClaim(learn, `race:${v.id}:won`);
 export function claimRace(learn, v, now = Date.now()) {
   if (v.status !== 'finished' || raceClaimed(learn, v)) return learn;

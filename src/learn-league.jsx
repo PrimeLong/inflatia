@@ -6,8 +6,8 @@ import React, { useEffect, useState } from 'react';
 import { ArrowUp, ArrowDown, Minus, ChevronDown, Lock, Coffee, X, Hourglass, Bot } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, Card, Sheet, IconButton } from './ds.jsx';
-import { LEAGUE_BY_ID, LEAGUES, PROMOTE, GROUP, DEMOTE, PLACE_COINS, PROMO_COINS, placeCoins, leagueState, claimLeague, pendingRewards } from './learn/league.js';
-import { coinsWord, plural } from './learn/rewards.js';
+import { LEAGUE_BY_ID, LEAGUES, PROMOTE, GROUP, DEMOTE, PLACE_COINS, PROMO_COINS, weekPrize, leagueState, claimLeague, pendingRewards } from './learn/league.js';
+import { coinsWord, plural, indexed } from './learn/rewards.js';
 import { trackDaily } from './lib/client.js';
 import { dayOf, dowOf, rolloverLocal } from './textbook/learn-state.js';
 import { newsDate } from './learn/news.js';
@@ -306,7 +306,7 @@ export function LeagueView({ learn, update, now = Date.now() }) {
                       <span className="lg-name" style={{ display: 'block' }}>{r.me ? 'Вы' : r.name}</span>
                       <span className="lg-xpbar" aria-hidden="true" style={{ display: 'block' }}><span style={{ width: `${Math.round((r.xp / leader) * 100)}%` }} /></span>
                     </span>
-                    <span className="lg-xp">{r.xp}{placeCoins(st.league, r.place) > 0 && <small data-testid="league-row-coins">+{placeCoins(st.league, r.place)} мон.</small>}</span>
+                    <span className="lg-xp">{r.xp}{weekPrize(st.league, r.place, st.week) > 0 && <small data-testid="league-row-coins">+{weekPrize(st.league, r.place, st.week)} мон.</small>}</span>
                   </li>
                 ))}
               </ol>
@@ -323,7 +323,7 @@ export function LeagueView({ learn, update, now = Date.now() }) {
             <li>Неделя лиги — с понедельника по субботу, место — по опыту за эти дни. Воскресенье — перерыв: итоги и награда.</li>
             <li>По итогам первые {PROMOTE} поднимаются в следующую лигу, последние {DEMOTE} опускаются, остальные остаются.</li>
             <li>Чем выше лига, тем сильнее соперники: чтобы удержаться, нужно заниматься больше.</li>
-            <li data-testid="league-prize">Награда растёт с лигой, как и нужные усилия: в Бронзовой 1–3 место — {PLACE_COINS.join(', ')} монет, 4–5 (повышение) — {PROMO_COINS}; в лиге N — в N раз больше.{tier > 0 && ` В ${inLeague(st.league)}: ${PLACE_COINS.map((c) => c * (tier + 1)).join(', ')}${tier < LEAGUES.length - 1 ? ` и ${PROMO_COINS * (tier + 1)}` : ' (выше подниматься некуда)'}.`} Неделя без уроков лигу не меняет.</li>
+            <li data-testid="league-prize">Награда растёт с лигой, как и нужные усилия: в Бронзовой 1–3 место — {PLACE_COINS.map((c) => indexed(c)).join(', ')} монет, 4–5 (повышение) — {indexed(PROMO_COINS)}; в лиге N — в N раз больше.{tier > 0 && ` В ${inLeague(st.league)}: ${PLACE_COINS.map((c) => indexed(c * (tier + 1))).join(', ')}${tier < LEAGUES.length - 1 ? ` и ${indexed(PROMO_COINS * (tier + 1))}` : ' (выше подниматься некуда)'}.`} Награды растут каждый месяц вслед за ценами Лавки. Неделя без уроков лигу не меняет.</li>
             <li>Новичок попадает в лигу после первого урока — с ближайшего понедельника: в уже идущую неделю не попадают.</li>
             <li data-testid="league-utc">Время у всех одно — всемирное (UTC): день и неделя начинаются в полночь по UTC, в Москве — в 03:00. Перевод часов на устройстве ничего не меняет.</li>
           </ul>

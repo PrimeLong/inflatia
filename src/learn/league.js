@@ -17,7 +17,7 @@
    четверг — его первая неделя лиги начинается с ближайшего понедельника (пришёл в понедельник —
    с этой недели). До тех пор на вкладке — «Ваша лига начнётся в понедельник». */
 import { dayOf, addDays, weekOf, dayHour } from '../textbook/learn-state.js';
-import { earn, hasClaim } from './rewards.js';
+import { earn, hasClaim, indexedOn } from './rewards.js';
 
 export const LEAGUES = [
   { id: 'bronze', title: 'Бронзовая', color: '#8A5A2B', median: 110 },
@@ -269,6 +269,8 @@ export function placeCoins(league, place) {
   if (place >= 1 && place <= PLACE_COINS.length) return PLACE_COINS[place - 1] * (i + 1);
   return place <= PROMOTE && i < LEAGUES.length - 1 ? PROMO_COINS * (i + 1) : 0;
 }
+// награда недели в монетах — с индексацией месяца последнего дня недели (забрать позже — сумма та же)
+export const weekPrize = (league, place, week) => indexedOn(placeCoins(league, place), addDays(week, LEAGUE_DAYS - 1));
 // зона места: up — поднимутся, down — опустятся
 export function zoneOf(place, league) {
   const i = tierIndex(league);
@@ -310,7 +312,7 @@ export function leagueState(learn, now = Date.now()) {
       const me = table.find((row) => row.me);
       const i = tierIndex(league);
       const next = me.zone === 'up' ? LEAGUES[i + 1].id : me.zone === 'down' ? LEAGUES[i - 1].id : league;
-      history.push({ week: w, league, place: me.place, xp, move: me.zone, to: next, coins: placeCoins(league, me.place) });
+      history.push({ week: w, league, place: me.place, xp, move: me.zone, to: next, coins: weekPrize(league, me.place, w) });
       league = next;
     }
   }
