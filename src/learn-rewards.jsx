@@ -737,7 +737,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
     update(() => r.s, { settle: true });
     const slot = id === BOOST.id ? null : OUTFIT_BY_ID[id].slot;
     setMsg({ ok: true, text: id === BOOST.id ? `Двойной опыт на ${BOOST.minutes} минут — за ${r.price} ${coinsWord(r.price)}.`
-      : slot === 'desk' ? `Куплено за ${r.price} ${coinsWord(r.price)} — украшение уже висит в уроках.`
+      : slot === 'desk' ? `Куплено за ${r.price} ${coinsWord(r.price)} — украшение уже висит в уроках на ПК и планшете.`
         : slot === 'theme' ? `Куплено за ${r.price} ${coinsWord(r.price)} — тема уже включена: откройте любой урок.`
           : `Куплено за ${r.price} ${coinsWord(r.price)} — Инфля уже в обновке. Снять и переодеть — во вкладке «Гардероб».` });
   };
@@ -849,7 +849,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <div className="rw-items rw-desk-items" style={{ margin: '10px 0 18px' }} data-testid="shop-themes">
               {today.theme.map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} goal {...itemProps} />)}
             </div>
-            <Heading level={3} title="Украшения урока" sub="Висят над заданием: живые — их можно потрогать, и они отзываются на ваши ответы." />
+            <Heading level={3} title="Украшения урока" sub="Висят над заданием: живые — их можно потрогать, и они отзываются на ваши ответы. На телефоне в уроке их нет — только на ПК и планшете." />
             <div className="rw-items rw-desk-items" style={{ margin: '10px 0 16px' }} data-testid="shop-desk">
               {today.desk.map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} goal {...itemProps} />)}
             </div>

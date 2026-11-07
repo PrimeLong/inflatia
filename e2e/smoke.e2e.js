@@ -5467,7 +5467,7 @@ test('украшения урока: своя витрина с живыми п�
   await expect(prev).toHaveAttribute('data-awake', 'true');
   // покупка — сразу в уроках
   await cradle.getByRole('button', { name: 'Купить' }).click();
-  await expect(page.getByTestId('shop-msg')).toContainText('висит в уроках');
+  await expect(page.getByTestId('shop-msg')).toContainText('висит в уроках на ПК и планшете');
   await expect(cradle.getByTestId('desk-toggle')).toHaveText('Убрать из уроков');
   // в гардеробе их нет
   await shopTab(page, 'wardrobe');
@@ -5477,13 +5477,22 @@ test('украшения урока: своя витрина с живыми п�
   await openTab(page, 'path');
   await startLesson(page, 'sc-l1');
   const decor = page.getByTestId('lesson').getByTestId('lesson-decor');
+  // на телефоне украшения в уроке нет — ни полосы, ни подставки: только на ПК и планшете (пункт владельца 08.11)
+  if (isMobile) {
+    await expect(page.getByTestId('lesson')).toBeVisible();
+    await expect(decor).toHaveCount(0);
+    await expect(page.getByTestId('cradle-stand')).toHaveCount(0);
+    await expect(page.getByTestId('lesson').locator('.ln-desk')).toHaveCount(0);
+    expect(errors).toEqual([]);
+    return;
+  }
   await expect(decor).toHaveAttribute('data-decor', 'desk-cradle');
   await expect(decor).toHaveAttribute('data-awake', 'false', { timeout: 5000 });
   const stand = page.getByTestId('cradle-stand');
   expect(await stand.evaluate((el) => getComputedStyle(el).position)).toBe('fixed');
   await expect(page.getByTestId('lesson').locator('.ln-desk')).toHaveCount(0);
   const sb = await stand.boundingBox();
-  expect(sb.width).toBeGreaterThanOrEqual(isMobile ? 180 : 250);
+  expect(sb.width).toBeGreaterThanOrEqual(250);
   const width = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(width[0]).toBeLessThanOrEqual(width[1]);
   while (!(await page.getByTestId('ex').count())) await page.getByTestId('lesson').locator('.ln-foot button').last().click();

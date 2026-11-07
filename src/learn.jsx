@@ -45,7 +45,7 @@ import {
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
 import { runCoins, runKey, earn, settle, indexed, COIN, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
-import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer } from './learn-decor.jsx';
+import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer, DESK_QUERY } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
 import { lessonOpts, weakLessons, recommend, courseCtx, theoryNotice } from './learn/program.js';
@@ -1123,7 +1123,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const [replay] = useState(() => run.mode === 'lesson' && lessonDone(learn, run.lessonId));
   const diamond = !!plan.diamond;
   // украшение урока из лавки (learn-decor.jsx); гость лавки не видел
-  const desk = guest ? null : deskOf(learn);
+  // украшение урока — только на ПК и планшете: на телефоне оно отнимало высоту и закрывало угол (пункт владельца 08.11)
+  const roomy = useMedia(DESK_QUERY);
+  const desk = guest || !roomy ? null : deskOf(learn);
   // тема урока из лавки (learn-skins.jsx): фон, кнопки и отклик на ответ; тёмная тема — тёмная палитра
   const skin = guest ? null : SKINS[themeOf(learn)] || null;
   const [gem] = useState(() => !!(run.lessonId && learn.lessons[run.lessonId] && learn.lessons[run.lessonId].diamond));
