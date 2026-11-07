@@ -61,6 +61,10 @@ export default defineConfig({
             { name: 'catalog', test: /src[\\/]lib[\\/]catalog\.js$/, priority: 15 },
             // движок партии (расчёт, политика, карта, тексты новостей) — делится на части до 360 КБ
             { name: 'engine', test: /src[\\/]lib[\\/]((engine|autopilot)\.js|model[\\/]|content[\\/]|politics[\\/]|world[\\/])/, priority: 10, maxSize: 360 * 1024 },
+            /* урок — самый большой чанк. Живая модель юнита, «Откройте сами» и «Домино» (learn-model.jsx) — своим чанком: он
+               грузится вместе с уроком, параллельно. Его зависимости (React, оболочка, учебник, дизайн-система) — в своих
+               чанках, и группа их не тянет (includeDependenciesRecursively: false — иначе она забирала учебник, 1,1 МБ). Одним чанком урок был 390 КБ, а на Vite 8.3.6 — 417 КБ, и сборка падала */
+            { name: 'learn-model', test: /src[\\/]learn-model\.jsx$/, priority: 5, includeDependenciesRecursively: false },
           ],
         },
       },
