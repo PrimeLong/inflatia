@@ -454,7 +454,12 @@ export function useExclusiveDropdown(width) {
   return { open, setOpen, toggle, btnRef, pos };
 }
 
-export function AudioControls() {
+/* «Волна» играет в учебнике; в партии музыка снова следует за экономикой (docs/mechanics.md, «Музыка») */
+export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked === 'wave') Audio.setPlaylist(null); };
+
+/* wave — экран без экономики (учебник): вместо «По режиму экономики» — «Волна», пьесы сами сменяют друг друга;
+   buttonStyle — кнопка под соседей (в учебнике — круглая, высотой с кнопки размера текста) */
+export function AudioControls({ wave = false, buttonStyle = null }) {
   const DD_WIDTH = 268;
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
   // музыку, звуки и громкость читаем из движка при каждом рисовании: их ставит и экран
@@ -468,11 +473,11 @@ export function AudioControls() {
   const list = Audio.playlist();
   // названия настроений приезжают вместе с движком (см. audio/lazy.js)
   const { MOOD_LABEL = {} } = Audio.meta() || {};
-  const moods = [['auto', 'По режиму экономики'], ['calm', MOOD_LABEL.calm], ['boom', MOOD_LABEL.boom],
+  const moods = [wave ? ['wave', 'Волна'] : ['auto', 'По режиму экономики'], ['calm', MOOD_LABEL.calm], ['boom', MOOD_LABEL.boom],
     ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
   return (
     <div style={{ position: 'relative' }}>
-      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px' }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
+      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
         onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
         {anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
@@ -508,10 +513,11 @@ export function AudioControls() {
           {/* «Заставки событий» и справки о числе пьес в панели нет: заставки звучат в партии сами (пункт владельца 08.11) */}
           <div style={{ marginBottom: 9 }}>
             <div style={{ fontSize: 12, color: COLOR.muted, marginBottom: 4 }}>Что играть</div>
-            <select className="ems-btn" value={np.locked || 'auto'} style={{ width: '100%', padding: '5px 8px', fontSize: 12 }}
+            <select className="ems-btn" data-testid="music-what" value={np.locked || (wave ? 'wave' : 'auto')} style={{ width: '100%', padding: '5px 8px', fontSize: 12 }}
               onChange={(e) => { Audio.play('tab'); Audio.setPlaylist(e.target.value === 'auto' ? null : e.target.value); }}>
               {moods.map(([id, label]) => (<option key={id} value={id}>{label}</option>))}
             </select>
+            {wave && (np.locked || 'wave') === 'wave' && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 4, lineHeight: 1.4 }} data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
           </div>
           {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); setWorldMusic(v); }, Music],
             ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
@@ -1059,6 +1065,7 @@ export default function MacroSimulator() {
   }, []);
   const closeBookOverlay = () => {
     setBookOverlay(null);
+    leaveWave();
     requestAnimationFrame(() => window.scrollTo(0, gameScroll.current));
   };
   const [setupPreset, setSetupPreset] = useState(null);

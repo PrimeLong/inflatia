@@ -23,7 +23,7 @@ import { DAILY_QUARTERS } from './lib/catalog.js';
 import { DefensePanel } from './countrymap.jsx';
 import {
   COLOR, Audio, AudioControls, GlobalStyle, getPlayerId, syncProfile, COURSE_PROGRESS_KEY,
-  loadCourseProgress, MODULE_STATE_KEY, loadModuleState, useEscapeClose,
+  loadCourseProgress, MODULE_STATE_KEY, loadModuleState, useEscapeClose, leaveWave,
 } from './MacroSimulator.jsx';
 import {
   KpiTile, PresidentPanel, RegimeBanner, TradingTerminal, AchievementToast, ALL_METRICS, INSTR_BY_ID,
@@ -2740,6 +2740,8 @@ export function TutorialHub({ onBack, onStartRealGame }) {
   }, [playerId]);
   /* Своя музыка курса: спокойные пьесы под чтение и разбор задач. Роль ставится
      на весь хаб, поэтому переходы между модулями её не сбрасывают. */
+  // из учебника — с «Волной»: в партии музыка снова следует за экономикой
+  React.useEffect(() => { leaveWave(); }, []);
   React.useEffect(() => {
     Audio.setRole('tutorial');
     return () => { Audio.setRole(null); Audio.stopMusic(); };

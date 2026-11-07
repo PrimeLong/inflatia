@@ -2346,17 +2346,24 @@ const lockedPage = (pg, learn) => {
   return !!lv && !openBookLevels(learn).has(lv.id);
 };
 
+/* размер текста и музыка — одной строкой справа: «A» (мельче), процент, «A» (крупнее) — в одной закруглённой рамке,
+   рядом круглая кнопка музыки той же высоты (раньше «A−» и «A+» отдельными кнопками — «выглядят уродливо», 08.11) */
+const TB_FS_H = 36;
+const tbFsBtn = (big, off) => ({ width: 40, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
+  fontFamily: "var(--ds-news, 'PT Serif', Georgia, serif)", fontWeight: 700, fontSize: big ? 19 : 13, lineHeight: 1, color: off ? COLOR.faint : COLOR.text });
 function ReaderBar({ scale, setScale }) {
   const i = SCALES.indexOf(scale);
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
-      <span style={{ fontSize: 12, color: COLOR.faint }}>Текст</span>
-      <button type="button" className="ems-btn" style={{ padding: '4px 10px', fontSize: 12 }} aria-label="Мельче текст" disabled={i <= 0}
-        onClick={() => setScale(SCALES[Math.max(0, i - 1)])}>A−</button>
-      <span className="ems-mono" style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{Math.round(scale * 100)}%</span>
-      <button type="button" className="ems-btn" style={{ padding: '4px 10px', fontSize: 15 }} aria-label="Крупнее текст" disabled={i >= SCALES.length - 1}
-        onClick={() => setScale(SCALES[Math.min(SCALES.length - 1, i + 1)])}>A+</button>
-      <AudioControls />
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
+      <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_H, borderRadius: 999, overflow: 'hidden',
+        border: `1.5px solid ${COLOR.border}`, background: COLOR.panel }}>
+        <button type="button" style={tbFsBtn(false, i <= 0)} aria-label="Мельче текст" disabled={i <= 0}
+          onClick={() => { Audio.play('tick'); setScale(SCALES[Math.max(0, i - 1)]); }}>A</button>
+        <span className="ems-mono" style={{ minWidth: 48, display: 'grid', placeItems: 'center', fontSize: 12, color: COLOR.muted, borderLeft: `1px solid ${COLOR.border}`, borderRight: `1px solid ${COLOR.border}` }}>{Math.round(scale * 100)}%</span>
+        <button type="button" style={tbFsBtn(true, i >= SCALES.length - 1)} aria-label="Крупнее текст" disabled={i >= SCALES.length - 1}
+          onClick={() => { Audio.play('tick'); setScale(SCALES[Math.min(SCALES.length - 1, i + 1)]); }}>A</button>
+      </span>
+      <AudioControls wave buttonStyle={{ width: TB_FS_H, height: TB_FS_H, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
     </div>
   );
 }
@@ -2383,6 +2390,9 @@ function ToTop({ withNav = false }) {
 export function TextbookScreen({ onBack, onExit = null, resume = false, startPage = null, backLabel, onOpenLab, onStartDrill, onOpenTycoon, onOpenScenario, reportSlot = null, reportFlag = null, asTab = false, homeTick = 0 }) {
   // аналитика: раздел открыт — не чаще раза в день с устройства (docs/mechanics.md, «Аналитика»)
   useEffect(() => { trackDaily('textbook_open'); }, []);
+  /* музыка в учебнике — «Волна»: экономики здесь нет, «по режиму экономики» неуместно (docs/mechanics.md, «Музыка»);
+     закреплённое настроение не трогаем; в партии снова по режиму экономики (leaveWave в src/MacroSimulator.jsx) */
+  useEffect(() => { if (!Audio.nowPlaying().locked) Audio.setPlaylist('wave'); }, []);
   const [progress, setProgress] = useState(loadProgress);
   const [page, setPage] = useState(() => startPage || (resume && progress.last ? progress.last : { kind: 'toc' }));
   const [stack, setStack] = useState([]);

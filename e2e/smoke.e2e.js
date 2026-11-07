@@ -917,7 +917,7 @@ test('после квартала: «а если бы вы ничего не д�
 });
 
 // панель музыки (пункты владельца 08.11): без «Заставок событий» и справки о числе пьес
-test('музыка: в панели нет «Заставок событий» и справки «N пьес в M настроениях»', async ({ page }) => {
+test('музыка: в панели нет «Заставок событий» и справки о числе пьес; в учебнике — «Волна»; размер текста одной рамкой', async ({ page }) => {
   const { errors } = await openApp(page);
   await openBook(page);
   await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
@@ -930,6 +930,22 @@ test('музыка: в панели нет «Заставок событий» �
   await expect(panel.getByTestId('music-toggle')).toHaveText('вкл');
   await expect(panel).not.toContainText('Заставки событий');
   await expect(panel).not.toContainText(/пьес в \d+ настроениях/);
+  // в учебнике экономики нет: вместо «По режиму экономики» — «Волна», она и играет
+  const what = panel.getByTestId('music-what');
+  await expect(what).toHaveValue('wave');
+  await expect(what.locator('option[value="auto"]')).toHaveCount(0);
+  await expect(what.locator('option[value="wave"]')).toContainText('Волна');
+  await expect(panel.getByTestId('music-wave-hint')).toContainText('сменяют друг друга сами');
+  // выбрали настроение — играет оно; «Волна» — снова первая строка
+  await what.selectOption('calm');
+  await expect(what).toHaveValue('calm');
+  await what.selectOption('wave');
+  await expect(what).toHaveValue('wave');
+  // размер текста — одна рамка «A · 100% · A», кнопка музыки — той же высоты
+  const font = bar.getByTestId('tb-font');
+  await expect(font).toContainText('100%');
+  const fh = (await font.boundingBox()).height; const mh = (await bar.getByTestId('music-btn').boundingBox()).height;
+  expect(Math.abs(fh - mh)).toBeLessThan(2);
   expect(errors).toEqual([]);
 });
 

@@ -34,7 +34,7 @@ import {
   loadRolesPlayed, validateSnapshot, SAVE_VERSION, SOLO_SLOT_COUNT, AudioControls, COLOR, FONT,
   GlobalStyle, THEMES, ROLE_ICON, NETWORK_PLAYED_KEY, loadNetworkSlots, writeNetworkSlots,
   isNetworkPlayed, ROLES_PLAYED_KEY, getPlayerId, useEscapeClose, useExclusiveDropdown, useAccount, accountKidsMode,
-  loadFold, saveFold,
+  loadFold, saveFold, leaveWave,
 } from './MacroSimulator.jsx';
 // окно достижений и вызов дня живут с меню «Мира» (ленивый модуль)
 import { StateSeal } from './state-seal.jsx';
@@ -5051,6 +5051,8 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
   React.useEffect(() => {
     Audio.setRole(setup.role === 'trader' ? 'trader' : setup.role === 'president' ? 'president' : null);
   }, [setup.role]);
+  // из учебника — с «Волной»: в партии музыка снова следует за экономикой
+  React.useEffect(() => { leaveWave(); }, []);
   React.useEffect(() => () => Audio.stopMusic(), []);
   // вызов дня окончен: пройдены все кварталы или партия оборвалась поражением
   const dailyDone = !!daily && (quarterIndex > daily.quarters || !!defeat);

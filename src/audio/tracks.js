@@ -721,9 +721,25 @@ const MOOD_PLAYLISTS = {
   authoritarian: ['decree', 'corridors'],
   totalitarian: ['ironmarch', 'parade', 'curfew'],
 };
+/* «Волна» — для учебника, где экономики нет: настроения по кругу, одно за другим, два одинаковых подряд не звучат */
+const WAVE_MOODS = ['calm', 'boom', 'slump', 'frost', 'stag'];
+// каждый раз — настроение, где пьес осталось больше всех, кроме только что звучавшего (и по кругу — кроме первого)
+MOOD_PLAYLISTS.wave = (() => {
+  const left = Object.fromEntries(WAVE_MOODS.map((m) => [m, [...MOOD_PLAYLISTS[m]]]));
+  const out = []; let prev = null;
+  while (WAVE_MOODS.some((m) => left[m].length)) {
+    const last = WAVE_MOODS.reduce((a, m) => a + left[m].length, 0) === 1;
+    const first = out.length ? TRACKS[out[0]].mood : null;
+    const pick = WAVE_MOODS.filter((m) => left[m].length && m !== prev && !(last && m === first))
+      .sort((x, y) => left[y].length - left[x].length)[0];
+    if (!pick) break;
+    out.push(left[pick].shift()); prev = pick;
+  }
+  return out;
+})();
 const MOOD_LABEL = { calm: 'Спокойствие', boom: 'Подъём', slump: 'Спад', stag: 'Стагфляция', crisis: 'Кризис', frost: 'Дефляция',
   war: 'Война', campaign: 'Предвыборная кампания', stabilization: 'Стабилизация', authoritarian: 'Ручное управление',
-  totalitarian: 'Тоталитаризм' };
+  totalitarian: 'Тоталитаризм', wave: 'Волна' };
 const REGIME_MOOD = { normal: 'calm', overheating: 'boom', recession: 'slump', stagflation: 'stag',
   banking: 'crisis', debt: 'crisis', currency: 'crisis', deflation: 'frost', war: 'war', pandemic: 'crisis' };
 /* Плейлисты, привязанные к роли: у инвестора свой репертуар, у обучения — свой */
