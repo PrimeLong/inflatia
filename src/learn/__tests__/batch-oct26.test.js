@@ -111,8 +111,8 @@ describe('«Персоналии» — данные', async () => {
   const { PEOPLE, PERSON_BY_ID, initialsOf, eraPos, galleryOf } = await import('../people.js');
   const { UNIT_BY_ID } = await import('../course.js');
   it('по три человека на каждый готовый юнит; годы, роль, рассказ, идея, факт', () => {
-    expect(PEOPLE).toHaveLength(11);
-    expect(new Set(PEOPLE.map((g) => g.unitId)).size).toBe(11);
+    expect(PEOPLE).toHaveLength(12);
+    expect(new Set(PEOPLE.map((g) => g.unitId)).size).toBe(12);
     PEOPLE.forEach((g) => {
       expect(UNIT_BY_ID[g.unitId] && UNIT_BY_ID[g.unitId].lessons.length, g.id).toBeTruthy();
       expect(g.people, g.id).toHaveLength(3);
@@ -149,7 +149,7 @@ describe('«Персоналии» — данные', async () => {
     expect(initialsOf('Адам Смит')).toBe('АС');
     expect(initialsOf('Антуан Огюстен Курно')).toBe('АК');
     const g = galleryOf({ met: { 'people-market': 1 } });
-    expect(g).toHaveLength(32);
+    expect(g).toHaveLength(35);
     expect(g.filter((p) => p.met).map((p) => p.id)).toEqual(['smith', 'jenkin', 'marshall']);
   });
 });
