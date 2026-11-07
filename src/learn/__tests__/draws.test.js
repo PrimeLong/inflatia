@@ -67,19 +67,19 @@ describe('«Нарисуй сам»: проверка', () => {
 });
 
 describe('«Нарисуй сам» на дороге юнита', () => {
-  it('остановка — сразу за «Разбором графика»; у «Биржи труда» разбора нет — после урока, где график появился', () => {
+  it('остановка — сразу за «Разбором графика» (правило: в каждом юните есть оба)', () => {
     const order = (unitId) => unitStops(pathState(emptyLearn()).find((s) => s.course.id === unitId), emptyLearn()).map((x) => x.type);
     const sd = order('supply-demand'); expect(sd[sd.indexOf('graph') + 1]).toBe('draw');
     const cm = order('competition-monopoly'); expect(cm[cm.indexOf('graph') + 1]).toBe('draw');
-    const lm = order('labor'); expect(lm.slice(0, 2)).toEqual(['lesson', 'draw']);
+    const lm = order('labor'); expect(lm.slice(0, 3)).toEqual(['lesson', 'graph', 'draw']);
   });
   it('следующий урок ждёт его, пройденное помнит прогресс и засчитывает в уровень знаний', () => {
     const unit = UNIT_BY_ID.labor;
-    expect(extraLocks(unit, emptyLearn())[0]).toEqual([{ type: 'draw', id: 'draw-labor', title: 'Рынок труда пекарей', done: false }]);
+    expect(extraLocks(unit, emptyLearn())[0].find((x) => x.type === 'draw')).toEqual({ type: 'draw', id: 'draw-labor', title: 'Рынок труда пекарей', done: false });
     const s = markDraw(emptyLearn(), 'draw-labor', 5);
     expect(s.draws).toEqual({ 'draw-labor': 5 });
     expect(markDraw(s, 'draw-labor', 9)).toBe(s);
-    expect(extraLocks(unit, s)[0][0].done).toBe(true);
+    expect(extraLocks(unit, s)[0].find((x) => x.type === 'draw').done).toBe(true);
     expect(courseLevel(s).parts.extras - courseLevel(emptyLearn()).parts.extras).toBe(1);
   });
 });
