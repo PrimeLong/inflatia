@@ -175,8 +175,9 @@ describe('оглавление', () => {
       .toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures']);
     expect(CHAPTERS.filter((c) => c.part === 'macro').map((c) => c.id))
       .toEqual(['gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth', 'open-economy', 'public-debt', 'inequality']);
-    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
-    expect(CHAPTERS.filter((c) => c.part === 'micro' && c.status !== 'ready').map((c) => c.id)).toEqual(['production']);
+    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
+    // блок микро готов целиком: «Производство» (юнит «Завод») написано 5 ноября 2026
+    expect(CHAPTERS.filter((c) => c.part === 'micro' && c.status !== 'ready').map((c) => c.id)).toEqual([]);
   });
   it('у каждой готовой главы есть текст, у ненаписанной — нет; карточки приложения существуют', () => {
     CHAPTERS.forEach((c) => {
@@ -249,15 +250,14 @@ describe('ссылки из глав', () => {
       expect(CHAPTER_BY_ID[t.chapter]).toBeTruthy();
     });
   });
-  it('каждое задание тайкуна вызывается из своей главы', () => {
-    Object.entries(TYCOON_TASKS).forEach(([id, t]) => {
-      expect(all.some((l) => l.kind === 'tycoon' && l.target === id && l.ch === t.chapter), id).toBe(true);
-    });
+  // «Проверьте в игре» убрано (решение владельца 5 ноября 2026): главы больше не зовут в тайкун, Лабораторию и сценарии
+  it('главы не зовут в игру: ссылок на «Своё дело», Лабораторию, сценарии и тренажёры нет', () => {
+    expect(all.filter((l) => ['tycoon', 'lab', 'scenario', 'drill'].includes(l.kind)).map((l) => `${l.ch}: ${l.kind}:${l.target}`)).toEqual([]);
   });
 });
 
 describe('структура готовых глав', () => {
-  it.each(READY.map((c) => [c.id]))('%s: теория с формулами и графиком, пример, «проверьте в игре», 10–12 задач трёх уровней, модель и игра раздельно, учебник', (id) => {
+  it.each(READY.map((c) => [c.id]))('%s: теория с формулами и графиком, пример, 10–12 задач трёх уровней, модель, учебник; без «в игре»', (id) => {
     const blocks = CHAPTER_BLOCKS[id];
     const kinds = (k) => collectBlocks(blocks, (b) => b.type === 'box' && b.kind === k);
     expect(collectBlocks(blocks, (b) => b.type === 'math').length).toBeGreaterThan(2);
@@ -266,10 +266,9 @@ describe('структура готовых глав', () => {
     charts.forEach((c) => expect(CHARTS[c.chart], c.chart).toBeTruthy());
     expect(kinds('example')).toHaveLength(1);
     expect(kinds('model')).toHaveLength(1);
-    expect(kinds('game')).toHaveLength(1);
-    const tries = kinds('try');
-    expect(tries).toHaveLength(1);
-    expect(tries[0].children.filter((b) => actionOf(b)).length).toBeGreaterThan(0);
+    // «Как это устроено в игре» и «Проверьте в игре» убраны (решение владельца 5 ноября 2026): их никто не нажимал
+    expect(kinds('game')).toHaveLength(0);
+    expect(kinds('try')).toHaveLength(0);
     const probs = collectBlocks(blocks, (b) => b.type === 'problem');
     const numeric = probs.filter((p) => p.kind === 'number');
     expect(numeric.length).toBeGreaterThanOrEqual(5);
@@ -325,25 +324,9 @@ describe('структура готовых глав', () => {
       expect(x.minutes, `«${x.title}»: минут`).toBeLessThanOrEqual(15);
     });
     expect(secs.find((x) => x.title === 'Итоги').blocks.map((b) => b.kind)).toEqual(['summary', 'mistakes']);
-    // «как это устроено в игре» — 3–4 фразы, подробности — под «Подробнее»
-    const game = kinds('game')[0];
-    expect(game.more, 'подробности игры под «Подробнее»').toBeTruthy();
-    const brief = game.children.filter((b) => b.type === 'p').map((b) => plainText(b.inline)).join(' ');
-    const sentences = brief.split(/(?<=[.!?])\s+(?=[А-ЯA-Z«])/).filter((x) => x.trim()).length;
-    expect(sentences, `игра: ${sentences} фраз`).toBeGreaterThanOrEqual(2);
-    expect(sentences, `игра: ${sentences} фраз`).toBeLessThanOrEqual(4);
-    expect(game.children.every((b) => b.type === 'p')).toBe(true);
     const ch = CHAPTER_BY_ID[id];
     expect(ch.refs.length).toBeGreaterThan(0);
     ch.refs.forEach((r) => expect(BOOKS[r.book]).toBeTruthy());
-  });
-  it('в «проверьте в игре» у микроглав — задания тайкуна, у IS-LM — Лаборатория и задачи', () => {
-    const actions = (id) => collectBlocks(CHAPTER_BLOCKS[id], (b) => b.type === 'box' && b.kind === 'try')[0].children.map(actionOf).filter(Boolean);
-    CHAPTERS.filter((c) => c.part === 'micro' && c.status === 'ready').forEach((c) => {
-      expect(actions(c.id).length, c.id).toBeGreaterThanOrEqual(2);
-      expect(actions(c.id).some((a) => a.kind === 'tycoon'), c.id).toBe(true);
-    });
-    expect(actions('is-lm').map((a) => a.kind).sort()).toEqual(['drill', 'drill', 'lab', 'lab']);
   });
   /* «Вспомните»: верный вариант не угадывается по длине. Раньше он был самым длинным в 92 вопросах
      из 98 — с пояснением, а неверные — короткими словами. Пояснение живёт в разборе после «---». */
@@ -357,6 +340,21 @@ describe('структура готовых глав', () => {
     });
     expect(stat.filter((x) => x.right > x.wrong * 1.25 + 3).map((x) => `${x.id}: ${x.right} против ${x.wrong}`)).toEqual([]);
     expect(stat.filter((x) => x.longest).length / stat.length).toBeLessThan(0.15);
+  });
+  // «Разбор на числах» — по одному порядку (docs/mechanics.md, «Учебник: разбор на числах»): ученики не понимали, что ищут и почему
+  it.each(READY.map((c) => [c.id]))('%s: разбор на числах: дано, что найти, правило и почему, шаги, что это значит', (id) => {
+    const [ex] = collectBlocks(CHAPTER_BLOCKS[id], (b) => b.type === 'box' && b.kind === 'example');
+    const paras = ex.children.filter((b) => b.type === 'p').map((b) => plainText(b.inline));
+    const at = (re) => paras.findIndex((t) => re.test(t));
+    const order = [/^Дано\./, /^Что найти\./, /^Как(ое|ие) (правил|формул)/, /^Что это значит\./].map(at);
+    order.forEach((k, n) => expect(k, `${id}: пункт ${n + 1}`).toBeGreaterThanOrEqual(0));
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const steps = ex.children.filter((b) => b.type === 'ol').flatMap((b) => b.items);
+    expect(steps.length, `${id}: шаги`).toBeGreaterThanOrEqual(2);
+    // у шага — заголовок жирным
+    steps.forEach((it) => expect(it[0] && it[0].t, `${id}: у шага нет заголовка`).toBe('b'));
+    // вывод — последний абзац
+    expect(at(/^Что это значит\./)).toBe(paras.length - 1);
   });
   it('id задач и вопросов на вспоминание уникальны во всём учебнике', () => {
     const ids = Object.values(CHAPTER_BLOCKS).flatMap((b) => collectBlocks(b, (x) => x.type === 'problem' || x.type === 'recall').map((p) => p.id));
@@ -375,6 +373,13 @@ describe('структура готовых глав', () => {
 /* Ответы пересчитаны здесь заново — формулой, а не копией числа из главы. Если в
    условии поменяют число, а ответ забудут, тест упадёт. */
 const INDEPENDENT = {
+  // производство (юнит «Завод») — по таблице цеха, функции Кобба — Дугласа и правилу K/L = w/r
+  'production-mp': () => { const Q = [0, 10, 24, 36, 44]; return [Q[4] - Q[3], Q[4] / 4]; },
+  'production-returns': () => [10 * Math.sqrt(4 * 9), 10 * Math.sqrt(8 * 18)],
+  'production-hire': () => { const mp = [10, 14, 12, 8, 4]; const n = (w) => mp.filter((m) => 30 * m >= w).length; return [n(300), n(200)]; },
+  'production-cd': () => [2 ** 0.8, 2 ** (1 / 0.8)],
+  'production-opt': () => { let best = null; for (let L = 1; L < 80; L += 1) { const K = (8000 - 100 * L) / 400; const Q = 10 * Math.sqrt(K * L); if (!best || Q > best.Q) best = { L, K, Q }; } return [best.L, best.K]; },
+  'production-subst': () => { let best = null; for (let L = 1; L < 20; L += 1) { const K = (8000 - 400 * L) / 400; const Q = 10 * Math.sqrt(K * L); if (!best || Q > best.Q) best = { L, Q }; } return [best.L, best.Q]; },
   // рынок труда — перебором работников по правилу MRP ≥ w и функцией равновесия графика
   'labor-hire': () => {
     const mp = [40, 30, 20, 10]; const hire = (w) => mp.filter((m) => 8 * m >= w).length;
@@ -1173,16 +1178,8 @@ describe('новые графики считают то же, что текст'
   });
 });
 
-describe('макроглавы: «проверьте в игре» и статистика', () => {
+describe('макроглавы: статистика', () => {
   const MACRO_NEW = ['gdp', 'money-banks', 'inflation', 'ad-as', 'phillips', 'policy', 'growth'];
-  it('в «проверьте в игре» — Лаборатория или задача и сценарий с исторической тенью', () => {
-    MACRO_NEW.forEach((id) => {
-      const acts = collectBlocks(CHAPTER_BLOCKS[id], (b) => b.type === 'box' && b.kind === 'try')[0].children.map(actionOf).filter(Boolean);
-      expect(acts.length, id).toBeGreaterThanOrEqual(3);
-      expect(acts.some((a) => a.kind === 'lab' || a.kind === 'drill'), id).toBe(true);
-      expect(acts.some((a) => a.kind === 'scenario' && (SCENARIOS.find((x) => x.id === a.target) || {}).shadow), `${id}: историческая тень`).toBe(true);
-    });
-  });
   it('настоящая статистика — только с источником: абзац с годом и числом в процентах или рублях называет источник', () => {
     const SOURCE = /Росстат|Банк России|ЦБ РФ|ФРС|МВФ/;
     MACRO_NEW.forEach((id) => {
@@ -1276,10 +1273,9 @@ const studySecRecall = (ch) => CHAPTER_SECTIONS[ch].find((x) => x.recall).recall
 
 describe('итоговая проверка и задачи вперемешку', () => {
   const micro = CHAPTERS.filter((c) => c.part === 'micro' && c.status === 'ready');
-  it('проверка «Микро»: 15–20 задач — варианты типов из каждой главы блока, соседние — из разных глав', () => {
+  it('проверка «Микро»: по два типа задач из каждой главы блока (11 глав — 22 задачи), соседние — из разных глав', () => {
     const blocks = examSet('micro', 12345);
-    expect(blocks.length).toBeGreaterThanOrEqual(15);
-    expect(blocks.length).toBeLessThanOrEqual(20);
+    expect(blocks.length).toBe(2 * micro.length);
     expect(new Set(blocks.map((b) => b.template)).size).toBe(blocks.length);
     blocks.forEach((b) => { expect(b.kind).toBe('number'); expect(CHAPTER_BY_ID[b.chapter].part).toBe('micro'); expect(PROBLEMS[b.source], b.source).toBeTruthy(); });
     expect(new Set(blocks.map((b) => b.chapter))).toEqual(new Set(micro.map((c) => c.id)));

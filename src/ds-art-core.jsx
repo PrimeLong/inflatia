@@ -67,6 +67,8 @@ export const ART_CSS = `
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M5.4 2 2.4 5l3 3' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 5.6px 7px no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M5.4 2 2.4 5l3 3' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 5.6px 7px no-repeat; }
   .ds-level-back:hover, .ds-level-back:focus-visible { outline: 2px solid var(--u-ink); outline-offset: 2px; }
+  /* «вперёд, к текущей» — тот же уголок, зеркально */
+  .ds-level-fwd::after { transform: translate(-50%, -50%) scaleX(-1); }
   .ds-level-n { font-size: 12.5px; font-weight: 700; color: var(--ds-ink2); min-width: 34px; text-align: right; }
   .ds-infla { display: inline-block; transform-origin: 50% 90%; transition: transform .45s cubic-bezier(.34,1.45,.5,1); }
   .ds-infla.deflate { transition: transform 1s cubic-bezier(.25,.8,.3,1); }

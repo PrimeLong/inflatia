@@ -37,8 +37,10 @@ export const bookFirstTry = (prev, ok, sawSolution = false) => !!ok && !sawSolut
 // цель дня — столько монет, сколько минут в цели (10 минут — COIN.goal)
 export const goalCoins = (minutes) => Math.round((minutes * COIN.goal) / 10);
 export const earned = (s) => sum(s.coins);
-// в кошельке: заработано − потрачено − взносы страховки − лежит в копилке + проценты забранных вкладов
-export const balance = (s) => Math.max(0, sum(s.coins) - sum(s.spent) - sum(s.premiums) - piggyLocked(s) + piggyGain(s));
+// в кошельке: заработано − потрачено − взносы страховки − лежит в копилке + проценты забранных вкладов − списания
+// списания (src/learn/audit.js): списано минус возвращённое за откаченные вещи
+export const finesNet = (s) => Object.values(s.fines || {}).reduce((a, f) => a + (f.coins || 0) - (f.refund || 0), 0);
+export const balance = (s) => Math.max(0, sum(s.coins) - sum(s.spent) - sum(s.premiums) - piggyLocked(s) + piggyGain(s) - finesNet(s));
 export const hasClaim = (s, key) => !!(s.claimed || {})[key];
 // начислить монеты; с ключом — только один раз
 export function earn(s, n, key = null, now = Date.now()) {
@@ -200,6 +202,19 @@ export const priceIndexCap = () => capMemo || (capMemo = (0.7 * courseIncome().t
 export const priceIndex = (day) => Math.min(priceIndexRaw(day), Math.max(1, priceIndexCap()));
 // цена вещи в кронах сегодня: базовая × индекс (семена сада и взнос страховки — без инфляции)
 export const crownsOn = (id, day) => Math.round(itemOf(id).crowns * priceIndex(day));
+/* ИНДЕКСАЦИЯ НАГРАД (docs/mechanics.md, «Индексация наград»): награды за учёбу в монетах растут каждый месяц
+   на инфляцию Лавки прошлого месяца — индекс наград месяца = индекс цен прошлого месяца (с тем же пределом).
+   В декабре 2026 — на инфляцию ноября. Сад (продажа урожая), «Пыльная витрина» и проценты копилки — без индексации. */
+function prevMonth(month) { const [y, m] = month.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; }
+export const rewardIndex = (day) => priceIndex(`${prevMonth(monthOf(day))}-01`);
+// награда n монет в день day — с индексацией, до целой монеты
+export const indexedOn = (n, day) => (n > 0 ? Math.round(n * rewardIndex(day)) : n);
+export const indexed = (n, now = Date.now()) => indexedOn(n, dayOf(now));
+// для кошелька: насколько награды выше начальных и на сколько вырастут с 1-го числа следующего месяца
+export function rewardInfo(day) {
+  const m = monthOf(day);
+  return { since: rewardIndex(day) - 1, next: Math.max(0, priceIndex(`${m}-01`) / rewardIndex(day) - 1), nextMonth: nextMonth(m) };
+}
 // для лавки: инфляция этого месяца, рост с базы, держатся ли цены у предела
 export function inflationInfo(day) {
   const m = monthOf(day);
@@ -396,6 +411,8 @@ const QUEST = {
   xp: { coins: 10, target: (s, now) => goalMinutes(s, now) * 3, have: (d, s, day) => (s.xp || {})[day] || 0, title: (t) => `Набрать ${t} опыта` },
   fresh: { coins: 15, target: () => 1, have: (d, s, day) => Math.max(d.n || 0, newToday(s, day)), title: () => 'Пройти новый урок на Пути' },
 };
+// монеты за каждое задание дня — для проверки выплат (src/learn/audit.js)
+export const QUEST_COINS = Object.fromEntries(Object.entries(QUEST).map(([k, q]) => [k, q.coins]));
 export const QUEST_ICON = { lessons: 'map', perfect: 'check', correct: 'coins', run: 'flame', xp: 'spark', fresh: 'target' };
 export function questsFor(s, now = Date.now()) {
   const day = dayOf(now); const d = dailyOf(s, now);
@@ -417,7 +434,7 @@ export const questNews = (prev, quests) => (prev ? quests
 /* ------------------------------ СУНДУК ЮНИТА ------------------------------ */
 export const chestCoins = (unitId) => 40 + Math.floor(hash01(`chest:${unitId}`) * 41);
 export const chestKey = (unitId) => `c:${unitId}`;
-export const openChest = (s, unitId, now = Date.now()) => earn(s, chestCoins(unitId), chestKey(unitId), now);
+export const openChest = (s, unitId, now = Date.now()) => earn(s, indexed(chestCoins(unitId), now), chestKey(unitId), now);
 
 /* ------------------------------ СЕРИЯ ------------------------------ */
 export const STREAK_BONUS = [[3, 15], [7, 40], [14, 80], [30, 200], [60, 300], [100, 500]];
@@ -497,7 +514,6 @@ const firstDay = (s) => {
   const reg = s.profile && s.profile.at ? dayOf(s.profile.at) : null;
   return [days[0], reg].filter(Boolean).sort()[0] || null;
 };
-const prevMonth = (month) => { const [y, m] = month.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; };
 export function monthChallenge(s, now = Date.now()) {
   const day = dayOf(now); const month = day.slice(0, 7);
   const key = `m:${month}`;
@@ -564,9 +580,28 @@ export const monthStamps = (s) => Object.keys(s.claimed || {}).filter((k) => k.s
 /* ------------------------------ РАСЧЁТ НАГРАД ------------------------------
    После каждого урока: цель дня, серия, задания дня, печати, испытание месяца — всё, что
    выполнено и ещё не получено. Возвращает новое состояние и список полученного. */
+/* ПРЕДОХРАНИТЕЛЬ ВЫПЛАТ (docs/mechanics.md, «Защита монет»): разовая награда, выплаченная в этом сеансе больше
+   двух секунд назад, второй раз не выплачивается, даже если её ключ пропал из прогресса, — ключ возвращается,
+   монет нет, случай уходит в аналитику (coins_guard). Две секунды — запас на повторный вызов того же
+   обновления прогресса React'ом: это не вторая выплата, а тот же расчёт. */
+const SESSION_PAID = new Map();
+let guardHook = null;
+export const onCoinGuard = (fn) => { guardHook = fn; };
+export const resetCoinGuard = () => { SESSION_PAID.clear(); };
 export function settle(s, ctx, now = Date.now()) {
   const gains = [];
-  const give = (t, n, key, title, kind) => { const before = t; const next = earn(t, n, key, now); if (next !== before) gains.push({ key, coins: n, title, kind }); return next; };
+  const give = (t, n, key, title, kind) => {
+    const paid = key ? SESSION_PAID.get(key) : null;
+    if (paid != null && now - paid > 2000 && !hasClaim(t, key)) {
+      if (guardHook) { try { guardHook({ key, coins: n }); } catch { /* аналитика не мешает выплатам */ } }
+      return { ...t, claimed: { ...t.claimed, [key]: paid } };
+    }
+    // награда — с индексацией месяца (docs/mechanics.md, «Индексация наград»)
+    const coins = indexed(n, now);
+    const before = t; const next = earn(t, coins, key, now);
+    if (next !== before) { gains.push({ key, coins, title, kind }); if (key && paid == null) SESSION_PAID.set(key, now); }
+    return next;
+  };
   let t = fixMonth(chargePremiums(s, now), now);
   const day = dayOf(now);
   const g = goalToday(t, now);

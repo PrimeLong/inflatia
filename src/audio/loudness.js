@@ -59,8 +59,16 @@ export const STINGER_GAIN_DB = {
 };
 // звуки ответов — к одной громкости (scripts/loudness.mjs --sfx --write)
 export const SFX_GAIN_DB = {
-  coin: 4,
-  down: -1,
-  up: -1,
-  register: -1.5,
+  coin: 3.5,
+  down: -1.5,
+  up: -1.5,
+  register: -2,
+  'ex-up': 2,
+  'ex-down': 1,
+  'mint-up': 0,
+  'mint-down': -0.5,
+  'bp-up': 0.5,
+  'bp-down': 0,
+  'au-up': 1.5,
+  'au-down': -1.5,
 };

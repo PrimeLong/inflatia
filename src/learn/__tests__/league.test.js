@@ -1,7 +1,7 @@
 /* Лиги недели: таблица одна на всех устройствах, растёт по дням; первые пять поднимаются,
    последние пять опускаются; награда за первые три места — один раз. */
 import { describe, it, expect } from 'vitest';
-import { LEAGUES, GROUP, PROMOTE, PLACE_COINS, standings, leagueState, claimLeague, pendingRewards, weekXp, zoneOf, LEAGUE_V2_FROM, XP_PER_MIN, LESSON_XP, stayMinutes, promoteMinutes } from '../league.js';
+import { LEAGUES, GROUP, PROMOTE, PLACE_COINS, PROMO_COINS, placeCoins, standings, leagueState, claimLeague, pendingRewards, weekXp, zoneOf, LEAGUE_V2_FROM, XP_PER_MIN, LESSON_XP, stayMinutes, promoteMinutes } from '../league.js';
 import { LESSONS } from '../course.js';
 import { lessonXp, XP } from '../../textbook/learn-state.js';
 import { emptyLearn, mergeLearn, addDays } from '../../textbook/learn-state.js';
@@ -231,5 +231,25 @@ describe('лиги по минутам: каждая лига сложнее п�
     const totals = (w, lg) => standings(emptyLearn(), w, lg, at('2026-11-30')).filter((r) => !r.me).map((r) => r.xp);
     expect(totals('2026-10-05', 'bronze')).toEqual([293, 254, 252, 162, 161, 156, 131, 84, 74, 68, 68, 66, 63, 60, 59, 58, 36, 31, 25]);
     expect(totals('2026-10-19', 'gold')).toEqual([725, 610, 484, 379, 366, 359, 342, 299, 299, 275, 269, 194, 160, 106, 100, 96, 0, 0, 0]);
+  });
+});
+
+describe('награда лиги растёт с лигой, как и усилия', () => {
+  it('в лиге N — в N раз больше бронзовой: 1–3 место и повышение с 4-го и 5-го', () => {
+    expect([1, 2, 3, 4, 5, 6, 20].map((p) => placeCoins('bronze', p))).toEqual([50, 30, 20, 10, 10, 0, 0]);
+    expect([1, 2, 3, 4, 5, 6].map((p) => placeCoins('silver', p))).toEqual([100, 60, 40, 20, 20, 0]);
+    // из Алмазной подниматься некуда — за 4-е и 5-е монет нет
+    expect([1, 2, 3, 4, 5].map((p) => placeCoins('diamond', p))).toEqual([350, 210, 140, 0, 0]);
+    expect(placeCoins('nope', 1)).toBe(0);
+  });
+  it('награда кратна 10 (цене урока) и строго растёт от лиги к лиге — как минуты, нужные, чтобы удержаться', () => {
+    LEAGUES.forEach((l, i) => {
+      [1, 2, 3, 4, 5].forEach((p) => expect(placeCoins(l.id, p) % 10).toBe(0));
+      if (i) {
+        expect(placeCoins(l.id, 1)).toBeGreaterThan(placeCoins(LEAGUES[i - 1].id, 1));
+        expect(placeCoins(l.id, 1) / placeCoins('bronze', 1)).toBe(stayMinutes(l.id) / stayMinutes('bronze'));
+      }
+    });
+    expect(PLACE_COINS).toEqual([50, 30, 20]); expect(PROMO_COINS).toBe(10);
   });
 });

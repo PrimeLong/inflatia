@@ -1,5 +1,6 @@
 /* ОСТАНОВКИ ДОРОГИ ЮНИТА (docs/mechanics.md, «Путь»): уроки юнита и между ними особые уроки —
-   «Персоналии» (после второго урока), «Разбор графика» (после урока, где график появился), «Чтение» (на середине юнита) и «Работа над ошибками» (там,
+   «Персоналии» (после второго урока), «Разбор графика» (после урока, где график появился), «Нарисуй сам» (сразу за
+   ним), «Чтение» (на середине юнита) и «Работа над ошибками» (там,
    где её поставил pathState, src/learn/course.js). Особые уроки — такие же уроки на дороге, со своим
    значком: открываются, когда пройден урок перед ними, и пропустить их нельзя — следующий урок закрыт,
    пока особый не пройден (extraLocks читает pathState). «Работа над ошибками» — так же.
@@ -7,8 +8,9 @@
 import { READING_BY_UNIT, isRead } from './reading.js';
 import { PEOPLE_BY_UNIT, isMet } from './people.js';
 import { GRAPH_BY_UNIT, isGraphDone } from './graphs.js';
+import { DRAW_BY_UNIT, isDrawDone } from './draws.js';
 
-export const EXTRA_KIND = { people: 'Персоналии', read: 'Чтение', graph: 'Разбор графика', fix: 'Работа над ошибками' };
+export const EXTRA_KIND = { people: 'Персоналии', read: 'Чтение', graph: 'Разбор графика', draw: 'Нарисуй сам', fix: 'Работа над ошибками' };
 
 // после какого урока встаёт особый урок: «Персоналии» — после второго, «Чтение» — на середине
 export const peopleAfter = (n) => Math.min(1, n - 1);
@@ -35,6 +37,7 @@ export function extraLocks(unit, learn) {
   const pp = PEOPLE_BY_UNIT[unitId]; if (pp) add(peopleAfter(n), { type: 'people', id: pp.id, title: pp.title, done: isMet(learn, pp.id) });
   const rd = READING_BY_UNIT[unitId]; if (rd) add(Math.min(n - 1, readAfter(n)), { type: 'read', id: rd.id, title: rd.title, done: isRead(learn, rd.id) });
   const gr = GRAPH_BY_UNIT[unitId]; if (gr) add(graphAt(unit.lessons, gr.chart), { type: 'graph', id: gr.id, title: gr.title, done: isGraphDone(learn, gr.id) });
+  const dr = DRAW_BY_UNIT[unitId]; if (dr) add(graphAt(unit.lessons, dr.chart), { type: 'draw', id: dr.id, title: dr.title, done: isDrawDone(learn, dr.id) });
   return out;
 }
 export function unitStops(st, learn) {
@@ -47,6 +50,9 @@ export function unitStops(st, learn) {
   if (rd) extras.push({ type: 'read', id: rd.id, title: rd.title, after: Math.min(n - 1, readAfter(n)), done: isRead(learn, rd.id) });
   const gr = GRAPH_BY_UNIT[st.course.id];
   if (gr) extras.push({ type: 'graph', id: gr.id, title: gr.title, after: graphAt(st.course.lessons, gr.chart), done: isGraphDone(learn, gr.id) });
+  // «Нарисуй сам» — за «Разбором графика» (у юнита без разбора — после урока, где его график появился)
+  const dr = DRAW_BY_UNIT[st.course.id];
+  if (dr) extras.push({ type: 'draw', id: dr.id, title: dr.title, after: graphAt(st.course.lessons, dr.chart), done: isDrawDone(learn, dr.id) });
   const fixStop = st.fix ? { type: 'fix', id: `fix:${st.fix.unitId}`, unitId: st.fix.unitId, title: EXTRA_KIND.fix, count: st.fix.count, open: true, done: false } : null;
   const out = [];
   st.lessons.forEach((l, i) => {

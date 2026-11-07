@@ -1044,6 +1044,25 @@ export function createAudioEngine(options = {}) {
     },
     // поп-ит переворачивается: шорох силикона и мягкий щелчок
     flip: () => { const t = now(); noiseHit(t, 0.22, 0.05, 'bandpass', 900, 0.8, sfxOut || sfxBus); tone(330, t + 0.12, 0.12, 0.03, 'triangle'); },
+    /* ЗВУКИ ОТВЕТА В ТЕМАХ УРОКА (src/learn-skins.jsx, SKIN_SOUNDS): у каждой темы своя пара «верно / неверно» */
+    // «Биржа»: два коротких писка терминала вверх — и два вниз с низким жужжанием
+    'ex-up': () => { const t = now(); tone(880, t, 0.07, 0.03, 'square'); tone(1320, t + 0.08, 0.11, 0.03, 'square'); tone(2640, t + 0.08, 0.06, 0.008, 'sine'); },
+    'ex-down': () => { const t = now(); tone(660, t, 0.08, 0.03, 'square'); tone(440, t + 0.09, 0.14, 0.03, 'square'); tone(110, t, 0.26, 0.025, 'sawtooth'); },
+    // «Монетный двор»: монета звенит о металл (неровные обертоны, долгий хвост) — и глухо стукает о дерево
+    'mint-up': () => { const t = now(); [[2093, 0.5, 0.03], [3157, 0.35, 0.018], [5274, 0.22, 0.01], [7040, 0.12, 0.006]].forEach(([f, d, g]) => tone(f, t, d, g, 'sine')); tone(2108, t + 0.09, 0.4, 0.016, 'sine'); },
+    'mint-down': () => {
+      const t = now(); const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(85, t + 0.12);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.045, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      o.connect(g); g.connect(sfxOut || sfxBus); o.start(t); o.stop(t + 0.22);
+      noiseHit(t, 0.06, 0.025, 'lowpass', 900, 0.7, sfxOut || sfxBus);
+    },
+    // «Чертёж»: штрих карандаша по бумаге и тихая нота — и шорох ластика туда-обратно с низкой нотой
+    'bp-up': () => { const t = now(); noiseHit(t, 0.07, 0.1, 'bandpass', 3800, 1.2, sfxOut || sfxBus); noiseHit(t + 0.08, 0.1, 0.08, 'bandpass', 4200, 1.2, sfxOut || sfxBus); tone(784, t + 0.1, 0.3, 0.04, 'triangle'); },
+    'bp-down': () => { const t = now(); [0, 0.12, 0.24].forEach((d) => noiseHit(t + d, 0.1, 0.1, 'bandpass', 1100, 0.9, sfxOut || sfxBus)); tone(294, t + 0.05, 0.35, 0.045, 'triangle'); },
+    // «Северное сияние»: мягкий переливающийся колокольчик — и тихий низкий гул с биением и вздохом
+    'au-up': () => { const t = now(); [[1046.5, 0], [1568, 0.07], [2093, 0.14], [2100, 0.14]].forEach(([f, d]) => tone(f, t + d, 0.7, 0.018, 'sine')); },
+    'au-down': () => { const t = now(); tone(220, t, 0.55, 0.035, 'sine'); tone(226, t, 0.55, 0.03, 'sine'); noiseHit(t + 0.05, 0.4, 0.02, 'lowpass', 600, 0.5, sfxOut || sfxBus); },
     // касса в конце урока: щелчок ящика, звонок и ссыпающиеся монеты
     register: () => {
       const t = now();
@@ -1229,7 +1248,7 @@ export async function renderStingerOffline(id, { sampleRate = 22050 } = {}) {
 }
 
 /* Отрендерить звук интерфейса — для замера громкости звуков ответов. */
-export const SFX_NAMES = ['coin', 'down', 'up', 'register', 'tick', 'click', 'tab', 'paper', 'erase', 'wipe', 'shine', 'stamp', 'news', 'alarm', 'pop', 'flip'];
+export const SFX_NAMES = ['coin', 'down', 'up', 'register', 'ex-up', 'ex-down', 'mint-up', 'mint-down', 'bp-up', 'bp-down', 'au-up', 'au-down', 'tick', 'click', 'tab', 'paper', 'erase', 'wipe', 'shine', 'stamp', 'news', 'alarm', 'pop', 'flip'];
 export async function renderSfxOffline(name, { sampleRate = 22050, sfxGain = false } = {}) {
   const OAC = typeof window !== 'undefined' && (window.OfflineAudioContext || window.webkitOfflineAudioContext);
   if (!OAC) return null;

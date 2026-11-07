@@ -23,6 +23,7 @@ export function useBookPlayer(b, parts, est) {
     skip: (sec) => bookPlayer.skip(b, parts, est, sec),
     playFrom: (pid) => bookPlayer.playFrom(b, parts, est, pid),
     nextRate: () => bookPlayer.nextRate(),
+    setVolume: (v) => bookPlayer.setVolume(v),
   };
 }
 

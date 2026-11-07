@@ -8,7 +8,7 @@ import { Lock, Sprout, Clock, Coins, X, ArrowDown, Droplet, Droplets } from 'luc
 import { Audio } from './MacroSimulator.jsx';
 import { Button, Heading, Sheet } from './ds.jsx';
 import { PLANTS, PLANT_BY_ID, RARITY, GARDEN_PLOTS, GRADES, GRADE_BY_ID, MARKET_DROP, gardenPlots, growth, leftText, plant, harvest, herbarium, grown, collection,
-  plantPrice, salePrice, sell, sellAll, soldToday, cropGroups, paidPrice, STAGE_LABEL, water, needsWater, WATER_HOURS, SHOW_ODDS, oddsTable, oddsText } from './learn/garden.js';
+  plantPrice, salePrice, sell, sellAll, soldToday, cropGroups, paidPrice, STAGE_LABEL, water, needsWater, WATER_HOURS, SHOW_ODDS, oddsTable, oddsText, plantLook } from './learn/garden.js';
 import { balance, coinsWord } from './learn/rewards.js';
 import { RateWeek } from './learn-rate.jsx';
 import { dayOf } from './textbook/learn-state.js';
@@ -29,6 +29,9 @@ const GARDEN_CSS = `
   .gd-soil::before { content: ''; position: absolute; left: 4%; right: 4%; bottom: 2%; height: 38%; border-radius: 50%;
     background: radial-gradient(ellipse at 50% 30%, #9A7651, #7A5A3A 70%); box-shadow: inset 0 -5px 8px rgba(0,0,0,.18), 0 3px 0 rgba(90,120,60,.25); }
   .gd-soil .gd-art { position: relative; width: 96%; max-width: 112px; height: auto; display: block; margin-bottom: 4%; }
+  /* у каждого растения свой рост, наклон и сторона (plantLook): обёртка, чтобы не мешать анимациям созревания и засухи */
+  .gd-look { position: relative; z-index: 1; width: 100%; display: flex; justify-content: center; align-items: flex-end; transform-origin: 50% 92%;
+    transform: rotate(var(--tilt, 0deg)) scale(calc(var(--flip, 1) * var(--k, 1)), var(--k, 1)); }
   .gd-bed.ripe .gd-soil::after { content: ''; position: absolute; inset: 6% 10% 30%; border-radius: 50%; background: radial-gradient(circle, rgba(255,226,110,.55), transparent 70%); animation: gd-pulse 2s ease-in-out infinite; }
   .gd-bed.ripe .gd-art { animation: gd-ripe 1.8s ease-in-out infinite; z-index: 1; }
   .gd-bed.empty { cursor: pointer; }
@@ -38,12 +41,12 @@ const GARDEN_CSS = `
   .gd-bed.empty:hover .gd-soil::before { border-color: #5E8A3A; }
   .gd-sign { width: 100%; min-height: 44px; padding: 5px 5px 6px; border-radius: 12px; background: #fff; color: var(--ds-ink); text-align: center; box-shadow: 0 2px 0 #C3DCA6, 0 4px 10px rgba(70,100,40,.08); }
   .gd-name { font: 700 13px/1.2 var(--ds-sans); overflow-wrap: anywhere; }
-  .gd-left { font: 12px var(--ds-mono); color: var(--ds-ink2); }
+  .gd-left { font: 12px var(--ds-mono); color: var(--ds-ink2); white-space: nowrap; }
   .gd-bar { width: 100%; height: 6px; margin: 4px 0 2px; border-radius: 3px; background: #E6EFD9; overflow: hidden; }
   .gd-bar span { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #7CB342, #4D8B2A); }
   .gd-sign .ds-btn { width: 100%; margin-top: 3px; padding: 6px 4px; letter-spacing: 0; }
   /* полив: капля с запасом воды; сухая грядка — светлая, в трещинах, растение поникло и не растёт */
-  .gd-water { display: flex; align-items: center; justify-content: center; gap: 3px; font: 12px var(--ds-mono); color: #2E5F8A; }
+  .gd-water { display: flex; align-items: center; justify-content: center; gap: 3px; font: 12px var(--ds-mono); color: #2E5F8A; white-space: nowrap; }
   .gd-water.low { color: #A0522D; font-weight: 700; }
   .gd-bed.dry .gd-soil::before { background: radial-gradient(ellipse at 50% 30%, #D2B48C, #B8956A 70%); }
   .gd-bed.dry .gd-art { filter: saturate(.3) sepia(.35) brightness(.97); transform: scaleY(.88); transform-origin: 50% 100%; transition: transform .6s, filter .6s; }
@@ -51,7 +54,7 @@ const GARDEN_CSS = `
   .gd-rain { position: absolute; inset: 0 0 30% 0; pointer-events: none; overflow: hidden; }
   .gd-rain i { position: absolute; top: -12%; width: 4px; height: 10px; border-radius: 2px 2px 3px 3px; background: #6FA8DC; opacity: 0; animation: gd-drop .8s ease-in both; }
   @keyframes gd-drop { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .95; } 100% { transform: translateY(120px); opacity: 0; } }
-  .gd-packet-water { display: inline-flex; align-items: center; gap: 3px; font: 12px var(--ds-sans); color: #2E5F8A; }
+  .gd-packet-water { display: inline-flex; align-items: center; gap: 3px; font: 12px var(--ds-sans); color: #2E5F8A; white-space: nowrap; }
   /* пакетики семян: цветная лента редкости растения, рисунок, цена, кнопка с причиной */
   .gd-packets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 20px; }
   .gd-packet { --r: #4B692C; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 8px 8px; text-align: center; overflow: hidden; border-radius: 3px 3px 8px 8px;
@@ -379,7 +382,11 @@ export function GardenView({ learn, update }) {
             return (
               <div key={g.at} className={`gd-bed${st.ripe ? ' ripe' : ''}${w && w.dry ? ' dry' : ''}`} data-testid="garden-plot" data-plant={g.plant} data-stage={st.stage} data-dry={w && w.dry ? 'true' : undefined}>
                 <div className="gd-soil">
-                  <PlantArt id={g.plant} stage={st.stage} pot={false} />
+                  {(() => { const lk = plantLook(g.at); return (
+                    <span className="gd-look" data-testid="garden-look" data-k={lk.k} style={{ '--k': lk.k, '--tilt': `${lk.tilt}deg`, '--flip': lk.flip }}>
+                      <PlantArt id={g.plant} stage={st.stage} pot={false} />
+                    </span>
+                  ); })()}
                   {rain[g.at] && <span key={rain[g.at]} className="gd-rain" data-testid="garden-rain" aria-hidden="true">{RAIN_DROPS.map((x, k) => <i key={k} style={{ left: `${x}%`, animationDelay: `${k * 70}ms` }} />)}</span>}
                 </div>
                 <div className="gd-sign">
@@ -413,7 +420,7 @@ export function GardenView({ learn, update }) {
               <SeedPacketArt id={p.id} title={`Пакетик семян: ${p.title}`} color={RARITY[p.rarity].color} />
               <div className="gd-packet-name">{p.title}</div>
               <div className="gd-packet-meta"><Clock size={11} aria-hidden="true" style={{ verticalAlign: -1 }} /> растёт {growText(p.hours)}</div>
-              {needsWater(p.id) && <div className="gd-packet-water" data-testid="garden-seed-water"><Droplets size={12} aria-hidden="true" /> поливать раз в {WATER_HOURS} ч</div>}
+              {needsWater(p.id) && <div className="gd-packet-water" data-testid="garden-seed-water"><Droplets size={12} aria-hidden="true" /> полив раз в {WATER_HOURS} ч</div>}
               {p.note && <div className="gd-packet-note">{p.note}</div>}
               <div className="gd-packet-price"><Coins size={14} aria-hidden="true" />{price}<small>· {p.crowns} кр.</small></div>
               <Button small wide variant={state === 'ok' ? 'primary' : 'secondary'} disabled={state !== 'ok'} data-testid="garden-plant" onClick={() => doPlant(p.id)}>

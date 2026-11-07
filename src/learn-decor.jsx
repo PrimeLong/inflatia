@@ -73,10 +73,19 @@ function drawBunting(ctx, m, col) {
 }
 
 /* ---------- колыбель Ньютона: маятники и упругие удары соседей ---------- */
+/* Шарики крупнее на большой подставке (радиус — от высоты); размах ограничен CRADLE_MAX, как у настоящей
+   колыбели, где нити упираются в раму, — шарик не вылетает за холст, как ни взмахни (docs/mechanics.md) */
+export const CRADLE_MAX = 0.75;
+export const CRADLE_LIFT = { to: -0.62, dur: 0.4 };
 function makeCradle(W, H) {
-  const r = 7; const gap = r * 2 + 0.6; const top = 5; const L = H - top - r - 4; const cx = W / 2;
+  const r = Math.max(7, Math.min(13, Math.round(H * 0.075))); const gap = r * 2 + 0.6; const top = H > 80 ? 14 : 5; const L = H - top - r - (H > 80 ? 12 : 4); const cx = W / 2;
   const balls = Array.from({ length: 5 }, (_, i) => ({ ax: cx + (i - 2) * gap, a: 0, w: 0 }));
-  return { kind: 'cradle', r, L, balls, top, clicks: 0, t: 0 };
+  return { kind: 'cradle', r, L, balls, top, clicks: 0, t: 0, lift: null };
+}
+// какая ширина нужна колыбели высоты H, чтобы крайний шарик на пределе размаха оставался на холсте
+export function cradleWidth(H) {
+  const m = makeCradle(400, H);
+  return Math.ceil(4 * (m.r * 2 + 0.6) + 2 * (m.L * Math.sin(CRADLE_MAX) + m.r) + 8);
 }
 const ballPos = (m, b) => ({ x: b.ax + Math.sin(b.a) * m.L, y: m.top + Math.cos(b.a) * m.L });
 /* Взять можно любой шарик и вести в любую сторону — он толкает все шарики до края в эту сторону, как в
@@ -88,7 +97,8 @@ export function cradleGroup(m, idx, dir) {
 }
 // держать шарик idx, оттянутый на dx по горизонтали: группа до края висит на одном угле
 export function holdCradle(m, idx, dx) {
-  const L = m.L; const d = Math.max(-L * 0.9, Math.min(L * 0.9, dx));
+  const L = m.L; const lim = L * Math.sin(CRADLE_MAX); const d = Math.max(-lim, Math.min(lim, dx));
+  m.lift = null;
   const { group } = cradleGroup(m, idx, d);
   const a = Math.asin(d / L);
   m.balls.forEach((b) => { b.drag = group.includes(b); if (b.drag) { b.a = a; b.w = 0; } });
@@ -98,11 +108,24 @@ export function holdCradle(m, idx, dx) {
    за полторы секунды. Теперь размах уменьшается вдвое примерно за 4–5 секунд: заметно качается
    секунд 15 и затихает за полминуты (и тогда анимация засыпает — батарею не тратит) */
 export const CRADLE_DAMP = 0.3;
+const easeOut = (x) => 1 - (1 - x) * (1 - x);
 function stepCradle(m, dt) {
   const sub = 8; const h = dt / sub; let hit = 0;
   const keep = Math.exp(-CRADLE_DAMP * h);
+  // верный ответ: крайний шарик плавно поднимается (а не перескакивает наверх), потом отпускается
+  if (m.lift) {
+    const b = m.balls[0]; m.lift.t += dt;
+    const k = Math.min(1, m.lift.t / CRADLE_LIFT.dur);
+    b.a = m.lift.from + (CRADLE_LIFT.to - m.lift.from) * easeOut(k); b.w = 0; b.drag = k < 1;
+    if (k >= 1) { b.drag = false; m.lift = null; }
+  }
   for (let s = 0; s < sub; s += 1) {
-    m.balls.forEach((b) => { if (b.drag) return; b.w += (-(980 / m.L) * Math.sin(b.a)) * h; b.w *= keep; b.a += b.w * h; });
+    m.balls.forEach((b) => {
+      if (b.drag) return;
+      b.w += (-(980 / m.L) * Math.sin(b.a)) * h; b.w *= keep; b.a += b.w * h;
+      // нить упёрлась в раму: дальше предела шарик не идёт, отскакивает мягко
+      if (Math.abs(b.a) > CRADLE_MAX) { b.a = Math.sign(b.a) * CRADLE_MAX; b.w = -b.w * 0.25; }
+    });
     // соседи касаются и сближаются — обмен скоростями (равные массы, упругий удар)
     for (let i = 0; i < m.balls.length - 1; i += 1) {
       const p = m.balls[i]; const q = m.balls[i + 1];
@@ -117,12 +140,15 @@ function stepCradle(m, dt) {
     }
   }
   m.clicks += hit;
-  return m.balls.reduce((e, b) => e + Math.abs(b.w) + Math.abs(b.a) * 4, 0);
+  return m.balls.reduce((e, b) => e + Math.abs(b.w) + Math.abs(b.a) * 4, 0) + (m.lift ? 1 : 0);
 }
-function drawCradle(ctx, m, col) {
-  const x0 = m.balls[0].ax - 16; const x1 = m.balls[4].ax + 16;
+function drawCradle(ctx, m, col, W, H) {
+  const stand = m.top > 10;
+  // на подставке — рама во всю ширину: перекладина и две стойки до основания
+  const x0 = stand ? 6 : m.balls[0].ax - 16; const x1 = stand ? W - 6 : m.balls[4].ax + 16;
   ctx.strokeStyle = col.ink; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(x0, m.top); ctx.lineTo(x1, m.top); ctx.stroke();
+  if (stand) { ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, m.top); ctx.lineTo(x0, H - 1); ctx.moveTo(x1, m.top); ctx.lineTo(x1, H - 1); ctx.stroke(); }
   ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
   m.balls.forEach((b) => { const p = ballPos(m, b); ctx.beginPath(); ctx.moveTo(b.ax, m.top); ctx.lineTo(p.x, p.y); ctx.stroke(); });
   ctx.globalAlpha = 1;
@@ -179,11 +205,13 @@ const DRAW = { bunting: drawBunting, cradle: drawCradle, mobile: drawMobile };
 // реакция на ответ урока
 export function kick(m, ok) {
   if (m.kind === 'bunting') { if (ok) m.wind = 1.4; else { m.sag = 1; m.pts.forEach((p, i) => { if (!p.pin) p.vy -= Math.sin(i) * 120; }); } }
-  if (m.kind === 'cradle') { const b = m.balls[0]; if (ok) { b.a = -0.75; b.w = 0; } else { m.balls.forEach((x) => { x.w += (Math.random() - 0.5) * 0.6; }); } }
+  if (m.kind === 'cradle') { if (ok) m.lift = { t: 0, from: m.balls[0].a }; else m.balls.forEach((x) => { x.w += (Math.random() - 0.5) * 0.6; }); }
   if (m.kind === 'mobile') m.coins.forEach((c, i) => { c.sv += ok ? 5 + (i % 3) : 1.2; c.glow = ok ? 1 : 0; c.w += ok ? 0.6 * (i % 2 ? 1 : -1) : 0.2; });
 }
 
-export function DeskDecor({ id, height = 56, preview = false, label = null }) {
+/* passThrough — вещица на подставке поверх урока: холст касаний не ловит, нажатие ловится на окне и берётся,
+   только если попало в шарик; мимо шарика — уходит уроку под подставкой (кнопки под ней нажимаются) */
+export function DeskDecor({ id, height = 56, preview = false, label = null, passThrough = false }) {
   const wrap = useRef(null);
   const canvas = useRef(null);
   const reduced = useReducedMotion();
@@ -200,7 +228,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null }) {
     const col = { ink: css(el, '--ds-ink2', '#5b4a3a') };
     let raf = 0; let last = 0; let calm = 0; let drag = null; let awake = null;
     const mark = (v) => { if (awake !== v) { awake = v; el.dataset.awake = String(v); } };
-    const draw = () => { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H); DRAW[m.kind](ctx, m, col); };
+    const draw = () => { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H); DRAW[m.kind](ctx, m, col, W, H); };
     const frame = (ts) => {
       const dt = Math.min(1 / 30, last ? (ts - last) / 1000 : 1 / 60); last = ts; m.t += dt;
       const energy = STEP[m.kind](m, dt, H);
@@ -226,16 +254,22 @@ export function DeskDecor({ id, height = 56, preview = false, label = null }) {
       const c = m.coins.find((x) => Math.hypot(x.ax + Math.sin(x.a) * x.L - p.x, m.top + Math.cos(x.a) * x.L + 9 - p.y) < 20);
       return c && { kind: 'coin', c, x0: p.x };
     };
+    let swallow = false;
     const down = (e) => {
       if (reduced) return;
-      const p = local(e); const g = pick(p);
+      const p = local(e);
+      if (passThrough && (p.x < 0 || p.y < 0 || p.x > W || p.y > H)) return;
+      const g = pick(p);
       if (!g) return;
+      // взяли шарик на подставке: урок под ней этого нажатия не получает (ни нажатия, ни щелчка после)
+      if (passThrough) { e.stopPropagation(); swallow = true; }
       drag = g; el.dataset.drag = 'true';
       if (g.kind === 'pt') g.q.drag = true;
       if (g.kind === 'coin') { g.c.sv += 3.5; g.c.glow = 0.6; }
-      try { cv.setPointerCapture(e.pointerId); } catch { /* указатель уже отпущен */ }
+      if (!passThrough) { try { cv.setPointerCapture(e.pointerId); } catch { /* указатель уже отпущен */ } }
       e.preventDefault(); wake();
     };
+    const eatClick = (e) => { if (swallow) { swallow = false; e.stopPropagation(); e.preventDefault(); } };
     const move = (e) => {
       if (!drag) return;
       const p = local(e);
@@ -260,25 +294,79 @@ export function DeskDecor({ id, height = 56, preview = false, label = null }) {
       drag = null; el.dataset.drag = 'false'; wake();
     };
     const onAnswer = (e) => { if (preview || reduced) return; kick(m, !!(e.detail && e.detail.ok)); wake(); };
-    cv.addEventListener('pointerdown', down);
-    cv.addEventListener('pointermove', move);
-    cv.addEventListener('pointerup', up);
-    cv.addEventListener('pointercancel', up);
+    // на подставке — слушаем окно (холст прозрачен для касаний), иначе — сам холст
+    const tgt = passThrough ? window : cv; const opt = passThrough ? { capture: true } : undefined;
+    tgt.addEventListener('pointerdown', down, opt);
+    tgt.addEventListener('pointermove', move, opt);
+    tgt.addEventListener('pointerup', up, opt);
+    tgt.addEventListener('pointercancel', up, opt);
+    if (passThrough) window.addEventListener('click', eatClick, true);
     window.addEventListener(ANSWER_EVENT, onAnswer);
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { const w = el.clientWidth; if (Math.abs(w - W) > 2) { size(); m = MAKE[id](W, H); if (reduced) { for (let k = 0; k < 240; k += 1) STEP[m.kind](m, 1 / 60, H); draw(); } else wake(); } }) : null;
     if (ro) ro.observe(el);
     return () => {
       if (raf) cancelAnimationFrame(raf);
-      cv.removeEventListener('pointerdown', down); cv.removeEventListener('pointermove', move); cv.removeEventListener('pointerup', up); cv.removeEventListener('pointercancel', up);
+      tgt.removeEventListener('pointerdown', down, opt); tgt.removeEventListener('pointermove', move, opt); tgt.removeEventListener('pointerup', up, opt); tgt.removeEventListener('pointercancel', up, opt);
+      if (passThrough) window.removeEventListener('click', eatClick, true);
       window.removeEventListener(ANSWER_EVENT, onAnswer);
       if (ro) ro.disconnect();
     };
-  }, [id, height, preview, reduced]);
+  }, [id, height, preview, reduced, passThrough]);
   if (!MAKE[id]) return null;
   return (
     <div ref={wrap} className={`ln-decor${preview ? ' preview' : ''}`} data-testid={preview ? 'decor-preview' : 'lesson-decor'} data-decor={id} data-awake="false"
-      role="img" aria-label={label || 'Украшение урока — его можно потрогать'} style={{ height, position: 'relative', touchAction: 'none', userSelect: 'none' }}>
-      <canvas ref={canvas} style={{ display: 'block', cursor: reduced ? 'default' : 'grab' }} />
+      role="img" aria-label={label || 'Украшение урока — его можно потрогать'} style={{ height, position: 'relative', touchAction: passThrough ? undefined : 'none', userSelect: 'none', pointerEvents: passThrough ? 'none' : undefined }}>
+      <canvas ref={canvas} style={{ display: 'block', cursor: reduced ? 'default' : 'grab', pointerEvents: passThrough ? 'none' : undefined }} />
     </div>
   );
 }
+
+/* КОЛЫБЕЛЬ НА ПОДСТАВКЕ (docs/mechanics.md, «Украшения урока»): не полоса над заданием, а подставка сбоку —
+   урок не сдвигается. На ПК — справа от колонки урока, на телефоне — в правом нижнем углу над нижней
+   панелью; перетаскивается за ручку сверху, место помнит устройство, при смене окна остаётся на экране. */
+export const CRADLE_POS_KEY = 'ems-cradle-pos';
+const PAD = 8; const GRIP = 18;
+const standSize = (vw) => { const H = vw < 640 ? 120 : 170; const W = cradleWidth(H); return { H, W, w: W + PAD * 2, h: H + GRIP + PAD + 6 }; };
+export function clampStand(p, size, vw, vh) {
+  return { x: Math.round(Math.max(4, Math.min(vw - size.w - 4, p.x))), y: Math.round(Math.max(4, Math.min(vh - size.h - 4, p.y))) };
+}
+export function defaultStand(size, vw, vh) {
+  // ПК: справа от колонки урока (≈ 600 px по центру); телефон: справа внизу, над нижней панелью урока
+  if (vw >= 900) return clampStand({ x: Math.min(vw - size.w - 16, vw / 2 + 330), y: vh / 2 - size.h / 2 }, size, vw, vh);
+  return clampStand({ x: vw - size.w - 10, y: vh - size.h - 110 }, size, vw, vh);
+}
+const readPos = () => { try { const p = JSON.parse(localStorage.getItem(CRADLE_POS_KEY) || 'null'); return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null; } catch { return null; } };
+export function CradleStand({ id }) {
+  const view = () => ({ vw: typeof window === 'undefined' ? 1024 : window.innerWidth, vh: typeof window === 'undefined' ? 768 : window.innerHeight });
+  const [vp, setVp] = React.useState(view);
+  const size = standSize(vp.vw);
+  const [pos, setPos] = React.useState(() => { const v = view(); const sz = standSize(v.vw); const saved = readPos(); return saved ? clampStand(saved, sz, v.vw, v.vh) : defaultStand(sz, v.vw, v.vh); });
+  const drag = useRef(null);
+  useEffect(() => {
+    const on = () => { const v = view(); setVp(v); setPos((p) => clampStand(p, standSize(v.vw), v.vw, v.vh)); };
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  const down = (e) => { drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* уже отпущен */ } e.preventDefault(); };
+  const move = (e) => { if (!drag.current) return; setPos(clampStand({ x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy }, size, vp.vw, vp.vh)); };
+  const up = () => { if (!drag.current) return; drag.current = null; setPos((p) => { try { localStorage.setItem(CRADLE_POS_KEY, JSON.stringify(p)); } catch { /* приватный режим */ } return p; }); };
+  return (
+    <div className="ln-cradle-stand" data-testid="cradle-stand" style={{ left: pos.x, top: pos.y, width: size.w }}>
+      <div className="ln-cradle-grip" role="button" tabIndex={-1} aria-label="Передвинуть колыбель" title="Перетащите, чтобы передвинуть" data-testid="cradle-grip"
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><i /></div>
+      <div style={{ width: size.W }}><DeskDecor id={id} height={size.H} passThrough /></div>
+      <div className="ln-cradle-base" aria-hidden="true" />
+    </div>
+  );
+}
+export const CRADLE_CSS = `
+  /* подставка касаний не ловит — только ручка и шарики (DeskDecor passThrough): кнопки урока под ней нажимаются */
+  .ln-cradle-stand { position: fixed; z-index: 3; padding: 0 ${PAD}px ${PAD}px; border-radius: 14px; pointer-events: none; user-select: none; -webkit-user-select: none;
+    background: color-mix(in srgb, var(--ds-card) 82%, transparent); border: 1px solid var(--ds-rule2); box-shadow: 0 8px 22px rgba(40, 25, 10, .18); }
+  .ln-cradle-grip { height: ${GRIP}px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; pointer-events: auto; }
+  .ln-cradle-grip:active { cursor: grabbing; }
+  .ln-cradle-grip i { width: 34px; height: 4px; border-radius: 2px; background: var(--ds-rule2); }
+  .ln-cradle-base { height: 6px; margin: 0 2px; border-radius: 3px; background: linear-gradient(#9A7650, #6B4F30); }
+  /* панель ответа и нижняя панель урока — над подставкой */
+  .ln-overlay > .ln-foot { position: relative; z-index: 4; }
+`;

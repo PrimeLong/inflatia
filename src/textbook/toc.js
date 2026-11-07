@@ -42,8 +42,12 @@ export const PARTS = [
           { book: 'mankiwPrinciples', chapter: '«Эластичность и её применение» (Elasticity and Its Application)' },
           { book: 'varian', chapter: '«Рыночный спрос» (Market Demand)' },
         ] },
-      { id: 'production', title: 'Производство: производственная функция', status: 'planned',
-        summary: 'Факторы производства, средний и предельный продукт, убывающая отдача, изокванты, отдача от масштаба.' },
+      { id: 'production', title: 'Производство: производственная функция', status: 'ready',
+        summary: 'Факторы производства, средний и предельный продукт, убывающая отдача, изокванты, отдача от масштаба, выбор сочетания труда и капитала.',
+        refs: [
+          { book: 'mankiwPrinciples', chapter: '«Издержки производства» (The Costs of Production): раздел о производственной функции' },
+          { book: 'varian', chapter: '«Технология» (Technology) и «Максимизация прибыли» (Profit Maximization)' },
+        ] },
       { id: 'costs', title: 'Издержки и прибыль', status: 'ready',
         summary: 'Постоянные и переменные издержки, средние и предельные, бухгалтерская и экономическая прибыль, короткий и длинный период.',
         refs: [

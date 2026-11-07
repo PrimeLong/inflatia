@@ -9,6 +9,15 @@ const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const strip = (html = '') => String(html).replace(/<[^>]+>/g, '')
   .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e) => (e[0] === '#' ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENT[e.toLowerCase()] ?? m))
   .replace(/\s+/g, ' ').trim();
+/* подпись автора: один раз и по-русски. Шаблон Commons {{Unknown|author}} даёт видимый текст и скрытую копию —
+   после снятия тегов выходило «Unknown author Unknown author» (жалоба про Кларка). */
+export function cleanAuthor(raw = '') {
+  // теги — пробелом: соседние <span> без пробела слипались в «authorUnknown»
+  let t = strip(String(raw || '').replace(/<[^>]+>/g, ' '));
+  t = t.replace(/^(.+?)(?:[\s,;·]+\1)+$/u, '$1');
+  t = t.replace(/^(?:unknown author|author unknown|unknown|anonymous)(?![a-z])/i, 'автор неизвестен');
+  return t;
+}
 // имя файла Commons из ссылки на картинку (в том числе на уменьшенную копию …/thumb/a/ab/Имя.jpg/320px-Имя.jpg)
 export function commonsFile(url) {
   try {
@@ -27,5 +36,5 @@ export function photoFromCommons(info) {
   if (!isFreeLicense(license)) return null;
   const src = info.thumburl || info.url;
   if (!src || !String(src).startsWith('https://upload.wikimedia.org/')) return null;
-  return { file: src, author: strip((meta.Artist || {}).value) || 'автор неизвестен', license, source: info.descriptionurl || '' };
+  return { file: src, author: cleanAuthor((meta.Artist || {}).value) || 'автор неизвестен', license, source: info.descriptionurl || '' };
 }

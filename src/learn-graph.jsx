@@ -17,7 +17,7 @@ import { finishLesson, markGraph } from './textbook/learn-state.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { textBox, dotBox, aroundPoint, placeLabels, freeTicks } from './learn/label-place.js';
 
-const CSS = `
+export const GRAPH_CSS = `
   /* слой 310: над уроком (300), но под шторками (320) — «Сообщить об ошибке» открывается поверх */
   .gl { --g-blue: #2459A6; --g-rust: #B4441A; --g-teal: #0E7A72; --g-gold: #9A6A00; --g-grid: color-mix(in srgb, var(--ds-ink) 9%, transparent);
     position: fixed; inset: 0; z-index: 310; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -90,7 +90,7 @@ const CSS = `
 // **жирное** в тексте шага
 const rich = (t) => String(t).split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : <React.Fragment key={i}>{p}</React.Fragment>));
 const KCOLOR = { blue: 'var(--g-blue)', rust: 'var(--g-rust)', teal: 'var(--g-teal)', gold: 'var(--g-gold)' };
-const W = 360; const H = 290; const M = { l: 42, r: 16, t: 14, b: 34 };
+export const W = 360; export const H = 290; export const M = { l: 42, r: 16, t: 14, b: 34 };
 function ticks(lo, hi, n = 4) {
   const span = hi - lo; const raw = span / n; const pow = Math.pow(10, Math.floor(Math.log10(raw)));
   const step = [1, 2, 2.5, 5, 10].map((k) => k * pow).find((x) => x >= raw) || 10 * pow;
@@ -121,12 +121,16 @@ function useTweenValues(target, reduced) {
   return cur;
 }
 
-export function GraphStage({ g, k }) {
+/* «Нарисуй сам» (src/learn-draw.jsx) рисует на той же сцене: live — ползунки, которые ученик тянет прямо
+   сейчас (без плавного перехода — линия идёт за пальцем), alsoShow и alsoHide — что видно и что спрятано,
+   пока шаг решают (бледная прежняя линия; прежнее равновесие, чтобы оно не подсказало ответ) */
+export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null }) {
   const reduced = useReducedMotion();
   const def = CHARTS[g.chart];
-  const view = stepView(g, k);
+  const view0 = stepView(g, k);
+  const view = alsoShow || alsoHide ? { ...view0, shown: new Set([...view0.shown, ...(alsoShow || [])].filter((id) => !(alsoHide || []).includes(id))) } : view0;
   const defaults = useMemo(() => Object.fromEntries((def.controls ? def.controls(g.attrs) : []).map((c) => [c.id, c.def])), [def, g.attrs]);
-  const vals = useTweenValues({ ...defaults, ...view.values }, reduced);
+  const vals = useTweenValues({ ...defaults, ...view.values, ...live }, reduced || !!live);
   const scene = sceneInCrowns(def.build(g.attrs, vals));
   const [x0, x1] = scene.xDomain; const [y0, y1] = scene.yDomain;
   const sx = (x) => M.l + ((x - x0) / (x1 - x0)) * (W - M.l - M.r);
@@ -333,7 +337,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const back = () => { Audio.play('paper'); if (phase === 'quiz') { setPhase('tour'); return; } if (k > 0) setK(k - 1); };
   const body = (
     <div className="gl" ref={root} role="dialog" aria-label={`Разбор графика: ${g.title}`} data-testid="graph-lesson" data-id={id} data-phase={phase}>
-      <style>{CSS}</style>
+      <style>{GRAPH_CSS}</style>
       <div className="gl-head">
       <div className="gl-top">
         <IconButton label="Закрыть" icon={X} data-testid="graph-close" onClick={() => { Audio.play('paper'); onClose(); }} />

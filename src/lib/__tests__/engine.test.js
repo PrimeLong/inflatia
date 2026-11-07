@@ -2518,7 +2518,7 @@ describe('общество: социальные группы', () => {
     expect(groupTurnoutShift({ groupSupport: { ...all(50), youth: 20 } })).toBeGreaterThan(-1);
   });
 
-  it('область голосует как те, кто в ней живёт: без рабочих Кузнецк отстаёт от страны', () => {
+  it('область голосует как те, кто в ней живёт: без рабочих Литейск отстаёт от страны', () => {
     const e = base({ groupSupport: { ...all(55), workers: 20 } });
     const shares = regionVoteShares(e, 55, false);
     const industry = shares.find((r) => r.id === 'industry').share;

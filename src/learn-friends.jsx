@@ -13,7 +13,7 @@ import { Audio } from './MacroSimulator.jsx';
 import { loadAccount, emblemIcon } from './account.jsx';
 import { LeagueBadge } from './learn-league.jsx';
 import { friendsApi } from './lib/friends-store.js';
-import { ACHIEVEMENTS, coinsWord, plural } from './learn/rewards.js';
+import { ACHIEVEMENTS, coinsWord, plural, indexed } from './learn/rewards.js';
 import { LEAGUE_BY_ID } from './learn/league.js';
 import { dayOf, addDays } from './textbook/learn-state.js';
 import { eventText, EVENT_ICON, friendFeed, seenText, lastSeenDays, friendStreak, raceable, raceReadyIn, raceView, raceCoins, raceClaimed, claimRace, levelTitle, raceRest, raceRestText, RACE } from './learn/friends.js';
@@ -75,10 +75,21 @@ export const FRIENDS_CSS = `
   .fr-race-ico { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--ds-bad) 14%, var(--ds-card)); color: var(--ds-bad); }
   .fr-race-ico svg { transform-origin: 17% 50%; animation: fr-flutter 3.6s ease-in-out infinite; }
   .fr-race-res { font: 700 22px/1.2 var(--ds-head); text-align: center; margin: 4px 0; animation: fr-pop .5s cubic-bezier(.3,1.5,.5,1) both; }
-  .fr-offer { position: relative; overflow: hidden; text-align: left; margin-top: 14px; border: 2px solid color-mix(in srgb, var(--ds-bad) 40%, var(--ds-rule2)); animation: fr-pop .5s cubic-bezier(.3,1.4,.5,1) .3s both; }
-  .fr-dash { position: relative; height: 64px; margin: 4px -16px 6px; overflow: hidden; background: linear-gradient(180deg, transparent 0 70%, color-mix(in srgb, var(--u) 12%, var(--ds-card)) 70%); }
-  .fr-dash > span { position: absolute; bottom: 4px; animation: fr-dash 3.2s linear infinite; }
-  .fr-dash > span:nth-child(2) { animation-duration: 3.6s; animation-delay: -.8s; }
+  /* «Забег с другом?» после урока — компактно: слева две Инфли у флажка, справа вопрос и приз */
+  .fr-offer { position: relative; text-align: left; margin-top: 14px; border: 2px solid color-mix(in srgb, var(--u) 45%, var(--ds-rule2)); animation: fr-in .45s ease-out .3s both; }
+  .fr-offer-top { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; }
+  .fr-offer-art { position: relative; height: 72px; border-radius: 14px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--u) 8%, var(--ds-card)) 0 74%, color-mix(in srgb, var(--u) 22%, var(--ds-card)) 74%); }
+  .fr-offer-art > span { position: absolute; bottom: 8px; animation: fr-run .9s ease-in-out infinite; }
+  .fr-offer-art > span:nth-child(1) { left: 6px; }
+  .fr-offer-art > span:nth-child(2) { left: 34px; animation-delay: -.45s; }
+  .fr-offer-art > i { position: absolute; right: 6px; bottom: 16px; color: var(--ds-bad); font-style: normal; }
+  .fr-offer-art > i svg { transform-origin: 17% 50%; animation: fr-flutter 3.6s ease-in-out infinite; }
+  .fr-offer-title { font: 700 16.5px/1.3 var(--ds-sans); margin-top: 2px; }
+  .fr-offer-who { display: flex; align-items: center; gap: 8px; margin: 10px 0 12px; font: 600 14.5px var(--ds-sans); }
+  .fr-offer-who small { font: 500 13.5px var(--ds-sans); color: var(--ds-ink3); }
+  .fr-offer-acts { display: flex; gap: 8px; align-items: center; }
+  .fr-offer-acts > :first-child { flex: 1 1 auto; min-width: 0; }
+  .fr-offer-acts > :last-child { flex: none; white-space: nowrap; }
   .fr-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 10px; }
   .fr-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink); font: 700 14px var(--ds-sans); cursor: pointer; transition: transform .15s; }
   .fr-chip[aria-pressed="true"] { border-color: var(--u); background: color-mix(in srgb, var(--u) 10%, var(--ds-card)); transform: scale(1.04); }
@@ -87,8 +98,7 @@ export const FRIENDS_CSS = `
   @keyframes fr-run { 0%, 100% { transform: translateY(0) rotate(3deg) } 50% { transform: translateY(-2.5px) rotate(3deg) } }
   /* флажок колышется полотнищем, древко стоит: перекос и сжатие от древка */
   @keyframes fr-flutter { 0%, 100% { transform: none } 50% { transform: skewY(-5deg) scaleX(.93) } }
-  @keyframes fr-dash { from { left: -60px } to { left: 105% } }
-  @media (prefers-reduced-motion: reduce) { .fr-row, .fr-tile, .fr-seal, .fr-ev, .fr-hero .fr-big, .fr-runner .fr-run, .fr-goal, .fr-race-ico svg, .fr-race-res, .fr-offer, .fr-dash > span { animation: none !important; } .fr-runner, .fr-fill { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .fr-row, .fr-tile, .fr-seal, .fr-ev, .fr-hero .fr-big, .fr-runner .fr-run, .fr-goal, .fr-race-ico svg, .fr-race-res, .fr-offer, .fr-offer-art > span, .fr-offer-art > i svg { animation: none !important; } .fr-runner, .fr-fill { transition: none; } }
 `;
 
 const EV_ICON = { landmark: Landmark, fire: Flame, stamp: Stamp, calendar: CalendarDays, trophy: Trophy, flag: Flag };
@@ -265,7 +275,7 @@ export function RaceCard({ v, learn, update, myWear, compact = false }) {
       {(v.status === 'incoming' || v.status === 'outgoing') && (
         <div className="fr-race-facts">
           <span>{RACE.days} дня, кто больше опыта</span>
-          <span>победа: {RACE.win} монет</span>
+          <span>победа: {indexed(RACE.win)} монет</span>
           <span>ответ: ещё {v.hoursLeft} ч</span>
         </div>
       )}
@@ -299,8 +309,9 @@ export function racesToShow(data, learn, now = Date.now()) {
     .filter((v) => ['incoming', 'outgoing', 'active'].includes(v.status) || (v.status === 'finished' && !raceClaimed(learn, v) && raceCoins(v) > 0 && dayOf(now) <= addDays(v.end, 7)));
 }
 
-/* После урока, иногда: «Забег с другом?» — две Инфли пробегают по дорожке, выбрать друга (из тех,
-   кто был в сети за неделю) и позвать. Сутки у друга на ответ. */
+/* После урока, иногда: «Забег с другом?» — компактная карточка: две Инфли у флажка, вопрос и приз, с кем
+   (один друг — строкой, несколько — фишками) и «Позвать на забег» / «Не сейчас». Звать можно тех, кто был
+   в сети за неделю; сутки у друга на ответ. */
 export function RaceOffer({ friends, onDone }) {
   const [pick, setPick] = useState(friends[0] ? friends[0].login : null);
   const [state, setState] = useState(null);
@@ -311,27 +322,36 @@ export function RaceOffer({ friends, onDone }) {
   const f = friends.find((x) => x.login === pick);
   return (
     <Card className="fr-offer" data-testid="race-offer">
-      <div className="fr-dash" aria-hidden="true">
-        <span><Mascot mood="joy" size={46} /></span>
-        <span><Mascot mood="joy" size={46} outfit={wearOf(f)} /></span>
-      </div>
-      <div className="ds-eyebrow">Забег с другом</div>
-      {state === 'sent' ? (
-        <div style={{ fontSize: 15, marginTop: 4 }} data-testid="race-offer-sent"><b>Приглашение ушло.</b> У {f ? f.name : 'друга'} сутки, чтобы принять. Забег — на Пути, когда начнётся.</div>
-      ) : (<>
-        <div style={{ fontWeight: 700, fontSize: 17, marginTop: 2 }}>Кто за три дня наберёт больше опыта?</div>
-        <div className="ds-sub" style={{ fontSize: 14 }}>Победителю — {RACE.win} монет и печать «Забег».</div>
-        <div className="fr-chips" role="group" aria-label="С кем бежать">
-          {friends.map((x) => (
-            <button key={x.login} type="button" className="fr-chip" aria-pressed={pick === x.login} onClick={() => { Audio.play('tick'); setPick(x.login); }}>
-              <Mascot mood="hello" size={28} outfit={wearOf(x)} />{x.name}
-            </button>
-          ))}
+      <div className="fr-offer-top">
+        <div className="fr-offer-art" aria-hidden="true" data-testid="race-offer-art">
+          <span><Mascot mood="joy" size={40} /></span>
+          <span><Mascot mood="joy" size={40} outfit={wearOf(f)} /></span>
+          <i><Flag size={22} strokeWidth={2.4} /></i>
         </div>
+        <div>
+          <div className="ds-eyebrow">Забег с другом</div>
+          <div className="fr-offer-title">Кто за три дня наберёт больше опыта?</div>
+          <div className="ds-sub" style={{ fontSize: 13.5, marginTop: 2 }}>Победителю — {indexed(RACE.win)} монет и печать «Забег».</div>
+        </div>
+      </div>
+      {state === 'sent' ? (
+        <div style={{ fontSize: 15, marginTop: 10 }} data-testid="race-offer-sent"><b>Приглашение ушло.</b> У {f ? f.name : 'друга'} сутки, чтобы принять. Забег — на Пути, когда начнётся.</div>
+      ) : (<>
+        {friends.length === 1 ? (
+          <div className="fr-offer-who" data-testid="race-offer-who"><Mascot mood="hello" size={28} outfit={wearOf(f)} /><span>{f.name} <small>· {seenText(f)}</small></span></div>
+        ) : (
+          <div className="fr-chips" role="group" aria-label="С кем бежать">
+            {friends.map((x) => (
+              <button key={x.login} type="button" className="fr-chip" aria-pressed={pick === x.login} onClick={() => { Audio.play('tick'); setPick(x.login); }}>
+                <Mascot mood="hello" size={28} outfit={wearOf(x)} />{x.name}
+              </button>
+            ))}
+          </div>
+        )}
         {state && state !== 'busy' && <div role="alert" style={{ color: 'var(--ds-bad)', fontSize: 14, marginBottom: 6 }}>{state}</div>}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button small wide disabled={!pick || state === 'busy'} data-testid="race-invite" onClick={send}>Позвать на забег</Button>
-          <Button small variant="ghost" onClick={() => { Audio.play('paper'); onDone(); }}>Не сейчас</Button>
+        <div className="fr-offer-acts">
+          <Button small disabled={!pick || state === 'busy'} data-testid="race-invite" onClick={send}>Позвать на забег</Button>
+          <Button small variant="ghost" data-testid="race-offer-later" onClick={() => { Audio.play('paper'); onDone(); }}>Не сейчас</Button>
         </div>
       </>)}
     </Card>

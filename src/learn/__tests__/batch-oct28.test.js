@@ -162,8 +162,11 @@ describe('«Пыльная витрина» в лавке (src/learn/dust.js)', 
     const pts = stampsAlong(0, 0, 30, 0, 9);
     expect(pts.length).toBe(10);
     expect(pts[pts.length - 1]).toEqual([30, 0]);
-    expect(shownPercent(DUST.clean)).toBe(100);
-    expect(shownPercent(0.45)).toBe(50);
+    // честный процент: 90% — это 90%, 100% — только всё стекло (пункт 1 от 06.11: дотереть до 100% по желанию)
+    expect(shownPercent(DUST.clean)).toBe(90);
+    expect(shownPercent(0.45)).toBe(45);
+    expect(shownPercent(0.998)).toBe(99);
+    expect(shownPercent(1)).toBe(100);
   });
   it('ключи витрин хранятся отдельно и не вытесняют награды за уроки', async () => {
     const { normalizeLearn, emptyLearn } = await import('../../textbook/learn-state.js');

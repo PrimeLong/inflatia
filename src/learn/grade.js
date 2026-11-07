@@ -14,10 +14,11 @@ import { LEVELS } from '../textbook/levels.js';
 import { PEOPLE_BY_UNIT } from './people.js';
 import { READING_BY_UNIT } from './reading.js';
 import { GRAPH_BY_UNIT } from './graphs.js';
+import { DRAWS } from './draws.js';
 import { emptyLearn } from '../textbook/learn-state.js';
 
 export const KNOW = { lesson: 1, perfect: 1, diamond: 1, extra: 1, unit: 3 };
-const EXTRA_IDS = { met: Object.values(PEOPLE_BY_UNIT).map((x) => x.id), read: Object.values(READING_BY_UNIT).map((x) => x.id), graphs: Object.values(GRAPH_BY_UNIT).map((x) => x.id) };
+const EXTRA_IDS = { met: Object.values(PEOPLE_BY_UNIT).map((x) => x.id), read: Object.values(READING_BY_UNIT).map((x) => x.id), graphs: Object.values(GRAPH_BY_UNIT).map((x) => x.id), draws: DRAWS.map((x) => x.id) };
 
 export function courseLevel(learn) {
   const units = pathState(learn);

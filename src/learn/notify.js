@@ -9,7 +9,7 @@
 import { streak, goalToday, dayOf, addDays, dayAt } from '../textbook/learn-state.js';
 import { leagueState, pendingRewards, standings, LEAGUE_BY_ID, LESSON_XP } from './league.js';
 import { gardenPlots, growth, PLANT_BY_ID } from './garden.js';
-import { piggyState, monthChallenge, hasClaim, chestKey, coinsWord, plural } from './rewards.js';
+import { piggyState, monthChallenge, hasClaim, chestKey, coinsWord, plural, OUTFIT_BY_ID } from './rewards.js';
 import { pathState, practiceIds, unitTitle } from './course.js';
 import { placeOf } from '../ds-tokens.js';
 import { NEWS, newsForLearner, learnerSince } from './news.js';
@@ -72,6 +72,27 @@ export function markToasted(id, now = Date.now()) {
   const t = { ...readToasted(), [id]: now };
   store.set('ems-notify-toasted', Object.fromEntries(Object.entries(t).sort((a, b) => b[1] - a[1]).slice(0, 200)));
 }
+/* «Ранее» (docs/mechanics.md, «Уведомления»): последние EARLIER_MAX прочитанных — свежее сверху. Прочитанное
+   запоминается снимком (ems-notify-history, до 30), поэтому в «Ранее» остаётся и то, чего в расчёте уже нет. */
+export const EARLIER_MAX = 3;
+const HISTORY_KEY = 'ems-notify-history';
+export const readHistory = () => { const v = store.get(HISTORY_KEY, []); return Array.isArray(v) ? v.filter((n) => n && n.id && Number.isFinite(n.at)) : []; };
+export function rememberNotes(notes) {
+  if (!notes.length) return readHistory();
+  const by = new Map(readHistory().map((n) => [n.id, n]));
+  notes.forEach((n) => { const { id, kind, icon, tone, title, text, at, go, chapter, login } = n; by.set(id, { id, kind, icon, tone, title, text, at, go, chapter, login }); });
+  const keep = [...by.values()].sort((a, b) => b.at - a.at).slice(0, 30);
+  store.set(HISTORY_KEY, keep);
+  return keep;
+}
+// list — уведомления сейчас, history — снимки прочитанного, seen — прочитанные id, skip — id, которых в «Ранее» нет
+// (новые на экране и смахнутые)
+export function earlierOf(list, history, seen, skip = {}, max = EARLIER_MAX) {
+  const by = new Map(history.map((n) => [n.id, n]));
+  list.forEach((n) => { if (seen[n.id] || by.has(n.id)) by.set(n.id, n); });
+  return [...by.values()].filter((n) => !skip[n.id] && (seen[n.id] || history.some((h) => h.id === n.id)))
+    .sort((a, b) => b.at - a.at).slice(0, max);
+}
 export const readPushed = () => store.get('ems-notify-pushed', {});
 export function markPushed(id, now = Date.now()) {
   const p = { ...readPushed(), [id]: now };
@@ -79,6 +100,15 @@ export function markPushed(id, now = Date.now()) {
 }
 
 const place = (n) => `${n}-е место`;
+// «подсолнух», «подсолнух и мята», «подсолнух, мята и тыква», «подсолнух, мята и ещё 2»; одинаковые — «мята ×2»
+export function plantList(names) {
+  const n = new Map(); names.forEach((x) => n.set(x, (n.get(x) || 0) + 1));
+  const u = [...n].map(([x, k]) => (k > 1 ? `${x} ×${k}` : x));
+  if (u.length <= 1) return u.join('');
+  if (u.length <= 3) return `${u.slice(0, -1).join(', ')} и ${u[u.length - 1]}`;
+  return `${u.slice(0, 2).join(', ')} и ещё ${u.length - 2}`;
+}
+const capital = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
 /* Уведомления к моменту now. opts.since — первый день ученика (новости до него не «новые»),
    opts.prefs — включённые виды. Каждое: id (одно и то же событие — один id), kind (вид для
@@ -92,6 +122,16 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
   const at = (key, h) => Math.min(now, dayAt(key, h));
   const hour = new Date(now).getHours();
   const out = [];
+  /* списание монет дюпа (src/learn/audit.js): честно и один раз — сколько списано и что вернулось в лавку;
+     всплывает плашкой и не отключается в настройках, как и «Смените ник» */
+  const fine = (learn.fines || {})['dupe-2026-11'];
+  if (fine && fine.coins > 0) {
+    const names = Object.keys(fine.items || {}).map((id) => (OUTFIT_BY_ID[id] ? `«${OUTFIT_BY_ID[id].title}»` : null)).filter(Boolean);
+    out.push({ id: 'fine:dupe-2026-11', kind: 'path', icon: 'shield-alert', tone: '#B8423A', at: Math.min(now, fine.at), go: 'shop', toast: true,
+      title: 'Исправили ошибку с монетами',
+      text: `Из-за ошибки бонусы серии выплачивались снова и снова. Лишние ${fine.coins} ${coinsWord(fine.coins)} списаны.`
+        + (names.length ? ` Купленное на них вернулось в лавку: ${names.join(', ')} — ${fine.refund} ${coinsWord(fine.refund)} снова в кошельке.` : '') });
+  }
   const add = (n) => { if (prefs[n.kind] !== false) out.push(n); };
   const started = Object.keys(learn.done || {}).length > 0 || Object.keys(learn.lessons || {}).length > 0;
 
@@ -162,17 +202,22 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
     }
   }
 
-  // сад: созрело или нужна вода
-  gardenPlots(learn).plots.filter(Boolean).forEach((pl) => {
-    const gr = growth(pl, now); const p = PLANT_BY_ID[pl.plant];
-    if (gr.ripe) {
-      add({ id: `ripe:${pl.at}`, kind: 'garden', icon: 'sprout', tone: '#4D7C0F', at: Math.min(now, gr.ripeAt || now), go: 'garden', toast: true, push: true,
-        title: `Созрело: ${p.title.toLowerCase()}`, text: 'Соберите урожай в саду — продайте или оставьте в гербарии.' });
-    } else if (gr.water && gr.water.dry) {
-      add({ id: `dry:${pl.at}:${dayOf(now)}`, kind: 'garden', icon: 'droplet', tone: '#2E5F8A', at: now - 30 * 60 * 1000, go: 'garden', push: true,
-        title: 'Грядке нужна вода', text: `${p.title} не растёт, пока землю не польют.` });
-    }
-  });
+  /* сад: созрело или нужна вода — одно уведомление на все грядки (раньше каждая грядка присылала своё «нужно
+     полить»: посадил шесть — шесть одинаковых). Созрело ещё — id меняется, уведомление всплывает снова;
+     «нужна вода» — одно в день, полили часть — в тексте остаются остальные */
+  const beds = gardenPlots(learn).plots.filter(Boolean).map((pl) => ({ pl, gr: growth(pl, now), p: PLANT_BY_ID[pl.plant] })).filter((b) => b.p);
+  const ripe = beds.filter((b) => b.gr.ripe); const dry = beds.filter((b) => !b.gr.ripe && b.gr.water && b.gr.water.dry);
+  if (ripe.length) {
+    add({ id: ripe.length === 1 ? `ripe:${ripe[0].pl.at}` : `ripe:${ripe.map((b) => b.pl.at).sort((x, y) => x - y).join('+')}`, kind: 'garden', icon: 'sprout', tone: '#4D7C0F',
+      at: Math.min(now, Math.max(...ripe.map((b) => b.gr.ripeAt || now))), go: 'garden', toast: true, push: true,
+      title: `Созрело: ${plantList(ripe.map((b) => b.p.title.toLowerCase()))}`,
+      text: ripe.length === 1 ? 'Соберите урожай в саду — продайте или оставьте в гербарии.' : 'Соберите урожай в саду — продайте или оставьте в гербарии. Грядки освободятся для новых посадок.' });
+  }
+  if (dry.length) {
+    add({ id: `dry:${dayOf(now)}`, kind: 'garden', icon: 'droplet', tone: '#2E5F8A', at: now - 30 * 60 * 1000, go: 'garden', push: true,
+      title: dry.length === 1 ? 'Грядке нужна вода' : 'Грядкам нужна вода',
+      text: dry.length === 1 ? `${dry[0].p.title} не растёт, пока землю не польют.` : `${capital(plantList(dry.map((b) => b.p.title.toLowerCase())))} — не растут, пока землю не польют.` });
+  }
   const pig = piggyState(learn, now);
   if (pig && pig.ripe) {
     add({ id: `piggy:${pig.at}`, kind: 'garden', icon: 'piggy', tone: '#8A6416', at: pig.ripeAt, go: 'piggy', toast: true, push: true,

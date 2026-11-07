@@ -26,7 +26,7 @@ const DustGame = React.lazy(() => import('./learn-dust.jsx'));
 import {
   balance, rateOn, rateHistory, priceOf, crownsOn, inflationInfo, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF, questsFor, questNews, QUEST_ICON, monthChallenge, monthStamps, policyInfo, takePolicy, cancelPolicy, PREMIUM,
   chestCoins, chestKey, hasClaim, openChest, achievementsOf, coinsWord, plural, greetingAt, COIN, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate, yearGrowth,
-  goalCoins,
+  goalCoins, indexed, rewardInfo,
 } from './learn/rewards.js';
 import { skillLevel, LEVEL_NAME, levelNote } from './learn/program.js';
 import { DUST, dustDone, dustItem } from './learn/dust.js';
@@ -412,7 +412,7 @@ export function QuestsCard({ learn, now = Date.now(), testid = 'quests' }) {
           <div style={{ fontSize: 14.5, fontWeight: 700 }}>Цель дня: {g.goal} минут занятий</div>
           <div className="ds-sub" style={{ fontSize: 13 }}>{goalOk ? 'Выполнена — монеты уже в кошельке' : `Сделано ${Math.min(g.done, g.goal)} из ${g.goal} мин · осталось ${g.goal - g.done}`}</div>
         </div>
-        <CoinTag n={`+${goalCoins(g.goal)}`} />
+        <CoinTag n={`+${indexed(goalCoins(g.goal), now)}`} />
       </div>
       <div className="rw-qhead">
         <div className="ds-h3">Задания дня</div>
@@ -430,14 +430,14 @@ export function QuestsCard({ learn, now = Date.now(), testid = 'quests' }) {
                 <Bar have={q.have} target={q.target} ok={q.done} />
               </div>
               <div style={{ textAlign: 'right' }}>
-                <CoinTag n={`+${q.coins}`} />
+                <CoinTag n={`+${indexed(q.coins, now)}`} />
                 <div className="ds-num ds-faint" style={{ fontSize: 12 }}>{q.have}/{q.target}</div>
               </div>
             </div>
           );
         })}
       </div>
-      <div className="ds-faint" style={{ fontSize: 12, marginTop: 6 }}>Все три задания — ещё +{COIN.allQuests}. Новые задания — завтра, с нуля.</div>
+      <div className="ds-faint" style={{ fontSize: 12, marginTop: 6 }}>Все три задания — ещё +{indexed(COIN.allQuests, now)}. Новые задания — завтра, с нуля.</div>
     </Card>
   );
 }
@@ -449,7 +449,7 @@ export function MonthCard({ learn, now = Date.now() }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <CalendarDays size={18} color="var(--u-ink)" aria-hidden="true" />
         <span className="ds-h3" style={{ flex: 1 }}>Испытание месяца</span>
-        <CoinTag n={`+${m.coins}`} />
+        <CoinTag n={`+${indexed(m.coins, now)}`} />
       </div>
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }} data-testid="month-title">{m.title}</div>
       {m.waiting ? <div className="ds-faint" style={{ fontSize: 12, marginTop: 2 }} data-testid="month-why">{m.why}</div> : <>
@@ -699,6 +699,8 @@ const SHOP_TABS = [
 ];
 let lastShopTab = 'showcase';
 // «за ноябрь»; проценты — до десятых, с запятой
+// «1 декабря», «инфляция ноября»
+const MONTH_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const MONTH_IN = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
 const pct = (x) => `${(Math.round(x * 1000) / 10).toFixed(1).replace('.', ',')}%`;
 export function ShopView({ learn, update, now = Date.now(), focus = null }) {
@@ -727,6 +729,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
   const pig = piggyState(learn, now);
   const Trend = rate > prev ? TrendingUp : rate < prev ? TrendingDown : Minus;
   const infl = inflationInfo(day);
+  const rinfo = rewardInfo(day);
   const doBuy = (id) => {
     const r = buy(learn, id, now);
     if (!r.ok) { Audio.play('down'); setMsg({ ok: false, text: r.reason }); return; }
@@ -777,6 +780,14 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
               : infl.since === 0 ? <span>Инфляция в Лавке — с ноября 2026: цены будут расти на 1–2% в месяц</span>
               : <span>Инфляция в Лавке: за {MONTH_IN[Number(infl.month.slice(5)) - 1]} <b className="ds-num">+{pct(infl.rate)}</b>, с октября 2026 <b className="ds-num">+{pct(infl.since)}</b></span>}
           </div>
+          {/* индексация наград: каждый месяц — на инфляцию прошлого (docs/mechanics.md, «Индексация наград») */}
+          <div className="sh-infl" data-testid="reward-index" data-since={rinfo.since}>
+            <Coins size={15} aria-hidden="true" />
+            {rinfo.since > 0
+              ? <span>Награды за учёбу: <b className="ds-num">+{pct(rinfo.since)}</b> к начальным — растут каждый месяц на инфляцию прошлого{rinfo.next > 0 ? <>, 1 {MONTH_GEN[Number(rinfo.nextMonth.slice(5)) - 1]} — ещё <b className="ds-num">+{pct(rinfo.next)}</b></> : ''}</span>
+              : rinfo.next > 0 ? <span>Награды за учёбу растут вслед за ценами: первая индексация — 1 {MONTH_GEN[Number(rinfo.nextMonth.slice(5)) - 1]}, <b className="ds-num">+{pct(rinfo.next)}</b> (инфляция {MONTH_GEN[Number(infl.month.slice(5)) - 1]})</span>
+                : <span>Награды за учёбу растут вслед за ценами Лавки — каждый месяц на инфляцию прошлого</span>}
+          </div>
           {rateOpen && (
             <div className="sh-more" data-testid="rate-more">
               {/* новичок не знает, что такое кроны и «кр.»: две строки — что своё, что чужое, и как одно меняется на другое */}
@@ -788,7 +799,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
               </div>
               <RateChart hist={rateHistory(day, 14)} />
               <div className="rw-money-rate">Платите монетами по курсу дня. Курс ниже — покупка дешевле: можно подождать удачного дня.</div>
-              <div className="rw-money-rate" data-testid="shop-inflation-more"><b>Инфляция.</b> Цены Лавки в кронах растут каждый месяц на 1–2%: те же вещи стоят всё больше крон. Монеты в кошельке от этого дешевеют, а в копилке растут быстрее цен — её ставка 1–3% в день. Отложенная покупка дорожает; сбережения под процент — нет.</div>
+              <div className="rw-money-rate" data-testid="shop-inflation-more"><b>Инфляция.</b> Цены Лавки в кронах растут каждый месяц на 1–2%: те же вещи стоят всё больше крон. Монеты в кошельке от этого дешевеют, а в копилке растут быстрее цен — её ставка 1–3% в день. Отложенная покупка дорожает; сбережения под процент — нет. Награды за учёбу догоняют цены с опозданием на месяц: в декабре они больше на инфляцию ноября — как индексация зарплат и пенсий.</div>
             </div>
           )}
         </Card>
@@ -1136,7 +1147,7 @@ function PiggyCard({ learn, update, now, b, onMsg }) {
 
 /* ------------------------------ СУНДУК ЮНИТА ------------------------------ */
 export function ChestSheet({ unitId, place, learn, update, onClose }) {
-  const n = chestCoins(unitId);
+  const n = indexed(chestCoins(unitId));
   const [opened, setOpened] = useState(false);
   const was = hasClaim(learn, chestKey(unitId));
   const open = () => { Audio.play('register'); update((s) => openChest(s, unitId), { settle: true }); setOpened(true); };
@@ -1310,7 +1321,7 @@ export function ProgramCard({ learn, update, onPlacement }) {
         ))}
       </div>
       <div className="ds-faint" style={{ fontSize: 13, marginTop: 6 }} data-testid="prof-goal-note">
-        {next ? `Сегодня цель — ${mins} мин. Новая, ${next.minutes} мин, — с завтрашнего дня.` : `За выполненную цель — ${goalCoins(mins)} ${coinsWord(goalCoins(mins))}: столько, сколько минут. Новая цель начинает действовать с завтрашнего дня.`}
+        {next ? `Сегодня цель — ${mins} мин. Новая, ${next.minutes} мин, — с завтрашнего дня.` : `За выполненную цель — ${indexed(goalCoins(mins))} ${coinsWord(indexed(goalCoins(mins)))}: столько, сколько минут (с индексацией месяца). Новая цель начинает действовать с завтрашнего дня.`}
       </div>
       <Row label="Уровень заданий" value={LEVEL_NAME[level]} data-testid="prof-level" data-level={level} />
       <div className="ds-faint" style={{ fontSize: 13, marginTop: 4 }} data-testid="prof-level-note">{levelNote(learn)}</div>

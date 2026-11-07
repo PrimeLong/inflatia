@@ -17,7 +17,7 @@
    четверг — его первая неделя лиги начинается с ближайшего понедельника (пришёл в понедельник —
    с этой недели). До тех пор на вкладке — «Ваша лига начнётся в понедельник». */
 import { dayOf, addDays, weekOf, dayHour } from '../textbook/learn-state.js';
-import { earn, hasClaim } from './rewards.js';
+import { earn, hasClaim, indexedOn } from './rewards.js';
 
 export const LEAGUES = [
   { id: 'bronze', title: 'Бронзовая', color: '#8A5A2B', median: 110 },
@@ -33,7 +33,10 @@ export const GROUP = 20;
 export const PROMOTE = 5;
 export const DEMOTE = 5;
 // монеты за первые три места — кратны цене урока (10 монет)
+// награда за место — в Бронзовой; в лиге N — в N раз больше (удержаться в ней стоит 5·N минут в день):
+// первые три места — PLACE_COINS·N, 4-е и 5-е (повышение) — PROMO_COINS·N; из Алмазной подниматься некуда
 export const PLACE_COINS = [50, 30, 20];
+export const PROMO_COINS = 10;
 // дни соревнования: понедельник — суббота; седьмой день недели — перерыв
 export const LEAGUE_DAYS = 6;
 export const isBreakDay = (now = Date.now()) => { const day = dayOf(now); return day === addDays(weekOf(day), LEAGUE_DAYS); };
@@ -261,6 +264,13 @@ function rivalXp(rv, week, now) {
 // опыт недели лиги — понедельник … суббота; воскресенье — перерыв
 export const weekXp = (learn, week) => Array.from({ length: LEAGUE_DAYS }, (_, d) => (learn.xp || {})[addDays(week, d)] || 0).reduce((a, x) => a + x, 0);
 const tierIndex = (id) => LEAGUES.findIndex((l) => l.id === id);
+export function placeCoins(league, place) {
+  const i = tierIndex(league); if (i < 0) return 0;
+  if (place >= 1 && place <= PLACE_COINS.length) return PLACE_COINS[place - 1] * (i + 1);
+  return place <= PROMOTE && i < LEAGUES.length - 1 ? PROMO_COINS * (i + 1) : 0;
+}
+// награда недели в монетах — с индексацией месяца последнего дня недели (забрать позже — сумма та же)
+export const weekPrize = (league, place, week) => indexedOn(placeCoins(league, place), addDays(week, LEAGUE_DAYS - 1));
 // зона места: up — поднимутся, down — опустятся
 export function zoneOf(place, league) {
   const i = tierIndex(league);
@@ -302,7 +312,7 @@ export function leagueState(learn, now = Date.now()) {
       const me = table.find((row) => row.me);
       const i = tierIndex(league);
       const next = me.zone === 'up' ? LEAGUES[i + 1].id : me.zone === 'down' ? LEAGUES[i - 1].id : league;
-      history.push({ week: w, league, place: me.place, xp, move: me.zone, to: next, coins: PLACE_COINS[me.place - 1] || 0 });
+      history.push({ week: w, league, place: me.place, xp, move: me.zone, to: next, coins: weekPrize(league, me.place, w) });
       league = next;
     }
   }

@@ -1,7 +1,8 @@
 /* Уведомления и коллекции профиля (docs/mechanics.md, «Новости и уведомления», «Профиль»):
    список выводится из прогресса и времени — пройденное уходит само, одно событие — один id. */
 import { describe, it, expect } from 'vitest';
-import { notificationsOf, unreadOf, agoText, firstDayOf, readToasted, markToasted, BOOK_REVIEW_MIN } from '../notify.js';
+import { notificationsOf, unreadOf, agoText, firstDayOf, readToasted, markToasted, BOOK_REVIEW_MIN, plantList } from '../notify.js';
+import { water } from '../garden.js';
 import { albumItems, sealItems, monthItems, monthsByYear, shelfOrder, fullDate } from '../collections.js';
 import { NEWS, unreadNews, newsDate, feedDays } from '../news.js';
 import { emptyLearn, addDays, dayOf } from '../../textbook/learn-state.js';
@@ -64,6 +65,29 @@ describe('уведомления: Путь, сад, копилка', () => {
     expect(notificationsOf(s, at(TODAY, 9)).find((n) => n.id === `ripe:${planted}`)).toMatchObject({ go: 'garden', toast: true });
     const picked = { ...s, harvest: { [planted]: at(TODAY, 9) } };
     expect(notificationsOf(picked, at(TODAY, 10)).some((n) => n.id === `ripe:${planted}`)).toBe(false);
+  });
+  it('сад — одно уведомление на все грядки: «Грядкам нужна вода» со списком; полили часть — остались остальные', () => {
+    const t0 = at(addDays(TODAY, -1), 8);
+    let s = learner({ garden: { [t0]: 'peony@0', [t0 + 1]: 'lavender@1', [t0 + 2]: 'orchid@2', [t0 + 3]: 'peony@3' } });
+    const now = at(TODAY, 12);
+    const g = notificationsOf(s, now).filter((n) => n.kind === 'garden');
+    expect(g).toHaveLength(1);
+    expect(g[0]).toMatchObject({ id: `dry:${dayOf(now)}`, title: 'Грядкам нужна вода', text: 'Пион ×2, лаванда и орхидея — не растут, пока землю не польют.' });
+    [t0, t0 + 1, t0 + 3].forEach((p) => { s = water(s, p, now - 60000).s; });
+    expect(notificationsOf(s, now).filter((n) => n.kind === 'garden')).toEqual([expect.objectContaining({ id: `dry:${dayOf(now)}`, title: 'Грядке нужна вода', text: 'Орхидея не растёт, пока землю не польют.' })]);
+  });
+  it('созрело сразу несколько — одно «Созрело» на все', () => {
+    const t0 = at(TODAY, 6);
+    const s = learner({ garden: { [t0]: 'chamomile@0', [t0 + 1]: 'cornflower@1', [t0 + 2]: 'chamomile@2' } });
+    const g = notificationsOf(s, at(TODAY, 11)).filter((n) => n.kind === 'garden');
+    expect(g).toHaveLength(1);
+    expect(g[0]).toMatchObject({ id: `ripe:${t0}+${t0 + 1}+${t0 + 2}`, title: 'Созрело: ромашка ×2 и василёк', toast: true });
+  });
+  it('список растений: по-русски, одинаковые — «×2», длинный — «и ещё N»', () => {
+    expect(plantList(['пион'])).toBe('пион');
+    expect(plantList(['пион', 'мак'])).toBe('пион и мак');
+    expect(plantList(['пион', 'мак', 'роза', 'тюльпан', 'лилия'])).toBe('пион, мак и ещё 3');
+    expect(plantList(['пион', 'пион'])).toBe('пион ×2');
   });
   it('вклад созрел через неделю — «Вклад созрел»', () => {
     const put = at(addDays(TODAY, -8), 10);

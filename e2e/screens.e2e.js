@@ -126,7 +126,7 @@ async function answer(page, wrong = false) {
     const svg = ex.getByTestId('market-chart'); const pl = JSON.parse(await svg.getAttribute('data-plot')); const box = await svg.boundingBox();
     await svg.click({ position: { x: ((pl.x0 + (ans.q / pl.qMax) * pl.w) / pl.vw) * box.width, y: ((pl.y0 + pl.h - (ans.p / pl.pMax) * pl.h) / pl.vh) * box.height } });
   } else if (kind === 'match') {
-    for (const l of Object.keys(ans)) { await ex.locator(`[data-side=left][data-key="${l}"]`).click(); await ex.locator(`[data-side=right][data-key="${ans[l]}"]`).click(); }
+    for (const l of Object.keys(ans)) { await ex.locator(`[data-side=right][data-key="${ans[l]}"]`).click(); await ex.locator(`[data-side=left][data-key="${l}"]`).click(); }
   } else if (kind === 'swipe' || kind === 'rush') {
     await playGame(page);
     return kind;

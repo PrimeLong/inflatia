@@ -18,6 +18,7 @@ import { CAST } from './learn/cast.js';
 import { useReducedMotion } from './ds-art.jsx';
 import { Button } from './ds.jsx';
 import { evalExpr, fmtResult, pressRoot } from './learn/calc.js';
+import { powerModel, powerMc } from './learn/power-chart.js';
 
 export const PLAY_CSS = `
   .lp-chart { width: 100%; max-width: 380px; display: block; margin: 6px auto 10px; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -50,7 +51,11 @@ export const PLAY_CSS = `
   .lp-deck-ghost.g2 { left: 24px; right: 24px; bottom: 0; opacity: .7; }
   .lp-word { position: relative; z-index: 1; border: 1px solid var(--ds-rule2); border-radius: 6px; background: var(--ds-card); box-shadow: 0 3px 10px var(--ds-shade);
     padding: 18px 18px 20px; min-height: 250px; display: flex; flex-direction: column; touch-action: pan-y; user-select: none;
-    transition: transform .26s ease-in, opacity .26s ease-in; border-top: 5px solid var(--u); }
+    transition: transform .26s ease-in, opacity .26s ease-in; border-top: 5px solid var(--u); transform-origin: 50% 100%; }
+  /* уходящая карточка — поверх колоды: плавно уезжает в сторону и гаснет (смахнули, «Дальше» или «Назад») */
+  .lp-word-out { position: absolute; left: 0; right: 0; top: 0; z-index: 2; pointer-events: none; animation: lp-word-out .32s cubic-bezier(.25, .6, .35, 1) forwards; }
+  @keyframes lp-word-out { from { transform: translateX(var(--x0, 0px)) rotate(var(--r0, 0deg)); opacity: 1 }
+    to { transform: translateX(calc(var(--x0, 0px) + var(--dir) * 70%)) rotate(calc(var(--dir) * 4deg)); opacity: 0 } }
   /* появление — только «до» (backwards): после него карточкой двигает палец или мышь, а не анимация */
   .lp-word.in { animation: lp-word-in .3s ease-out backwards; }
   @keyframes lp-word-in { from { transform: translateX(var(--from, 0)) translateY(var(--rise, 14px)) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }
@@ -190,7 +195,7 @@ export const PLAY_CSS = `
   .lp-ticker { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; max-width: 340px; margin: 0 auto; }
   .lp-ticker svg { width: 100%; height: 30px; display: block; }
   .lp-bubble { position: relative; background: var(--ds-card); border: 1px solid var(--ds-rule2); border-radius: 4px; padding: 14px 16px; font-size: 17.5px; line-height: 1.5; margin-top: 12px; }
-  @media (prefers-reduced-motion: reduce) { .lp-word, .lp-timer > span { transition: none !important; } .lp-word.in, .lp-word-def.open { animation: none !important; } .lp-combo, .lp-effect, .lp-pop { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .lp-word, .lp-timer > span { transition: none !important; } .lp-word.in, .lp-word-def.open { animation: none !important; } .lp-word-out { display: none; } .lp-combo, .lp-effect, .lp-pop { animation: none !important; } }
 `;
 
 /* ------------------------------ ГРАФИК РЫНКА ------------------------------ */
@@ -567,12 +572,15 @@ function PowerGameChart({ st, markup: mk = false }) {
   const W = 300; const H = 200; const L = 34; const B = 26; const T = 10; const R = 12;
   const QM = 12; const PM = 64;
   const sx = (q) => L + (Math.max(0, Math.min(q, QM)) / QM) * (W - L - R); const sy = (p) => H - B - (Math.max(0, Math.min(p, PM)) / PM) * (H - B - T);
-  const m = Math.max(0, Math.min(1, st.m));
-  const mc = (q) => 10 + 2.5 * q;
-  const dem = (q) => (1 - m) * 30 + m * (60 - 5 * q);
-  const mr = (q) => (1 - m) * 30 + m * (60 - 10 * q);
+  // спрос, MR и выпуск — по одной модели (src/learn/power-chart.js): цена лежит на спросе, выпуск — где MR = MC
+  const pm = powerModel(st.m);
+  const { m, q, p, dem, mr } = pm; const mc = powerMc;
   const line = (f, q0, q1) => `M${sx(q0).toFixed(1)},${sy(f(q0)).toFixed(1)}L${sx(q1).toFixed(1)},${sy(f(q1)).toFixed(1)}`;
-  const q = 8 - 4 * m; const p = 30 + 10 * m; const markup = Math.round(p - mc(q));
+  const markup = Math.round(pm.markup);
+  // подпись MR — у дальнего конца её линии, а не у точки MR = MC (там и так тесно)
+  // в «Наценке» наценка есть всегда — её подпись и MR не бледнеют до невидимости
+  const op = mk ? Math.max(m, 0.7) : m;
+  const mrTo = Math.min(QM, pm.mrEnd); const mrLabelQ = Math.min(QM - 1, mrTo) - 1;
   const halo = { stroke: 'var(--ds-paper)', strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
   return (
     <svg className="lp-chart lp-game-chart" viewBox={`0 0 ${W} ${H}`} role="img"
@@ -580,10 +588,10 @@ function PowerGameChart({ st, markup: mk = false }) {
       data-testid="game-chart" data-chart={mk ? 'markup' : 'power'} data-state={JSON.stringify({ m: Math.round(m * 100) / 100, markup })}>
       <rect x={sx(0)} y={sy(p)} width={sx(q) - sx(0)} height={Math.max(0, sy(mc(q)) - sy(p))} fill="var(--u)" opacity={0.14 * m} />
       <path d={line(mc, 0, 9.6)} fill="none" stroke="var(--ds-ok)" strokeWidth="2.5" />
-      <path d={line(mr, 0, Math.min(QM, 6))} fill="none" stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 4" opacity={m} />
+      <path d={line(mr, 0, mrTo)} fill="none" stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 4" opacity={op} />
       <path d={line(dem, 0, QM - 0.6)} fill="none" stroke="var(--u)" strokeWidth="4" strokeLinecap="round" data-testid="power-demand" />
       <line x1={sx(q)} y1={sy(p)} x2={sx(q)} y2={sy(0)} stroke="var(--ds-ink3)" strokeDasharray="3 3" />
-      <line x1={sx(q) + 7} y1={sy(p)} x2={sx(q) + 7} y2={sy(mc(q))} stroke="var(--u)" strokeWidth="2" opacity={m} />
+      <line x1={sx(q) + 7} y1={sy(p)} x2={sx(q) + 7} y2={sy(mc(q))} stroke="var(--u)" strokeWidth="2" opacity={op} />
       <circle cx={sx(q)} cy={sy(p)} r="5" fill="var(--u)" />
       <circle cx={sx(q)} cy={sy(mc(q))} r="3.5" fill="var(--ds-ok)" opacity={m} />
       <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
@@ -594,9 +602,10 @@ function PowerGameChart({ st, markup: mk = false }) {
       <text x={sx(1)} y={sy(dem(1)) - 8} className="lp-ax" style={{ fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>спрос</text>
       {/* подписи не на линиях (жалоба mvuaw8zo «что за ужас с графиком»): MR — слева от своей линии над осью,
           наценка — над точкой цены, где нет ни спроса, ни MC */}
-      {m > 0.15 && <text x={sx(5.2) - 6} y={sy(mr(5.2)) + 4} textAnchor="end" className="lp-ax" style={{ opacity: m, ...halo }}>MR</text>}
-      {m > 0.15 && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: m, fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>наценка +{markup}</text>}
-      <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: m > 0.5 ? 'var(--u-ink)' : 'var(--ds-ok)', fontWeight: 700, ...halo }}>{mk ? (m > 0.5 ? 'мало заменителей' : 'много заменителей') : m > 0.5 ? 'цена выше MC' : 'цена = MC'}</text>
+      {m > 0.15 && <text x={sx(mrLabelQ) + 6} y={sy(mr(mrLabelQ)) + 12} className="lp-ax" style={{ opacity: op, ...halo }}>MR</text>}
+      {m > 0.15 && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: op, fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>наценка +{markup}</text>}
+      {/* в «Наценке» подпись — только при явном перевесе: на старте спрос средний, «много заменителей» было неправдой */}
+      {(!mk || Math.abs(m - 0.5) > 0.05) && <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: m > 0.5 ? 'var(--u-ink)' : 'var(--ds-ok)', fontWeight: 700, ...halo }}>{mk ? (m > 0.5 ? 'мало заменителей' : 'много заменителей') : m > 0.5 ? 'цена выше MC' : 'цена = MC'}</text>}
     </svg>
   );
 }
@@ -1108,21 +1117,29 @@ export function StoryCard({ card, children }) {
    значением и примером — до этого урока ученик мог его не встречать. Листать — «Дальше» и
    «Назад», стрелками или смахиванием: смахнуть в любую сторону — следующее слово (запоминать
    направление не нужно), вернуться — «Назад»; после последнего — лёгкие упражнения на эти слова. */
+// наклон карточки за пальцем или мышью: не больше 4° — вокруг нижнего края, верх не уходит за край экрана
+const wordTilt = (dx) => Math.max(-4, Math.min(4, dx / 45));
 export function WordDeck({ cards, onDone, body, foot }) {
   const [idx, setIdx] = useState(0);
   const [seen, setSeen] = useState(() => new Set([0]));
   const [dx, setDx] = useState(0);
-  const [fly, setFly] = useState(0); // карточка улетает: −1 влево, 1 вправо — в ту сторону, куда смахнули
   const [dir, setDir] = useState(0); // откуда въезжает новая: 1 — справа, −1 — слева
+  const [out, setOut] = useState(null); // уходящая карточка: { idx, side, x0, key }
+  const outT = useRef(0);
   const drag = useRef(null);
   const card = cards[idx];
   const last = idx === cards.length - 1;
-  // from — откуда въезжает новая карточка: по умолчанию «дальше» справа, «назад» слева
-  const go = (d, from = d) => {
+  useEffect(() => () => clearTimeout(outT.current), []);
+  /* from — откуда въезжает новая карточка: «дальше» справа, «назад» слева; старая уходит в другую сторону —
+     с того места, где её отпустили (x0). Индекс меняется сразу: быстрые нажатия не теряются. */
+  const go = (d, from = d, x0 = 0) => {
     const n = idx + d;
     if (n < 0) return;
-    Audio.play('paper'); setDx(0); setFly(0); setDir(from);
+    Audio.play('paper'); setDx(0); setDir(from);
     if (n >= cards.length) { onDone(); return; }
+    clearTimeout(outT.current);
+    setOut({ idx, side: -from, x0, key: Date.now() });
+    outT.current = setTimeout(() => setOut(null), 340);
     setIdx(n); setSeen((st) => new Set([...st, n]));
   };
   useEffect(() => {
@@ -1135,11 +1152,11 @@ export function WordDeck({ cards, onDone, body, foot }) {
     return () => window.removeEventListener('keydown', onKey);
   });
   if (!card) return null;
-  /* смахнуть в любую сторону — следующее слово. Карточка едет за пальцем или мышью и наклоняется,
-     сверху — «Дальше»; отпустили дальше порога — улетает в ту же сторону, а новая въезжает с
+  /* смахнуть в любую сторону — следующее слово. Карточка едет за пальцем или мышью и чуть наклоняется,
+     сверху — «Дальше»; отпустили дальше порога — плавно уезжает в ту же сторону, а новая въезжает с
      другой; не дотянули — пружинит обратно. Назад — кнопкой «Назад» или стрелкой влево. */
   const onDown = (e) => {
-    if (fly || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     drag.current = { x: e.clientX, mouse: e.pointerType === 'mouse' };
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* старый браузер */ }
   };
@@ -1152,31 +1169,40 @@ export function WordDeck({ cards, onDone, body, foot }) {
     const d = dx; const lim = drag.current.mouse ? 60 : 80; drag.current = null;
     if (Math.abs(d) <= lim) { setDx(0); return; }
     const side = d < 0 ? -1 : 1;
-    setFly(side);
-    setTimeout(() => go(1, -side), 190);
+    go(1, -side, d);
   };
-  const style = fly ? { transform: `translateX(${fly * 130}%) rotate(${fly * 16}deg)`, opacity: 0, transition: 'transform .19s ease-in, opacity .19s ease-in' }
-    : dx ? { transform: `translateX(${dx}px) rotate(${dx / 30}deg)`, transition: 'none' }
-      : dir ? { '--from': `${dir * 60}px`, '--rise': '0px' } : undefined;
+  const style = dx ? { transform: `translateX(${dx}px) rotate(${wordTilt(dx)}deg)`, transition: 'none' }
+    : dir ? { '--from': `${dir * 60}px`, '--rise': '0px' } : undefined;
   const pull = Math.min(1, Math.abs(dx) / 80);
+  const face = (c, i) => (<>
+    <div className="lp-word-top">
+      <span>Новое слово {i + 1} из {cards.length}</span>
+      <span style={{ flex: 1 }} />
+      <span className="lp-word-hint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}><span className="touch">смахните ↔</span><span className="fine">← → на клавиатуре</span></span>
+    </div>
+    <div className="lp-word-term">{c.title}</div>
+    <div className="lp-word-rule" />
+  </>);
+  const prevCard = out && cards[out.idx];
   return (
     <>
       {body(<>
       <div className="lp-deck">
         {!last && <div className="lp-deck-ghost" aria-hidden="true" />}
-        <div className={`lp-word in${dx || fly ? ' drag' : ''}`} key={idx} style={style} data-testid="flash-card" data-word={idx} data-dx={Math.round(dx)}
+        <div className={`lp-word in${dx ? ' drag' : ''}`} key={idx} style={style} data-testid="flash-card" data-word={idx} data-dx={Math.round(dx)}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onDragStart={(e) => e.preventDefault()}>
           {dx !== 0 && <span className={`lp-swipe-tag ${dx < 0 ? 'next' : 'prev'}`} style={{ opacity: pull }} aria-hidden="true">{last ? 'К упражнениям' : 'Дальше'}</span>}
-          <div className="lp-word-top">
-            <span>Новое слово {idx + 1} из {cards.length}</span>
-            <span style={{ flex: 1 }} />
-            <span className="lp-word-hint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}><span className="touch">смахните ↔</span><span className="fine">← → на клавиатуре</span></span>
-          </div>
-          <div className="lp-word-term">{card.title}</div>
-          <div className="lp-word-rule" />
+          {face(card, idx)}
           <div className="lp-word-def open" data-testid="word-def"><span><Inline nodes={card.text} />{card.example && <span className="lp-word-ex"><b>Пример:</b> <Inline nodes={card.example} /></span>}</span></div>
           {idx === 0 && <div className="lp-word-tip" data-testid="word-tip">Прочитайте и запомните: после слов — пара лёгких упражнений на них.</div>}
         </div>
+        {/* прошлая карточка уходит поверх новой — только картинка, без текста значения (его уже не читают) */}
+        {prevCard && (
+          <div className="lp-word lp-word-out" key={`out-${out.key}`} aria-hidden="true" inert data-testid="flash-card-out" data-side={out.side}
+            style={{ '--x0': `${out.x0}px`, '--r0': `${wordTilt(out.x0)}deg`, '--dir': out.side }}>
+            {face(prevCard, out.idx)}
+          </div>
+        )}
       </div>
       <div className="lp-word-dots" data-testid="word-dots" role="img" aria-label={`Прочитано слов: ${seen.size} из ${cards.length}`}>
         {cards.map((_, i) => <i key={i} className={`${seen.has(i) ? 'know' : ''} ${i === idx ? 'cur' : ''}`} />)}
