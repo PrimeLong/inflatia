@@ -6891,7 +6891,7 @@ test('«Соедините» — как «вставьте слово»: сло�
   const ans = JSON.parse(await ex.getAttribute('data-answer'));
   const keys = Object.keys(ans);
   // подсказка, как это делать; подсвечено первое пустое место
-  await expect(ex.getByTestId('match-how')).toContainText('Нажмите слово');
+  await expect(ex.getByTestId('match-how')).toContainText('Нажмите или перетащите слово');
   await expect(ex.locator('.ln-m2-row.on')).toHaveCount(1);
   // слово из банка встаёт в подсвеченное место и уходит из банка; подсветка — к следующему пустому
   const first = ex.locator('.ln-m2-row.on');
@@ -6906,6 +6906,35 @@ test('«Соедините» — как «вставьте слово»: сло�
   await ex.locator(`[data-side=right][data-key="${firstKey}"]`).click();
   await expect(ex.locator(`[data-side=left][data-key="${wordKey}"]`)).toHaveCount(1);
   await expect(ex.locator('.ln-m2-row.on')).toHaveAttribute('data-key', firstKey);
+  /* перетаскивание (пункт владельца 08.11): слово — пальцем или мышью на любое место, с места — на другое место
+     или обратно в банк; копия едет за пальцем, место под ней подсвечено */
+  const drag = async (from, to) => {
+    await to.scrollIntoViewIfNeeded();
+    const a = await from.boundingBox(); const b = await to.boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2 + 12, { steps: 3 });
+    await expect(page.getByTestId('match-ghost')).toBeVisible();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+    await expect(to).toHaveClass(/\bdrop\b/);
+    await page.mouse.up();
+    await expect(page.getByTestId('match-ghost')).toHaveCount(0);
+  };
+  const rowKeys = await ex.locator('[data-side=right]').evaluateAll((els) => els.map((e) => e.dataset.key));
+  // не подсвеченное место, а третье — слово встаёт туда, куда его принесли
+  const lastRow = ex.locator(`[data-side=right][data-key="${rowKeys[2]}"]`);
+  await drag(ex.locator(`[data-side=left][data-key="${wordKey}"]`), lastRow);
+  await expect(lastRow.getByTestId('match-tag')).toBeVisible();
+  await expect(ex.locator(`[data-side=left][data-key="${wordKey}"]`)).toHaveCount(0);
+  // с места — на другое место
+  const otherRow = ex.locator(`[data-side=right][data-key="${rowKeys[1]}"]`);
+  await drag(lastRow.getByTestId('match-tag'), otherRow);
+  await expect(otherRow.getByTestId('match-tag')).toBeVisible();
+  await expect(lastRow.getByTestId('match-tag')).toHaveCount(0);
+  // и обратно в банк
+  await drag(otherRow.getByTestId('match-tag'), ex.getByTestId('match-bank'));
+  await expect(ex.locator(`[data-side=left][data-key="${wordKey}"]`)).toHaveCount(1);
+  await expect(ex.getByTestId('match-tag')).toHaveCount(0);
   // первые два слова — наоборот, остальные верно
   const plan = Object.fromEntries(keys.map((k, i) => [k, i === 0 ? ans[keys[1]] : i === 1 ? ans[keys[0]] : ans[k]]));
   for (const [l, r] of Object.entries(plan)) { await ex.locator(`[data-side=right][data-key="${r}"]`).click(); await ex.locator(`[data-side=left][data-key="${l}"]`).click(); }

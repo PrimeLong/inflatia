@@ -12,6 +12,7 @@
    data-nav-target — e2e проверяет, что на одном экране нет двух путей в одно место.
    Карта экранов — src/learn/screens.js. */
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, ArrowLeft, Flame, Zap, Coins, Target, Lock, Check, Gem, ChevronLeft, Calculator, BookOpenText, BookOpen, Trophy, Timer, Delete, ChevronRight, RotateCcw, Sparkles, Dumbbell,
   Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link, Utensils, Boxes, Users,
@@ -427,6 +428,14 @@ const CSS = `
   .ln-m2-row.on .ln-m2-slot { border-color: var(--u-ink); color: var(--u-ink); }
   .ln-m2-slot.full { border-style: solid; border-color: color-mix(in srgb, var(--u-ink) 60%, var(--ds-rule2)); background: color-mix(in srgb, var(--u) 12%, var(--ds-card)); color: var(--ds-ink); }
   .ln-m2-mark { font: 800 18px var(--ds-sans); }
+  /* перетаскивание: слово под пальцем не прокручивает страницу; копия едет за пальцем; место под ней подсвечено */
+  .ln-m2-word, .ln-m2-slot.full { touch-action: none; -webkit-user-select: none; user-select: none; }
+  .ln-m2-word.dragging, .ln-m2-slot.full.dragging { opacity: .35; }
+  .ln-m2-ghost { position: fixed; z-index: 60; pointer-events: none; width: auto; margin: 0; padding: 8px 12px; font-size: 14.5px; line-height: 1.25; transform: rotate(-2deg) scale(1.04);
+    box-shadow: 0 14px 26px -12px rgba(0,0,0,.45); border-color: var(--u-ink); }
+  .ln-m2-row.drop { border-color: var(--u-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--u) 30%, transparent); }
+  .ln-m2-row.drop .ln-m2-slot { border-color: var(--u-ink); background: color-mix(in srgb, var(--u) 14%, var(--ds-card)); }
+  .ln-m2-bank.drop { outline: 2px dashed var(--u-ink); outline-offset: 2px; border-radius: 10px; }
   /* после проверки: верная строка — зелёная с ✓, неверная — красная с ✗, зачёркнутым словом и «верно: …» */
   .ln-m2-row[data-verdict="ok"] { border-color: var(--ds-ok); background: color-mix(in srgb, var(--ds-ok) 8%, var(--ds-card)); }
   .ln-m2-row[data-verdict="bad"] { border-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 7%, var(--ds-card)); }
@@ -742,6 +751,80 @@ function ChoiceCalc({ options, numOf, onPick }) {
     </>
   );
 }
+/* Перетаскивание слова в «Соедините» (docs/mechanics.md, «Задания урока»): пальцем или мышью. Сдвиг больше 8 px —
+   перетаскивание: копия слова едет за пальцем (слой в корне урока, без касаний), место под пальцем подсвечено;
+   отпустили — onDrop({ row }) над строкой, onDrop({ bank: true }) над банком. Без сдвига — обычное нажатие. */
+const DRAG_MIN = 8;
+function dropTarget(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const row = el && el.closest('[data-drop-row]');
+  if (row) return { row: row.getAttribute('data-drop-row'), el: row };
+  const bank = el && el.closest('[data-drop-bank]');
+  return bank ? { bank: true, el: bank } : null;
+}
+function DragWord({ as: Tag = 'button', label, disabled = false, onDrop, className = '', children, ...rest }) {
+  const ref = useRef(null);
+  const st = useRef(null);
+  const [ghost, setGhost] = useState(null);
+  const hover = (t) => {
+    const prev = st.current && st.current.over;
+    if (prev && (!t || prev !== t.el)) prev.classList.remove('drop');
+    if (t) t.el.classList.add('drop');
+    if (st.current) st.current.over = t ? t.el : null;
+  };
+  const end = (e, drop) => {
+    const s = st.current; st.current = null;
+    if (!s) return;
+    if (s.raf) cancelAnimationFrame(s.raf);
+    if (s.drag) {
+      if (s.over) s.over.classList.remove('drop');
+      setGhost(null);
+      // после перетаскивания браузер может прислать «нажатие» сразу за отпусканием — его глушим, следующее — уже нет
+      const kill = (ev) => { ev.stopPropagation(); ev.preventDefault(); window.removeEventListener('click', kill, true); };
+      window.addEventListener('click', kill, true); setTimeout(() => window.removeEventListener('click', kill, true), 0);
+      const t = drop ? dropTarget(e.clientX, e.clientY) : null;
+      if (t) onDrop(t.row ? { row: t.row } : { bank: true });
+    }
+  };
+  const handlers = disabled ? {} : {
+    onPointerDown: (e) => {
+      if (e.button > 0 || !ref.current) return;
+      const r = ref.current.getBoundingClientRect();
+      st.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, drag: false, over: null };
+    },
+    onPointerMove: (e) => {
+      const s = st.current; if (!s || s.id !== e.pointerId) return;
+      if (!s.drag && Math.hypot(e.clientX - s.x0, e.clientY - s.y0) < DRAG_MIN) return;
+      if (!s.drag) { s.drag = true; try { ref.current.setPointerCapture(e.pointerId); } catch { /* уже отпущен */ } Audio.play('tick'); }
+      e.preventDefault();
+      s.x = e.clientX; s.y = e.clientY;
+      setGhost({ x: e.clientX - s.dx, y: e.clientY - s.dy, w: s.w });
+      hover(dropTarget(e.clientX, e.clientY));
+      /* у края урока — прокрутка: нижняя строка на телефоне может быть за экраном; пока палец у края, урок едет */
+      const box = ref.current && ref.current.closest('.ln-body');
+      if (box && !s.raf) {
+        const tick = () => {
+          const cur = st.current; if (!cur || !cur.drag) return;
+          const r = box.getBoundingClientRect();
+          const v = cur.y > r.bottom - 56 ? 10 : cur.y < r.top + 56 ? -10 : 0;
+          if (v) { box.scrollTop += v; hover(dropTarget(cur.x, cur.y)); }
+          cur.raf = requestAnimationFrame(tick);
+        };
+        s.raf = requestAnimationFrame(tick);
+      }
+    },
+    onPointerUp: (e) => end(e, true),
+    onPointerCancel: (e) => end(e, false),
+  };
+  const host = ref.current && (ref.current.closest('.ln-overlay') || document.body);
+  return (
+    <>
+      <Tag ref={ref} className={`${className}${ghost ? ' dragging' : ''}`} disabled={Tag === 'button' ? disabled : undefined} {...rest} {...handlers}>{children}</Tag>
+      {ghost && host && createPortal(<span className="ds-opt ln-m2-ghost" data-testid="match-ghost" aria-hidden="true" style={{ left: ghost.x, top: ghost.y, minWidth: Math.min(ghost.w, 260) }}>{label}</span>, host)}
+    </>
+  );
+}
+
 function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit = () => {} }) {
   const pick = (v) => { if (!locked) { Audio.play('tick'); setResp(v); } };
   const optClass = (key, correct) => (!fb ? '' : correct ? 'right' : key === resp && !fb.ok ? 'wrong' : '');
@@ -858,16 +941,29 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         if (x.key in termIn) { const n = { ...r }; delete n[termIn[x.key]]; setResp(n); }
         setSel(x.key);
       };
+      // перетащили слово l (из банка или с места from) — на строку: занятое слово уходит в банк или меняется местами
+      const dropWord = (l, from, t) => {
+        if (locked) return;
+        const n = { ...r };
+        if (t.bank) { if (from) { delete n[l]; setResp(n); setSel(from); Audio.play('tick'); } return; }
+        if (t.row === from) return;
+        const other = termIn[t.row];
+        if (other) { if (from) n[other] = from; else delete n[other]; }
+        n[l] = t.row;
+        Audio.play('tick'); setResp(n); setSel(null);
+      };
+      const raw = (key) => { const l = inst.left.find((x) => x.key === key); return (l && (l.raw || '')) || ''; };
       return (
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
           {/* пары на время: по нулю ответ уходит на проверку таким, какой есть */}
           {inst.timer && <TimerBar seconds={inst.timer} running={!locked} onEnd={() => onSubmit(inst._resp.current || {})} />}
-          {!checked && <div className="ln-m2-how" data-testid="match-how">Нажмите слово — оно встанет в подсвеченное место. Нажмите место со словом — слово вернётся.</div>}
-          {(bank.length > 0 || !checked) && <div className="ln-m2-bank" data-testid="match-bank">
+          {!checked && <div className="ln-m2-how" data-testid="match-how">Нажмите или перетащите слово на место. Нажмите место со словом — слово вернётся.</div>}
+          {(bank.length > 0 || !checked) && <div className="ln-m2-bank" data-testid="match-bank" data-drop-bank="1">
             {bank.map((l) => (
-              <button key={l.key} type="button" className="ds-opt" data-side="left" data-key={l.key} disabled={locked || !active} onClick={() => place(l.key)}>
-                <Inline nodes={l.text} ctx={ctx} /></button>
+              <DragWord key={l.key} type="button" className="ds-opt ln-m2-word" data-side="left" data-key={l.key} disabled={locked || !active} label={l.raw || <Inline nodes={l.text} ctx={ctx} />}
+                onClick={() => place(l.key)} onDrop={(t) => dropWord(l.key, null, t)}>
+                <Inline nodes={l.text} ctx={ctx} /></DragWord>
             ))}
             {!bank.length && <span className="ln-m2-bank-done">Все слова на местах — можно проверять.</span>}
           </div>}
@@ -877,10 +973,13 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
             const fix = verdict === 'bad' ? inst.left.find((l) => l.key === x.key) : null;
             const on = !locked && active === x.key;
             return (
-              <button key={x.key} type="button" className={`ln-m2-row${on ? ' on' : ''}`} data-side="right" data-key={x.key} data-verdict={verdict || undefined}
+              <button key={x.key} type="button" className={`ln-m2-row${on ? ' on' : ''}`} data-side="right" data-key={x.key} data-drop-row={locked ? undefined : x.key} data-verdict={verdict || undefined}
                 aria-label={`${t ? `Слово: ${inst.left.find((l) => l.key === t).raw || ''}` : 'Пустое место'}. ${x.raw || ''}`} disabled={locked} onClick={() => slot(x)}>
-                <span className={`ln-m2-slot${t ? ' full' : ''}`} data-testid={t ? 'match-tag' : 'match-empty'}>
-                  {t ? <Inline nodes={inst.left.find((l) => l.key === t).text} ctx={ctx} /> : on ? 'слово сюда' : '…'}</span>
+                {t ? (
+                  <DragWord as="span" className="ln-m2-slot full" data-testid="match-tag" disabled={locked} label={raw(t) || <Inline nodes={inst.left.find((l) => l.key === t).text} ctx={ctx} />}
+                    onDrop={(d) => dropWord(t, x.key, d)}>
+                    <Inline nodes={inst.left.find((l) => l.key === t).text} ctx={ctx} /></DragWord>
+                ) : <span className="ln-m2-slot" data-testid="match-empty">{on ? 'слово сюда' : '…'}</span>}
                 <span className="ln-m2-def"><Inline nodes={x.text} ctx={ctx} /></span>
                 {verdict ? <span className="ln-m2-mark" aria-hidden="true">{verdict === 'ok' ? '✓' : '✗'}</span> : <span />}
                 {fix && <span className="ln-m2-fix" data-testid="match-fix">верно: <Inline nodes={fix.text} ctx={ctx} /></span>}
