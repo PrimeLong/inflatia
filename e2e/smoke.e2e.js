@@ -5437,6 +5437,71 @@ test('«Чтение» — урок на дороге юнита: после у�
   expect(errors).toEqual([]);
 });
 
+// «Чтение» на алмаз (пункт владельца 08.11): контекст — после ответа, «Кто это сказал?», алмаз — без ошибок
+test('«Чтение» на алмаз: контекст после ответа, «Кто это сказал?», с ошибкой — не взят, без ошибок — алмаз на дороге', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), read: { 'read-choice': at }, met: { 'people-scarcity': at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const card = page.locator('[data-testid=path-extra][data-id="read-choice"]');
+  await expect(card).toHaveAttribute('data-state', 'done');
+  await expect(card).not.toHaveAttribute('data-diamond', 'true');
+  const pass = async (wrongWho) => {
+    await card.scrollIntoViewIfNeeded();
+    await card.click();
+    const sheet = page.getByTestId('extra-sheet');
+    await expect(sheet.getByTestId('extra-gem')).toBeVisible();
+    await sheet.getByTestId('extra-gem').click();
+    const reading = page.getByTestId('reading');
+    await expect(reading).toHaveAttribute('data-gem', 'true');
+    for (let k = 1; k <= 3; k += 1) {
+      const p = reading.getByTestId('reading-page');
+      await expect(p).toHaveAttribute('data-page', String(k));
+      // контекст скрыт до ответа, после — открыт
+      await expect(p.getByTestId('reading-context-hidden')).toBeVisible();
+      await expect(p.getByTestId('reading-context')).toHaveCount(0);
+      if (await p.getAttribute('data-kind') === 'mark') await p.locator('[data-testid=reading-word][data-hit="1"]').first().click();
+      else await p.locator('[data-testid=reading-opt][data-ok]').click();
+      await expect(p.getByTestId('reading-context')).toBeVisible();
+      await page.getByTestId('reading-next').click();
+    }
+    // «Кто это сказал?» — у каждой цитаты автор и год
+    const who = reading.getByTestId('reading-who');
+    await expect(who).toBeVisible();
+    const items = who.getByTestId('reading-who-item');
+    await expect(items).toHaveCount(3);
+    await expect(page.getByTestId('reading-next')).toBeDisabled();
+    for (let k = 0; k < 3; k += 1) {
+      const it = items.nth(k);
+      if (wrongWho && k === 0) await it.locator('[data-testid=reading-who-opt]:not([data-ok])').first().click();
+      else await it.locator('[data-testid=reading-who-opt][data-ok]').click();
+      await expect(it).toHaveAttribute('data-answered', 'true');
+    }
+    await page.getByTestId('reading-next').click();
+    return page.getByTestId('reading-done');
+  };
+  // ошибка в «Кто это сказал?» — алмаз не взят
+  let done = await pass(true);
+  await expect(done).toHaveAttribute('data-won', 'false');
+  await expect(done).toContainText('Алмаз не взят');
+  await page.getByTestId('reading-finish').click();
+  await expect(card).not.toHaveAttribute('data-diamond', 'true');
+  // без ошибок — алмаз и +12 опыта; на дороге — алмазная печать
+  done = await pass(false);
+  await expect(done).toHaveAttribute('data-won', 'true');
+  await expect(done).toContainText('+12 опыта');
+  await page.getByTestId('reading-finish').click();
+  await expect(card).toHaveAttribute('data-diamond', 'true');
+  expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.readGem['read-choice'])).toBe(true);
+  await card.click();
+  await expect(page.getByTestId('extra-done-mark')).toContainText('алмаз');
+  await expect(page.getByTestId('extra-gem')).toContainText('ещё раз');
+  expect(errors).toEqual([]);
+});
+
 test('украшения урока: своя витрина с живыми превью, покупка вешает вещицу в уроки, она отзывается на ответ', async ({ page, isMobile }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {

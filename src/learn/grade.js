@@ -3,7 +3,7 @@
    чтобы рост был событием (жалоба: «убери условные единицы, сделай маленькие числа, чтобы рост был
    событием»). Потолка нет: выйдут новые юниты — будет куда расти.
    Из чего складывается (KNOW): пройденный урок — 1; урок без единой ошибки (лучший результат 100%) —
-   ещё 1; урок на алмазном уровне — ещё 1; особый урок дороги (Персоналии, Чтение, Разбор графика) — 1;
+   ещё 1; урок на алмазном уровне — ещё 1 («Чтение» на алмаз — тоже); особый урок дороги (Персоналии, Чтение, Разбор графика) — 1;
    юнит пройден целиком или сдан проверкой — 3. Юнит, сданный проверкой без уроков, засчитывает свои
    уроки как пройденные (по 1).
    Уровень курса (Начальный … Профессиональный) — где ученик сейчас: первый, где на уже вышедших юнитах
@@ -38,6 +38,8 @@ export function courseLevel(learn) {
     if (st.complete || tested) parts.units += 1;
   });
   parts.extras = Object.entries(EXTRA_IDS).reduce((a, [key, ids]) => a + ids.filter((id) => ((learn || {})[key] || {})[id]).length, 0);
+  // «Чтение» на алмаз — как урок на алмазном уровне
+  parts.diamond += EXTRA_IDS.read.filter((id) => ((learn || {}).readGem || {})[id]).length;
   const points = parts.lessons * KNOW.lesson + parts.perfect * KNOW.perfect + parts.diamond * KNOW.diamond + parts.extras * KNOW.extra + parts.units * KNOW.unit;
   const all = units.flatMap((s) => s.lessons);
   const done = all.filter((l) => l.done).length;

@@ -51,3 +51,35 @@ describe('серия и параллельный урок на двух устр
     expect(t.run).toEqual({ n: 0, at: at(8, 4), z: at(8, 4) });
   });
 });
+
+describe('«Чтение» на алмаз', async () => {
+  const { READINGS, quizWho, isReadGem } = await import('../reading.js');
+  const { markReadGem } = await import('../../textbook/learn-state.js');
+  const { courseLevel } = await import('../grade.js');
+  it('«Кто это сказал?»: у каждой цитаты верный ответ среди вариантов; авторы подборки и один чужой; цитата — до 12 слов', () => {
+    READINGS.forEach((r) => {
+      const q = quizWho(r);
+      expect(q).toHaveLength(r.pages.length);
+      q.forEach((it, k) => {
+        expect(it.options, r.id).toContain(it.answer);
+        expect(new Set(it.options).size, r.id).toBe(it.options.length);
+        expect(it.options.length, r.id).toBeGreaterThanOrEqual(2);
+        const own = new Set(r.pages.map((p) => p.author));
+        expect(it.options.filter((o) => ![...own].some((a) => o.startsWith(`${a},`))), r.id).toHaveLength(1);
+        expect(it.quote.replace(/…$/, '').split(/\s+/).length, r.id).toBeLessThanOrEqual(12);
+        expect(r.pages[k].quote.startsWith(it.quote.replace(/…$/, '')), r.id).toBe(true);
+        expect(it.quote, r.id).not.toMatch(/[,;:]…$/);
+      });
+    });
+  });
+  it('алмаз — один раз, на всех устройствах; засчитывает и прочтение; в уровне знаний — +1', () => {
+    const s0 = emptyLearn();
+    const s = markReadGem(s0, 'read-choice', at(9));
+    expect(isReadGem(s, 'read-choice')).toBe(true);
+    expect(s.read['read-choice']).toBe(at(9));
+    expect(markReadGem(s, 'read-choice', at(10))).toBe(s);
+    const m = mergeLearn(normalizeLearn(JSON.parse(JSON.stringify(s))), markReadGem(s0, 'read-choice', at(11)));
+    expect(m.readGem['read-choice']).toBe(at(9));
+    expect(courseLevel(s).parts.diamond - courseLevel({ ...s, readGem: {} }).parts.diamond).toBe(1);
+  });
+});

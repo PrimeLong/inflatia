@@ -8,6 +8,8 @@
    экран чтения (src/learn-reading.jsx) и тесты. */
 
 export const READ_XP = 12;
+// «Чтение» на алмаз (docs/mechanics.md, «Чтение»): опыт — один раз, за первый взятый алмаз
+export const READ_GEM_XP = 12;
 
 export const READINGS = [
   {
@@ -517,6 +519,24 @@ export function quoteWords(quote, mark = '') {
 }
 // прочитана ли подборка; открыта ли (после первого урока юнита)
 export const isRead = (learn, id) => !!((learn && learn.read) || {})[id];
+export const isReadGem = (learn, id) => !!((learn && learn.readGem) || {})[id];
+/* «Кто это сказал?» — последняя страница «Чтения» на алмаз: каждая цитата подборки (начало, до 12 слов) и на выбор
+   авторы с годом — авторы этой подборки и один из другой (первый по списку подборок, с другим именем). */
+export const whoLabel = (p) => `${p.author}, ${p.year}`;
+export function quizWho(r) {
+  const own = [...new Set(r.pages.map(whoLabel))];
+  const names = new Set(r.pages.map((p) => p.author));
+  const other = READINGS.filter((x) => x.id !== r.id).flatMap((x) => x.pages).find((p) => !names.has(p.author));
+  const options = [...own, ...(other ? [whoLabel(other)] : [])];
+  return r.pages.map((p, k) => {
+    const words = p.quote.split(/\s+/);
+    if (words.length <= 12) return { k, quote: p.quote, answer: whoLabel(p), options };
+    // обрыв — не на коротком служебном слове («и…», «как…») и без запятой перед многоточием
+    const cut = words.slice(0, 12);
+    while (cut.length > 6 && cut[cut.length - 1].replace(/[^А-Яа-яЁёA-Za-z]/g, '').length <= 3) cut.pop();
+    return { k, quote: `${cut.join(' ').replace(/[,;:—–-]+$/, '')}…`, answer: whoLabel(p), options };
+  });
+}
 export const readingOpen = (unitState) => !!unitState && unitState.lessons.some((l) => l.done);
 // сколько книг на полке
 export const shelfOf = (learn) => READINGS.map((r) => ({ ...r, done: isRead(learn, r.id) }));

@@ -5,7 +5,7 @@
    значком: открываются, когда пройден урок перед ними, и пропустить их нельзя — следующий урок закрыт,
    пока особый не пройден (extraLocks читает pathState). «Работа над ошибками» — так же.
    Модуль чистый: его читают Путь и тесты. */
-import { READING_BY_UNIT, isRead } from './reading.js';
+import { READING_BY_UNIT, isRead, isReadGem } from './reading.js';
 import { PEOPLE_BY_UNIT, isMet } from './people.js';
 import { GRAPH_BY_UNIT, isGraphDone } from './graphs.js';
 import { DRAW_BY_UNIT, isDrawDone } from './draws.js';
@@ -47,7 +47,7 @@ export function unitStops(st, learn) {
   const pp = PEOPLE_BY_UNIT[st.course.id];
   if (pp) extras.push({ type: 'people', id: pp.id, title: pp.title, after: peopleAfter(n), done: isMet(learn, pp.id) });
   const rd = READING_BY_UNIT[st.course.id];
-  if (rd) extras.push({ type: 'read', id: rd.id, title: rd.title, after: Math.min(n - 1, readAfter(n)), done: isRead(learn, rd.id) });
+  if (rd) extras.push({ type: 'read', id: rd.id, title: rd.title, after: Math.min(n - 1, readAfter(n)), done: isRead(learn, rd.id), ...(isReadGem(learn, rd.id) ? { gem: true } : {}) });
   const gr = GRAPH_BY_UNIT[st.course.id];
   if (gr) extras.push({ type: 'graph', id: gr.id, title: gr.title, after: graphAt(st.course.lessons, gr.chart), done: isGraphDone(learn, gr.id) });
   // «Нарисуй сам» — за «Разбором графика» (у юнита без разбора — после урока, где его график появился)

@@ -3,13 +3,13 @@
    чернила; ниже — контекст и вопрос. «Найдите в цитате»: слова цитаты нажимаются, верное место
    подчёркивается маркером. В конце — полка: прочитанная подборка встаёт книгой к остальным. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Check, BookOpen, ArrowRight } from 'lucide-react';
+import { X, Check, BookOpen, ArrowRight, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
-import { READING_BY_ID, READ_XP, quoteWords, isRead, shelfOf } from './learn/reading.js';
-import { finishLesson, markRead } from './textbook/learn-state.js';
+import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho } from './learn/reading.js';
+import { finishLesson, markRead, markReadGem } from './textbook/learn-state.js';
 
 const CSS = `
   .rd-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -77,13 +77,19 @@ const CSS = `
   .rd-keep b { display: block; font: 700 11.5px var(--ds-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--rd-ink); margin-bottom: 6px; }
   .rd-keep q { display: block; font: italic 400 17px/1.5 var(--ds-news, 'PT Serif', Georgia, serif); quotes: '«' '»'; }
   .rd-keep small { display: block; margin-top: 8px; font-size: 13.5px; color: var(--ds-ink2); }
+  /* «Чтение» на алмаз: контекст — после ответа; последняя страница — «Кто это сказал?» */
+  .rd-ctx.hid { color: var(--ds-ink3); font-style: italic; }
+  .rd-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: #fff; background: #B3123F; }
+  .rd-who-q { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--ds-rule); }
+  .rd-who-q q { display: block; font: italic 400 17px/1.45 var(--ds-news, 'PT Serif', Georgia, serif); quotes: '«' '»'; margin-bottom: 8px; }
+  .rd-done .rd-gem { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; margin-top: 10px; color: #fff; background: radial-gradient(circle at 35% 30%, #FFC2D2, #E5527B 45%, #B3123F 70%); box-shadow: 0 10px 22px -10px rgba(179,18,63,.7); animation: rd-up .5s ease-out backwards; }
   @media (prefers-reduced-motion: reduce) { .rd-sheet, .rd-w, .rd-w.hit, .rd-book.new, .rd-fb { animation: none; } .rd-w.hit { background-size: 100% 100%; } }
 `;
 
 // варианты — в случайном порядке, один раз на страницу
 const shuffled = (list) => list.map((o, k) => ({ ...o, k, r: Math.random() })).sort((a, b) => a.r - b.r);
 
-function Page({ p, i, n, answered, onAnswer }) {
+function Page({ p, i, n, answered, onAnswer, gem = false }) {
   const words = useMemo(() => quoteWords(p.quote, p.ask.kind === 'mark' ? p.ask.mark : ''), [p]);
   const opts = useMemo(() => (p.ask.kind === 'choice' ? shuffled(p.ask.options) : []), [p]);
   const mark = p.ask.kind === 'mark';
@@ -118,7 +124,10 @@ function Page({ p, i, n, answered, onAnswer }) {
           );
         })}
       </blockquote>
-      <div className="rd-ctx"><b>Контекст</b>{p.context}</div>
+      {/* на алмазном уровне контекст — после ответа: отвечать по самой цитате */}
+      {gem && !answered
+        ? <div className="rd-ctx hid" data-testid="reading-context-hidden"><b>Контекст</b>Откроется после ответа — на алмазном уровне отвечаем по самой цитате.</div>
+        : <div className="rd-ctx" data-testid="reading-context"><b>Контекст</b>{p.context}</div>}
       <div className="rd-ask">
         <div className="rd-ask-q">{mark ? 'Найдите в цитате' : 'Вопрос'}: <span style={{ fontWeight: 500 }}>{p.ask.prompt}</span></div>
         {!mark && (
@@ -160,17 +169,61 @@ function Shelf({ learn, fresh }) {
   );
 }
 
-export default function ReadingView({ id, learn, update, onClose }) {
+/* «Кто это сказал?» — последняя страница «Чтения» на алмаз: у каждой цитаты выбрать автора и год, ответ — один раз */
+function WhoPage({ items, picks, onPick }) {
+  const opts = useMemo(() => items.map((it) => shuffled(it.options.map((text) => ({ text })))), [items]);
+  return (
+    <article className="rd-sheet" data-testid="reading-who">
+      <div className="rd-who">
+        <span className="rd-seal" aria-hidden="true"><Gem size={22} /></span>
+        <div style={{ minWidth: 0 }}>
+          <div className="rd-name">Кто это сказал?</div>
+          <div className="rd-meta">Алмазный уровень · у каждой цитаты — автор и год</div>
+        </div>
+      </div>
+      {items.map((it, k) => {
+        const pick = picks[k];
+        return (
+          <div key={it.k} className="rd-who-q" data-testid="reading-who-item" data-answered={pick != null ? 'true' : undefined}>
+            <q>{it.quote}</q>
+            <div className="rd-opts" role="group" aria-label="Кто это сказал">
+              {opts[k].map((o) => {
+                const ok = o.text === it.answer;
+                const state = pick == null ? '' : ok ? 'ok' : pick === o.text ? 'bad' : '';
+                return <button key={o.text} type="button" className={`rd-opt ${state}`} disabled={pick != null} data-testid="reading-who-opt" data-ok={ok ? '1' : undefined}
+                  onClick={() => onPick(k, o.text)}>{o.text}</button>;
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </article>
+  );
+}
+
+export default function ReadingView({ id, learn, update, onClose, gem = false }) {
   const r = READING_BY_ID[id];
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState([]);
   const [done, setDone] = useState(false);
   const [got, setGot] = useState(0);
   const [startAt] = useState(() => Date.now());
+  // алмазный уровень: после страниц — «Кто это сказал?»; алмаз — без единой ошибки
+  const who = useMemo(() => (gem && r ? quizWho(r) : []), [gem, r]);
+  const [whoStage, setWhoStage] = useState(false);
+  const [picks, setPicks] = useState({});
+  const [won, setWon] = useState(null);
   const reduced = useReducedMotion();
   if (!r) return null;
   const page = r.pages[idx];
   const answered = answers[idx] || null;
+  const whoDone = who.length > 0 && who.every((_, k) => picks[k] != null);
+  const pick = (k, text) => {
+    if (picks[k] != null) return;
+    Audio.play(text === who[k].answer ? 'up' : 'down');
+    setPicks((p) => ({ ...p, [k]: text }));
+  };
+  const toTop = () => window.requestAnimationFrame(() => { const el = document.querySelector('.rd-root'); if (el) el.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); });
   const answer = (a) => {
     if (answers[idx]) return;
     Audio.play(a.ok ? 'up' : 'down');
@@ -178,12 +231,25 @@ export default function ReadingView({ id, learn, update, onClose }) {
   };
   const next = () => {
     Audio.play('paper');
-    if (idx + 1 < r.pages.length) { setIdx(idx + 1); window.requestAnimationFrame(() => { const el = document.querySelector('.rd-root'); if (el) el.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }); return; }
+    if (idx + 1 < r.pages.length) { setIdx(idx + 1); toTop(); return; }
+    if (gem && !whoStage) { setWhoStage(true); toTop(); return; }
+    const right = answers.filter((a) => a && a.ok).length;
+    const seconds = Math.round((Date.now() - startAt) / 1000);
+    if (gem) {
+      // алмаз — без единой ошибки и на страницах, и в «Кто это сказал?»; опыт — за первый взятый
+      const clean = right === r.pages.length && who.every((it, k) => picks[k] === it.answer);
+      setWon(clean);
+      if (clean && !isReadGem(learn, r.id)) {
+        update((s) => markReadGem(finishLesson(s, null, { xp: READ_GEM_XP, accuracy: 100, seconds, kind: 'read', extra: { fresh: false } }), r.id));
+        setGot(READ_GEM_XP);
+      }
+      setDone(true);
+      Audio.play(clean ? 'stamp' : 'paper');
+      return;
+    }
     // дочитали: опыт — один раз, книга — на полку
     const first = !isRead(learn, r.id);
-    const right = answers.filter((a) => a && a.ok).length;
     if (first) {
-      const seconds = Math.round((Date.now() - startAt) / 1000);
       update((s) => markRead(finishLesson(s, null, { xp: READ_XP, accuracy: (right / r.pages.length) * 100, seconds, kind: 'read', extra: { fresh: true } }), r.id));
       setGot(READ_XP);
     }
@@ -192,24 +258,34 @@ export default function ReadingView({ id, learn, update, onClose }) {
   };
   const style = { '--rd': r.color, '--rd-ink': `color-mix(in srgb, ${r.color} 80%, var(--ds-ink))` };
   return (
-    <div className="rd-root" role="dialog" aria-modal="true" aria-label={`Чтение: ${r.title}`} data-testid="reading" data-id={r.id} style={style}>
+    <div className="rd-root" role="dialog" aria-modal="true" aria-label={`Чтение: ${r.title}`} data-testid="reading" data-id={r.id} data-gem={gem ? 'true' : undefined} style={style}>
       <style>{CSS + REPORT_CSS}</style>
       <div className="rd-top">
         <IconButton label="Закрыть чтение" icon={X} data-testid="reading-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <BookOpen size={18} color="var(--rd)" aria-hidden="true" />
         <span className="rd-title">Чтение · {r.title}</span>
-        {!done && <span className="rd-marks" aria-label={`Страница ${idx + 1} из ${r.pages.length}`}>{r.pages.map((_, k) => <i key={k} className={k <= idx ? 'on' : ''} />)}</span>}
+        {gem && <span className="rd-gem-tag" data-testid="reading-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
+        {!done && <span className="rd-marks" aria-label={`Страница ${whoStage ? r.pages.length + 1 : idx + 1} из ${r.pages.length + (gem ? 1 : 0)}`}>{[...r.pages, ...(gem ? [null] : [])].map((_, k) => <i key={k} className={k <= idx || (whoStage && k === r.pages.length) ? 'on' : ''} />)}</span>}
         {/* «Ошибка?» — подборка, страница, вопрос и ответ уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в чтении? Цитата, вопрос и устройство приложатся сами." context={() => ({
           screen: 'reading', lesson: r.id, unit: r.unitId, kind: 'read',
-          step: done ? 'полка' : `страница ${idx + 1} из ${r.pages.length}: ${page.author}, ${page.book}`,
+          step: done ? 'полка' : whoStage ? 'алмаз: «Кто это сказал?»' : `страница ${idx + 1} из ${r.pages.length}: ${page.author}, ${page.book}${gem ? ' (алмаз)' : ''}`,
           prompt: done ? r.title : `${page.quote} — ${page.ask.prompt}`.slice(0, 1500),
           answer: !done && answered ? `${page.ask.kind === 'choice' ? ((page.ask.options || []).find((o) => o.k === answered.pick) || {}).text || '' : `слово ${answered.pick}`} — ${answered.ok ? 'верно' : 'неверно'}` : '',
         })} />
       </div>
       {!done ? (
         <div className="rd-page">
-          <Page key={idx} p={page} i={idx} n={r.pages.length} answered={answered} onAnswer={answer} />
+          {whoStage ? <WhoPage items={who} picks={picks} onPick={pick} /> : <Page key={idx} p={page} i={idx} n={r.pages.length} answered={answered} onAnswer={answer} gem={gem} />}
+        </div>
+      ) : gem ? (
+        <div className="rd-page rd-done" data-testid="reading-done" data-won={String(!!won)}>
+          {won ? <span className="rd-gem" aria-hidden="true"><Gem size={30} /></span> : null}
+          <h2>{won ? 'Алмаз взят' : 'Алмаз не взят'}</h2>
+          <div className="ds-sub" style={{ fontSize: 15.5, lineHeight: 1.5 }}>
+            «{r.title}»: {answers.filter((a) => a && a.ok).length + who.filter((it, k) => picks[k] === it.answer).length} из {r.pages.length + who.length} верно.
+            {won ? (got ? ` +${got} опыта.` : ' Алмаз уже был — опыт получен раньше.') : ' Нужно без единой ошибки — попробуйте ещё раз.'}
+          </div>
         </div>
       ) : (
         <div className="rd-page rd-done" data-testid="reading-done">
@@ -231,8 +307,9 @@ export default function ReadingView({ id, learn, update, onClose }) {
         <div>
           {done
             ? <Button wide icon={Check} data-testid="reading-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            : whoStage ? <Button wide icon={Check} disabled={!whoDone} data-testid="reading-next" onClick={next}>{whoDone ? 'Готово' : 'Выберите автора у каждой цитаты'}</Button>
             : <Button wide icon={answered && idx + 1 === r.pages.length ? Check : ArrowRight} disabled={!answered} data-testid="reading-next" onClick={next}>
-              {!answered ? (page.ask.kind === 'mark' ? 'Коснитесь слов в цитате' : 'Выберите ответ') : idx + 1 < r.pages.length ? 'Дальше' : 'На полку'}</Button>}
+              {!answered ? (page.ask.kind === 'mark' ? 'Коснитесь слов в цитате' : 'Выберите ответ') : idx + 1 < r.pages.length || gem ? 'Дальше' : 'На полку'}</Button>}
         </div>
       </div>
     </div>

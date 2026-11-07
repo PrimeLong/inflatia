@@ -2314,14 +2314,20 @@ function ExtraSheet({ x, onStart, onClose }) {
           <div className="ds-num ds-sub ln-ticket-meta" data-testid="extra-meta">
             <span><Timer size={15} aria-hidden="true" />≈{info.min} мин</span>
             <span><Coins size={15} aria-hidden="true" />{x.done ? 'опыт получен' : `+${info.xp} опыта`}</span>
-            {x.done && <span data-testid="extra-done-mark" style={{ color: 'var(--ds-ok)', fontWeight: 700 }}><Check size={15} aria-hidden="true" />пройден</span>}
+            {x.done && <span data-testid="extra-done-mark" style={{ color: x.gem ? DIAMOND_COLOR : 'var(--ds-ok)', fontWeight: 700 }}>{x.gem ? <Gem size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{x.gem ? 'алмаз' : 'пройден'}</span>}
           </div>
         </div>
         <div className="ln-ticket-stub"><Icon size={30} aria-hidden="true" /></div>
       </div>
       <p className="ds-sub" style={{ fontSize: 15, lineHeight: 1.45, margin: '14px 2px 0' }} data-testid="extra-inside">{info.inside}</p>
       <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
-        <Button wide data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+        {/* прочитанное «Чтение» — и на алмазном уровне: контекст после ответа, «Кто это сказал?», без ошибок (пункт владельца 08.11) */}
+        {x.type === 'read' && x.done && (
+          <Button wide icon={Gem} data-testid="extra-gem" style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
+            {x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
+          </Button>
+        )}
+        <Button wide variant={x.type === 'read' && x.done ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
       </div>
     </Sheet>
   );
@@ -2368,11 +2374,11 @@ function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra =
           return (
             <div key={x.id} className="ln-stop" style={{ left: pts[i][0], top: pts[i][1] - 31 }}>
               {isRec && <span className="ln-pin rec" data-testid="path-rec">рекомендуем сейчас</span>}
-              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined}
+              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined} data-diamond={x.gem ? 'true' : undefined}
                 data-nav-target={`extra:${x.id}`} aria-label={`${EXTRA_KIND[x.type]}: ${x.title}${x.done ? ', пройдено' : x.open ? '' : ', закрыто'}`}
                 onClick={() => { Audio.prime(); Audio.play('click'); onExtra(x); }}>
                 {x.open || x.done ? <Icon size={25} /> : <Lock size={22} />}
-                {x.done && <span className="ln-seal" aria-hidden="true"><Check size={13} strokeWidth={3.2} /></span>}
+                {x.done && <span className={`ln-seal ${x.gem ? 'diamond' : ''}`} aria-hidden="true">{x.gem ? <Gem size={13} strokeWidth={2.6} /> : <Check size={13} strokeWidth={3.2} />}</span>}
                 {x.type === 'fix' && <span className="ln-fix-count" data-testid="path-fix-count" aria-hidden="true">{x.count}</span>}
               </button>
               <button type="button" className={`ln-stop-title ln-extra-title side-${ts.side} ${x.open || x.done ? '' : 'locked'}`} tabIndex={-1} aria-hidden="true"
@@ -3136,7 +3142,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   };
   const openExtra = (x) => {
     setExtraSheet(null);
-    if (x.type === 'read') setReading(x.id);
+    // x.gem — алмаз у остановки уже взят; x.diamond — открыть на алмазном уровне
+    if (x.type === 'read') setReading({ id: x.id, gem: !!x.diamond });
     else if (x.type === 'people') setPeople(x.id);
     else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
     else if (x.type === 'draw') setDraw(x.id);
@@ -3236,7 +3243,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         }} /></React.Suspense>}
       {sheet && <LessonSheet l={sheet} learn={learn} weak={weakLessons(learn).some((w) => w.id === sheet.id)} onStart={start} onClose={() => setSheet(null)} onOpenBook={openBook}
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
-      {reading && <Lazy><ReadingView id={reading} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
+      {reading && <Lazy><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
       {people && <Lazy><PeopleView id={people} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
