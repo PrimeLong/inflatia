@@ -5388,7 +5388,7 @@ test('«Чтение» — урок на дороге юнита: после у�
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
-  const card = page.locator('[data-testid=path-extra][data-extra="read"]');
+  const card = page.locator('[data-testid=path-extra][data-id="read-choice"]');
   await expect(card).toHaveAttribute('data-id', 'read-choice');
   await expect(card).toHaveAttribute('data-state', 'open');
   // «Персоналии» юнита — тоже остановка дороги, открыта после второго урока
@@ -5686,8 +5686,8 @@ test('«Персоналии» — урок на дороге юнита: три
   const stop = page.locator('[data-testid=path-extra][data-id="people-scarcity"]');
   await expect(stop).toHaveAttribute('data-state', 'open');
   // «Чтение» ещё закрыто — касание объясняет, когда откроется
-  await page.locator('[data-testid=path-extra][data-extra="read"]').scrollIntoViewIfNeeded();
-  await page.locator('[data-testid=path-extra][data-extra="read"]').click();
+  await page.locator('[data-testid=path-extra][data-id="read-choice"]').scrollIntoViewIfNeeded();
+  await page.locator('[data-testid=path-extra][data-id="read-choice"]').click();
   await expect(page.getByTestId('extra-locked')).toContainText('Откроется, когда пройдёте урок');
   await page.getByTestId('extra-locked').getByRole('button', { name: 'Понятно' }).click();
   await stop.scrollIntoViewIfNeeded();
@@ -6093,15 +6093,21 @@ test('особые уроки не пропустить: после урока �
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
-  const stop = page.locator('[data-testid=path-extra][data-extra="graph"]');
+  const stop = page.locator('[data-testid=path-extra][data-id="graph-ppf"]');
   await expect(stop).toHaveAttribute('data-state', 'open');
   await expect(pathNode(page, 'sc-l3')).toHaveAttribute('data-state', 'locked');
-  // разбор пройден — следующий урок открылся
-  await page.evaluate(() => {
+  // разбор пройден — урок ещё ждёт «Нарисуй сам» сразу за ним (в каждом юните все четыре особых урока)
+  const passExtra = (key, id) => page.evaluate(([k, x]) => {
     const p = JSON.parse(localStorage.getItem('ems-textbook-v1'));
-    p.learn.graphs = { 'graph-ppf': Date.now() - 60000 };
+    p.learn[k] = { ...(p.learn[k] || {}), [x]: Date.now() - 60000 };
     localStorage.setItem('ems-textbook-v1', JSON.stringify(p));
-  });
+  }, [key, id]);
+  await passExtra('graphs', 'graph-ppf');
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.locator('[data-testid=path-extra][data-id="draw-ppf"]')).toHaveAttribute('data-state', 'open');
+  await expect(pathNode(page, 'sc-l3')).toHaveAttribute('data-state', 'locked');
+  // и рисунок пройден — следующий урок открылся
+  await passExtra('draws', 'draw-ppf');
   await page.reload({ waitUntil: 'networkidle' });
   await expect(pathNode(page, 'sc-l3')).not.toHaveAttribute('data-state', 'locked');
   expect(errors).toEqual([]);
@@ -6294,7 +6300,7 @@ test('«Разбор графика» — остановка на дороге �
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
-  const stop = page.locator('[data-testid=path-extra][data-extra="graph"]');
+  const stop = page.locator('[data-testid=path-extra][data-id="graph-ppf"]');
   await expect(stop).toHaveAttribute('data-state', 'open');
   await stop.scrollIntoViewIfNeeded();
   await stop.click();
@@ -6358,7 +6364,7 @@ test('«Разбор графика» на ПК: черновик на поля�
     localStorage.setItem('ems-sketch-on', '1');
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
-  const stop = page.locator('[data-testid=path-extra][data-extra="graph"]');
+  const stop = page.locator('[data-testid=path-extra][data-id="graph-ppf"]');
   await stop.scrollIntoViewIfNeeded();
   await stop.click();
   await page.getByTestId('extra-start').click();
