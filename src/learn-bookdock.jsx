@@ -5,8 +5,8 @@
    Звук — один проигрыватель на всё приложение (src/learn/book-player.js). Модуль лёгкий: он в основном
    чанке, а читалка и тексты книг — в отдельном (src/learn-shelf.jsx). */
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { X, Play, Pause, RotateCcw, RotateCw } from 'lucide-react';
-import { subscribe, getState, bookPlayer, viewOf, nowPassage } from './learn/book-player.js';
+import { X, Play, Pause, RotateCcw, RotateCw, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { subscribe, getState, bookPlayer, viewOf, nowPassage, canSetVolume } from './learn/book-player.js';
 
 export const useBookState = () => useSyncExternalStore(subscribe, getState, getState);
 /* проигрыватель книги b для экрана: звучит она — живое состояние, нет — где остановились; действия
@@ -39,8 +39,8 @@ export const MINI_CSS = `
   .lb-rate { height: 38px; min-width: 56px; padding: 0 14px; border: 0; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
     background: color-mix(in srgb, var(--b) 11%, transparent); color: var(--ds-ink); font: 700 13.5px var(--ds-sans); font-variant-numeric: tabular-nums; transition: background .15s; }
   .lb-rate:hover { background: color-mix(in srgb, var(--b) 20%, transparent); }
-  .lb-mini { position: fixed; z-index: 3; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: min(520px, calc(100% - 24px)); transform: translateX(-50%);
-    display: flex; align-items: center; gap: 10px; padding: 17px 10px 8px 9px; border-radius: 18px; overflow: hidden; color: var(--ds-ink);
+  .lb-mini { position: fixed; z-index: 3; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: min(540px, calc(100% - 24px)); transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; padding: 17px 10px 8px 9px; border-radius: 18px; color: var(--ds-ink);
     background: color-mix(in srgb, var(--ds-card) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
     border: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); box-shadow: 0 18px 36px -18px rgba(0,0,0,.5); animation: lb-mini-in .4s cubic-bezier(.2, 1.3, .4, 1) backwards; }
   @keyframes lb-mini-in { from { transform: translate(-50%, 150%); } }
@@ -63,8 +63,45 @@ export const MINI_CSS = `
   .lb-mini-t small { display: flex; align-items: center; gap: 6px; font: 700 12px var(--ds-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ds-ink3); white-space: nowrap; overflow: hidden; }
   .lb-mini-t small .lb-bars { height: 9px; color: var(--b); } .lb-mini-t small .lb-bars i { width: 2px; }
   .lb-mini-t b { display: block; font: 700 14.5px/1.3 var(--ds-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  @media (prefers-reduced-motion: reduce) { .lb-mini, .lb-bars i { animation: none !important; } }
+  /* громкость: кнопка-динамик; на ПК ползунок всплывает при наведении, на телефоне — по касанию */
+  .lb-mini-vol { position: relative; flex: none; }
+  .lb-mini-vol-pop { position: absolute; right: -6px; bottom: calc(100% + 10px); display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px; width: 170px;
+    background: var(--ds-card); border: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); box-shadow: 0 14px 28px -14px rgba(0,0,0,.45); animation: lb-vol-in .16s ease-out; }
+  .lb-mini-vol-pop::after { content: ''; position: absolute; right: 18px; bottom: -6px; width: 10px; height: 10px; transform: rotate(45deg); background: var(--ds-card);
+    border-right: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); border-bottom: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); }
+  /* мост над зазором: мышь идёт от кнопки к ползунку — ползунок не прячется */
+  .lb-mini-vol-pop::before { content: ''; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px; }
+  @keyframes lb-vol-in { from { opacity: 0; transform: translateY(4px); } }
+  .lb-mini-vol-pop input { flex: 1; min-width: 0; accent-color: var(--b); }
+  .lb-mini-vol-pop b { font: 700 12px var(--ds-sans); font-variant-numeric: tabular-nums; color: var(--ds-ink2); min-width: 32px; text-align: right; }
+  @media (prefers-reduced-motion: reduce) { .lb-mini, .lb-bars i, .lb-mini-vol-pop { animation: none !important; } }
 `;
+
+/* громкость в мини-проигрывателе (docs/mechanics.md, «Профиль»): на ПК — наведение показывает ползунок, нажатие
+   на динамик — без звука и обратно; на телефоне (без наведения) касание открывает и закрывает ползунок */
+const hoverable = () => { try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches; } catch { return false; } };
+function MiniVolume({ p }) {
+  const [open, setOpen] = useState(false);
+  const last = React.useRef(p.volume > 0 ? p.volume : 1);
+  if (p.volume > 0) last.current = p.volume;
+  if (!p.setVolume || !canSetVolume()) return null;
+  const Icon = p.volume === 0 ? VolumeX : p.volume < 0.5 ? Volume1 : Volume2;
+  const pct = Math.round(p.volume * 100);
+  return (
+    <div className="lb-mini-vol" data-testid="book-mini-vol" data-open={open ? 'true' : undefined}
+      onMouseEnter={() => { if (hoverable()) setOpen(true); }} onMouseLeave={() => { if (hoverable()) setOpen(false); }}>
+      <button type="button" className="lb-mini-skip" aria-label={hoverable() ? (p.volume === 0 ? 'Включить звук' : 'Выключить звук') : 'Громкость'} aria-expanded={open}
+        data-testid="book-mini-vol-btn" onClick={() => { if (hoverable()) p.setVolume(p.volume === 0 ? last.current : 0); else setOpen((o) => !o); }}><Icon size={17} aria-hidden="true" /></button>
+      {open && (
+        <div className="lb-mini-vol-pop" data-testid="book-mini-vol-pop">
+          <input type="range" min="0" max="100" step="1" value={pct} onChange={(e) => p.setVolume(Number(e.target.value) / 100)}
+            aria-label="Громкость" aria-valuetext={`${pct}%`} data-testid="book-mini-volume" />
+          <b>{pct}%</b>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* мини-проигрыватель: пауза, название звучащего отрывка, ±15 секунд и скорость; сверху — полоса прослушанного,
    она же ползунок перемотки (тянуть или коснуться места) */
@@ -83,6 +120,7 @@ export function MiniPlayer({ b, p, onGo, onClose = null, testid = 'book-mini', s
       <button type="button" className="lb-mini-skip" onClick={() => p.skip(-15)} aria-label="Назад на 15 секунд" data-testid="book-mini-back"><RotateCcw size={16} aria-hidden="true" /><small>15</small></button>
       <button type="button" className="lb-mini-skip" onClick={() => p.skip(15)} aria-label="Вперёд на 15 секунд" data-testid="book-mini-fwd"><RotateCw size={16} aria-hidden="true" /><small>15</small></button>
       <button type="button" className="lb-rate lb-mini-rate" onClick={p.nextRate} aria-label={`Скорость ${rateText(p.rate)} — сменить`}>{rateText(p.rate)}</button>
+      <MiniVolume p={p} />
       {onClose && <button type="button" className="lb-mini-skip" onClick={onClose} aria-label="Остановить и убрать проигрыватель" data-testid="book-mini-close"><X size={17} aria-hidden="true" /></button>}
     </div>
   );
@@ -107,6 +145,7 @@ export function BookDock({ onOpen }) {
   const p = {
     ...s, now: nowPassage(s),
     toggle: () => bookPlayer.toggle(), seek: (f) => bookPlayer.seek(null, null, null, f), skip: (sec) => bookPlayer.skip(null, null, null, sec), nextRate: () => bookPlayer.nextRate(),
+    setVolume: (v) => bookPlayer.setVolume(v),
   };
   const who = b.author.split(' ').pop();
   return (

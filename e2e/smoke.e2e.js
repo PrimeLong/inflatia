@@ -5924,6 +5924,26 @@ test('книгу на полке можно слушать: голос брау�
   expect(await page.evaluate(() => window.__tape.currentTime)).toBeCloseTo(135, 0);
   await mini.getByTestId('book-mini-fwd').click();
   expect(await page.evaluate(() => window.__tape.currentTime)).toBeCloseTo(150, 0);
+  // громкость и в мини-проигрывателе (пункт владельца 08.11): на ПК — ползунок при наведении на динамик, на телефоне — по касанию
+  const hov = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches);
+  const mv = mini.getByTestId('book-mini-vol');
+  const mvol = mini.getByTestId('book-mini-volume');
+  await expect(mvol).toHaveCount(0);
+  if (hov) await mv.hover(); else await mv.getByTestId('book-mini-vol-btn').click();
+  await expect(mvol).toBeVisible();
+  await expect(mvol).toHaveValue('40');
+  await mvol.fill('70');
+  await expect(vol).toHaveValue('70');
+  expect(await page.evaluate(() => localStorage.getItem('ems-book-volume'))).toBe('0.7');
+  // на ПК нажатие на динамик — без звука и обратно
+  if (hov) {
+    await mv.getByTestId('book-mini-vol-btn').click();
+    await expect(mvol).toHaveValue('0');
+    await mv.getByTestId('book-mini-vol-btn').click();
+    await expect(mvol).toHaveValue('70');
+    await page.mouse.move(4, 4);
+  } else await mv.getByTestId('book-mini-vol-btn').click();
+  await expect(mvol).toHaveCount(0);
   await page.evaluate((f) => window.__tapeAt(f + 0.001), passageStart(parts, 'taxes'));
   await mini.getByTestId('book-mini-play').click();
   await expect(listen).toHaveAttribute('data-state', 'paused');
