@@ -6582,8 +6582,8 @@ test('«Нарисуй сам» — остановка за графиком ю�
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
-  // «Биржа труда»: разбора графика нет — «Нарисуй сам» сразу после урока, где график появился
-  const stop = page.locator('[data-testid=path-extra][data-extra="draw"]').first();
+  // «Биржа труда»: «Нарисуй сам» — сразу за «Разбором графика», после урока, где график появился (правило «четыре особых урока»)
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"][data-id="draw-labor"]');
   await stop.scrollIntoViewIfNeeded();
   await expect(stop).toHaveAttribute('data-state', 'open');
   await stop.click();
@@ -6944,3 +6944,4 @@ test('вход: гость может войти — «Войти» рядом �
   await expect(page.getByTestId('guest-save')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
