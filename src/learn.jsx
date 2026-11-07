@@ -70,7 +70,6 @@ import { callbackFor } from './learn/callbacks.js';
 import { symbolsOf } from './textbook/symbols.js';
 import { inCrowns, sceneInCrowns } from './learn/money.js';
 import { ReportFlag, QuoteReport, ReportsView, REPORT_CSS, THEORY_REASONS, exerciseContext, flatText } from './learn-report.jsx';
-import { AnalyticsView } from './learn-analytics.jsx';
 import { DsRoot, Button, IconButton, Card, MenuCard, Heading, AnswerBar, Sheet, TopBar } from './ds.jsx';
 import { ArtStyle, Guilloche, Rosette, Chest, Engraving, EngravingG, ProgressChart, InflaMeter, CoinShower, CountUp, useReducedMotion, useWide, useMedia } from './ds-art.jsx';
 import { placeOf, unitColor, DIAMOND_COLOR, dsThemeId } from './ds-tokens.js';
@@ -2945,6 +2944,8 @@ const PeopleView = React.lazy(() => import('./learn-people.jsx'));
 const BookOverlay = React.lazy(() => import('./learn-shelf.jsx').then((m) => ({ default: m.BookOverlay })));
 const GraphLesson = React.lazy(() => import('./learn-graph.jsx'));
 const DrawLesson = React.lazy(() => import('./learn-draw.jsx'));
+// отчёт владельца — только когда его открывают (docs/mechanics.md: ни один чанк не больше 400 КБ)
+const AnalyticsView = React.lazy(() => import('./learn-analytics.jsx').then((m) => ({ default: m.AnalyticsView })));
 // предохранитель выплат остановил повторную выплату — в аналитику, без логина и имени (docs/mechanics.md, «Защита монет»)
 onCoinGuard(() => track('coins_guard'));
 // списание дюпа уходит в аналитику один раз за запуск
@@ -3208,7 +3209,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {toast && <NotifyToast n={toast} onGo={(n) => { toastDone(); goNotify(n); }} onClose={toastDone} onRead={(n) => notify.markOne(n.id)} />}
       {!toast && !run && gains.length > 0 && <NotifyToast n={gainsNote(gains)} onGo={gainsDone} onClose={gainsDone} />}
       {reports && <ReportsView onBack={() => { Audio.play('paper'); setReports(false); }} />}
-      {analytics && <AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} />}
+      {analytics && <Lazy><AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} /></Lazy>}
       {chest && <ChestSheet unitId={chest} place={placeOf(chest).place} learn={learn} update={update}
         onClose={(opened) => { setChest(null); if (opened) setFolded({ n: Date.now(), unit: chest }); }} />}
       {morning && !run && <MorningStreak learn={learn} onClose={() => setMorning(false)} />}
