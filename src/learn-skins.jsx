@@ -40,6 +40,8 @@ export function skinVars(s) {
 
 // линия котировок «Биржи» — замкнутая по кругу (src/learn/skin-sounds.js, loopWalk)
 const walkPts = (n, seed, amp) => loopWalk(n, seed, amp).map(([x, y]) => `${x.toFixed(2)},${y.toFixed(1)}`).join(' ');
+// микротекст по краю банкноты «Монетного двора»
+const MICRO = 'МОНЕТНЫЙ ДВОР ИНФЛЯЦИИ · ';
 const TICKER = 'НФТ ▲ 2,31% · ЗРН ▼ 0,84% · КФЕ ▲ 1,12% · СТЛ ▲ 0,40% · КРН/МОН 1,04 · ИНФЛ 4,1% · СТАВКА 2,0% · ЗЛТ ▲ 0,95% · ХЛБ ▼ 0,22% · ';
 
 export const SKIN_CSS = `
@@ -74,8 +76,8 @@ export const SKIN_CSS = `
   /* ---------- Монетный двор ---------- */
   .sk-on[data-skin="mint"] { background: #FBF5E6; }
   .sk-mint { background: radial-gradient(90% 70% at 80% 20%, #FFF4D6 0%, #FBF5E6 55%, #F2E6C8 100%); }
-  .sk-mint-rose { position: absolute; right: -18vmin; top: 6vmin; width: 78vmin; height: 78vmin; opacity: .16; animation: sk-spin 140s linear infinite; }
-  .sk-mint-rose.b { right: auto; left: -30vmin; top: auto; bottom: -26vmin; width: 60vmin; height: 60vmin; opacity: .1; animation-direction: reverse; animation-duration: 180s; }
+  .sk-mint-rose { position: absolute; right: -18vmin; top: 6vmin; width: 78vmin; height: 78vmin; opacity: .26; animation: sk-spin 140s linear infinite; }
+  .sk-mint-rose.b { right: auto; left: -30vmin; top: auto; bottom: -26vmin; width: 60vmin; height: 60vmin; opacity: .1; animation-direction: reverse; animation-duration: 180s; opacity: .18; }
   @keyframes sk-spin { to { transform: rotate(360deg) } }
   .sk-dust { position: absolute; bottom: -10px; width: 4px; height: 4px; border-radius: 50%; background: radial-gradient(circle, #FFE9A3, #C99417); box-shadow: 0 0 6px #F7DC8A;
     animation: sk-rise var(--t, 14s) linear var(--d, 0s) infinite; opacity: 0; }
@@ -125,11 +127,11 @@ export const SKIN_CSS = `
     radial-gradient(1px 1px at 22% 42%, #fff, transparent), radial-gradient(1px 1px at 64% 46%, #fff, transparent), radial-gradient(1.3px 1.3px at 8% 70%, #fff, transparent),
     radial-gradient(1px 1px at 44% 64%, #fff, transparent), radial-gradient(1.2px 1.2px at 92% 66%, #fff, transparent); animation: sk-twinkle 5s ease-in-out infinite alternate; }
   @keyframes sk-twinkle { to { opacity: .55 } }
-  .sk-au-band { position: absolute; left: -20%; width: 140%; height: 34%; filter: blur(46px); opacity: .34; mix-blend-mode: screen; border-radius: 50%;
+  .sk-au-band { position: absolute; left: -20%; width: 140%; height: 34%; filter: blur(42px); opacity: .55; mix-blend-mode: screen; border-radius: 50%;
     animation: sk-wave 16s ease-in-out infinite alternate; }
   .sk-au-band.a { top: 4%; background: linear-gradient(90deg, transparent, #2BE3A0 30%, #22C1E8 60%, transparent); }
-  .sk-au-band.b { top: 18%; background: linear-gradient(90deg, transparent, #7B5CFF 35%, #2BE3A0 70%, transparent); animation-duration: 22s; animation-delay: -6s; opacity: .28; }
-  .sk-au-band.c { top: 30%; background: linear-gradient(90deg, transparent, #22C1E8 40%, #C95CFF 75%, transparent); animation-duration: 28s; animation-delay: -12s; opacity: .22; }
+  .sk-au-band.b { top: 18%; background: linear-gradient(90deg, transparent, #7B5CFF 35%, #2BE3A0 70%, transparent); animation-duration: 22s; animation-delay: -6s; opacity: .46; }
+  .sk-au-band.c { top: 30%; background: linear-gradient(90deg, transparent, #22C1E8 40%, #C95CFF 75%, transparent); animation-duration: 28s; animation-delay: -12s; opacity: .36; }
   @keyframes sk-wave { 0% { transform: translateX(-6%) skewY(-4deg) scaleY(.8) } 50% { transform: translateX(4%) skewY(3deg) scaleY(1.15) } 100% { transform: translateX(8%) skewY(-2deg) scaleY(.9) } }
   .sk-on[data-skin="aurora"] .ds-opt { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; color: #EEF2FF; --edge: rgba(0,0,0,.3);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
@@ -140,6 +142,52 @@ export const SKIN_CSS = `
   .sk-star { position: absolute; top: 12%; width: 160px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,255,255,0), #fff);
     box-shadow: 0 0 10px #fff; animation: sk-shoot 1.1s ease-out forwards; }
   @keyframes sk-shoot { from { transform: translate(-30vw, 0) rotate(18deg); opacity: 0 } 20% { opacity: 1 } to { transform: translate(70vw, 22vh) rotate(18deg); opacity: 0 } }
+
+  /* ---------- во всех темах: прогресс урока, вид задания, «Калькулятор», выключенная главная кнопка ---------- */
+  .sk-on[data-skin] .ds-level-track i, .sk-on[data-skin] .ds-level-track button { background: color-mix(in srgb, var(--sk-rule) 50%, transparent); border-radius: var(--sk-seg-r, 3px); }
+  .sk-on[data-skin] .ds-level-track .ok { background: var(--sk-ok); }
+  .sk-on[data-skin] .ds-level-track .bad { background: repeating-linear-gradient(135deg, var(--sk-bad) 0 3px, color-mix(in srgb, var(--sk-bad) 30%, transparent) 3px 6px); }
+  .sk-on[data-skin] .ds-level-track .cur { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sk-ok); }
+  .sk-on[data-skin] .ds-level-n { color: var(--sk-ink); font-family: var(--sk-font); opacity: .75; }
+  .sk-on[data-skin] .ln-kind { color: var(--sk-ok); font-family: var(--sk-font); }
+  .sk-on[data-skin] .ds-chip { background: var(--sk-panel); border-color: var(--sk-rule); color: var(--sk-ink); font-family: var(--sk-font); border-radius: var(--sk-radius); box-shadow: 0 2px 0 color-mix(in srgb, var(--sk-rule) 70%, transparent); }
+  .sk-on[data-skin] .ds-chip[aria-pressed="true"] { border-color: var(--sk-ok); box-shadow: 0 0 0 1px var(--sk-ok); }
+  .sk-on[data-skin] .ds-btn:not(.ds-btn--ghost):not(.ds-btn--secondary):disabled { background: color-mix(in srgb, var(--sk-panel) 82%, var(--sk-ink)); color: color-mix(in srgb, var(--sk-ink) 48%, transparent);
+    box-shadow: 0 4px 0 color-mix(in srgb, var(--sk-rule) 55%, transparent); border-radius: var(--sk-radius); }
+  .sk-on[data-skin="exchange"] .ds-btn:disabled, .sk-on[data-skin="blueprint"] .ds-btn:disabled { font-family: var(--ds-mono); }
+  .sk-on[data-skin="exchange"] { --sk-seg-r: 1px; } .sk-on[data-skin="blueprint"] { --sk-seg-r: 0; } .sk-on[data-skin="aurora"] { --sk-seg-r: 6px; }
+  .sk-on[data-skin="aurora"] .ln-kind { text-shadow: 0 0 12px rgba(43,227,160,.55); }
+  .sk-on[data-skin="mint"] .ln-kind { color: #9A7413; letter-spacing: .14em; }
+
+  /* ---------- «Чертёж»: лист — рамка, штамп, крупный бледный чертёж; варианты — выноски «01», «02» ---------- */
+  .sk-bp-frame { position: absolute; inset: 8px; border: 1.5px solid rgba(234,244,255,.34); box-shadow: inset 0 0 0 4px rgba(17,64,110,1), inset 0 0 0 5px rgba(234,244,255,.16); }
+  .sk-bp-stamp { position: absolute; right: 14px; bottom: calc(var(--sk-foot, 92px) + 10px); display: grid; grid-template-columns: auto auto; border: 1.5px solid rgba(234,244,255,.42);
+    font: 700 9.5px/1 var(--ds-mono); letter-spacing: .08em; color: rgba(234,244,255,.6); text-transform: uppercase; transition: opacity .2s; }
+  .sk-bp-stamp span { padding: 4px 7px; border: .5px solid rgba(234,244,255,.3); }
+  .sk-bp-stamp span:first-child { grid-column: 1 / -1; font-size: 10.5px; color: rgba(234,244,255,.75); }
+  .sk-bp[data-tall="true"] .sk-bp-stamp { opacity: 0; }
+  .sk-bp svg.sk-bp-plot { left: 50%; right: auto; top: 16%; bottom: auto; width: min(94vw, 640px); transform: translateX(-50%); opacity: .2; }
+  .sk-on[data-skin="blueprint"] :has(> .ds-opt) { counter-reset: bp; }
+  .sk-on[data-skin="blueprint"] .ds-opt { counter-increment: bp; position: relative; padding-left: 52px; }
+  .sk-on[data-skin="blueprint"] .ds-opt::before { content: counter(bp, decimal-leading-zero); position: absolute; left: 0; top: 0; bottom: 0; width: 38px; display: grid; place-items: center;
+    border-right: 1.5px solid rgba(234,244,255,.45); font: 700 12px var(--ds-mono); color: #FFD166; }
+  .sk-on.sk-preview[data-skin="blueprint"] .ds-opt { padding-left: 38px; } .sk-on.sk-preview[data-skin="blueprint"] .ds-opt::before { width: 28px; font-size: 10px; }
+  .sk-preview .sk-bp-stamp, .sk-preview .sk-mint-micro { display: none; }
+  .sk-preview .sk-bp-frame { inset: 4px; }
+  .sk-preview .sk-bp svg.sk-bp-plot { width: 120%; top: 4%; right: auto; bottom: auto; opacity: .24; }
+
+  /* ---------- «Монетный двор»: банкнота — двойная золотая рамка с микротекстом ---------- */
+  .sk-mint-frame { position: absolute; inset: 7px; border: 2px solid rgba(154,116,19,.42); border-radius: 6px; box-shadow: inset 0 0 0 3px rgba(251,245,230,.9), inset 0 0 0 4px rgba(154,116,19,.28); }
+  .sk-mint-micro { position: absolute; left: 16px; right: 16px; overflow: hidden; white-space: nowrap; font: 700 6.5px/1 var(--ds-sans); letter-spacing: .32em; color: rgba(154,116,19,.5); }
+  .sk-mint-micro.b { top: auto; bottom: calc(var(--sk-foot, 92px) + 4px); }
+
+  /* ---------- «Северное сияние»: ярче, звёзд больше, внизу — горы и ели в отсвете ---------- */
+  .sk-au-stars.b { background-image: radial-gradient(1px 1px at 6% 12%, #fff, transparent), radial-gradient(1px 1px at 18% 30%, #cfe, transparent), radial-gradient(1.2px 1.2px at 28% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 40% 36%, #fff, transparent), radial-gradient(1.1px 1.1px at 50% 6%, #def, transparent), radial-gradient(1px 1px at 60% 16%, #fff, transparent),
+    radial-gradient(1px 1px at 76% 40%, #fff, transparent), radial-gradient(1.2px 1.2px at 82% 8%, #fff, transparent), radial-gradient(1px 1px at 96% 48%, #fff, transparent),
+    radial-gradient(1px 1px at 14% 56%, #fff, transparent), radial-gradient(1px 1px at 36% 52%, #fff, transparent), radial-gradient(1px 1px at 70% 58%, #fff, transparent);
+    animation-duration: 7s; animation-delay: -3s; }
+  .sk-au-hills { position: absolute; left: 0; right: 0; bottom: calc(var(--sk-foot, 92px) - 2px); width: 100%; height: 120px; }
 
   /* ---------- во всех темах: проверенный ответ — зелёный или красный, поверх стиля темы ---------- */
   .sk-on[data-skin] .ds-opt.right { border-color: #2BD67B; background-color: rgba(43,214,123,.16); box-shadow: 0 0 0 1px #2BD67B; color: var(--sk-ink); }
@@ -232,7 +280,8 @@ function useFootHeight(ref, on) {
 
 function Backdrop({ k, preview = false }) {
   const exRef = useRef(null);
-  useFootHeight(exRef, k === 'exchange' && !preview);
+  // высота нижней панели: над ней — лента «Биржи», штамп «Чертежа», горы «Сияния», микротекст «Монетного двора»
+  useFootHeight(exRef, !preview);
   const dust = useMemo(() => Array.from({ length: preview ? 8 : 18 }, (_, i) => ({ left: `${(i * 37) % 100}%`, t: `${11 + (i % 5) * 2}s`, d: `${-(i * 1.7)}s`, x: `${((i % 3) - 1) * 40}px` })), []);
   if (k === 'exchange') {
     return (
@@ -245,7 +294,9 @@ function Backdrop({ k, preview = false }) {
   }
   if (k === 'mint') {
     return (
-      <div className="ln-skin sk-mint" data-testid={preview ? undefined : 'lesson-skin'} data-skin="mint">
+      <div ref={exRef} className="ln-skin sk-mint" data-testid={preview ? undefined : 'lesson-skin'} data-skin="mint">
+        <div className="sk-mint-frame" />
+        <div className="sk-mint-micro b">{MICRO.repeat(8)}</div>
         <div className="sk-mint-rose"><Rosette /></div>
         <div className="sk-mint-rose b"><Rosette /></div>
         {dust.map((d, i) => <i key={i} className="sk-dust" style={{ left: d.left, '--t': d.t, '--d': d.d, '--x': d.x }} />)}
@@ -254,23 +305,31 @@ function Backdrop({ k, preview = false }) {
   }
   if (k === 'blueprint') {
     return (
-      <div className="ln-skin sk-bp" data-testid={preview ? undefined : 'lesson-skin'} data-skin="blueprint">
-        <svg viewBox="0 0 300 220" fill="none" stroke="#EAF4FF" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
+      <div ref={exRef} className="ln-skin sk-bp" data-testid={preview ? undefined : 'lesson-skin'} data-skin="blueprint">
+        <div className="sk-bp-frame" />
+        <div className="sk-bp-stamp" data-testid={preview ? undefined : 'skin-bp-stamp'}><span>Инфляция · рынок</span><span>Лист 1</span><span>М 1:1</span></div>
+        <svg className="sk-bp-plot" viewBox="0 0 300 220" fill="none" stroke="#EAF4FF" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
           <path className="draw" pathLength="1" d="M30 200 V20 M30 200 H290" />
           <path className="draw b" pathLength="1" d="M45 40 C110 80 170 140 270 190" />
           <path className="draw c" pathLength="1" d="M45 190 C110 150 170 90 270 35" />
           <path className="draw d" pathLength="1" d="M157 112 V200 M30 112 H157" strokeDasharray="4 4" />
           <circle className="draw d" pathLength="1" cx="157" cy="112" r="30" />
-          <text x="270" y="30" fill="#EAF4FF" stroke="none" fontFamily="monospace" fontSize="11">S</text>
-          <text x="270" y="206" fill="#EAF4FF" stroke="none" fontFamily="monospace" fontSize="11">D</text>
         </svg>
       </div>
     );
   }
   return (
-    <div className="ln-skin sk-au" data-testid={preview ? undefined : 'lesson-skin'} data-skin="aurora">
-      <div className="sk-au-stars" />
+    <div ref={exRef} className="ln-skin sk-au" data-testid={preview ? undefined : 'lesson-skin'} data-skin="aurora">
+      <div className="sk-au-stars" /><div className="sk-au-stars b" />
       <div className="sk-au-band a" /><div className="sk-au-band b" /><div className="sk-au-band c" />
+      {!preview && (
+        <svg className="sk-au-hills" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="sk-au-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2BE3A0" stopOpacity=".55" /><stop offset=".08" stopColor="#0B1235" stopOpacity="1" /></linearGradient></defs>
+          <path d="M0 70 L40 48 L70 62 L110 30 L150 58 L190 40 L230 66 L270 34 L310 56 L350 44 L400 64 V120 H0 Z" fill="#0B1235" opacity=".9" />
+          <path d="M0 92 L30 80 L60 88 L95 72 L130 90 L170 78 L210 94 L250 80 L290 90 L330 76 L370 88 L400 82 V120 H0 Z" fill="url(#sk-au-rim)" />
+          {[24, 58, 92, 300, 336, 372].map((x, i) => <path key={i} d={`M${x} ${66 + (i % 3) * 4} l-7 18 h4 l-6 14 h18 l-6 -14 h4 z`} fill="#050816" />)}
+        </svg>
+      )}
     </div>
   );
 }
