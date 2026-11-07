@@ -123,3 +123,23 @@ describe('сад: растения не одинаковые (пункт 12 от
     expect(new Set(looks.map((l) => l.flip)).size).toBe(2);
   });
 });
+
+describe('график наценки: цена на спросе, выпуск — где MR = MC (жалоба mw4b87po «что за ужас с графиком»)', () => {
+  it('при любом m точка цены лежит на спросе, MR = MC в выпуске; наценка растёт с m; m = 0 — цена = MC', async () => {
+    const { powerModel, powerMc } = await import('../power-chart.js');
+    let prev = -1;
+    for (const m of [0, 0.12, 0.3, 0.5, 0.78, 1]) {
+      const r = powerModel(m);
+      expect(r.dem(r.q)).toBeCloseTo(r.p, 9);
+      expect(r.mr(r.q)).toBeCloseTo(powerMc(r.q), 9);
+      expect(r.markup).toBeGreaterThanOrEqual(0);
+      expect(r.markup).toBeGreaterThan(prev);
+      prev = r.markup;
+      // все кривые — в пределах осей графика (Q до 12, P до 64)
+      expect(r.q).toBeGreaterThan(0); expect(r.q).toBeLessThan(12); expect(r.a).toBeLessThanOrEqual(64);
+    }
+    expect(powerModel(0).markup).toBeCloseTo(0, 9);
+    // в игре «Наценка» спрос никогда не горизонтален (m ≥ 0,12) — наценка есть всегда
+    expect(powerModel(0.12).markup).toBeGreaterThan(2);
+  });
+});

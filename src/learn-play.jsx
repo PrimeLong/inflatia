@@ -18,6 +18,7 @@ import { CAST } from './learn/cast.js';
 import { useReducedMotion } from './ds-art.jsx';
 import { Button } from './ds.jsx';
 import { evalExpr, fmtResult, pressRoot } from './learn/calc.js';
+import { powerModel, powerMc } from './learn/power-chart.js';
 
 export const PLAY_CSS = `
   .lp-chart { width: 100%; max-width: 380px; display: block; margin: 6px auto 10px; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -571,12 +572,15 @@ function PowerGameChart({ st, markup: mk = false }) {
   const W = 300; const H = 200; const L = 34; const B = 26; const T = 10; const R = 12;
   const QM = 12; const PM = 64;
   const sx = (q) => L + (Math.max(0, Math.min(q, QM)) / QM) * (W - L - R); const sy = (p) => H - B - (Math.max(0, Math.min(p, PM)) / PM) * (H - B - T);
-  const m = Math.max(0, Math.min(1, st.m));
-  const mc = (q) => 10 + 2.5 * q;
-  const dem = (q) => (1 - m) * 30 + m * (60 - 5 * q);
-  const mr = (q) => (1 - m) * 30 + m * (60 - 10 * q);
+  // спрос, MR и выпуск — по одной модели (src/learn/power-chart.js): цена лежит на спросе, выпуск — где MR = MC
+  const pm = powerModel(st.m);
+  const { m, q, p, dem, mr } = pm; const mc = powerMc;
   const line = (f, q0, q1) => `M${sx(q0).toFixed(1)},${sy(f(q0)).toFixed(1)}L${sx(q1).toFixed(1)},${sy(f(q1)).toFixed(1)}`;
-  const q = 8 - 4 * m; const p = 30 + 10 * m; const markup = Math.round(p - mc(q));
+  const markup = Math.round(pm.markup);
+  // подпись MR — у дальнего конца её линии, а не у точки MR = MC (там и так тесно)
+  // в «Наценке» наценка есть всегда — её подпись и MR не бледнеют до невидимости
+  const op = mk ? Math.max(m, 0.7) : m;
+  const mrTo = Math.min(QM, pm.mrEnd); const mrLabelQ = Math.min(QM - 1, mrTo) - 1;
   const halo = { stroke: 'var(--ds-paper)', strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
   return (
     <svg className="lp-chart lp-game-chart" viewBox={`0 0 ${W} ${H}`} role="img"
@@ -584,10 +588,10 @@ function PowerGameChart({ st, markup: mk = false }) {
       data-testid="game-chart" data-chart={mk ? 'markup' : 'power'} data-state={JSON.stringify({ m: Math.round(m * 100) / 100, markup })}>
       <rect x={sx(0)} y={sy(p)} width={sx(q) - sx(0)} height={Math.max(0, sy(mc(q)) - sy(p))} fill="var(--u)" opacity={0.14 * m} />
       <path d={line(mc, 0, 9.6)} fill="none" stroke="var(--ds-ok)" strokeWidth="2.5" />
-      <path d={line(mr, 0, Math.min(QM, 6))} fill="none" stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 4" opacity={m} />
+      <path d={line(mr, 0, mrTo)} fill="none" stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 4" opacity={op} />
       <path d={line(dem, 0, QM - 0.6)} fill="none" stroke="var(--u)" strokeWidth="4" strokeLinecap="round" data-testid="power-demand" />
       <line x1={sx(q)} y1={sy(p)} x2={sx(q)} y2={sy(0)} stroke="var(--ds-ink3)" strokeDasharray="3 3" />
-      <line x1={sx(q) + 7} y1={sy(p)} x2={sx(q) + 7} y2={sy(mc(q))} stroke="var(--u)" strokeWidth="2" opacity={m} />
+      <line x1={sx(q) + 7} y1={sy(p)} x2={sx(q) + 7} y2={sy(mc(q))} stroke="var(--u)" strokeWidth="2" opacity={op} />
       <circle cx={sx(q)} cy={sy(p)} r="5" fill="var(--u)" />
       <circle cx={sx(q)} cy={sy(mc(q))} r="3.5" fill="var(--ds-ok)" opacity={m} />
       <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
@@ -598,9 +602,10 @@ function PowerGameChart({ st, markup: mk = false }) {
       <text x={sx(1)} y={sy(dem(1)) - 8} className="lp-ax" style={{ fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>спрос</text>
       {/* подписи не на линиях (жалоба mvuaw8zo «что за ужас с графиком»): MR — слева от своей линии над осью,
           наценка — над точкой цены, где нет ни спроса, ни MC */}
-      {m > 0.15 && <text x={sx(5.2) - 6} y={sy(mr(5.2)) + 4} textAnchor="end" className="lp-ax" style={{ opacity: m, ...halo }}>MR</text>}
-      {m > 0.15 && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: m, fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>наценка +{markup}</text>}
-      <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: m > 0.5 ? 'var(--u-ink)' : 'var(--ds-ok)', fontWeight: 700, ...halo }}>{mk ? (m > 0.5 ? 'мало заменителей' : 'много заменителей') : m > 0.5 ? 'цена выше MC' : 'цена = MC'}</text>
+      {m > 0.15 && <text x={sx(mrLabelQ) + 6} y={sy(mr(mrLabelQ)) + 12} className="lp-ax" style={{ opacity: op, ...halo }}>MR</text>}
+      {m > 0.15 && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: op, fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>наценка +{markup}</text>}
+      {/* в «Наценке» подпись — только при явном перевесе: на старте спрос средний, «много заменителей» было неправдой */}
+      {(!mk || Math.abs(m - 0.5) > 0.05) && <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: m > 0.5 ? 'var(--u-ink)' : 'var(--ds-ok)', fontWeight: 700, ...halo }}>{mk ? (m > 0.5 ? 'мало заменителей' : 'много заменителей') : m > 0.5 ? 'цена выше MC' : 'цена = MC'}</text>}
     </svg>
   );
 }
