@@ -923,8 +923,8 @@ test('учебник: оглавление, формулы KaTeX, график �
   // главы — по уровням курса; недописанные — свёрнутым списком «Готовятся» в конце
   await expect(toc.getByTestId('tb-level-group')).toHaveCount(5);
   await expect(toc.getByText('Уровень 2 · Базовый')).toBeVisible();
-  await expect(toc.locator('[data-status="ready"]')).toHaveCount(18);
-  await expect(toc.getByTestId('tb-planned')).toContainText('ещё 4 главы');
+  await expect(toc.locator('[data-status="ready"]')).toHaveCount(19);
+  await expect(toc.getByTestId('tb-planned')).toContainText('ещё 3 главы');
   await expectNoSidewaysScroll(page);
 
   await toc.getByRole('button', { name: /Спрос и предложение/ }).click();
@@ -1059,7 +1059,7 @@ test('учебник: оглавление, формулы KaTeX, график �
   await page.getByRole('button', { name: 'Мельче текст' }).click();
 
   await toToc(page);
-  await expect(page.getByTestId('tb-stats')).toContainText('Глав прочитано: 1 из 18');
+  await expect(page.getByTestId('tb-stats')).toContainText('Глав прочитано: 1 из 19');
   // уверенные ответы — на странице «Мой прогресс»: два из трёх верны (включая задачу в несколько шагов; ответ
   // без отметки в счёт не идёт), неуверенный — верен; у задачи на графике вместо уверенности прогноз
   await page.getByTestId('tb-stats-link').click();
@@ -1288,20 +1288,20 @@ test('нижняя панель: «Мир» без учебных карточе
   // итоговая проверка: без подсказок и решений до конца, в конце — счёт по темам
   await page.getByTestId('practice-exam').click();
   const exam = page.getByTestId('exam');
-  await expect(exam.getByTestId('exam-problem')).toHaveCount(20);
+  await expect(exam.getByTestId('exam-problem')).toHaveCount(22);
   await expect(exam.getByRole('button', { name: /^Подсказка/ })).toHaveCount(0);
   await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(0);
   await exam.getByRole('textbox', { name: 'Проверка, ответ к задаче 1' }).or(exam.getByRole('textbox', { name: 'Проверка, задача 1, шаг а)' })).first().fill('1');
   await exam.getByRole('button', { name: 'Завершить проверку' }).click();
-  await expect(exam.getByTestId('exam-result')).toContainText('Верно 0 из 20');
+  await expect(exam.getByTestId('exam-result')).toContainText('Верно 0 из 22');
   await expect(exam.getByTestId('exam-weak')).toContainText('Слабое место');
-  await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(20);
+  await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(22);
   await expectNoSidewaysScroll(page);
   // пересдача — те же темы, новые числа
   const before = await exam.getByTestId('exam-problem').allInnerTexts();
   await exam.getByRole('button', { name: 'Пересдать с новыми числами' }).click();
   await expect(exam.getByTestId('exam-result')).toHaveCount(0);
-  await expect(exam.getByTestId('exam-problem')).toHaveCount(20);
+  await expect(exam.getByTestId('exam-problem')).toHaveCount(22);
   const after = await exam.getByTestId('exam-problem').allInnerTexts();
   expect(after.filter((t, i) => t === before[i]).length).toBeLessThan(3);
   await exam.getByRole('button', { name: 'Завершить проверку' }).click();
@@ -1585,8 +1585,8 @@ async function passCards(page) {
 }
 
 const pathNode = (page, id) => page.getByTestId('path').getByTestId('path-lesson').and(page.locator(`[data-lesson="${id}"]`));
-const UNIT_OF = { sc: 'scarcity', lm: 'labor', sd: 'supply-demand', el: 'elasticity', mf: 'market-failures', mb: 'money-banks', in: 'inflation', cs: 'consumer', ct: 'costs', cm: 'competition-monopoly', mc: 'monopolistic' };
-const LEVEL_OF = { scarcity: 'start', labor: 'start', 'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic', consumer: 'middle', costs: 'middle', 'competition-monopoly': 'middle', monopolistic: 'middle' };
+const UNIT_OF = { sc: 'scarcity', lm: 'labor', sd: 'supply-demand', el: 'elasticity', mf: 'market-failures', mb: 'money-banks', in: 'inflation', cs: 'consumer', pr: 'production', ct: 'costs', cm: 'competition-monopoly', mc: 'monopolistic' };
+const LEVEL_OF = { scarcity: 'start', labor: 'start', 'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic', consumer: 'middle', production: 'middle', costs: 'middle', 'competition-monopoly': 'middle', monopolistic: 'middle' };
 // на Пути юниты одного уровня: уровень нужного юнита — через плашку и список уровней, если юнита ещё нет на экране
 async function showUnit(page, id) {
   const unit = page.getByTestId('path').locator(`[data-testid="path-unit"][data-unit="${id}"]`);
@@ -2294,7 +2294,8 @@ test('путь: юнит «Пекарня» (издержки) — каждый 
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
     const units = { sc: ['i1', 'l1', 'l2', 'i2', 'l3', 'l4', 'l5', 'l6', 'w', 's1', 'radio', 'g', 'rev', 'sum'], sd: ['i1', 'l1', 'w', 'i2', 'l3', 's1', 'l-radio', 'g', 'rev', 'sum'] };
-    for (const u of ['el', 'mf', 'mb', 'in', 'cs']) units[u] = ['i1', 'l1', 'i2', 'l2', 'w', 's1', 'radio', 'g', 'rev', 'sum'];
+    // «Завод» (производство) стоит на Пути перед «Пекарней»
+    for (const u of ['el', 'mf', 'mb', 'in', 'cs', 'pr']) units[u] = ['i1', 'l1', 'i2', 'l2', 'w', 's1', 'radio', 'g', 'rev', 'sum'];
     const ids = Object.entries(units).flatMap(([u, ls]) => ls.map((l) => `${u}-${l}`));
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
@@ -3557,9 +3558,9 @@ test('навигация: у каждого экрана один «назад»
   await expect(groups.first()).toHaveAttribute('data-level', 'start');
   await expect(groups.nth(1)).toContainText('Базовый');
   expect(await groups.nth(1).locator('[data-chapter]').evaluateAll((els) => els.map((e) => e.dataset.chapter))).toEqual(['supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation']);
-  await expect(page.getByTestId('textbook').getByText('Производство: производственная функция')).toHaveCount(0);
+  await expect(page.getByTestId('textbook').getByText('Открытая экономика')).toHaveCount(0);
   await page.getByTestId('tb-planned').getByRole('button').click();
-  await expect(page.getByTestId('tb-planned-list')).toContainText('Производство: производственная функция');
+  await expect(page.getByTestId('tb-planned-list')).toContainText('Открытая экономика');
   await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
   await expectScreen(page, 'bookPage', seen);
   await clickBack(page);
@@ -4373,7 +4374,7 @@ test('Путь: тест уровня — сдан, и Путь сразу на 
   await page.getByTestId('lesson-result').getByRole('button', { name: 'Дальше', exact: true }).click();
   // Путь — сразу на «Среднем»: прошлых уровней на экране нет
   await expect(path.getByTestId('level-switch')).toHaveAttribute('data-level', 'middle');
-  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['consumer', 'costs', 'competition-monopoly', 'monopolistic']);
+  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
   await expect(pathNode(page, 'cs-i1')).toHaveAttribute('data-state', 'open');
   await path.getByTestId('level-switch-open').click();
   expect(await picker.getByTestId('level-pick').evaluateAll((els) => els.map((e) => `${e.dataset.level}:${e.dataset.state}`)))
