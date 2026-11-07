@@ -5621,6 +5621,33 @@ test('темы урока: живые превью во вкладке «Для 
   expect(errors).toEqual([]);
 });
 
+// ввод числа в теме урока: поле ответа, цифровая клавиатура и калькулятор — в цветах и шрифте темы (пункт владельца 08.11)
+test('темы урока: поле ответа, цифровая клавиатура и калькулятор — в стиле темы', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), owned: { 'theme-exchange': at }, wear: { theme: 'theme-exchange', at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-s1');
+  await expect(page.getByTestId('lesson')).toHaveAttribute('data-skin', 'exchange');
+  await passCards(page);
+  const ex = page.getByTestId('ex');
+  await expect(ex).toHaveAttribute('data-kind', 'calc');
+  const look = (loc) => loc.evaluate((el) => { const c = getComputedStyle(el); return { bg: c.backgroundColor, border: c.borderTopColor, font: c.fontFamily }; });
+  const terminal = { bg: 'rgba(8, 26, 18, 0.92)', border: 'rgb(30, 90, 62)' };
+  expect(await look(ex.locator('.ln-numpad .ds-key').first())).toMatchObject(terminal);
+  expect((await look(ex.locator('.ln-numpad .ds-key').first())).font).toMatch(/mono/i);
+  expect(await look(ex.locator('input.ds-field'))).toMatchObject(terminal);
+  await ex.getByTestId('calc-open').click();
+  const calc = page.getByTestId('calculator');
+  expect(await look(calc.locator('.ds-key').first())).toMatchObject(terminal);
+  expect(await look(calc.locator('.lp-calc-screen'))).toMatchObject(terminal);
+  expect(errors).toEqual([]);
+});
+
 /* ------------------------------ ВЫПУСК 26 ОКТЯБРЯ ------------------------------ */
 test('лига: неделя кончилась — церемония «Итоги недели»: кольцо мест, щит меняется на новую лигу, «К лиге»', async ({ page }) => {
   await withTestFlag(page);
