@@ -10,7 +10,7 @@ import {
 import { Audio } from './audio/lazy.js';
 import { BrandLoader } from './logo.jsx';
 import { useAccount, loadAccount, refreshAccount, NameGate } from './account.jsx';
-import { isGuest, GUEST_START, GUEST_SAVE } from './lib/guest.js';
+import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -1033,10 +1033,12 @@ export default function MacroSimulator() {
     const ready = () => { setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
     const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('path'); setFirstLesson(true); window.scrollTo(0, 0); };
     const guestSave = () => { setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
+    const guestLogin = () => { setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
     window.addEventListener('ems-account-ready', ready);
     window.addEventListener(GUEST_START, guestStart);
     window.addEventListener(GUEST_SAVE, guestSave);
-    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); };
+    window.addEventListener(GUEST_LOGIN, guestLogin);
+    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); window.removeEventListener(GUEST_LOGIN, guestLogin); };
   }, []);
   React.useEffect(() => { if (!account && !guest) { setGateScreen('hello'); setGate(true); } }, [account, guest]);
   // детский режим и имя — с сервера при каждом запуске (профиль мог поменяться на другом устройстве)

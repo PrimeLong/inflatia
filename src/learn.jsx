@@ -23,7 +23,7 @@ import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
 import { BookDock } from './learn-bookdock.jsx';
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
-import { askSave } from './lib/guest.js';
+import { askSave, askLogin } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
 import { track, trackOnce, reportsMe } from './lib/client.js';
 import { TRACK, rememberTeam } from './learn/track.js';
@@ -3000,7 +3000,11 @@ function GuestSave({ learn, afterLesson = false }) {
       <div className="ds-sub" style={{ fontSize: 14.5, lineHeight: 1.45, margin: '4px 0 10px' }}>
         {done ? `${done} ${plural(done, 'урок', 'урока', 'уроков')} и монеты пока хранятся только в этом браузере.` : 'Пока прогресс хранится только в этом браузере.'} Создайте аккаунт — и он будет с вами на любом устройстве.
       </div>
-      <Button wide small data-testid="guest-register" onClick={() => { Audio.play('click'); askSave(); }}>Создать аккаунт</Button>
+      {/* у кого аккаунт уже есть (начал на новом устройстве) — «Войти»: прогресс гостя объединится с аккаунтом */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+        <Button wide small data-testid="guest-register" onClick={() => { Audio.play('click'); askSave(); }}>Создать аккаунт</Button>
+        <Button wide small variant="secondary" data-testid="guest-login" onClick={() => { Audio.play('click'); askLogin(); }}>Войти</Button>
+      </div>
     </Card>
   );
 }

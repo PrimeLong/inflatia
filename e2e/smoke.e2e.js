@@ -6906,3 +6906,41 @@ test('дюп: лишние монеты списаны, купленная на 
   await expect.poll(async () => (await learn()).fines['dupe-2026-11'].at).toBe(f.at);
   expect(errors).toEqual([]);
 });
+
+/* Вход для гостя (пункт 1 от 08.11: «нигде нет кнопки войти, только огромная „создать“»): в карточке «Сохраните
+   прогресс» — «Создать аккаунт» и «Войти»; из регистрации — «У меня уже есть аккаунт — войти», из входа — «Нет аккаунта?» */
+test('вход: гость может войти — «Войти» рядом с «Создать аккаунт», регистрация и вход ведут друг в друга', async ({ page }) => {
+  test.setTimeout(120_000);
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', accountApi, { tab: null });
+  await page.getByRole('button', { name: 'Начать' }).click();
+  const goal = page.getByTestId('welcome-goal');
+  await goal.getByRole('group', { name: 'Цель' }).getByRole('button', { name: 'Для себя' }).click();
+  await goal.getByRole('group', { name: 'Минут в день' }).getByRole('button', { name: '10 минут' }).click();
+  await goal.getByRole('group', { name: 'Знания' }).getByRole('button', { name: 'Начинаю с нуля' }).click();
+  await goal.getByRole('button', { name: 'Продолжить' }).click();
+  await expect(page.getByTestId('lesson')).toBeVisible();
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  const ask = page.getByRole('dialog', { name: 'Выйти из урока?' });
+  if (await ask.isVisible().catch(() => false)) await ask.getByRole('button', { name: 'Выйти', exact: true }).click();
+  const card = page.getByTestId('guest-save');
+  await expect(card.getByTestId('guest-register')).toBeVisible();
+  await expect(card.getByTestId('guest-login')).toHaveText('Войти');
+  await card.getByTestId('guest-login').click();
+  const login = page.getByTestId('welcome-login');
+  await expect(login).toBeVisible();
+  await expect(login.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
+  // из входа — в регистрацию и обратно
+  await login.getByTestId('auth-to-register').click();
+  const reg = page.getByTestId('welcome-register');
+  await expect(reg).toBeVisible();
+  await reg.getByTestId('auth-to-login').click();
+  await expect(page.getByTestId('welcome-login')).toBeVisible();
+  // вошли — гость стал учеником с аккаунтом, Путь на месте
+  await page.getByTestId('welcome-login').getByLabel('Логин').fill('anna');
+  await page.getByTestId('welcome-login').getByLabel('Пароль', { exact: true }).fill('secret12');
+  await page.getByTestId('welcome-login').getByRole('button', { name: 'Войти', exact: true }).click();
+  await expect(page.getByTestId('path')).toBeVisible();
+  await expect(page.getByTestId('guest-save')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
