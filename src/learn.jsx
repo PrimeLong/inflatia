@@ -1343,7 +1343,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     let raceFriends = null;
     if (run.mode === 'lesson' && !guest) {
       let offered = null; try { offered = localStorage.getItem(RACE_OFFER_KEY); } catch { /* приватный режим */ }
-      raceFriends = raceOffer(friendsState(), preview.s, now, offered);
+      // автотест карточки забега просит её явно (ems-race-test): иначе она — по жребию дня
+      let always = false; try { always = !!navigator.webdriver && localStorage.getItem('ems-race-test') === '1'; } catch { /* приватный режим */ }
+      raceFriends = raceOffer(friendsState(), preview.s, now, offered, always);
       if (raceFriends) { try { localStorage.setItem(RACE_OFFER_KEY, dayOf(now)); } catch { /* приватный режим */ } }
     }
     // из него — за серии и мини-игру (на повторе урока опыт — десятая часть, разбивку не показываем)

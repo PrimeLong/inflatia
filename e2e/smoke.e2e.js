@@ -6747,3 +6747,41 @@ test('«Соедините» — как «вставьте слово»: сло�
   await expectNoSidewaysScroll(page);
   expect(errors).toEqual([]);
 });
+
+/* «Забег с другом?» после урока (пункт 2 от 06.11: «очень странно выглядит»): компактная карточка — две Инфли у флажка
+   целиком внутри картинки, друг строкой, «Не сейчас» в одну строку; «Не сейчас» убирает карточку */
+test('после урока: «Забег с другом?» — компактная карточка: Инфли у флажка, друг строкой, «Не сейчас» в одну строку', async ({ page }) => {
+  test.setTimeout(120_000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('ems-race-test', '1');
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', accountApi, { tab: 'path' });
+  await startLesson(page, 'sc-l1', /Начать|Повторить/);
+  await playLesson(page);
+  const offer = page.getByTestId('race-offer');
+  await offer.scrollIntoViewIfNeeded();
+  await expect(offer).toBeVisible();
+  await expect(offer.getByTestId('race-offer-who')).toContainText('Борис');
+  await expect(offer.getByTestId('race-offer-who')).toContainText('в сети вчера');
+  await expect(offer.locator('.fr-chip')).toHaveCount(0);
+  // обе Инфли и флажок — целиком внутри картинки (раньше половина Инфли торчала из края пустой полосы)
+  await page.waitForTimeout(700);
+  const art = await offer.getByTestId('race-offer-art').boundingBox();
+  for (const el of await offer.getByTestId('race-offer-art').locator('> span, > i').all()) {
+    const b = await el.boundingBox();
+    expect(b.x).toBeGreaterThanOrEqual(art.x - 1);
+    expect(b.x + b.width).toBeLessThanOrEqual(art.x + art.width + 1);
+  }
+  // «Позвать на забег» и «Не сейчас» — в одну строку, «Не сейчас» не переносится
+  const later = offer.getByTestId('race-offer-later');
+  const inv = await offer.getByTestId('race-invite').boundingBox();
+  const lb = await later.boundingBox();
+  expect(Math.abs(inv.y + inv.height / 2 - (lb.y + lb.height / 2))).toBeLessThan(4);
+  expect(lb.height).toBeLessThan(inv.height + 4);
+  await later.click();
+  await expect(offer).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

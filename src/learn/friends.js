@@ -162,7 +162,8 @@ export function claimRace(learn, v, now = Date.now()) {
 /* Предложить забег после урока — «иногда»: есть друг, который был в сети за неделю, с ним нет
    забега, ждущего ответа или идущего; не чаще раза в день (offered — день прошлого предложения)
    и примерно после каждого второго урока. */
-export function raceOffer(data, learn, now = Date.now(), offered = null) {
+// always — без жребия «примерно после каждого второго урока» (только для автотеста, ems-race-test)
+export function raceOffer(data, learn, now = Date.now(), offered = null, always = false) {
   if (!data || !data.friends) return null;
   const today = dayOf(now);
   if (offered === today) return null;
@@ -172,7 +173,7 @@ export function raceOffer(data, learn, now = Date.now(), offered = null) {
   const list = raceable(data.friends, now).filter((f) => !busy.has(f.login) && !raceRest(data.races || [], f.login, now));
   if (!list.length) return null;
   const done = (learn.done || {})[today] || 0;
-  if (mix01(`race:${today}:${done}`) > 0.5) return null;
+  if (!always && mix01(`race:${today}:${done}`) > 0.5) return null;
   return list.sort((a, b) => lastSeenDays(a, now) - lastSeenDays(b, now)).slice(0, 4);
 }
 export const levelTitle = (id) => (LEVEL_BY_ID[id] ? LEVEL_BY_ID[id].title : '');
