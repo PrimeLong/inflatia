@@ -5991,7 +5991,7 @@ test('книгу на полке можно слушать: голос брау�
 });
 
 // читалка книги (пункты владельца 08.11): размер текста, «Сообщить об ошибке», «Наверх», один ползунок прокрутки
-test('читалка книги: размер текста — пять ступеней, помнит устройство; «Наверх» после экрана прокрутки', async ({ page }) => {
+test('читалка книги: размер текста — пять ступеней, помнит устройство; «Наверх» после экрана прокрутки; ползунок один', async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, met: { 'people-scarcity': Date.now() - 86400000 } } }));
   });
@@ -6002,8 +6002,12 @@ test('читалка книги: размер текста — пять ступ
     await page.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
     await expect(page.getByTestId('book-reader')).toBeVisible();
   };
+  const pageScroll = () => page.evaluate(() => [getComputedStyle(document.documentElement).overflowY, getComputedStyle(document.body).overflowY]);
+  const before = await pageScroll();
   await open();
   const book = page.getByTestId('book-reader');
+  // ползунок один — у книги: страница под читалкой не прокручивается (пункт владельца 08.11)
+  expect(await pageScroll()).toEqual(['hidden', 'hidden']);
   const size = () => book.locator('[data-testid=book-passage] p').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   await expect(book).toHaveAttribute('data-font', '1');
   expect(await size()).toBe(18);
@@ -6017,6 +6021,7 @@ test('читалка книги: размер текста — пять ступ
   await expect(book).toHaveAttribute('data-font', '3');
   // помнит устройство — и в другой книге тот же размер
   await page.getByTestId('book-close').click();
+  expect(await pageScroll()).toEqual(before);
   await page.reload({ waitUntil: 'networkidle' });
   await open();
   await expect(book).toHaveAttribute('data-font', '3');

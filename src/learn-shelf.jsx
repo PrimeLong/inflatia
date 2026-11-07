@@ -144,6 +144,8 @@ const CSS = `
     border: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); background: color-mix(in srgb, var(--ds-card) 94%, transparent); color: var(--ds-ink); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     box-shadow: 0 10px 24px -12px rgba(0,0,0,.45); animation: lb-up-in .25s ease-out; transition: bottom .25s ease; }
   .lb-up.over { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  /* открыт ползунок громкости мини-проигрывателя — «Наверх» выше него */
+  .lb-reader:has(.lb-mini-vol-pop) .lb-up.over { bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
   .lb-up:hover { background: color-mix(in srgb, var(--b) 12%, var(--ds-card)); }
   @keyframes lb-up-in { from { opacity: 0; transform: translateY(10px) scale(.9); } }
   @media (prefers-reduced-motion: reduce) { .lb-up { animation: none; transition: none; } }
@@ -259,6 +261,14 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
   const [far, setFar] = useState(false);
   const onScroll = (e) => { const f = e.currentTarget.scrollTop > e.currentTarget.clientHeight; if (f !== far) setFar(f); };
   useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  /* читалка — слой поверх страницы: пока она открыта, страница под ней не прокручивается и не показывает свой ползунок —
+     ползунок один, у книги (раньше на ПК их было два, пункт владельца 08.11) */
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const els = [document.documentElement, document.body]; const was = els.map((el) => el.style.overflow);
+    els.forEach((el) => { el.style.overflow = 'hidden'; });
+    return () => { els.forEach((el, k) => { el.style.overflow = was[k]; }); };
+  }, []);
   /* читалка открыта — мини-проигрыватель над вкладками прячется (у читалки свой); закрыли — книга звучит
      дальше, а над вкладками снова мини-проигрыватель */
   useEffect(() => { bookPlayer.setReader(id); return () => { if (getBookState().reader === id) bookPlayer.setReader(null); }; }, [id]);
