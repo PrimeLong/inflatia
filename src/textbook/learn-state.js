@@ -137,7 +137,6 @@ const MAX_BEST = 40;
 const MAX_RECENT = 30;
 const TOPIC_WINDOW = 20;
 const MAX_DAILY = 60;
-const MAX_CLAIMED = 500;
 
 /* ОДИН ЧАСОВОЙ ПОЯС НА ВСЁ — всемирное время (UTC). День, неделя и месяц серии, цели дня, лиг,
    забегов и испытаний месяца начинаются в полночь по UTC — у всех учеников и на сервере, так что
@@ -556,15 +555,19 @@ const countMap = (v, limit, hi) => {
   Object.keys(obj(v)).filter(okKey).slice(0, limit).forEach((k) => { const x = cnt(v[k], hi); if (x) out[k] = x; });
   return out;
 };
-// полученные награды: ключи заданий дня («q:ГГГГ-ММ-ДД:…») — только за последние месяцы, витрины лавки
-// («dust:ГГГГ-ММ-ДД:n», src/learn/dust.js) — за последние дни, остальные — все
+/* полученные награды (docs/mechanics.md, «Защита монет»): разовые — урок, алмаз, сундук, печать, серия,
+   месяц, лига — хранятся ВСЕ: потерянный ключ — повторная выплата. Раньше всё, кроме заданий дня и витрин,
+   урезалось до 250 ключей по алфавиту, и у активного ученика пропадали бонусы серии «st:3», «st:7», «st:30» —
+   каждая выплата вне урока давала их снова (+255 монет). По дате урезаются только ключи по дням: задания дня
+   («q:ГГГГ-ММ-ДД:…»), витрины лавки («dust:ГГГГ-ММ-ДД:n»), цель дня («g:ГГГГ-ММ-ДД») — их награда снова не
+   выплачивается: день прошёл. */
+const DATED_CLAIMS = [['q:', 250], ['dust:', 30], ['g:', 400]];
 function claimedMap(v) {
-  const all = tsMap(v, 5000);
-  const daily = (k) => k.startsWith('q:') || k.startsWith('dust:');
-  const quests = Object.keys(all).filter((k) => k.startsWith('q:')).sort().slice(-250);
-  const dust = Object.keys(all).filter((k) => k.startsWith('dust:')).sort().slice(-30);
-  const rest = Object.keys(all).filter((k) => !daily(k)).sort().slice(0, MAX_CLAIMED - 250);
-  const out = {}; [...rest, ...quests, ...dust].forEach((k) => { out[k] = all[k]; });
+  const all = tsMap(v, 50000);
+  const keys = Object.keys(all);
+  const dated = (k) => DATED_CLAIMS.some(([p]) => k.startsWith(p));
+  const keep = [...keys.filter((k) => !dated(k)), ...DATED_CLAIMS.flatMap(([p, n]) => keys.filter((k) => k.startsWith(p)).sort().slice(-n))];
+  const out = {}; keep.forEach((k) => { out[k] = all[k]; });
   return out;
 }
 // вклады копилки: ключ — время вклада (мс), значение — монеты; храним последние сорок
@@ -624,7 +627,7 @@ function normalizeProgram(r) {
     coins: dayMap(r.coins, 1e6), spent: dayMap(r.spent, 1e6), freezeBuy: dayMap(r.freezeBuy, MAX_FREEZES * 5),
     frozen: Object.fromEntries(Object.keys(obj(r.frozen)).filter(isDay).sort().slice(-MAX_DAYS).map((k) => [k, 1])),
     policyAt: cnt(r.policyAt, 1e14), policyOff: cnt(r.policyOff, 1e14), policyLapse: cnt(r.policyLapse, 1e14), premiums: dayMap(r.premiums, PREMIUM * 10), monthPlan: monthPlanMap(r.monthPlan),
-    claimed: claimedMap(r.claimed), owned: renamed(tsMap(r.owned, 60)), skipped: tsMap(r.skipped, 60),
+    claimed: claimedMap(r.claimed), owned: renamed(tsMap(r.owned, 500)), skipped: tsMap(r.skipped, 60),
     wear: { ...Object.fromEntries(SLOTS.map((sl) => [sl, okKey(w[sl]) ? RENAMED[w[sl]] || w[sl] : null])), at: cnt(w.at, 1e14) },
     seen: countMap(r.seen, MAX_SEEN, 9999), best: countMap(r.best, MAX_BEST, 1e6), boost: cnt(r.boost, 1e14),
     piggy: piggyMap(r.piggy), piggyOut: piggyMap(r.piggyOut), piggyTop: piggyTopMap(r.piggyTop), piggyAdd: piggyAddMap(r.piggyAdd), garden: gardenMap(r.garden), harvest: harvestMap(r.harvest), water: waterMap(r.water),

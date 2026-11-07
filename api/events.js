@@ -19,7 +19,9 @@ export const FUNNEL = ['welcome_start', 'goal_done', 'first_lesson_start', 'firs
 export const ACTIVITY = ['lesson_start', 'lesson_done', 'ex_first_try_ok', 'ex_first_try_fail'];
 // открытия разделов — не чаще раза в день с устройства
 export const FEATURES = ['world_open', 'textbook_open', 'shop_open', 'garden_open', 'league_open', 'tycoon_open', 'network_open'];
-export const EVENTS = [...FUNNEL, ...ACTIVITY, ...FEATURES];
+// защита монет (docs/mechanics.md, «Защита монет»): предохранитель остановил повторную выплату — без логина и имени
+export const SAFETY = ['coins_guard'];
+export const EVENTS = [...FUNNEL, ...ACTIVITY, ...FEATURES, ...SAFETY];
 export const FUNNEL_LABEL = {
   welcome_start: 'Нажали «Начать»', goal_done: 'Выбрали цель', first_lesson_start: 'Начали первый урок', first_lesson_done: 'Прошли первый урок',
   register_done: 'Создали аккаунт', return_d1: 'Вернулись на следующий день', return_d7: 'Вернулись через неделю',
@@ -67,7 +69,7 @@ export async function report(now = Date.now()) {
   const week = (from) => days.slice(from, from + 7);
   const stat = (ev) => ({ now: sumDays(c, week(0), ev), prev: sumDays(c, week(7), ev), today: sumDays(c, days.slice(0, 1), ev) });
   const acc = (ds) => { const ok = sumDays(c, ds, 'ex_first_try_ok'); const all = ok + sumDays(c, ds, 'ex_first_try_fail'); return all ? ok / all : null; };
-  const totals = { lessons: stat('lesson_done'), starts: stat('lesson_start'), accounts: stat('register_done'), newcomers: stat('welcome_start'), accuracy: { now: acc(week(0)), prev: acc(week(7)) } };
+  const totals = { lessons: stat('lesson_done'), starts: stat('lesson_start'), accounts: stat('register_done'), newcomers: stat('welcome_start'), coinsGuard: stat('coins_guard'), accuracy: { now: acc(week(0)), prev: acc(week(7)) } };
   // разделы: сколько устройств открывали за неделю (сумма по дням) против прошлой и за 30 дней
   const features = FEATURES.map((ev) => ({ event: ev, label: FEATURE_LABEL[ev], ...stat(ev), month: sumDays(c, days, ev) }));
   // уроки: начали, дошли до конца, сколько минут в среднем

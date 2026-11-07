@@ -6637,3 +6637,41 @@ test('юнит пройден — после «Дальше» на итогах 
   await expect(page.getByTestId('chest-sheet')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('защита монет: у ученика с длинной историей операции в лавке не дают бонусы серии снова (дюп «+255 монет» 6 ноября)', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const D = 86400000; const now = Date.now();
+    const day = (k) => new Date(now - k * D).toISOString().slice(0, 10);
+    // утренний экран серии уже видели сегодня
+    localStorage.setItem('ems-learn-morning', day(0));
+    const done = Object.fromEntries(Array.from({ length: 30 }, (_, k) => [day(k), 1]));
+    // 300 ключей уроков и алмазов — раньше из-за них при обрезке по алфавиту терялись «st:3», «st:7», «st:30»
+    const claimed = { 'st:3': now - 20 * D, 'st:7': now - 15 * D, 'st:14': now - 10 * D, 'st:30': now - D };
+    for (let i = 0; i < 300; i += 1) claimed[`l:x${i}`] = now - 40 * D;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at: now - D, runs: 1, best: 90 }])), done, xp: done, claimed, coins: { [day(1)]: 500 } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await openTab(page, 'shop');
+  const coins = () => page.evaluate(() => { const l = JSON.parse(localStorage.getItem('ems-textbook-v1')).learn; const sum = (m) => Object.values(m || {}).reduce((a, x) => a + x, 0); return sum(l.coins) - sum(l.spent); });
+  const claims = () => page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.claimed).filter((k) => k.startsWith('st:')).sort());
+  await expect.poll(claims).toEqual(['st:14', 'st:3', 'st:30', 'st:7']);
+  await shopTab(page, 'useful');
+  const piggy = page.getByTestId('shop-piggy');
+  await piggy.getByTestId('piggy-put').click();
+  await expect(piggy.getByTestId('piggy-open')).toBeVisible();
+  const after = await coins();
+  // ни одна выплата не приносит «Серия: … дней» снова
+  await page.waitForTimeout(600);
+  const toast = page.getByTestId('notify-toast');
+  if (await toast.count()) await expect(toast).not.toContainText('Серия');
+  expect(await claims()).toEqual(['st:14', 'st:3', 'st:30', 'st:7']);
+  // перезагрузка (прогресс нормализуется) и ещё одна операция — монет не прибавилось
+  await page.reload({ waitUntil: 'networkidle' });
+  await openTab(page, 'shop');
+  await shopTab(page, 'useful');
+  await expect.poll(coins).toBe(after);
+  expect(errors).toEqual([]);
+});

@@ -43,7 +43,7 @@ import {
   markShown, shownWith, markFixed,
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
-import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote } from './learn/rewards.js';
+import { runCoins, runKey, earn, settle, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
 import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
@@ -2893,6 +2893,8 @@ const PeopleView = React.lazy(() => import('./learn-people.jsx'));
 const BookOverlay = React.lazy(() => import('./learn-shelf.jsx').then((m) => ({ default: m.BookOverlay })));
 const GraphLesson = React.lazy(() => import('./learn-graph.jsx'));
 const DrawLesson = React.lazy(() => import('./learn-draw.jsx'));
+// предохранитель выплат остановил повторную выплату — в аналитику, без логина и имени (docs/mechanics.md, «Защита монет»)
+onCoinGuard(() => track('coins_guard'));
 const Lazy = ({ children }) => <React.Suspense fallback={<BrandLoader compact text="Открываем" />}>{children}</React.Suspense>;
 const Celebration = React.lazy(() => import('./learn-celebrate.jsx'));
 /* Церемонии (src/learn/celebrate.js): что из полученного ещё не праздновали. Показанное помнит

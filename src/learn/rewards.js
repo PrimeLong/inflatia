@@ -564,9 +564,26 @@ export const monthStamps = (s) => Object.keys(s.claimed || {}).filter((k) => k.s
 /* ------------------------------ РАСЧЁТ НАГРАД ------------------------------
    После каждого урока: цель дня, серия, задания дня, печати, испытание месяца — всё, что
    выполнено и ещё не получено. Возвращает новое состояние и список полученного. */
+/* ПРЕДОХРАНИТЕЛЬ ВЫПЛАТ (docs/mechanics.md, «Защита монет»): разовая награда, выплаченная в этом сеансе больше
+   двух секунд назад, второй раз не выплачивается, даже если её ключ пропал из прогресса, — ключ возвращается,
+   монет нет, случай уходит в аналитику (coins_guard). Две секунды — запас на повторный вызов того же
+   обновления прогресса React'ом: это не вторая выплата, а тот же расчёт. */
+const SESSION_PAID = new Map();
+let guardHook = null;
+export const onCoinGuard = (fn) => { guardHook = fn; };
+export const resetCoinGuard = () => { SESSION_PAID.clear(); };
 export function settle(s, ctx, now = Date.now()) {
   const gains = [];
-  const give = (t, n, key, title, kind) => { const before = t; const next = earn(t, n, key, now); if (next !== before) gains.push({ key, coins: n, title, kind }); return next; };
+  const give = (t, n, key, title, kind) => {
+    const paid = key ? SESSION_PAID.get(key) : null;
+    if (paid != null && now - paid > 2000 && !hasClaim(t, key)) {
+      if (guardHook) { try { guardHook({ key, coins: n }); } catch { /* аналитика не мешает выплатам */ } }
+      return { ...t, claimed: { ...t.claimed, [key]: paid } };
+    }
+    const before = t; const next = earn(t, n, key, now);
+    if (next !== before) { gains.push({ key, coins: n, title, kind }); if (key && paid == null) SESSION_PAID.set(key, now); }
+    return next;
+  };
   let t = fixMonth(chargePremiums(s, now), now);
   const day = dayOf(now);
   const g = goalToday(t, now);

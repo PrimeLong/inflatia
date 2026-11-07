@@ -191,6 +191,12 @@ export function AnalyticsView({ onBack }) {
               <div className="an-tile-value">{data.reports ? data.reports.fresh : '—'}</div>
               <div className="an-tile-delta">уроков начато за неделю: {t.starts.now}</div>
             </div>
+            {/* защита монет: сколько повторных выплат остановил предохранитель (docs/mechanics.md, «Защита монет») */}
+            <div className="an-tile" data-testid="analytics-tile-coins-guard">
+              <div className="an-tile-label">Защита монет: остановлено повторных выплат</div>
+              <div className="an-tile-value">{t.coinsGuard ? t.coinsGuard.now : 0}</div>
+              <div className="an-tile-delta">за неделю; за прошлую — {t.coinsGuard ? t.coinsGuard.prev : 0}</div>
+            </div>
           </div>
         )}
         {data && data.daily && (
