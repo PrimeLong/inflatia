@@ -408,21 +408,32 @@ const CSS = `
   .ln-exam-grid > span { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
   .ln-exam-grid small { font-size: 11px; color: var(--ds-ink3); }
   .ln-exam-grid b { width: 26px; height: 30px; border: 1.5px solid var(--ds-ink3); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font: 700 17px var(--ds-mono, monospace); color: var(--ds-ink); background: var(--ds-card); }
-  .ln-match { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .ln-match-tag { display: block; font: 700 11.5px/1.2 var(--ds-sans); letter-spacing: .02em; margin-bottom: 3px; }
-  /* после проверки: верная пара — зелёная с ✓, неверная — красная с ✗, зачёркнутым термином и «верно: …» */
-  .ln-match-right .ds-opt[data-verdict="ok"] { border-color: var(--ds-ok) !important; background: color-mix(in srgb, var(--ds-ok) 8%, var(--ds-card)); }
-  .ln-match-right .ds-opt[data-verdict="bad"] { border-color: var(--ds-bad) !important; background: color-mix(in srgb, var(--ds-bad) 7%, var(--ds-card)); }
-  .ln-match-mark { float: right; margin-left: 8px; font-weight: 800; }
-  .ln-match-right .ds-opt[data-verdict="ok"] .ln-match-mark { color: var(--ds-ok); }
-  .ln-match-right .ds-opt[data-verdict="bad"] .ln-match-mark { color: var(--ds-bad); }
-  .ln-match-right .ds-opt[data-verdict="bad"] .ln-match-tag { text-decoration: line-through; opacity: .75; }
-  .ln-match-fix { display: block; margin-top: 4px; font: 700 12.5px/1.3 var(--ds-sans); color: var(--ds-ok); }
+  /* «Соедините» — как «вставьте слово»: строки-определения с пустым местом, слова банком сверху */
+  .ln-m2-how { margin: 2px 0 8px; font: 600 13.5px/1.35 var(--ds-sans); color: var(--ds-ink2); }
+  .ln-m2-bank { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 8px; min-height: 40px; }
+  .ln-body .ln-m2-bank .ds-opt { width: auto; margin: 0; padding: 8px 12px; font-size: 14.5px; line-height: 1.25; }
+  .ln-m2-bank-done { font: 600 13.5px var(--ds-sans); color: var(--ds-ink3); align-self: center; }
+  .ln-m2-rows { display: grid; gap: 8px; }
+  .ln-m2-row { display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 10px 12px;
+    border-radius: 14px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink); font: 400 15px/1.35 var(--ds-sans); cursor: pointer;
+    transition: border-color .15s, box-shadow .15s; }
+  .ln-m2-row.on { border-color: var(--u-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--u) 22%, transparent); }
+  .ln-m2-row:disabled { cursor: default; }
+  .ln-m2-slot { display: flex; align-items: center; min-height: 34px; padding: 5px 10px; border-radius: 10px; border: 2px dashed var(--ds-rule2);
+    color: var(--ds-ink3); font: 700 14px/1.2 var(--ds-sans); overflow-wrap: anywhere; }
+  .ln-m2-row.on .ln-m2-slot { border-color: var(--u-ink); color: var(--u-ink); }
+  .ln-m2-slot.full { border-style: solid; border-color: color-mix(in srgb, var(--u-ink) 60%, var(--ds-rule2)); background: color-mix(in srgb, var(--u) 12%, var(--ds-card)); color: var(--ds-ink); }
+  .ln-m2-mark { font: 800 18px var(--ds-sans); }
+  /* после проверки: верная строка — зелёная с ✓, неверная — красная с ✗, зачёркнутым словом и «верно: …» */
+  .ln-m2-row[data-verdict="ok"] { border-color: var(--ds-ok); background: color-mix(in srgb, var(--ds-ok) 8%, var(--ds-card)); }
+  .ln-m2-row[data-verdict="bad"] { border-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 7%, var(--ds-card)); }
+  .ln-m2-row[data-verdict="ok"] .ln-m2-mark { color: var(--ds-ok); }
+  .ln-m2-row[data-verdict="bad"] .ln-m2-mark { color: var(--ds-bad); }
+  .ln-m2-row[data-verdict="bad"] .ln-m2-slot { text-decoration: line-through; opacity: .75; }
+  .ln-m2-fix { grid-column: 1 / -1; font: 700 13px/1.3 var(--ds-sans); color: var(--ds-ok); }
   @media (max-width: 560px) {
-    .ln-match { grid-template-columns: 1fr; gap: 2px; }
-    .ln-match-left { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 6px; }
-    .ln-body .ln-match-left .ds-opt { width: auto; margin: 0; padding: 7px 10px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
-    .ln-body .ln-match-right .ds-opt { margin: 6px 0; padding: 11px 14px; }
+    .ln-m2-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
+    .ln-m2-row .ln-m2-def { grid-column: 1 / -1; grid-row: 2; }
   }
   /* длинный разбор прокручивается внутри панели ответа, «Дальше» под ним всегда на виду */
   .ln-foot.fb .ds-answer { max-height: 75dvh; display: flex; flex-direction: column; }
@@ -816,45 +827,52 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
       );
     }
     case 'match': {
+      /* «Соедините» как «вставьте слово» (docs/mechanics.md, «Задания урока»): строки-определения с пустым местом,
+         слова — банком сверху. Подсвечено одно пустое место: нажали слово — оно встало туда, подсветка — к
+         следующему пустому. Нажали заполненное место — слово вернулось в банк, место подсвечено. Ответ — как
+         раньше: { термин → определение }. */
       const r = resp || {};
       const [sel, setSel] = [inst._sel, inst._setSel];
-      const pairNo = Object.fromEntries(Object.keys(r).map((l, i) => [l, i]));
-      const rightOwner = Object.fromEntries(Object.entries(r).map(([l, rr]) => [rr, l]));
-      const tone = (i) => ['#3E6FA8', '#2D7A4B', '#9C7218', '#B0392D', '#65408F'][i % 5];
+      const termIn = Object.fromEntries(Object.entries(r).map(([l, rr]) => [rr, l]));
+      const empty = inst.right.filter((x) => !(x.key in termIn)).map((x) => x.key);
+      const active = sel && empty.includes(sel) ? sel : empty[0] || null;
+      const bank = inst.left.filter((l) => !(l.key in r));
+      const checked = !!(fb && !fb.empty);
+      const place = (l) => { if (!active) return; Audio.play('tick'); setResp({ ...r, [l]: active }); setSel(null); };
+      const slot = (x) => {
+        Audio.play('tick');
+        if (x.key in termIn) { const n = { ...r }; delete n[termIn[x.key]]; setResp(n); }
+        setSel(x.key);
+      };
       return (
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
           {/* пары на время: по нулю ответ уходит на проверку таким, какой есть */}
           {inst.timer && <TimerBar seconds={inst.timer} running={!locked} onEnd={() => onSubmit(inst._resp.current || {})} />}
-          {/* на телефоне: термины — фишками сверху, определения во всю ширину (жалоба mvu7oqpw: «огромный список») */}
-          <div className="ln-match">
-            <div className="ln-match-left">{inst.left.map((l) => (
-              <button key={l.key} type="button" className="ds-opt" data-side="left" data-key={l.key} aria-pressed={sel === l.key} disabled={locked}
-                style={{ fontSize: 14, borderColor: l.key in pairNo ? tone(pairNo[l.key]) : undefined }}
-                onClick={() => { Audio.play('tick'); if (l.key in r) { const n = { ...r }; delete n[l.key]; setResp(n); setSel(null); } else setSel(l.key); }}>
+          {!checked && <div className="ln-m2-how" data-testid="match-how">Нажмите слово — оно встанет в подсвеченное место. Нажмите место со словом — слово вернётся.</div>}
+          {(bank.length > 0 || !checked) && <div className="ln-m2-bank" data-testid="match-bank">
+            {bank.map((l) => (
+              <button key={l.key} type="button" className="ds-opt" data-side="left" data-key={l.key} disabled={locked || !active} onClick={() => place(l.key)}>
                 <Inline nodes={l.text} ctx={ctx} /></button>
-            ))}</div>
-            <div className="ln-match-right">{inst.right.map((x) => {
-              // после проверки: верна ли пара у этого определения (его ключ — ключ верного термина)
-              const verdict = fb && !fb.empty ? (rightOwner[x.key] === x.key ? 'ok' : 'bad') : null;
-              const fix = verdict === 'bad' ? inst.left.find((l) => l.key === x.key) : null;
-              return (
-              <button key={x.key} type="button" className="ds-opt" data-side="right" data-key={x.key} data-verdict={verdict || undefined} disabled={locked || (!sel && !(x.key in rightOwner))}
-                style={{ fontSize: 14, borderColor: verdict ? undefined : x.key in rightOwner ? tone(pairNo[rightOwner[x.key]]) : undefined }}
-                onClick={() => {
-                  Audio.play('tick');
-                  const n = { ...r };
-                  if (x.key in rightOwner) delete n[rightOwner[x.key]];
-                  if (sel) n[sel] = x.key;
-                  setResp(n); setSel(null);
-                }}>
-                {verdict && <span className="ln-match-mark" aria-label={verdict === 'ok' ? 'верно' : 'неверно'}>{verdict === 'ok' ? '✓' : '✗'}</span>}
-                {x.key in rightOwner && <span className="ln-match-tag" data-testid="match-tag" style={{ color: verdict ? undefined : tone(pairNo[rightOwner[x.key]]) }}><Inline nodes={inst.left.find((l) => l.key === rightOwner[x.key]).text} ctx={ctx} /></span>}
-                <Inline nodes={x.text} ctx={ctx} />
-                {fix && <span className="ln-match-fix" data-testid="match-fix">верно: <Inline nodes={fix.text} ctx={ctx} /></span>}</button>
-              );
-            })}</div>
-          </div>
+            ))}
+            {!bank.length && <span className="ln-m2-bank-done">Все слова на местах — можно проверять.</span>}
+          </div>}
+          <div className="ln-m2-rows">{inst.right.map((x) => {
+            const t = termIn[x.key];
+            const verdict = checked ? (t === x.key ? 'ok' : 'bad') : null;
+            const fix = verdict === 'bad' ? inst.left.find((l) => l.key === x.key) : null;
+            const on = !locked && active === x.key;
+            return (
+              <button key={x.key} type="button" className={`ln-m2-row${on ? ' on' : ''}`} data-side="right" data-key={x.key} data-verdict={verdict || undefined}
+                aria-label={`${t ? `Слово: ${inst.left.find((l) => l.key === t).raw || ''}` : 'Пустое место'}. ${x.raw || ''}`} disabled={locked} onClick={() => slot(x)}>
+                <span className={`ln-m2-slot${t ? ' full' : ''}`} data-testid={t ? 'match-tag' : 'match-empty'}>
+                  {t ? <Inline nodes={inst.left.find((l) => l.key === t).text} ctx={ctx} /> : on ? 'слово сюда' : '…'}</span>
+                <span className="ln-m2-def"><Inline nodes={x.text} ctx={ctx} /></span>
+                {verdict ? <span className="ln-m2-mark" aria-hidden="true">{verdict === 'ok' ? '✓' : '✗'}</span> : <span />}
+                {fix && <span className="ln-m2-fix" data-testid="match-fix">верно: <Inline nodes={fix.text} ctx={ctx} /></span>}
+              </button>
+            );
+          })}</div>
         </div>
       );
     }

@@ -1456,11 +1456,12 @@ async function answerExercise(page, { wrong = false, skipOpen = false } = {}) {
       else await ex.getByRole('group', { name: 'Цифровая клавиатура' }).getByRole('button', { name: ch, exact: true }).click();
     }
   } else if (kind === 'match') {
+    // «вставьте слово»: место (определение), потом слово из банка
     const keys = Object.keys(ans);
     for (const [i, l] of keys.entries()) {
       const r = wrong ? keys[(i + 1) % keys.length] : ans[l];
-      await ex.locator(`[data-side=left][data-key="${l}"]`).click();
       await ex.locator(`[data-side=right][data-key="${r}"]`).click();
+      await ex.locator(`[data-side=left][data-key="${l}"]`).click();
     }
   } else if (kind === 'sort') {
     const bins = await ex.locator('[data-bin]').evaluateAll((els) => [...new Set(els.map((e) => e.dataset.bin))]);
@@ -2507,10 +2508,10 @@ test('«Соедините» на телефоне: термины фишкам�
   // определения — во всю ширину, термины — короткими фишками
   for (const b of await ex.locator('[data-side=right]').all()) expect((await b.boundingBox()).width).toBeGreaterThan(exW * 0.9);
   expect((await ex.locator('[data-side=left]').first().boundingBox()).width).toBeLessThan(exW * 0.75);
-  // соединили — над определением метка с термином
+  // соединили — в месте определения встало слово (место — потом слово из банка)
   const term = (await ex.locator('[data-side=left]').first().innerText()).trim();
-  await ex.locator('[data-side=left]').first().click();
   await ex.locator('[data-side=right]').nth(1).click();
+  await ex.locator('[data-side=left]').first().click();
   await expect(ex.locator('[data-side=right]').nth(1).getByTestId('match-tag')).toHaveText(term);
   await expectNoSidewaysScroll(page);
   expect(errors).toEqual([]);
@@ -6683,7 +6684,7 @@ test('защита монет: у ученика с длинной истори�
   expect(errors).toEqual([]);
 });
 
-test('«Соедините»: после проверки видно, где ошибка — ✓ и ✗ на парах, верный термин, короткая плашка (жалобы mw05gjte, mw1sv3gr)', async ({ page }, info) => {
+test('«Соедините» — как «вставьте слово»: слово встаёт в подсвеченное место, место возвращает слово; после проверки ✓ и ✗ (жалобы mw05gjte, mw1sv3gr)', async ({ page }) => {
   test.setTimeout(120_000);
   await withTestFlag(page);
   await page.addInitScript(() => {
@@ -6704,14 +6705,26 @@ test('«Соедините»: после проверки видно, где о�
   await expect(ex).toHaveAttribute('data-kind', 'match');
   const ans = JSON.parse(await ex.getAttribute('data-answer'));
   const keys = Object.keys(ans);
-  // первые два термина — наоборот, остальные верно
+  // подсказка, как это делать; подсвечено первое пустое место
+  await expect(ex.getByTestId('match-how')).toContainText('Нажмите слово');
+  await expect(ex.locator('.ln-m2-row.on')).toHaveCount(1);
+  // слово из банка встаёт в подсвеченное место и уходит из банка; подсветка — к следующему пустому
+  const first = ex.locator('.ln-m2-row.on');
+  const firstKey = await first.getAttribute('data-key');
+  const word = ex.locator('[data-side=left]').first();
+  const wordKey = await word.getAttribute('data-key');
+  await word.click();
+  await expect(ex.locator(`[data-side=right][data-key="${firstKey}"]`).getByTestId('match-tag')).toBeVisible();
+  await expect(ex.locator(`[data-side=left][data-key="${wordKey}"]`)).toHaveCount(0);
+  await expect(ex.locator('.ln-m2-row.on')).not.toHaveAttribute('data-key', firstKey);
+  // место со словом — слово вернулось в банк
+  await ex.locator(`[data-side=right][data-key="${firstKey}"]`).click();
+  await expect(ex.locator(`[data-side=left][data-key="${wordKey}"]`)).toHaveCount(1);
+  await expect(ex.locator('.ln-m2-row.on')).toHaveAttribute('data-key', firstKey);
+  // первые два слова — наоборот, остальные верно
   const plan = Object.fromEntries(keys.map((k, i) => [k, i === 0 ? ans[keys[1]] : i === 1 ? ans[keys[0]] : ans[k]]));
-  for (const [l, r] of Object.entries(plan)) { await ex.locator(`[data-side=left][data-key="${l}"]`).click(); await ex.locator(`[data-side=right][data-key="${r}"]`).click(); }
-  if (info.project.name === 'phone') {
-    // термины — ровной сеткой в два столбца одной ширины
-    const w = await ex.locator('[data-side=left]').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
-    expect(Math.max(...w) - Math.min(...w)).toBeLessThanOrEqual(2);
-  }
+  for (const [l, r] of Object.entries(plan)) { await ex.locator(`[data-side=right][data-key="${r}"]`).click(); await ex.locator(`[data-side=left][data-key="${l}"]`).click(); }
+  await expect(ex.getByTestId('match-bank')).toContainText('Все слова на местах');
   await page.getByRole('button', { name: 'Проверить' }).click();
   await expect(page.getByTestId('ex-feedback')).toHaveAttribute('data-ok', 'false');
   await expect(ex.locator('[data-side=right][data-verdict="bad"]')).toHaveCount(2);
