@@ -466,18 +466,18 @@ export function AudioControls() {
   const anyOn = music || sfx;
   const np = Audio.nowPlaying();
   const list = Audio.playlist();
-  // названия пьес и заставок приезжают вместе с движком (см. audio/lazy.js)
-  const { TRACKS = {}, STINGERS = {}, MOOD_LABEL = {} } = Audio.meta() || {};
+  // названия настроений приезжают вместе с движком (см. audio/lazy.js)
+  const { MOOD_LABEL = {} } = Audio.meta() || {};
   const moods = [['auto', 'По режиму экономики'], ['calm', MOOD_LABEL.calm], ['boom', MOOD_LABEL.boom],
     ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
   return (
     <div style={{ position: 'relative' }}>
-      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px' }} title={`Музыка: ${np.name}`}
+      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px' }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
         onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
         {anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
       {open && (
-        <div className="ems-panel-raised ems-fade-in" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, padding: 13, zIndex: 60, maxHeight: pos.maxHeight, overflowY: 'auto' }}>
+        <div className="ems-panel-raised ems-fade-in" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, padding: 13, zIndex: 60, maxHeight: pos.maxHeight, overflowY: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
             <Music size={13} color={COLOR.gold} />
             <span className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft }}>Саундтрек</span>
@@ -505,17 +505,7 @@ export function AudioControls() {
               ))}
             </div>
           )}
-          {music && (
-            <div style={{ marginBottom: 9 }}>
-              <div style={{ fontSize: 12, color: COLOR.muted, marginBottom: 4 }}>Заставки событий</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {Object.values(STINGERS).map((st) => (
-                  <button key={st.id} className="ems-btn" style={{ padding: '2px 7px', fontSize: 12 }}
-                    onClick={() => Audio.stinger(st.id)}>{st.name}</button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* «Заставки событий» и справки о числе пьес в панели нет: заставки звучат в партии сами (пункт владельца 08.11) */}
           <div style={{ marginBottom: 9 }}>
             <div style={{ fontSize: 12, color: COLOR.muted, marginBottom: 4 }}>Что играть</div>
             <select className="ems-btn" value={np.locked || 'auto'} style={{ width: '100%', padding: '5px 8px', fontSize: 12 }}
@@ -528,7 +518,7 @@ export function AudioControls() {
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                 <Icon size={12} color={val ? COLOR.gold : COLOR.faint} />
                 <span style={{ fontSize: 12, color: val ? COLOR.text : COLOR.muted, flex: 1 }}>{label}</span>
-                <button className="ems-btn" style={{ padding: '2px 9px', fontSize: 12, background: val ? COLOR.sel : COLOR.panelAlt, color: val ? COLOR.selText : COLOR.muted, borderColor: val ? COLOR.selBorder : COLOR.border }}
+                <button className="ems-btn" data-testid={Icon === Music ? 'music-toggle' : 'sfx-toggle'} style={{ padding: '2px 9px', fontSize: 12, background: val ? COLOR.sel : COLOR.panelAlt, color: val ? COLOR.selText : COLOR.muted, borderColor: val ? COLOR.selBorder : COLOR.border }}
                   onClick={() => set(!val)}>{val ? 'вкл' : 'выкл'}</button>
               </div>
             ))}
@@ -536,9 +526,6 @@ export function AudioControls() {
             <span style={{ fontSize: 12, color: COLOR.muted, width: 54 }}>Громкость</span>
             <input type="range" className="ems-slider" min={0} max={1} step={0.05} value={vol}
               onChange={(e) => { const v = parseFloat(e.target.value); setVol(v); Audio.setVolume(v); setWorldVolume(v); }} />
-          </div>
-          <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 9, lineHeight: 1.45 }}>
-            {Object.keys(TRACKS).length} пьес в {new Set(Object.values(TRACKS).map((t) => t.mood)).size} настроениях. Каждая состоит из нескольких частей с разной оркестровкой, на повторах играется с вариациями, а темп дышит экономикой — при высокой инфляции музыка разгоняется. Смена настроения не обрывает пьесу: она затихает за такт и передаёт место следующей. На выборы, переворот, падение и возвращение демократии и остановленные цены звучат короткие заставки.
           </div>
         </div>
       )}

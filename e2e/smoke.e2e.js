@@ -916,6 +916,23 @@ test('после квартала: «а если бы вы ничего не д�
   expect(errors).toEqual([]);
 });
 
+// панель музыки (пункты владельца 08.11): без «Заставок событий» и справки о числе пьес
+test('музыка: в панели нет «Заставок событий» и справки «N пьес в M настроениях»', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
+  const bar = page.getByTestId('tb-reader-bar');
+  await bar.getByTestId('music-btn').click();
+  const panel = page.getByTestId('music-panel');
+  await expect(panel).toBeVisible();
+  // музыку включили — заставок всё равно нет
+  await panel.getByTestId('music-toggle').click();
+  await expect(panel.getByTestId('music-toggle')).toHaveText('вкл');
+  await expect(panel).not.toContainText('Заставки событий');
+  await expect(panel).not.toContainText(/пьес в \d+ настроениях/);
+  expect(errors).toEqual([]);
+});
+
 test('учебник: оглавление, формулы KaTeX, график с ползунком, задача и повторение, без внешних запросов', async ({ page }) => {
   const { errors, external } = await openApp(page);
   await openBook(page);
