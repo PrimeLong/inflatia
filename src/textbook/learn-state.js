@@ -193,7 +193,7 @@ export function recordAttempt(s, kind, ok, ms, { lesson = null, now = Date.now()
      r — лучшая серия дня. Раньше вся серия жила в rc и к утру гасла (жалоба: «пусть копится») */
   const rc = ok ? d.rc + 1 : 0;
   patch.daily = { ...s.daily, [day]: { ...d, a: d.a + 1, c: d.c + (ok ? 1 : 0), rc, r: Math.max(d.r, rc) } };
-  patch.run = { n: ok ? streakNow(s, now) + 1 : 0, at: now };
+  patch.run = runNext(s.run, ok ? streakNow(s, now) + 1 : 0, now);
   return upd(s, patch);
 }
 /* Серия верных ответов — бессрочная: молния урока и run всегда одно число. recordAttempt ведёт её по первым
@@ -206,7 +206,21 @@ export function syncStreak(s, n, now = Date.now()) {
   const run = s.run || { n: 0, at: 0 };
   const rc = k === 0 ? 0 : d.rc;
   if (run.n === k && run.at && d.rc === rc) return s;
-  return upd(s, { run: { n: k, at: now }, daily: { ...s.daily, [day]: { ...d, rc, r: Math.max(d.r, rc) } } });
+  return upd(s, { run: runNext(run, k, now), daily: { ...s.daily, [day]: { ...d, rc, r: Math.max(d.r, rc) } } });
+}
+/* z — когда серию последний раз обнулили (ошибка). По нему слияние устройств узнаёт, что серия оборвалась: тот же
+   урок шёл параллельно на телефоне и ПК, на телефоне ошибка — и серия ПК, хоть ответ на ПК и позже, уже не та
+   (пункт владельца от 8 ноября 2026). У прогресса без обнулений z нет — запись прежняя { n, at }. */
+function runNext(run, n, now) {
+  const r = run || { n: 0, at: 0 };
+  const z = n === 0 && (r.n !== 0 || !r.at) ? now : r.z || 0;
+  return { n, at: now, ...(z ? { z } : {}) };
+}
+// слияние серий двух устройств: обнулённая позже — главнее (на другом устройстве её ещё не видели); при равном z — более поздняя
+export function mergeRun(a, b, later) {
+  const za = a.z || 0; const zb = b.z || 0;
+  if (za !== zb) return za > zb ? a : b;
+  return later(a, b);
 }
 /* серия, с которой начинается урок: бессрочная run; у прогресса без run (до бессрочной серии) — сегодняшняя rc */
 export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n : dayEntry(s, dayOf(now)).rc);
@@ -640,7 +654,7 @@ function normalizeProgram(r) {
       ...(isDay(p.since) && PROFILE_MINUTES.includes(p.prev) ? { since: p.since, prev: p.prev } : {}),
     },
     placement: { at: cnt(pl.at, 1e14), opened: (Array.isArray(pl.opened) ? pl.opened : []).filter(okKey).slice(0, 40) },
-    run: { n: cnt(obj(r.run).n, 1e7), at: cnt(obj(r.run).at, 1e14) },
+    run: { n: cnt(obj(r.run).n, 1e7), at: cnt(obj(r.run).at, 1e14), ...(cnt(obj(r.run).z, 1e14) ? { z: cnt(obj(r.run).z, 1e14) } : {}) },
     topics, daily,
     recent: typeof r.recent === 'string' && /^[01]*$/.test(r.recent) ? r.recent.slice(-MAX_RECENT) : '', recentAt: cnt(r.recentAt, 1e14),
     coins: dayMap(r.coins, 1e6), spent: dayMap(r.spent, 1e6), freezeBuy: dayMap(r.freezeBuy, MAX_FREEZES * 5),
@@ -666,9 +680,12 @@ function mergeProgram(x, y) {
   Object.entries(y.topics).forEach(([k, t]) => { const c = topics[k]; topics[k] = !c || t.n > c.n || (t.n === c.n && t.ok > c.ok) ? t : c; });
   const daily = { ...x.daily };
   Object.entries(y.daily).forEach(([k, d]) => { const c = daily[k]; daily[k] = c ? Object.fromEntries(DAILY_FIELDS.map((f) => [f, f === 'h' ? (c.h | d.h) : Math.max(c[f], d[f])])) : d; });
+  // сегодняшняя часть серии (задание дня) не больше самой серии: серия, обнулённая на другом устройстве, гасит и её
+  const run = mergeRun(x.run, y.run, later);
+  if (run.at) { const k = dayOf(run.at); if (daily[k] && daily[k].rc > run.n) daily[k] = { ...daily[k], rc: run.n }; }
   const laterRecent = y.recentAt > x.recentAt || (y.recentAt === x.recentAt && y.recent > x.recent);
   return {
-    profile: later(x.profile, y.profile), placement: later(x.placement, y.placement), wear: later(x.wear, y.wear), run: later(x.run, y.run),
+    profile: later(x.profile, y.profile), placement: later(x.placement, y.placement), wear: later(x.wear, y.wear), run,
     topics, daily,
     recent: laterRecent ? y.recent : x.recent, recentAt: Math.max(x.recentAt, y.recentAt),
     coins: maxMap(x.coins, y.coins), spent: maxMap(x.spent, y.spent), freezeBuy: maxMap(x.freezeBuy, y.freezeBuy),

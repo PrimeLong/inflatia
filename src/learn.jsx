@@ -1169,6 +1169,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
      урок — и серия снова тут (жалоба). Каждое изменение огонька сразу пишется в rc (syncStreak). */
   const [run3, setRun3Raw] = useState(() => streakNow(learn));
   const setRun3 = (next) => { setRun3Raw(next); update((s) => syncStreak(s, next)); };
+  /* серия поменялась на другом устройстве (тот же урок открыт и на телефоне: там ошибка) — молния урока берёт общее
+     число из синхронизации, а не перезаписывает его своим следующим ответом (пункт владельца от 8 ноября 2026).
+     Свои ответы меняют молнию и run вместе, в одном обновлении, — тут они совпадают и ничего не происходит */
+  const sharedRun = learn.run && learn.run.at ? learn.run.n : null;
+  useEffect(() => { if (sharedRun != null) setRun3Raw((n) => (n === sharedRun ? n : sharedRun)); }, [sharedRun]);
   // линия графика прогресса: первые попытки по порядку; pulse — короткая вспышка на верном ответе серии
   const [log, setLog] = useState(rs ? rs.log || [] : []);
   /* «Слушай» и «История» — лента: прошлые сообщения и отвеченные вопросы остаются в ней

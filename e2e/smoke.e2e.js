@@ -1952,6 +1952,33 @@ test('путь: после алмазного урока на прошлом у�
   expect(errors).toEqual([]);
 });
 
+// тот же урок открыт на телефоне и на ПК: на телефоне ошибка — молния урока на ПК берёт общую серию из
+// синхронизации, а не продолжает свою (пункт владельца от 8 ноября 2026)
+test('урок: серия, обнулённая на другом устройстве, гасит молнию открытого урока — следующий верный «4», а не «9»', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, run: { n: 7, at: Date.now() - 60000 } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const flame = page.getByTestId('lesson-streak');
+  await startLesson(page, 'sc-l1');
+  await expect(flame).toHaveAttribute('data-streak', '7');
+  await passCards(page); await answerExercise(page);
+  await expect(flame).toHaveAttribute('data-streak', '8');
+  await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  // пришла синхронизация: на другом устройстве (тот же урок открыт и там) ошибка и три верных ответа
+  await page.evaluate(() => {
+    const p = JSON.parse(localStorage.getItem('ems-textbook-v1'));
+    p.learn.run = { n: 3, at: Date.now(), z: Date.now() - 1000 };
+    window.dispatchEvent(new CustomEvent('ems-progress', { detail: p }));
+  });
+  await expect(flame).toHaveAttribute('data-streak', '3');
+  await passCards(page); await answerExercise(page);
+  await expect(flame).toHaveAttribute('data-streak', '4');
+  expect(errors).toEqual([]);
+});
+
 // урок не теряется: закрыли или перезагрузили страницу — «Продолжить» с того же места. Серия — одна на день:
 // начатый раньше урок не возвращает серию, сбитую ошибкой в другом (жалоба на абуз)
 test('урок: «+1» у молнии серии — за ответ в этом уроке; урок, открытый с идущей серией, — без «+1»', async ({ page }) => {
