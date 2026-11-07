@@ -51,3 +51,45 @@ describe('индексация наград: каждый месяц — на и
     expect(raceCoins({ ...v, end: undefined })).toBe(40);
   });
 });
+
+describe('«Повторение» — и задания прошлых юнитов (пункт 5 от 06.11)', () => {
+  const seeded = (seed) => { let x = seed * 9301 + 49297; return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; }; };
+  it('в первом юните Пути прошлых нет; дальше — до трёх из прошлых юнитов, с меткой past', async () => {
+    const { UNITS, UNIT_BY_ID, EXERCISES, buildLesson, PAST_IN_REVIEW } = await import('../course.js');
+    const withLessons = UNITS.filter((u) => u.lessons.length);
+    const first = withLessons[0].lessons.find((l) => l.kind === 'review');
+    expect(buildLesson(first.id, seeded(1)).items.filter((it) => it.past)).toEqual([]);
+    const later = withLessons.slice(1).map((u) => u.lessons.find((l) => l.kind === 'review')).filter(Boolean);
+    expect(later.length).toBeGreaterThan(3);
+    for (const rev of later) {
+      const k = UNITS.findIndex((u) => u.id === rev.unitId);
+      const before = new Set(UNITS.slice(0, k).map((u) => u.id));
+      for (let s = 1; s <= 4; s += 1) {
+        const { items } = buildLesson(rev.id, seeded(s));
+        const past = items.filter((it) => it.past);
+        expect(past.length, rev.id).toBe(PAST_IN_REVIEW);
+        past.forEach((it) => { expect(before.has(it.past), `${rev.id}: ${it.past}`).toBe(true); expect(it.review).toBe(true); expect(EXERCISES[it.of || it.id] ? EXERCISES[it.of || it.id].unitId : it.past).not.toBe(rev.unitId); });
+        // своих — по-прежнему большинство, урок не длиннее 15 заданий
+        expect(items.length - past.length).toBeGreaterThanOrEqual(9);
+        expect(items.length).toBeLessThanOrEqual(15);
+      }
+      expect(UNIT_BY_ID[rev.unitId]).toBeTruthy();
+    }
+  });
+  it('ошибки прошлых юнитов — первыми; задания — с разных юнитов, пока хватает', async () => {
+    const { UNITS, EXERCISES, pastForReview, PAST_IN_REVIEW } = await import('../course.js');
+    const withLessons = UNITS.filter((u) => u.lessons.length);
+    const unit = withLessons[3];
+    const before = withLessons.slice(0, 3);
+    const wrong = Object.values(EXERCISES).find((e) => e.unitId === before[1].id && e.kind === 'choice' && !e.diamond);
+    for (let s = 1; s <= 5; s += 1) {
+      const got = pastForReview(unit, seeded(s), { mistakes: [wrong.id] });
+      expect(got).toHaveLength(PAST_IN_REVIEW);
+      expect(got.map((e) => e.id)).toContain(wrong.id);
+      expect(new Set(got.map((e) => e.unitId)).size).toBe(3);
+    }
+    // уже решённое прошлое — раньше невиденного
+    const seenOne = Object.values(EXERCISES).find((e) => e.unitId === before[0].id && e.kind === 'choice' && !e.diamond);
+    for (let s = 1; s <= 5; s += 1) expect(pastForReview(unit, seeded(s), { seen: { [seenOne.id]: 1 } }).map((e) => e.id)).toContain(seenOne.id);
+  });
+});

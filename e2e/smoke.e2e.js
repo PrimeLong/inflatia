@@ -2131,9 +2131,20 @@ test('путь: юнит «Спрос и предложение» — кажды
   await expect(page.getByTestId('lesson-result')).toContainText('Урок пройден, игра — без зачёта: не хватило');
   await finish();
 
-  // «Повторение» и «Итоги юнита»: пункты-карточки, потом тест юнита
+  // «Повторение» и «Итоги юнита»: пункты-карточки, потом тест юнита. В «Повторении» — и задания прошлых юнитов
+  // Пути, с меткой места («повторение · Мастерская»): пункт владельца от 06.11
   await startLesson(page, 'sd-rev');
-  await playLesson(page);
+  const pastSeen = [];
+  for (let i = 0; i < 16 && !(await page.getByTestId('lesson-result').isVisible()); i += 1) {
+    await passCards(page);
+    const badge = page.getByTestId('ex-review-badge');
+    if (await badge.count() && await badge.getAttribute('data-past')) pastSeen.push(await badge.innerText());
+    await answerExercise(page);
+    await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  }
+  expect(pastSeen.length).toBeGreaterThanOrEqual(1);
+  expect(pastSeen.length).toBeLessThanOrEqual(3);
+  pastSeen.forEach((t) => expect(t).toMatch(/повторение · \S/i));
   await finish();
   await startLesson(page, 'sd-sum');
   await expect(page.getByTestId('lesson-card').locator('.ln-kind')).toHaveText(/Итоги юнита/i);

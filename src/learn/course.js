@@ -546,6 +546,8 @@ export const POINT_SECONDS = 10;
 // в практике — не больше десяти своих упражнений за раз: при повторе урока набор другой
 export const PRACTICE_OWN = 10;
 export const REVIEW_SIZE = 12;
+// из прошлых юнитов Пути — до трёх заданий «Повторения» (docs/mechanics.md, «Задания урока»)
+export const PAST_IN_REVIEW = 3;
 // упражнения, годные для повторения и проверок: в одно действие, без игрового счёта
 const reviewable = (e) => !GAME_KINDS.includes(e.kind) && e.kind !== 'open';
 // и без алмазных: их видели только те, кто проходил урок на алмазном уровне
@@ -634,7 +636,7 @@ export const retryWorth = (copy) => !!copy && copy.fresh !== 'same';
 export function retryOf(inst, rand = Math.random, avoid = []) {
   const base = EXERCISES[inst.of || inst.id] || (inst.variant ? { id: inst.id, kind: 'calc', variant: inst.variant, lesson: inst.lesson, unitId: inst.unitId } : null);
   if (!base) return { ...inst, fresh: 'same' };
-  const keep = Object.fromEntries(['review', 'practice', 'check', 'hard', 'weak', 'steps', 'noRetry'].filter((k) => inst[k]).map((k) => [k, inst[k]]));
+  const keep = Object.fromEntries(['review', 'past', 'practice', 'check', 'hard', 'weak', 'steps', 'noRetry'].filter((k) => inst[k]).map((k) => [k, inst[k]]));
   // повтор идёт в конце урока, когда нужного сюжета эфира уже нет на экране
   const copy = freshCopy(base, rand, { ...keep, outside: true }, { avoid: new Set(avoid), sibling: true });
   return inst.steps ? easier(copy, rand) : copy;
@@ -694,6 +696,23 @@ function hardInstance(e, rand) {
   return !e.variant && canRenumber(e) ? freshCopy(e, rand, extra, { sibling: false }) : instantiate(e, rand, extra);
 }
 const ownOf = (lesson) => lesson.exercises.filter((e) => !e.diamond).map((e) => EXERCISES[e.id]);
+/* Задания прошлых юнитов для «Повторения» (docs/mechanics.md): юниты, что стоят на Пути раньше этого. Порядок —
+   ошибки оттуда, решённое (реже виденное — первым), потом невиденное; берём по одному с юнита, пока хватает. */
+export function pastForReview(unit, rand = Math.random, { mistakes = [], seen = {} } = {}, limit = PAST_IN_REVIEW) {
+  const k = UNITS.findIndex((u) => u.id === unit.id);
+  const pool = UNITS.slice(0, Math.max(0, k)).filter((u) => u.lessons.length)
+    .flatMap((u) => u.lessons.flatMap((l) => l.exercises.map((e) => EXERCISES[e.id]))).filter(basic);
+  if (!pool.length) return [];
+  const wrong = shuffle(pool.filter((e) => mistakes.includes(e.id)), rand);
+  const rest = pool.filter((e) => !mistakes.includes(e.id));
+  const met = shuffle(rest.filter((e) => (seen[e.id] || 0) > 0), rand).sort((a, b) => (seen[a.id] || 0) - (seen[b.id] || 0));
+  const fresh = shuffle(rest.filter((e) => !((seen[e.id] || 0) > 0)), rand);
+  const order = [...wrong, ...met, ...fresh];
+  const out = []; const units = new Set();
+  for (const e of order) { if (out.length >= limit) break; if (!units.has(e.unitId)) { out.push(e); units.add(e.unitId); } }
+  for (const e of order) { if (out.length >= limit) break; if (!out.includes(e)) out.push(e); }
+  return out;
+}
 function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = 'normal', weak = [], seen = {}, replay = false }) {
   const lesson = LESSON_BY_ID[lessonId];
   const unit = UNIT_BY_ID[lesson.unitId];
@@ -715,6 +734,10 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
     return { lesson, items, cards: {}, seconds: sum(items) };
   }
   if (lesson.kind === 'review') {
+    // до трёх — из прошлых юнитов Пути: ошибки оттуда, потом решённое, потом остальное; по одному с юнита
+    // кандидатов с запасом: задача прошлого юнита может совпасть со своей (тот же генератор чисел) — такую пропускаем
+    const pastPool = pastForReview(unit, rand, { mistakes, seen }, PAST_IN_REVIEW * 4);
+    const pastN = Math.min(PAST_IN_REVIEW, pastPool.length);
     // ошибки этого юнита — первыми, за ними решённые с подсказкой, дальше — остальное вперемешку
     const pool = unit.lessons.filter((l) => l.no < lesson.no).flatMap((l) => l.exercises.map((e) => EXERCISES[e.id])).filter(basic);
     const wrong = pool.filter((e) => mistakes.includes(e.id));
@@ -723,13 +746,18 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
     const other = pool.filter((e) => !mistakes.includes(e.id) && !hinted.includes(e.id));
     const rest = [...bySeen(other.filter((e) => weak.includes(e.lesson)), seen, rand), ...bySeen(other.filter((e) => !weak.includes(e.lesson)), seen, rand)];
     const order = [...shuffle(wrong, rand), ...shuffle(helped, rand), ...rest];
-    // двенадцать упражнений; если они все быстрые — ещё несколько, чтобы вышло минуты три
-    let n = Math.min(REVIEW_SIZE, order.length);
-    while (n < Math.min(15, order.length) && order.slice(0, n).reduce((a, e) => a + SECONDS[e.kind], 0) < 180) n += 1;
-    // ошибки и решённое с подсказкой — похожей задачей или новыми числами, прочее — с новыми числами, где они есть
-    const picked = order.slice(0, n);
-    const avoid = new Set(picked.map((e) => e.id));
-    const items = picked.map((e) => freshCopy(e, rand, { review: true }, { avoid, sibling: mistakes.includes(e.id) || hinted.includes(e.id) }));
+    // двенадцать упражнений вместе с прошлыми юнитами; если они все быстрые — ещё несколько, чтобы вышло минуты три
+    // ошибки и решённое с подсказкой — похожей задачей или новыми числами, прочее — с новыми числами, где они есть;
+    // одна и та же задача (тот же генератор чисел) дважды не приходит
+    const avoid = new Set([...order.slice(0, 15), ...pastPool].map((e) => e.id));
+    const items = []; const used = new Set();
+    const add = (e, extra, sibling) => { const it = freshCopy(e, rand, extra, { avoid, sibling }); if (used.has(it.id)) return false; items.push(it); used.add(it.id); return true; };
+    let k = 0;
+    for (; k < order.length && items.length < REVIEW_SIZE - pastN; k += 1) add(order[k], { review: true }, mistakes.includes(order[k].id) || hinted.includes(order[k].id));
+    let got = 0;
+    for (const e of pastPool) { if (got >= pastN) break; if (add(e, { review: true, past: e.unitId }, mistakes.includes(e.id))) got += 1; }
+    // все быстрые — ещё несколько своих, чтобы вышло минуты три (не больше пятнадцати)
+    for (; k < order.length && items.length < 15 && sum(items) < 180; k += 1) add(order[k], { review: true }, false);
     return { lesson, items: shuffle(items, rand), cards: {}, seconds: sum(items) };
   }
   if (lesson.kind === 'summary') {

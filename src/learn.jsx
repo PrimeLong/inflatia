@@ -1623,7 +1623,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
             data-testid="ex" data-kind={inst.kind} data-answer={testAnswer(inst)}>
             <div className="ln-kind ds-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* повтор ошибки — одна плашка: у повторённого задания из прошлых уроков «повторение» не дублируем */}
-              {kindName}{inst.review && !inst.retry && <span className="ds-badge">повторение</span>}
+              {kindName}{inst.review && !inst.retry && <span className="ds-badge" data-testid="ex-review-badge" data-past={inst.past || undefined}>повторение{inst.past ? ` · ${placeOf(inst.past).place}` : ''}</span>}
               {inst.retry && <span className="ds-badge ln-retry-badge" data-testid="retry-badge">повтор ошибки</span>}
               {inst.hard && <span className="ds-badge" data-testid="ex-hard">{inst.hard >= 3 ? 'олимпиада' : 'семинар'}</span>}
               {inst.weak && <span className="ds-badge">слабая тема</span>}

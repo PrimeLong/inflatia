@@ -544,7 +544,13 @@ describe('юнит «Спрос и предложение»: все виды у�
       const back = items.find((i) => (i.of || i.id) === wrong);
       expect(back).toBeTruthy();
       expect(back.fresh).not.toBe('same');
-      items.forEach((i) => { expect(GAME_KINDS).not.toContain(i.kind); expect(UNIT_BY_ID[PILOT].lessons.find((l) => l.id === EXERCISES[i.of || i.id].lesson).no).toBeLessThan(r.no); });
+      // свои — из прошлых уроков юнита; до трёх — из прошлых юнитов Пути (пункт владельца от 06.11), с меткой past
+      items.forEach((i) => {
+        expect(GAME_KINDS).not.toContain(i.kind);
+        if (i.past) { expect(UNITS.findIndex((u) => u.id === i.past)).toBeLessThan(UNITS.findIndex((u) => u.id === PILOT)); return; }
+        expect(UNIT_BY_ID[PILOT].lessons.find((l) => l.id === EXERCISES[i.of || i.id].lesson).no).toBeLessThan(r.no);
+      });
+      expect(items.filter((i) => i.past).length).toBeLessThanOrEqual(3);
     }
   });
   it('«Итоги юнита»: 5–7 пунктов с картинкой или графиком, потом тест — десять упражнений без игр', () => {
