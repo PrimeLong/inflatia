@@ -575,7 +575,9 @@ function useLearn() {
     let alive = true;
     /* списание монет дюпа (src/learn/audit.js, docs/mechanics.md, «Защита монет») — один раз, после первой
        синхронизации: считаем по общему прогрессу всех устройств */
-    const audit = () => update((p) => {
+    // автотест засевает монеты без уроков — списание в нём только по просьбе теста (ems-audit-test)
+    let auditOff = false; try { auditOff = !!navigator.webdriver && localStorage.getItem('ems-audit-test') !== '1'; } catch { /* приватный режим */ }
+    const audit = () => !auditOff && update((p) => {
       const learn = applyDupeAudit(p.learn, Date.now(), { bookFirst: Object.values(p.problems || {}).filter((r) => r && r.ok && (r.tries || 0) <= 1).length });
       if (learn === p.learn) return p;
       const f = fineOf(learn);

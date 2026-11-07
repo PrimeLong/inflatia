@@ -6882,7 +6882,7 @@ test('дюп: лишние монеты списаны, купленная на 
       owned: { crown: now - 7200000, medal: now - 3600000 }, wear: { head: 'crown', neck: 'medal', at: now - 3600000 },
     } }));
   });
-  await page.addInitScript(() => { try { localStorage.setItem('ems-learn-morning', new Date().toISOString().slice(0, 10)); } catch { /* нет хранилища */ } });
+  await page.addInitScript(() => { try { localStorage.setItem('ems-learn-morning', new Date().toISOString().slice(0, 10)); localStorage.setItem('ems-audit-test', '1'); } catch { /* нет хранилища */ } });
   const { errors } = await openApp(page, '/', '{}', { tab: null });
   // плашка сверху — почему баланс изменился
   const toast = page.getByTestId('notify-toast');
