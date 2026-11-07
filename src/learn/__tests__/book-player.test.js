@@ -1,13 +1,13 @@
 /* Книга по отрывкам (docs/mechanics.md, «Профиль»): запись каждого отрывка — свой файл, проигрыватель играет
    их друг за другом, перемотка — по всей книге; текст для озвучки — по отрывку; список записей видит и
    папки книг. Плюс: книга звучит, когда читалку закрыли — проигрыватель один на всё приложение. */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BOOKS, BOOK_BY_ID, bookSpeech, speechScript, passageScript, speechSeconds } from '../shelf.js';
 import { listBookAudio } from '../../../scripts/voice-files-plugin.js';
-import { bookPlayer, getState, viewOf, resetBookPlayer, passageTracks, audioMode, canSetVolume, clampVolume } from '../book-player.js';
+import { bookPlayer, getState, viewOf, resetBookPlayer, passageTracks, audioMode, canSetVolume, clampVolume, PASSAGE_GAP } from '../book-player.js';
 
 // подмена проигрывателя: запоминает адреса; длина каждой записи — 100 с
 class FakeTape {
@@ -53,11 +53,19 @@ describe('книга по отрывкам', () => {
     const b = BOOK_BY_ID['smith-wealth']; const parts = bookSpeech(b); const est = speechSeconds(b);
     expect(audioMode(b)).toBe('parts');
     expect(passageTracks(b).map((t) => t.url)).toEqual(b.passages.map((p) => `/books/smith-wealth/${p.id}.mp3`));
+    vi.useFakeTimers();
     bookPlayer.play(b, parts, est, 0);
     expect(FakeTape.played).toEqual(['smith-wealth/pins.mp3']);
-    // отрывок кончился — следующий
+    // отрывок кончился — три секунды тишины, потом следующий (раньше начинался впритык)
     FakeTape.last.onended();
+    expect(PASSAGE_GAP).toBe(3);
+    expect(getState()).toMatchObject({ gap: true, playing: true });
+    vi.advanceTimersByTime(2900);
+    expect(FakeTape.played).toEqual(['smith-wealth/pins.mp3']);
+    vi.advanceTimersByTime(100);
     expect(FakeTape.played).toEqual(['smith-wealth/pins.mp3', 'smith-wealth/butcher.mp3']);
+    expect(getState().gap).toBe(false);
+    vi.useRealTimers();
     expect(getState().track).toBe(1);
     // «слушать» у последнего — сразу его файл; кончился — книга дослушана
     bookPlayer.playFrom(b, parts, est, 'taxes');
@@ -75,6 +83,25 @@ describe('книга по отрывкам', () => {
     expect(before).toBeLessThanOrEqual(0.5 * s.dur + 1e-6);
     expect(before + durs[s.track]).toBeGreaterThan(0.5 * s.dur);
     expect(FakeTape.last.src).toMatch(new RegExp(`/books/smith-wealth/${s.tracks[s.track].passage}\\.mp3$`));
+  });
+
+  it('пауза во время тишины между отрывками отменяет следующий отрывок', () => {
+    vi.useFakeTimers();
+    const b = BOOK_BY_ID['smith-wealth']; const parts = bookSpeech(b); const est = speechSeconds(b);
+    bookPlayer.play(b, parts, est, 0);
+    FakeTape.last.onended();
+    bookPlayer.pause();
+    vi.advanceTimersByTime(5000);
+    expect(FakeTape.played).toEqual(['smith-wealth/pins.mp3']);
+    expect(getState()).toMatchObject({ playing: false, gap: false });
+    // перемотка во время тишины — играет то место, куда перемотали, без лишнего отрывка следом
+    bookPlayer.play(b, parts, est, 0);
+    FakeTape.last.onended();
+    bookPlayer.seek(b, parts, est, 0.6);
+    const n = FakeTape.played.length;
+    vi.advanceTimersByTime(5000);
+    expect(FakeTape.played.length).toBe(n);
+    vi.useRealTimers();
   });
 
   it('проигрыватель один на всё приложение: звук не зависит от экрана; другая книга ставит прежнюю на паузу', () => {

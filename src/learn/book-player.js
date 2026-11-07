@@ -89,17 +89,28 @@ function trackAt(tracks, f) {
   return { i: 0, sec: 0 };
 }
 
-const IDLE = { id: null, book: null, parts: [], mode: null, playing: false, started: false, at: 0, dur: 0, rate: 1, volume: 1, tracks: null, track: 0, reader: null };
+const IDLE = { id: null, book: null, parts: [], mode: null, playing: false, started: false, at: 0, dur: 0, rate: 1, volume: 1, tracks: null, track: 0, reader: null, gap: false };
+// пауза между отрывками, секунд (docs/mechanics.md, «Книжная полка»): отрывки не сливаются
+export const PASSAGE_GAP = 3;
 let S = { ...IDLE, rate: typeof localStorage !== 'undefined' ? savedRate() : 1, volume: typeof localStorage !== 'undefined' ? savedVolume() : 1 };
 const subs = new Set();
 const set = (patch) => { S = { ...S, ...patch }; subs.forEach((fn) => fn()); };
 export const subscribe = (fn) => { subs.add(fn); return () => subs.delete(fn); };
 export const getState = () => S;
 
-let tape = null; let pending = null; let tok = 0; let spoke = false;
+let tape = null; let pending = null; let tok = 0; let spoke = false; let gapTimer = 0;
+// тишина между отрывками: потом — fn; пауза, перемотка, другая книга её отменяют
+function afterGap(fn) {
+  clearTimeout(gapTimer);
+  const my = tok;
+  set({ gap: true });
+  gapTimer = setTimeout(() => { gapTimer = 0; if (my !== tok || !S.playing) return; set({ gap: false }); fn(); }, PASSAGE_GAP * 1000);
+}
+function cancelGap() { if (gapTimer) { clearTimeout(gapTimer); gapTimer = 0; } if (S.gap) set({ gap: false }); }
 
 function stopSound() {
   tok += 1;
+  cancelGap();
   if (tape) { try { tape.pause(); } catch { /* уже остановлен */ } }
   if (spoke) { try { window.speechSynthesis.cancel(); } catch { /* нет голоса */ } }
 }
@@ -137,7 +148,8 @@ function speakFrom(k) {
     const u = new window.SpeechSynthesisUtterance(part.text);
     u.lang = 'ru-RU'; u.rate = S.rate; u.volume = S.volume; const v = ruVoice(); if (v) u.voice = v;
     u.onboundary = (e) => { if (my === tok && e && e.charIndex >= 0) set({ at: part.from + (part.to - part.from) * Math.min(1, e.charIndex / part.text.length) }); };
-    u.onend = () => run(i + 1);
+    // на границе отрывков — тишина PASSAGE_GAP секунд; внутри отрывка части идут подряд
+    u.onend = () => { const next = parts[i + 1]; if (next && next.passage && part.passage && next.passage !== part.passage) afterGap(() => run(i + 1)); else run(i + 1); };
     u.onerror = (e) => { if (my === tok && !(e && /interrupted|canceled/.test(e.error))) set({ playing: false }); };
     synth.speak(u);
   };
@@ -168,7 +180,7 @@ function tapeFor() {
   };
   // отрывок кончился — следующий; последний — книга дослушана
   a.onended = () => {
-    if (S.mode === 'parts' && S.track < S.tracks.length - 1) { loadTrack(S.track + 1, 0); playTape(); return; }
+    if (S.mode === 'parts' && S.track < S.tracks.length - 1) { const next = S.track + 1; afterGap(() => { loadTrack(next, 0); playTape(); }); return; }
     ended();
   };
   // запись не загрузилась — книгу дочитает голос браузера с того же места
@@ -199,6 +211,7 @@ function playTape() {
 
 function playFromAt(f0) {
   if (!S.mode) return;
+  cancelGap();
   const f = f0 >= 0.995 ? 0 : f0;
   set({ playing: true, started: true, at: f });
   if (S.mode === 'file') {
@@ -220,6 +233,7 @@ function pauseNow() {
   media(true);
 }
 function seekTo(to) {
+  cancelGap();
   const f = Math.max(0, Math.min(0.999, to));
   set({ at: f });
   savePos(S.id, f);
@@ -306,4 +320,4 @@ export function viewOf(s, b, parts, est) {
 }
 
 // для тестов: начать с чистого листа
-export function resetBookPlayer() { stopSound(); tape = null; pending = null; volumeOk = null; S = { ...IDLE, rate: savedRate(), volume: savedVolume() }; subs.forEach((fn) => fn()); }
+export function resetBookPlayer() { stopSound(); clearTimeout(gapTimer); gapTimer = 0; tape = null; pending = null; volumeOk = null; S = { ...IDLE, rate: savedRate(), volume: savedVolume() }; subs.forEach((fn) => fn()); }

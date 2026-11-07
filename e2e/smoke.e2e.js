@@ -5730,7 +5730,11 @@ test('книгу на полке можно слушать: голос брау�
   await expect(listen).toHaveAttribute('data-mode', 'speech');
   await expect(listen.getByTestId('book-voice-caption')).toContainText('голос браузера');
   await listen.getByTestId('book-play').click();
-  await expect(listen).toHaveAttribute('data-state', 'paused', { timeout: 10_000 });
+  // между отрывками — по три секунды тишины: на границе отрывка голос молчит, потом читает дальше
+  await page.waitForTimeout(1500);
+  const firstPassage = await page.evaluate(() => window.__spoken.length);
+  expect(firstPassage).toBeLessThan(bookSpeech(BOOK_BY_ID['smith-wealth']).length);
+  await expect(listen).toHaveAttribute('data-state', 'paused', { timeout: 40_000 });
   const spoken = await page.evaluate(() => window.__spoken);
   expect(spoken.length).toBe(bookSpeech(BOOK_BY_ID['smith-wealth']).length);
   expect(spoken[0]).toContain('Адам Смит');
@@ -5852,9 +5856,10 @@ test('книга по отрывкам: у каждого отрывка сво�
   await expect(listen.getByTestId('book-voice-caption')).toHaveText('голос синтезирован');
   await listen.getByTestId('book-play').click();
   expect(await page.evaluate(() => window.__tapes)).toEqual(['/books/smith-wealth/pins.mp3']);
-  // отрывок дослушан — следующий, отмечен звучащим
+  // отрывок дослушан — три секунды тишины (отрывки не сливаются), потом следующий, отмечен звучащим
   await page.evaluate(() => window.__tape.onended());
-  expect(await page.evaluate(() => window.__tapes.at(-1))).toBe('/books/smith-wealth/butcher.mp3');
+  expect(await page.evaluate(() => window.__tapes.at(-1))).toBe('/books/smith-wealth/pins.mp3');
+  await expect.poll(() => page.evaluate(() => window.__tapes.at(-1)), { timeout: 6000 }).toBe('/books/smith-wealth/butcher.mp3');
   await expect(book.locator('[data-testid=book-passage][data-now="true"]')).toHaveAttribute('data-passage', 'butcher');
   // «слушать» у отрывка — сразу его файл
   await book.locator('[data-testid=book-passage][data-passage="taxes"]').getByTestId('book-passage-play').click();
