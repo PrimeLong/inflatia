@@ -110,3 +110,16 @@ describe('уведомления: «Ранее» — последние три �
     expect(got.some((x) => x.id === 'streak:today')).toBe(false);
   });
 });
+
+describe('сад: растения не одинаковые (пункт 12 от 06.11)', () => {
+  it('рост 0,84–1,16, наклон до 5°, сторона — от момента посадки; у соседних — разные', async () => {
+    const { plantLook } = await import('../garden.js');
+    const t0 = Date.UTC(2026, 10, 6, 10);
+    const looks = Array.from({ length: 30 }, (_, i) => plantLook(t0 + i * 61000));
+    looks.forEach((l) => { expect(l.k).toBeGreaterThanOrEqual(0.84); expect(l.k).toBeLessThanOrEqual(1.16); expect(Math.abs(l.tilt)).toBeLessThanOrEqual(5); expect([-1, 1]).toContain(l.flip); });
+    expect(plantLook(t0)).toEqual(plantLook(t0));
+    expect(new Set(looks.map((l) => l.k)).size).toBeGreaterThan(15);
+    expect(Math.max(...looks.map((l) => l.k)) - Math.min(...looks.map((l) => l.k))).toBeGreaterThan(0.2);
+    expect(new Set(looks.map((l) => l.flip)).size).toBe(2);
+  });
+});

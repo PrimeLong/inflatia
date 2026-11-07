@@ -8,7 +8,7 @@ import { Lock, Sprout, Clock, Coins, X, ArrowDown, Droplet, Droplets } from 'luc
 import { Audio } from './MacroSimulator.jsx';
 import { Button, Heading, Sheet } from './ds.jsx';
 import { PLANTS, PLANT_BY_ID, RARITY, GARDEN_PLOTS, GRADES, GRADE_BY_ID, MARKET_DROP, gardenPlots, growth, leftText, plant, harvest, herbarium, grown, collection,
-  plantPrice, salePrice, sell, sellAll, soldToday, cropGroups, paidPrice, STAGE_LABEL, water, needsWater, WATER_HOURS, SHOW_ODDS, oddsTable, oddsText } from './learn/garden.js';
+  plantPrice, salePrice, sell, sellAll, soldToday, cropGroups, paidPrice, STAGE_LABEL, water, needsWater, WATER_HOURS, SHOW_ODDS, oddsTable, oddsText, plantLook } from './learn/garden.js';
 import { balance, coinsWord } from './learn/rewards.js';
 import { RateWeek } from './learn-rate.jsx';
 import { dayOf } from './textbook/learn-state.js';
@@ -29,6 +29,9 @@ const GARDEN_CSS = `
   .gd-soil::before { content: ''; position: absolute; left: 4%; right: 4%; bottom: 2%; height: 38%; border-radius: 50%;
     background: radial-gradient(ellipse at 50% 30%, #9A7651, #7A5A3A 70%); box-shadow: inset 0 -5px 8px rgba(0,0,0,.18), 0 3px 0 rgba(90,120,60,.25); }
   .gd-soil .gd-art { position: relative; width: 96%; max-width: 112px; height: auto; display: block; margin-bottom: 4%; }
+  /* у каждого растения свой рост, наклон и сторона (plantLook): обёртка, чтобы не мешать анимациям созревания и засухи */
+  .gd-look { position: relative; z-index: 1; width: 100%; display: flex; justify-content: center; align-items: flex-end; transform-origin: 50% 92%;
+    transform: rotate(var(--tilt, 0deg)) scale(calc(var(--flip, 1) * var(--k, 1)), var(--k, 1)); }
   .gd-bed.ripe .gd-soil::after { content: ''; position: absolute; inset: 6% 10% 30%; border-radius: 50%; background: radial-gradient(circle, rgba(255,226,110,.55), transparent 70%); animation: gd-pulse 2s ease-in-out infinite; }
   .gd-bed.ripe .gd-art { animation: gd-ripe 1.8s ease-in-out infinite; z-index: 1; }
   .gd-bed.empty { cursor: pointer; }
@@ -379,7 +382,11 @@ export function GardenView({ learn, update }) {
             return (
               <div key={g.at} className={`gd-bed${st.ripe ? ' ripe' : ''}${w && w.dry ? ' dry' : ''}`} data-testid="garden-plot" data-plant={g.plant} data-stage={st.stage} data-dry={w && w.dry ? 'true' : undefined}>
                 <div className="gd-soil">
-                  <PlantArt id={g.plant} stage={st.stage} pot={false} />
+                  {(() => { const lk = plantLook(g.at); return (
+                    <span className="gd-look" data-testid="garden-look" data-k={lk.k} style={{ '--k': lk.k, '--tilt': `${lk.tilt}deg`, '--flip': lk.flip }}>
+                      <PlantArt id={g.plant} stage={st.stage} pot={false} />
+                    </span>
+                  ); })()}
                   {rain[g.at] && <span key={rain[g.at]} className="gd-rain" data-testid="garden-rain" aria-hidden="true">{RAIN_DROPS.map((x, k) => <i key={k} style={{ left: `${x}%`, animationDelay: `${k * 70}ms` }} />)}</span>}
                 </div>
                 <div className="gd-sign">

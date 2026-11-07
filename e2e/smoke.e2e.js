@@ -6837,3 +6837,32 @@ test('уведомления: «Ранее» — последние три пр�
   await expect(center.locator('[data-id="lg-old:e2e3"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+/* Сад (пункт 12 от 06.11): растения не одинаковые — у каждого свой рост, наклон и сторона, от момента посадки */
+test('сад: шесть ромашек на соседних грядках — разного роста, а после перезагрузки — те же', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const now = Date.now(); const H = 3600000;
+    const garden = Object.fromEntries([1, 2, 3, 4, 5, 6].map((k) => [now - k * H - k * 7919, `chamomile@${k % 4}`]));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: now - 86400000, runs: 1, best: 90 } }, coins: { '2026-01-01': 500 }, garden } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  const shop = page.getByTestId('shop');
+  await shop.getByTestId('shop-switch').locator('[data-view="garden"]').click();
+  const looks = page.getByTestId('garden').getByTestId('garden-look');
+  await expect(looks).toHaveCount(6);
+  const ks = await looks.evaluateAll((els) => els.map((e) => Number(e.dataset.k)));
+  ks.forEach((k) => { expect(k).toBeGreaterThanOrEqual(0.84); expect(k).toBeLessThanOrEqual(1.16); });
+  expect(new Set(ks).size).toBeGreaterThanOrEqual(3);
+  // разный рост виден: высота нарисованного растения отличается
+  const hs = await looks.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+  expect(Math.max(...hs) - Math.min(...hs)).toBeGreaterThan(4);
+  await page.reload({ waitUntil: 'networkidle' });
+  await openTab(page, 'shop');
+  const sw = page.getByTestId('shop').getByTestId('shop-switch').locator('[data-view="garden"]');
+  if ((await page.getByTestId('shop').getAttribute('data-view')) !== 'garden') await sw.click();
+  await expect(page.getByTestId('garden').getByTestId('garden-look')).toHaveCount(6);
+  expect(await page.getByTestId('garden').getByTestId('garden-look').evaluateAll((els) => els.map((e) => Number(e.dataset.k)))).toEqual(ks);
+  expect(errors).toEqual([]);
+});
