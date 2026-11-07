@@ -6052,6 +6052,38 @@ test('читалка книги: большая кнопка ушла под ш�
   expect(errors).toEqual([]);
 });
 
+// «Ошибка?» в читалке книги (пункт владельца 08.11): уходят книга и отрывок на экране
+test('читалка книги: «Ошибка?» в шапке — жалоба с книгой и отрывком на экране', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, met: { 'people-scarcity': Date.now() - 86400000 } } }));
+  });
+  const sent = [];
+  const api = (req) => {
+    let body = null; try { body = req.postDataJSON(); } catch { body = null; }
+    if (req.url().includes('/api/reports') && body && body.action === 'send') { sent.push(body); return JSON.stringify({ ok: true, id: 'x' }); }
+    return '{}';
+  };
+  const { errors } = await openApp(page, '/', api, { tab: 'profile' });
+  await page.getByTestId('prof-shelf').scrollIntoViewIfNeeded();
+  await page.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
+  const book = page.getByTestId('book-reader');
+  // прокрутили к «Воде и алмазу» — жалоба про него
+  await book.locator('[data-passage="water"]').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await book.getByTestId('report-flag').click();
+  const sheet = page.getByTestId('report-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[data-reason]')).toHaveCount(4);
+  await sheet.locator('[data-reason="typo"]').click();
+  await sheet.getByTestId('report-send').click();
+  await expect(page.getByTestId('report-thanks')).toBeVisible();
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({ reason: 'typo' });
+  expect(sent[0].context).toMatchObject({ screen: 'book', kind: 'book', lesson: 'smith-wealth' });
+  expect(sent[0].context.step).toContain('Вода и алмаз');
+  expect(sent[0].context.quote.length).toBeGreaterThan(40);
+  expect(errors).toEqual([]);
+});
+
 test('книга по отрывкам: у каждого отрывка свой файл — играют друг за другом, «слушать» у отрывка — его файл', async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('ems-textbook-v1')) {

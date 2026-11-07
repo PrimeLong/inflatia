@@ -23,6 +23,7 @@ import { READING_BY_UNIT } from './learn/reading.js';
 import { PEOPLE_BY_UNIT } from './learn/people.js';
 import { placeOf } from './ds-tokens.js';
 import { Portrait, PEOPLE_CSS, PhotoCredit } from './learn-people.jsx';
+import { ReportFlag, REPORT_CSS, BOOK_REASONS } from './learn-report.jsx';
 
 const CSS = `
   .lb-shelf { position: relative; display: flex; align-items: flex-end; gap: 6px; padding: 14px 10px 0; margin: 10px 0 18px; min-height: 164px; overflow-x: auto; scrollbar-width: thin; }
@@ -267,11 +268,24 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
     return () => io.disconnect();
   }, [player.mode]);
   const go = (pid) => { const el = root.current && root.current.querySelector(`[data-passage="${pid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  // отрывок на экране — последний, чей заголовок уже под шапкой (для жалобы)
+  const onScreen = () => {
+    const r = root.current; if (!r) return b.passages[0];
+    const top = (r.querySelector('.lb-top') || r).getBoundingClientRect().bottom + 40;
+    let cur = b.passages[0];
+    r.querySelectorAll('[data-passage]').forEach((el) => { if (el.getBoundingClientRect().top <= top) cur = b.passages.find((x) => x.id === el.getAttribute('data-passage')) || cur; });
+    return cur;
+  };
   return (
     <div className="lb-reader" ref={root} style={{ '--b': b.color, '--lb-fs': FONT_STEPS[font] }} role="dialog" aria-label={`${b.author}. ${b.title}`} data-testid="book-reader" data-book={id} data-font={font}>
       <div className="lb-top">
         <IconButton label="Закрыть книгу" icon={X} data-testid="book-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <b>{b.author} · {b.short}</b>
+        {/* «Ошибка?»: книга и отрывок на экране уходят в жалобу */}
+        <ReportFlag withText text="Ошибка?" reasons={BOOK_REASONS} sub="Что не так в книге? Отрывок на экране и устройство приложатся сами." context={() => {
+          const p = onScreen();
+          return { screen: 'book', kind: 'book', lesson: b.id, unit: b.unitId, page: `${b.author}, «${b.title}», ${b.year}`, step: `${p.title} (${p.where})`, quote: (p.text || []).join(' ').slice(0, 500) };
+        }} />
         {/* размер текста: меньше / крупнее */}
         <span className="lb-fs" role="group" aria-label={`Размер текста: ${Math.round(FONT_STEPS[font] * 100)}%`}>
           <button type="button" aria-label="Текст мельче" data-testid="book-font-down" disabled={font === 0} onClick={() => { Audio.play('tick'); setFont(font - 1); }}>A</button>
@@ -323,7 +337,7 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
         <div className="lb-note">Перевод — редакции «Инфляции», с сокращениями: пропуски отмечены «[…]». Текст {b.year} года — в общественном достоянии.</div>
       </div>
       {player.started && !cardSeen && <MiniPlayer b={b} p={player} onGo={go} />}
-      <style>{MINI_CSS}</style>
+      <style>{MINI_CSS + REPORT_CSS}</style>
     </div>
   );
 }
