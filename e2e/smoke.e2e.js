@@ -2076,8 +2076,17 @@ test('путь: юнит «Спрос и предложение» — кажды
   expect(await word.evaluate((el) => getComputedStyle(el).transform)).not.toBe('none');
   await expect(word.locator('.lp-swipe-tag.next')).toBeVisible();
   await page.mouse.move(wb.x + wb.width / 2 - 170, wb.y + wb.height / 2, { steps: 6 });
+  // наклон — не больше 4°, и верх карточки не уходит за край области урока (раньше до 16° и обрезалось сверху)
+  const tilt = await word.evaluate((el) => { const m = new DOMMatrix(getComputedStyle(el).transform); return Math.abs((Math.atan2(m.b, m.a) * 180) / Math.PI); });
+  expect(tilt).toBeGreaterThan(0.5);
+  expect(tilt).toBeLessThanOrEqual(4.01);
+  const bodyTop = await page.locator('.ln-body').evaluate((el) => el.getBoundingClientRect().top);
+  expect(await word.evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(bodyTop);
   await page.mouse.up();
+  // отпустили — старая карточка плавно уезжает в ту же сторону, новая уже на месте
+  await expect(page.getByTestId('flash-card-out')).toHaveAttribute('data-side', '-1');
   await expect(word).toContainText('Новое слово 2 из 8');
+  await expect(page.getByTestId('flash-card-out')).toHaveCount(0);
   await expect(page.getByTestId('word-dots').locator('i.know')).toHaveCount(2);
   // смахнуть вправо — тоже дальше: направление запоминать не нужно
   const wb2 = await word.boundingBox();
@@ -2088,8 +2097,9 @@ test('путь: юнит «Спрос и предложение» — кажды
   await page.mouse.move(wb2.x + wb2.width / 2 + 170, wb2.y + wb2.height / 2, { steps: 6 });
   await page.mouse.up();
   await expect(word).toContainText('Новое слово 3 из 8');
-  // назад — кнопкой, к прошлому слову
+  // назад — кнопкой, к прошлому слову: старая карточка уходит вправо (по «Дальше» — влево), а не просто пропадает
   await page.getByTestId('word-prev').click();
+  await expect(page.getByTestId('flash-card-out')).toHaveAttribute('data-side', '1');
   await expect(word).toContainText('Новое слово 2 из 8');
   for (let i = 0; i < 6; i += 1) await page.getByTestId('word-next').click();
   await expect(word).toContainText('Новое слово 8 из 8');
