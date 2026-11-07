@@ -5990,6 +5990,40 @@ test('книгу на полке можно слушать: голос брау�
   expect(errors).toEqual([]);
 });
 
+// читалка книги (пункты владельца 08.11): размер текста, «Сообщить об ошибке», «Наверх», один ползунок прокрутки
+test('читалка книги: размер текста — пять ступеней, помнит устройство', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, met: { 'people-scarcity': Date.now() - 86400000 } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'profile' });
+  const open = async () => {
+    await openTab(page, 'profile');
+    await page.getByTestId('prof-shelf').scrollIntoViewIfNeeded();
+    await page.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
+    await expect(page.getByTestId('book-reader')).toBeVisible();
+  };
+  await open();
+  const book = page.getByTestId('book-reader');
+  const size = () => book.locator('[data-testid=book-passage] p').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  await expect(book).toHaveAttribute('data-font', '1');
+  expect(await size()).toBe(18);
+  await book.getByTestId('book-font-up').click();
+  await book.getByTestId('book-font-up').click();
+  await book.getByTestId('book-font-up').click();
+  await expect(book).toHaveAttribute('data-font', '4');
+  expect(await size()).toBeCloseTo(25.2, 1);
+  await expect(book.getByTestId('book-font-up')).toBeDisabled();
+  await book.getByTestId('book-font-down').click();
+  await expect(book).toHaveAttribute('data-font', '3');
+  // помнит устройство — и в другой книге тот же размер
+  await page.getByTestId('book-close').click();
+  await page.reload({ waitUntil: 'networkidle' });
+  await open();
+  await expect(book).toHaveAttribute('data-font', '3');
+  expect(await size()).toBeCloseTo(22.5, 1);
+  expect(errors).toEqual([]);
+});
+
 test('книга по отрывкам: у каждого отрывка свой файл — играют друг за другом, «слушать» у отрывка — его файл', async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('ems-textbook-v1')) {

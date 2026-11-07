@@ -132,6 +132,19 @@ const CSS = `
   .lb-think svg { position: absolute; left: 16px; top: 15px; color: var(--ds-gold); }
   .lb-orn { text-align: center; color: var(--ds-ink3); letter-spacing: .6em; margin-top: 26px; }
   .lb-note { margin-top: 30px; font-size: 13px; color: var(--ds-ink3); line-height: 1.5; border-top: 1px dashed var(--ds-rule); padding-top: 12px; }
+  /* размер текста читалки: пять ступеней (--lb-fs), помнит устройство (ems-book-font) */
+  .lb-reader .lb-passage p { font-size: calc(18px * var(--lb-fs, 1)); }
+  .lb-reader .lb-passage h3 { font-size: calc(22px * var(--lb-fs, 1)); }
+  .lb-reader .lb-passage .where { font-size: calc(12.5px * var(--lb-fs, 1)); }
+  .lb-reader .lb-think { font-size: calc(15px * var(--lb-fs, 1)); }
+  .lb-reader .lb-passage p:first-of-type::first-letter { font-size: calc(54px * var(--lb-fs, 1)); }
+  .lb-fs { flex: none; display: inline-flex; align-items: stretch; height: 36px; border-radius: 999px; border: 1px solid var(--ds-rule2); background: var(--ds-card); overflow: hidden; }
+  .lb-fs button { width: 40px; border: 0; background: none; color: var(--ds-ink); cursor: pointer; display: grid; place-items: center; font-family: var(--ds-news, 'PT Serif', Georgia, serif); font-weight: 700; line-height: 1; }
+  .lb-fs button:first-child { font-size: 13px; } .lb-fs button:last-child { font-size: 19px; }
+  .lb-fs button + button { border-left: 1px solid var(--ds-rule2); }
+  .lb-fs button:hover:not(:disabled) { background: color-mix(in srgb, var(--b) 10%, transparent); }
+  .lb-fs button:disabled { color: var(--ds-ink3); cursor: default; }
+  .lb-fs button:focus-visible { outline: 2px solid var(--b); outline-offset: -2px; }
   @media (prefers-reduced-motion: reduce) { .lb-cover, .lb-stamp, .lb-xp, .lb-ribbon, .lb-tick, .lb-mini, .lb-bars i, .lb-listen.on .lb-play::after, .lb-passage.now::before { animation: none !important; } .lb-book { transition: none; } }
 `;
 
@@ -213,8 +226,19 @@ function Volume({ p }) {
   );
 }
 
+/* размер текста читалки (docs/mechanics.md, «Профиль»): ступень на устройстве, одна для всех книг */
+export const FONT_STEPS = [0.88, 1, 1.12, 1.25, 1.4];
+const FONT_KEY = 'ems-book-font';
+const savedFont = () => { try { const raw = localStorage.getItem(FONT_KEY); const v = Number(raw); return raw !== null && Number.isInteger(v) && v >= 0 && v < FONT_STEPS.length ? v : 1; } catch { return 1; } };
+function useBookFont() {
+  const [step, setStep] = useState(savedFont);
+  const set = (k) => { const v = Math.max(0, Math.min(FONT_STEPS.length - 1, k)); setStep(v); try { localStorage.setItem(FONT_KEY, String(v)); } catch { /* приватный режим */ } };
+  return [step, set];
+}
+
 export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null }) {
   const b = BOOK_BY_ID[id];
+  const [font, setFont] = useBookFont();
   const [fresh, setFresh] = useState(false);
   const wait = useReadClock(id, readLockSeconds(b), !readAt && !!onRead);
   const root = useRef(null);
@@ -242,10 +266,15 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
   }, [player.mode]);
   const go = (pid) => { const el = root.current && root.current.querySelector(`[data-passage="${pid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   return (
-    <div className="lb-reader" ref={root} style={{ '--b': b.color }} role="dialog" aria-label={`${b.author}. ${b.title}`} data-testid="book-reader" data-book={id}>
+    <div className="lb-reader" ref={root} style={{ '--b': b.color, '--lb-fs': FONT_STEPS[font] }} role="dialog" aria-label={`${b.author}. ${b.title}`} data-testid="book-reader" data-book={id} data-font={font}>
       <div className="lb-top">
         <IconButton label="Закрыть книгу" icon={X} data-testid="book-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <b>{b.author} · {b.short}</b>
+        {/* размер текста: меньше / крупнее */}
+        <span className="lb-fs" role="group" aria-label={`Размер текста: ${Math.round(FONT_STEPS[font] * 100)}%`}>
+          <button type="button" aria-label="Текст мельче" data-testid="book-font-down" disabled={font === 0} onClick={() => { Audio.play('tick'); setFont(font - 1); }}>A</button>
+          <button type="button" aria-label="Текст крупнее" data-testid="book-font-up" disabled={font === FONT_STEPS.length - 1} onClick={() => { Audio.play('tick'); setFont(font + 1); }}>A</button>
+        </span>
       </div>
       <div className="lb-page">
         <div className="lb-cover"><small>{b.author}</small><h2>{b.title}</h2><small>{b.year}</small></div>
