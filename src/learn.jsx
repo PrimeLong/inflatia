@@ -410,10 +410,18 @@ const CSS = `
   .ln-exam-grid b { width: 26px; height: 30px; border: 1.5px solid var(--ds-ink3); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font: 700 17px var(--ds-mono, monospace); color: var(--ds-ink); background: var(--ds-card); }
   .ln-match { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .ln-match-tag { display: block; font: 700 11.5px/1.2 var(--ds-sans); letter-spacing: .02em; margin-bottom: 3px; }
+  /* после проверки: верная пара — зелёная с ✓, неверная — красная с ✗, зачёркнутым термином и «верно: …» */
+  .ln-match-right .ds-opt[data-verdict="ok"] { border-color: var(--ds-ok) !important; background: color-mix(in srgb, var(--ds-ok) 8%, var(--ds-card)); }
+  .ln-match-right .ds-opt[data-verdict="bad"] { border-color: var(--ds-bad) !important; background: color-mix(in srgb, var(--ds-bad) 7%, var(--ds-card)); }
+  .ln-match-mark { float: right; margin-left: 8px; font-weight: 800; }
+  .ln-match-right .ds-opt[data-verdict="ok"] .ln-match-mark { color: var(--ds-ok); }
+  .ln-match-right .ds-opt[data-verdict="bad"] .ln-match-mark { color: var(--ds-bad); }
+  .ln-match-right .ds-opt[data-verdict="bad"] .ln-match-tag { text-decoration: line-through; opacity: .75; }
+  .ln-match-fix { display: block; margin-top: 4px; font: 700 12.5px/1.3 var(--ds-sans); color: var(--ds-ok); }
   @media (max-width: 560px) {
     .ln-match { grid-template-columns: 1fr; gap: 2px; }
-    .ln-match-left { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 6px; }
-    .ln-body .ln-match-left .ds-opt { width: auto; margin: 0; padding: 7px 12px; line-height: 1.3; }
+    .ln-match-left { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 6px; }
+    .ln-body .ln-match-left .ds-opt { width: auto; margin: 0; padding: 7px 10px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
     .ln-body .ln-match-right .ds-opt { margin: 6px 0; padding: 11px 14px; }
   }
   /* длинный разбор прокручивается внутри панели ответа, «Дальше» под ним всегда на виду */
@@ -826,9 +834,13 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
                 onClick={() => { Audio.play('tick'); if (l.key in r) { const n = { ...r }; delete n[l.key]; setResp(n); setSel(null); } else setSel(l.key); }}>
                 <Inline nodes={l.text} ctx={ctx} /></button>
             ))}</div>
-            <div className="ln-match-right">{inst.right.map((x) => (
-              <button key={x.key} type="button" className="ds-opt" data-side="right" data-key={x.key} disabled={locked || (!sel && !(x.key in rightOwner))}
-                style={{ fontSize: 14, borderColor: x.key in rightOwner ? tone(pairNo[rightOwner[x.key]]) : undefined }}
+            <div className="ln-match-right">{inst.right.map((x) => {
+              // после проверки: верна ли пара у этого определения (его ключ — ключ верного термина)
+              const verdict = fb && !fb.empty ? (rightOwner[x.key] === x.key ? 'ok' : 'bad') : null;
+              const fix = verdict === 'bad' ? inst.left.find((l) => l.key === x.key) : null;
+              return (
+              <button key={x.key} type="button" className="ds-opt" data-side="right" data-key={x.key} data-verdict={verdict || undefined} disabled={locked || (!sel && !(x.key in rightOwner))}
+                style={{ fontSize: 14, borderColor: verdict ? undefined : x.key in rightOwner ? tone(pairNo[rightOwner[x.key]]) : undefined }}
                 onClick={() => {
                   Audio.play('tick');
                   const n = { ...r };
@@ -836,9 +848,12 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
                   if (sel) n[sel] = x.key;
                   setResp(n); setSel(null);
                 }}>
-                {x.key in rightOwner && <span className="ln-match-tag" data-testid="match-tag" style={{ color: tone(pairNo[rightOwner[x.key]]) }}><Inline nodes={inst.left.find((l) => l.key === rightOwner[x.key]).text} ctx={ctx} /></span>}
-                <Inline nodes={x.text} ctx={ctx} /></button>
-            ))}</div>
+                {verdict && <span className="ln-match-mark" aria-label={verdict === 'ok' ? 'верно' : 'неверно'}>{verdict === 'ok' ? '✓' : '✗'}</span>}
+                {x.key in rightOwner && <span className="ln-match-tag" data-testid="match-tag" style={{ color: verdict ? undefined : tone(pairNo[rightOwner[x.key]]) }}><Inline nodes={inst.left.find((l) => l.key === rightOwner[x.key]).text} ctx={ctx} /></span>}
+                <Inline nodes={x.text} ctx={ctx} />
+                {fix && <span className="ln-match-fix" data-testid="match-fix">верно: <Inline nodes={fix.text} ctx={ctx} /></span>}</button>
+              );
+            })}</div>
           </div>
         </div>
       );
@@ -1389,7 +1404,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         {GAME_KINDS.includes(inst.kind) && <div style={{ fontSize: 15 }} data-testid="game-result">{gameLine(inst, resp)}{!fb.ok && ` Для зачёта нужно: ${answerText(inst)}.`}</div>}
         {/* «не засчитано» читалось как «урок не засчитан» — а урок с игрой пройден в любом случае (docs/mechanics.md) */}
         {GAME_KINDS.includes(inst.kind) && !fb.ok && run.mode === 'lesson' && <div style={{ fontSize: 15, marginTop: 4 }} data-testid="game-lesson-note">Урок это не отменяет — он будет пройден, только без алмаза.</div>}
-        {!fb.ok && !GAME_KINDS.includes(inst.kind) && <div style={{ fontSize: 15 }}>Правильно: <b>{answerText(inst)}</b></div>}
+        {/* «Соедините»: не абзац со всеми парами, а сколько неверных — сами пары отмечены на карточках */}
+        {!fb.ok && inst.kind === 'match' && <div style={{ fontSize: 15 }} data-testid="match-summary">Неверных пар: {inst.left.filter((l) => (resp || {})[l.key] !== l.key).length} из {inst.left.length} — они отмечены красным, под каждой — верный термин.</div>}
+        {!fb.ok && !GAME_KINDS.includes(inst.kind) && inst.kind !== 'match' && <div style={{ fontSize: 15 }}>Правильно: <b>{answerText(inst)}</b></div>}
         {(!fb.ok || fb.partial) && fb.why && <div style={{ fontSize: 15, marginTop: 4, lineHeight: 1.5 }} data-testid="ex-why"><Inline nodes={fb.why} ctx={noopCtx} /></div>}
         {!fb.ok && !fb.why && inst.explain && !inst.steps && <div className="tb-body" style={{ fontSize: 15, marginTop: 4, color: 'inherit' }}><Blocks blocks={inst.explain} ctx={noopCtx} /></div>}
         {!fb.ok && inst.explain && inst.steps && <StepsExplain blocks={inst.explain} key={inst.uid} />}

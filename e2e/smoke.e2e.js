@@ -6675,3 +6675,43 @@ test('защита монет: у ученика с длинной истори�
   await expect.poll(coins).toBe(after);
   expect(errors).toEqual([]);
 });
+
+test('«Соедините»: после проверки видно, где ошибка — ✓ и ✗ на парах, верный термин, короткая плашка (жалобы mw05gjte, mw1sv3gr)', async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2'];
+    if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  // в «Словах» пары есть всегда
+  await startLesson(page, 'lm-w', /Начать|Повторить/);
+  for (let i = 0; i < 30; i += 1) {
+    await passCards(page);
+    if (await page.getByTestId('ex').getAttribute('data-kind') === 'match') break;
+    await answerExercise(page);
+    await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  }
+  const ex = page.getByTestId('ex');
+  await expect(ex).toHaveAttribute('data-kind', 'match');
+  const ans = JSON.parse(await ex.getAttribute('data-answer'));
+  const keys = Object.keys(ans);
+  // первые два термина — наоборот, остальные верно
+  const plan = Object.fromEntries(keys.map((k, i) => [k, i === 0 ? ans[keys[1]] : i === 1 ? ans[keys[0]] : ans[k]]));
+  for (const [l, r] of Object.entries(plan)) { await ex.locator(`[data-side=left][data-key="${l}"]`).click(); await ex.locator(`[data-side=right][data-key="${r}"]`).click(); }
+  if (info.project.name === 'phone') {
+    // термины — ровной сеткой в два столбца одной ширины
+    const w = await ex.locator('[data-side=left]').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
+    expect(Math.max(...w) - Math.min(...w)).toBeLessThanOrEqual(2);
+  }
+  await page.getByRole('button', { name: 'Проверить' }).click();
+  await expect(page.getByTestId('ex-feedback')).toHaveAttribute('data-ok', 'false');
+  await expect(ex.locator('[data-side=right][data-verdict="bad"]')).toHaveCount(2);
+  await expect(ex.locator('[data-side=right][data-verdict="ok"]')).toHaveCount(keys.length - 2);
+  await expect(ex.getByTestId('match-fix')).toHaveCount(2);
+  await expect(page.getByTestId('match-summary')).toContainText(`Неверных пар: 2 из ${keys.length}`);
+  await expect(page.getByTestId('ex-feedback')).not.toContainText('Правильно:');
+  await expectNoSidewaysScroll(page);
+  expect(errors).toEqual([]);
+});
