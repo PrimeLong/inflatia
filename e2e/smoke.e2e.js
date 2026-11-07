@@ -6024,6 +6024,34 @@ test('читалка книги: размер текста — пять ступ
   expect(errors).toEqual([]);
 });
 
+// мини-проигрыватель — как только большая кнопка ушла под шапку читалки, а не когда ушёл весь проигрыватель (пункт 08.11)
+test('читалка книги: большая кнопка ушла под шапку — сразу мини-проигрыватель', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('ems-book-audio-test', '1');
+    if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 } }, met: { 'people-scarcity': Date.now() - 86400000 } } }));
+    window.Audio = class {
+      constructor() { this.src = ''; this.currentTime = 0; this.duration = 0; this.playbackRate = 1; this.paused = true; }
+      pause() { this.paused = true; }
+      play() { this.duration = 600; this.paused = false; return Promise.resolve(); }
+    };
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'profile' });
+  await page.getByTestId('prof-shelf').scrollIntoViewIfNeeded();
+  await page.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
+  const book = page.getByTestId('book-reader');
+  await book.getByTestId('book-play').click();
+  await expect(book.getByTestId('book-mini')).toHaveCount(0);
+  // кнопка целиком под шапкой ещё не ушла, но уже наполовину закрыта ею — мини-проигрыватель есть
+  const top = await book.locator('.lb-top').boundingBox();
+  const btn = await book.getByTestId('book-play').boundingBox();
+  await book.evaluate((el, dy) => { el.scrollTop += dy; }, Math.round(btn.y - (top.y + top.height) + btn.height / 2));
+  await expect(book.getByTestId('book-mini')).toBeVisible();
+  // вернулись к кнопке — мини-проигрыватель ушёл
+  await book.evaluate((el) => { el.scrollTop = 0; });
+  await expect(book.getByTestId('book-mini')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('книга по отрывкам: у каждого отрывка свой файл — играют друг за другом, «слушать» у отрывка — его файл', async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('ems-textbook-v1')) {

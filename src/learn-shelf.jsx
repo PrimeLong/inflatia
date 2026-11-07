@@ -256,11 +256,13 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
     const t = setTimeout(() => { const el = root.current && root.current.querySelector(`[data-passage="${passage}"]`); if (el) el.scrollIntoView({ block: 'start' }); }, 60);
     return () => clearTimeout(t);
   }, [passage]);
-  // проигрыватель под обложкой ушёл с экрана — внизу мини-проигрыватель
+  /* большая кнопка проигрывателя ушла под шапку читалки (видна не целиком) — внизу мини-проигрыватель: раньше ждали,
+     пока с экрана уйдёт весь проигрыватель, и, прокрутив чуть-чуть, паузу было не нажать (пункт владельца 08.11) */
   useEffect(() => {
-    const el = card.current;
+    const el = card.current && (card.current.querySelector('.lb-play') || card.current);
     if (!el || typeof IntersectionObserver !== 'function') return undefined;
-    const io = new IntersectionObserver(([e]) => setCardSeen(e.isIntersecting), { root: root.current, threshold: 0 });
+    const top = root.current && root.current.querySelector('.lb-top');
+    const io = new IntersectionObserver(([e]) => setCardSeen(e.intersectionRatio >= 0.98), { root: root.current, threshold: [0, 0.98, 1], rootMargin: `-${top ? top.offsetHeight : 0}px 0px 0px 0px` });
     io.observe(el);
     return () => io.disconnect();
   }, [player.mode]);
