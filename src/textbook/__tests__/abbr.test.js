@@ -3,7 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ABBR, NOT_ABBR } from '../abbr.js';
+import { ABBR, NOT_ABBR, abbrEn } from '../abbr.js';
+import { SYMBOLS, formulaSymbols } from '../symbols.js';
 
 const DIR = path.resolve(__dirname, '../chapters');
 const chapters = fs.readdirSync(DIR).filter((f) => f.endsWith('.md'));
@@ -41,5 +42,30 @@ describe('сокращения в учебнике — с расшифровко
       });
       expect(bad).toEqual([]);
     });
+  });
+
+  /* английская расшифровка латинского сокращения в скобках (пункт владельца 08.11: «AP — аббревиатура на английском»):
+     у каждого латинского сокращения она есть и сама встаёт в строку обозначений под формулой */
+  it('у каждого латинского сокращения — английская расшифровка; в строке обозначений она в скобках', () => {
+    Object.keys(ABBR).filter((k) => /^[A-Z]+$/.test(k)).forEach((k) => expect(ABBR[k].en, k).toMatch(/^[a-z][a-z –-]+$/));
+    const missing = [];
+    Object.entries(SYMBOLS).forEach(([ch, map]) => Object.keys(map).forEach((key) => {
+      const m = /^([A-Z]{2,5})(?:_|$)/.exec(key);
+      const en = m && abbrEn(m[1], ch);
+      if (!en) return;
+      const found = formulaSymbols(key, ch).find((x) => x.key === key);
+      if (!found || !found.text.includes(`(${en})`)) missing.push(`${ch}: ${key} — ${found ? found.text : 'не найдено'}`);
+    }));
+    expect(missing).toEqual([]);
+    expect(formulaSymbols('AP_L = Q/L', 'production')[0].text).toBe('средний продукт труда (average product): выпуск на одного работника');
+  });
+  it('«Завод»: при первом появлении латинского сокращения в тексте главы — и английская расшифровка', () => {
+    const text = prose('production.md');
+    const bad = [];
+    firstUses(text).forEach((at, t) => {
+      const en = abbrEn(t, 'production');
+      if (en && !text.slice(Math.max(0, at - WINDOW), at + WINDOW).toLowerCase().includes(en)) bad.push(t);
+    });
+    expect(bad).toEqual([]);
   });
 });
