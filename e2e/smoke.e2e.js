@@ -6926,6 +6926,11 @@ test('«Нарисуй сам» — остановка за графиком ю�
   await expect(g.getByTestId('draw-check')).toBeDisabled();
   await tap(60, 30); await tap(140, 60);
   await expect(ink).toHaveAttribute('data-ready', 'true');
+  // касание поставленной точки убирает её; поставили снова (пункт владельца 08.11, вечер)
+  await tap(60, 30);
+  await expect(ink).toHaveAttribute('data-ready', 'false');
+  await tap(60, 30);
+  await expect(ink).toHaveAttribute('data-ready', 'true');
   // ошибка — что не так и подсказка, можно ещё раз
   await g.getByTestId('draw-check').click();
   await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'false');

@@ -44,8 +44,8 @@ const CSS = `
 const rich = (t) => String(t).split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : <React.Fragment key={i}>{p}</React.Fragment>));
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const HOW = {
-  line: 'Нажмите на график в двух местах — точки прилипают к сетке; точку можно перетащить.',
-  point: 'Нажмите на график — точку можно перетащить.',
+  line: 'Нажмите на график в двух местах — точки прилипают к сетке; точку можно перетащить, а касанием — убрать.',
+  point: 'Нажмите на график — точку можно перетащить, а касанием — убрать.',
   shift: 'Потяните график пальцем или мышью вбок — или двигайте ползунок под ним.',
   area: 'Нажмите внутрь нужной области.',
 };
@@ -103,10 +103,13 @@ export default function DrawLesson({ id, learn, update, onClose }) {
     touch();
     if (t.do === 'shift') { drag.current = { x: raw.x, v }; return; }
     const p = place(raw);
+    // касание прямо в поставленную точку: отпустили, не сдвинув, — точка убирается; потянули — едет за пальцем
+    const near = pts.map((q, k) => ({ k, dd: Math.hypot(sx(q.x) - sx(raw.x), sy(q.y) - sy(raw.y)) })).sort((a, b) => a.dd - b.dd)[0];
+    const onPin = t.do !== 'area' && near && near.dd < 16;
+    if (onPin) { drag.current = { k: near.k, x: e.clientX, y: e.clientY, tap: true }; return; }
     if (t.do === 'line') {
-      // рядом с поставленной точкой — тащим её; две уже есть — переставляем ближнюю
-      const near = pts.map((q, k) => ({ k, dd: Math.hypot(sx(q.x) - sx(raw.x), sy(q.y) - sy(raw.y)) })).sort((a, b) => a.dd - b.dd)[0];
-      const k = near && (near.dd < 16 || pts.length >= 2) ? near.k : pts.length;
+      // две уже есть — переставляем ближнюю
+      const k = near && pts.length >= 2 ? near.k : pts.length;
       const next = [...pts]; next[k] = p; setPts(next); drag.current = { k };
     } else { setPts([p]); drag.current = { k: 0 }; }
     Audio.play('tick');
@@ -115,10 +118,15 @@ export default function DrawLesson({ id, learn, update, onClose }) {
     const raw = toData(e); if (!raw) return;
     if (!drag.current) { if (e.pointerType === 'mouse' && !resolved && t.do !== 'shift') setHover(place(raw)); return; }
     if (t.do === 'shift') { setV(clampV(drag.current.v + (raw.x - drag.current.x))); return; }
+    // от касания точки — в перетаскивание, только когда палец сдвинулся заметно
+    if (drag.current.tap) { if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) < 6) return; drag.current = { k: drag.current.k }; }
     const p = place(raw); const k = drag.current.k;
     setPts((prev) => { const next = [...prev]; next[k] = p; return next; });
   };
-  const up = () => { drag.current = null; };
+  const up = () => {
+    const dr = drag.current; drag.current = null;
+    if (dr && dr.tap) { Audio.play('tick'); setPts((prev) => prev.filter((_, j) => j !== dr.k)); }
+  };
 
   const check = () => {
     if (!ready || resolved) return;
@@ -202,7 +210,7 @@ export default function DrawLesson({ id, learn, update, onClose }) {
                 alsoShow={!resolved && t.show ? t.show : null} alsoHide={!resolved && t.hide ? t.hide : null} />
               <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}`} viewBox={`0 0 ${W} ${H}`} data-testid="draw-ink"
                 data-answer={testAnswer} data-ready={String(ready)} aria-label="Поле для рисования"
-                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => setHover(null)}>
+                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }} onPointerLeave={() => setHover(null)}>
                 <defs><clipPath id={`dlc${id}`}><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath></defs>
                 {/* мелкая сетка: крупные деления графика редкие (0, 200, 400), а в условии — «100 пекарей» */}
                 <g pointerEvents="none" stroke="var(--g-grid)" strokeOpacity=".7">
