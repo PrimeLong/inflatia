@@ -5469,7 +5469,13 @@ test('«Чтение» — урок на дороге юнита: после у�
     await page.getByTestId('reading-next').click();
   }
   await expect(page.getByTestId('reading-done')).toContainText('Книга на полке');
-  await expect(page.getByTestId('reading-done')).toContainText('+12 опыта');
+  // итоги — как после урока (пункт владельца 08.11, вечер): опыт, точность, время и монеты за урок
+  const rres = page.getByTestId('reading-done').getByTestId('extra-result');
+  await expect(rres).toHaveAttribute('data-kind', 'read');
+  await expect(rres.getByTestId('result-xp')).toContainText('+12');
+  await expect(rres.getByTestId('result-acc')).toContainText('100%');
+  await expect(rres.getByTestId('result-coins')).toBeVisible();
+  expect(Number(await rres.getAttribute('data-coins'))).toBeGreaterThanOrEqual(15);
   await expect(page.locator('[data-testid=reading-book][data-done="true"]')).toHaveCount(1);
   await expect(page.getByTestId('reading-keep')).toContainText('Роббинс');
   await page.getByTestId('reading-finish').click();
@@ -5840,7 +5846,10 @@ test('«Персоналии» — урок на дороге юнита: три
     }
     await page.getByTestId('people-next').click();
   }
-  await expect(page.getByTestId('people-done')).toContainText('+12 опыта');
+  // итоги — как после урока: опыт и монеты за урок; портреты — под итогами
+  const pres = page.getByTestId('people-done').getByTestId('extra-result');
+  await expect(pres.getByTestId('result-xp')).toContainText('+12');
+  expect(Number(await pres.getAttribute('data-coins'))).toBeGreaterThanOrEqual(10);
   await expect(page.getByTestId('people-wall').locator('figure')).toHaveCount(3);
   await page.getByTestId('people-finish').click();
   await expect(stop).toHaveAttribute('data-state', 'done');
@@ -6581,7 +6590,12 @@ test('«Разбор графика» — остановка на дороге �
   await g.locator('[data-testid=graph-opt][data-ok="true"]').click();
   await expect(g.getByTestId('graph-feedback')).toHaveAttribute('data-ok', 'true');
   await g.getByTestId('graph-next').click();
-  await expect(g.getByTestId('graph-done')).toContainText('+10 опыта');
+  // итоги — как после урока: с ошибкой в вопросе — 10 монет без надбавки «без ошибок»
+  const gres = g.getByTestId('graph-done').getByTestId('extra-result');
+  await expect(gres.getByTestId('result-xp')).toContainText('+10');
+  await expect(gres.getByTestId('result-text')).toContainText('Ответ — не с первой попытки');
+  await expect(gres.getByTestId('result-acc')).toContainText('60%');
+  expect(Number(await gres.getAttribute('data-coins'))).toBeGreaterThanOrEqual(10);
   await g.getByTestId('graph-finish').click();
   await expect(stop).toHaveAttribute('data-state', 'done');
   // карточка урока с этим графиком — «Разобрать график по шагам»: разбор поверх урока, без опыта
@@ -7020,8 +7034,13 @@ test('«Нарисуй сам» — остановка за графиком ю�
   await g.getByTestId('draw-check').click();
   await expect(g.getByTestId('draw-feedback')).toContainText('150 крон');
   await g.getByTestId('draw-next').click();
-  await expect(g.getByTestId('draw-done')).toContainText('+15 опыта');
-  await expect(g.getByTestId('draw-done')).toContainText('с первой попытки — 4 из 5');
+  // итоги — как после урока: опыт, «с первой попытки — 4 из 5», монеты; под итогами — построенный график
+  const dres = g.getByTestId('draw-done').getByTestId('extra-result');
+  await expect(dres.getByTestId('result-xp')).toContainText('+15');
+  await expect(dres.getByTestId('result-text')).toContainText('С первой попытки — 4 из 5');
+  await expect(dres.getByTestId('result-acc')).toContainText('80%');
+  expect(Number(await dres.getAttribute('data-coins'))).toBeGreaterThanOrEqual(10);
+  await expect(g.getByTestId('draw-done-graph')).toBeVisible();
   await g.getByTestId('draw-finish').click();
   await expect(stop).toHaveAttribute('data-state', 'done');
   expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.draws['draw-labor'])).toBe(true);

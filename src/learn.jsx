@@ -22,6 +22,8 @@ import {
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
 import { BookDock } from './learn-bookdock.jsx';
+// огонёк серии на итогах — общий с итогами особых уроков
+import { StreakBurst } from './learn-extra-result.jsx';
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
 import { askSave, askLogin } from './lib/guest.js';
@@ -1976,21 +1978,6 @@ function StepsExplain({ blocks }) {
    Шаг «В формуле Q_D = 100 − 2P …» — и под ним «Q_D — объём спроса…; P — цена…». */
 const mathIn = (nodes, out = []) => { (nodes || []).forEach((n) => { if (n.t === 'math') out.push(n.v); else if (n.c) mathIn(n.c, out); }); return out; };
 // серия на итогах урока: огонёк вспыхивает, счётчик дней перещёлкивается с прошлого на сегодняшний
-const SPARKS = [-70, -35, 0, 35, 70, 110, -110];
-function StreakBurst({ days }) {
-  return (
-    <div className="ln-burst" data-testid="result-streak" data-days={days} role="img" aria-label={`Серия: ${days} ${plural(days, 'день', 'дня', 'дней')} подряд`}>
-      <span className="ln-burst-flame">
-        {SPARKS.map((a) => <i key={a} style={{ '--a': `${a}deg` }} />)}
-        <Flame size={52} color="var(--ds-bad)" fill="color-mix(in srgb, var(--ds-bad) 30%, transparent)" aria-hidden="true" />
-      </span>
-      <span style={{ textAlign: 'left' }} aria-hidden="true">
-        <span className="ln-burst-num"><span className="old">{days - 1}</span><span className="new">{days}</span></span>
-        <span className="ln-burst-cap">{plural(days, 'день', 'дня', 'дней')} подряд</span>
-      </span>
-    </div>
-  );
-}
 // формула шага, по которой считают упражнения после него, — с пометкой «Запомнить», как в главе
 function StepRemember({ tex }) {
   return (

@@ -10,6 +10,7 @@ import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho } from './learn/reading.js';
 import { finishLesson, markRead, markReadGem, countAnswers } from './textbook/learn-state.js';
+import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 const CSS = `
   .rd-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -207,6 +208,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   const [answers, setAnswers] = useState([]);
   const [done, setDone] = useState(false);
   const [got, setGot] = useState(0);
+  const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   const [startAt] = useState(() => Date.now());
   // алмазный уровень: после страниц — «Кто это сказал?»; алмаз — без единой ошибки
   const who = useMemo(() => (gem && r ? quizWho(r) : []), [gem, r]);
@@ -237,8 +239,8 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     const seconds = Math.round((Date.now() - startAt) / 1000);
     // ответы — в задание дня «N верных ответов», и при перечитывании (docs/mechanics.md)
     const whoRight = who.filter((it, k) => picks[k] === it.answer).length;
-    update((s) => countAnswers(s, right + (gem ? whoRight : 0), r.pages.length + (gem ? who.length : 0)));
     if (gem) {
+      update((s) => countAnswers(s, right + whoRight, r.pages.length + who.length));
       // алмаз — без единой ошибки и на страницах, и в «Кто это сказал?»; опыт — за первый взятый
       const clean = right === r.pages.length && who.every((it, k) => picks[k] === it.answer);
       setWon(clean);
@@ -250,12 +252,13 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
       Audio.play(clean ? 'stamp' : 'paper');
       return;
     }
-    // дочитали: опыт — один раз, книга — на полку
+    // дочитали: опыт и монеты — один раз, книга — на полку; итоги — как после урока
     const first = !isRead(learn, r.id);
-    if (first) {
-      update((s) => markRead(finishLesson(s, null, { xp: READ_XP, accuracy: (right / r.pages.length) * 100, seconds, kind: 'read', extra: { fresh: true } }), r.id));
-      setGot(READ_XP);
-    }
+    const accuracy = (right / r.pages.length) * 100;
+    const apply = (s) => { const t = countAnswers(s, right, r.pages.length); return first ? markRead(finishLesson(t, null, { xp: READ_XP, accuracy, seconds, kind: 'read', extra: { fresh: true } }), r.id) : t; };
+    const pay = payExtra(learn, update, apply, { id: r.id, fresh: first, accuracy });
+    setResult({ xp: first ? READ_XP : 0, right, total: r.pages.length, ms: Date.now() - startAt, replay: !first, ...pay });
+    if (first) setGot(READ_XP);
     setDone(true);
     Audio.play('stamp');
   };
@@ -292,11 +295,10 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
         </div>
       ) : (
         <div className="rd-page rd-done" data-testid="reading-done">
+          {result && <ExtraResult kind="read" unitId={r.unitId} title={r.title} r={result} />}
           <Shelf learn={learn} fresh={r.id} />
-          <h2>Книга на полке</h2>
-          <div className="ds-sub" style={{ fontSize: 15.5, lineHeight: 1.5 }}>
-            «{r.title}»: {answers.filter((a) => a && a.ok).length} из {r.pages.length} верно.{got ? ` +${got} опыта.` : ' Перечитали — опыт уже был.'}
-            {' '}На полке — {shelfOf(learn).filter((b) => b.done || b.id === r.id).length} из {shelfOf(learn).length}.
+          <div className="ds-sub" style={{ fontSize: 15.5, lineHeight: 1.5, marginTop: 18 }} data-testid="reading-shelf-count">
+            {got ? 'Книга на полке.' : 'Книга уже стояла на полке.'} На полке — {shelfOf(learn).filter((b) => b.done || b.id === r.id).length} из {shelfOf(learn).length}.
           </div>
           {/* цитата на память — та, с которой подборка начиналась */}
           <div className="rd-keep" data-testid="reading-keep">
@@ -309,7 +311,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
       <div className="rd-foot">
         <div>
           {done
-            ? <Button wide icon={Check} data-testid="reading-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            ? <Button wide icon={Check} data-testid="reading-finish" onClick={() => { Audio.play('click'); onClose(); }}>{gem ? 'Готово' : 'Дальше'}</Button>
             : whoStage ? <Button wide icon={Check} disabled={!whoDone} data-testid="reading-next" onClick={next}>{whoDone ? 'Готово' : 'Выберите автора у каждой цитаты'}</Button>
             : <Button wide icon={answered && idx + 1 === r.pages.length ? Check : ArrowRight} disabled={!answered} data-testid="reading-next" onClick={next}>
               {!answered ? (page.ask.kind === 'mark' ? 'Коснитесь слов в цитате' : 'Выберите ответ') : idx + 1 < r.pages.length || gem ? 'Дальше' : 'На полку'}</Button>}

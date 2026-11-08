@@ -12,6 +12,7 @@ import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf } from './le
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
 import { finishLesson, markMet, countAnswers } from './textbook/learn-state.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
+import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 export const PEOPLE_CSS = `
   .pp-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -110,7 +111,6 @@ export const PEOPLE_CSS = `
   .pp-hang .pp-frame > .pp-pic { border-radius: 51px 51px 8px 8px; }
   .pp-hang figcaption { margin-top: 8px; text-align: center; font: 700 13px var(--ds-head); max-width: 120px; }
   .pp-done { text-align: center; }
-  .pp-done h2 { font: 700 26px var(--ds-head); margin: 10px 0 4px; }
   @media (max-width: 560px) {
     .pp-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 14px; }
     .pp-role { justify-content: center; }
@@ -197,6 +197,7 @@ export default function PeopleView({ id, learn, update, onClose }) {
   const [picked, setPicked] = useState({});
   const [order] = useState(() => g.people.map((p) => p.ask.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5)));
   const [finished, setFinished] = useState(false);
+  const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   const started = useRef(Date.now());
   const firstOk = useRef({});
   const root = useRef(null);
@@ -229,8 +230,12 @@ export default function PeopleView({ id, learn, update, onClose }) {
     if (k < g.people.length - 1) { setK(k + 1); return; }
     const acc = (Object.values(firstOk.current).filter(Boolean).length / g.people.length) * 100;
     const right = Object.values(firstOk.current).filter(Boolean).length;
-    // верные ответы — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
-    update((s) => { const t = countAnswers(s, right, g.people.length); return already ? t : markMet(finishLesson(t, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id); });
+    // верные ответы — в задание дня «N верных ответов», и при повторе (docs/mechanics.md);
+    // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle); итоги — как после урока
+    const apply = (s) => { const t = countAnswers(s, right, g.people.length); return already ? t : markMet(finishLesson(t, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id); };
+    const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy: acc });
+    Audio.play('register');
+    setResult({ xp: already ? 0 : MET_XP, right, total: g.people.length, ms: Date.now() - started.current, replay: already, ...pay });
     setFinished(true);
   };
   // назад — к прошлому человеку: его ответ и разбор на месте
@@ -293,9 +298,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
         </div>
       ) : (
         <div className="pp-page pp-done" data-testid="people-done">
-          <div className="ds-eyebrow">Новые знакомства</div>
-          <h2>{g.title}</h2>
-          <div className="ds-sub" style={{ fontSize: 15 }}>{already ? 'Вы уже знакомы — портреты висят в галерее профиля.' : `+${MET_XP} опыта · портреты — в галерее профиля`}</div>
+          {result && <ExtraResult kind="people" unitId={g.unitId} title={g.title} r={result} />}
+          <div className="ds-eyebrow" style={{ marginTop: 22 }}>{already ? 'Портреты — в галерее профиля' : 'Новые знакомства — в галерее профиля'}</div>
           <div className="pp-wall" data-testid="people-wall">
             {g.people.map((x, i) => (
               <figure key={x.id} className="pp-hang" style={{ '--i': i, margin: 0 }}>
@@ -310,7 +314,7 @@ export default function PeopleView({ id, learn, update, onClose }) {
       <div className="pp-foot">
         <div>
           {finished
-            ? <Button wide data-testid="people-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            ? <Button wide data-testid="people-finish" onClick={() => { Audio.play('click'); onClose(); }}>Дальше</Button>
             : <>
               <Button variant="ghost" icon={ArrowLeft} disabled={k === 0} data-testid="people-back" onClick={back}>Назад</Button>
               <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : 'В галерею'}</Button>

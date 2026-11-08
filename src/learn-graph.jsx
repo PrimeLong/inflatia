@@ -15,6 +15,7 @@ import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView } from './learn/graphs.js';
 import { finishLesson, markGraph, countAnswers } from './textbook/learn-state.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
+import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 import { textBox, dotBox, aroundPoint, placeLabels, freeTicks } from './learn/label-place.js';
 
 export const GRAPH_CSS = `
@@ -320,6 +321,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const started = useRef(Date.now());
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
+  const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты (не при подсказке из урока — peek)
   // ПК с мышью: поля по бокам разбора — черновик, как в уроке (learn-sketch.jsx)
   const sketch = useMedia(SKETCH_QUERY);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [k, phase]);
@@ -338,7 +340,13 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const finish = () => {
     Audio.play('register');
     // ответ на вопрос разбора — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
-    if (!peek && update) update((s) => { const t = countAnswers(s, firstOk.current ? 1 : 0, 1); return already ? t : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy: firstOk.current ? 100 : 60, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id); });
+    // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle); итоги — как после урока
+    if (!peek && update) {
+      const right = firstOk.current ? 1 : 0; const accuracy = firstOk.current ? 100 : 60;
+      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? t : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id); };
+      const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy });
+      setResult({ xp: already ? 0 : GRAPH_XP, right, total: 1, accuracy, ms: Date.now() - started.current, replay: already, ...pay });
+    }
     setPhase('done');
   };
   const next = () => {
@@ -393,7 +401,14 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
           )}
         </div>
       )}
-      {phase === 'done' && (
+      {phase === 'done' && result && (
+        <div className="gl-page" data-testid="graph-done">
+          <ExtraResult kind="graph" unitId={g.unitId} title={g.title} r={result}>
+            <div className="gl-stage"><GraphStage g={g} k={n - 1} /></div>
+          </ExtraResult>
+        </div>
+      )}
+      {phase === 'done' && !result && (
         <div className="gl-page gl-done" data-testid="graph-done">
           <div className="gl-medal" aria-hidden="true"><ChartSpline size={58} strokeWidth={1.8} /></div>
           <div className="ds-eyebrow">Разбор графика</div>
@@ -405,7 +420,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
       <div className="gl-foot">
         <div>
           {phase === 'done'
-            ? <Button wide data-testid="graph-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            ? <Button wide data-testid="graph-finish" onClick={() => { Audio.play('click'); onClose(); }}>{result ? 'Дальше' : 'Готово'}</Button>
             : <>
               <Button variant="ghost" icon={ArrowLeft} disabled={phase === 'tour' && k === 0} data-testid="graph-back" onClick={back}>Назад</Button>
               <Button wide icon={phase === 'quiz' ? Check : ArrowRight} disabled={phase === 'quiz' && !answered} data-testid="graph-next" onClick={next}>

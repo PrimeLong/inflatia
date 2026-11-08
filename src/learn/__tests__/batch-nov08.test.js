@@ -97,3 +97,28 @@ describe('задание дня «N верных ответов» — и в ос
     expect(daily(countAnswers(s, 9, 2, at(12)), at(12)).c).toBe(6);
   });
 });
+
+describe('особые уроки платят монеты, как урок (08.11, вечер)', async () => {
+  const { extraCoins, extraKey, earn, hasClaim, COIN } = await import('../rewards.js');
+  const { finishLesson } = await import('../../textbook/learn-state.js');
+  const { dupeFine } = await import('../audit.js');
+  it('впервые — 10, без ошибок — ещё 5; повтор — без монет; ключ x:<id> — один раз', () => {
+    expect(extraCoins({ fresh: true, accuracy: 100 })).toBe(COIN.lesson + COIN.perfect);
+    expect(extraCoins({ fresh: true, accuracy: 80 })).toBe(COIN.lesson);
+    expect(extraCoins({ fresh: false, accuracy: 100 })).toBe(0);
+    expect(extraKey('draw-ppf')).toBe('x:draw-ppf');
+    const s = earn(emptyLearn(), 15, extraKey('draw-ppf'), at(10));
+    expect(hasClaim(s, 'x:draw-ppf')).toBe(true);
+    expect(earn(s, 15, extraKey('draw-ppf'), at(11))).toBe(s);
+  });
+  it('монеты особых уроков — в честной границе списания: честному ученику ничего не списывается', () => {
+    let s = finishLesson(emptyLearn(), 'sc-i1', { xp: 20, accuracy: 100, now: at(9) });
+    s = earn(s, COIN.lesson + COIN.perfect, 'l:sc-i1', at(9));
+    // дюжина особых уроков — больше запаса в 100 монет: их покрывает граница по законченным прохождениям
+    Array.from({ length: 12 }, (_, i) => `x-${i}`).forEach((id, i) => {
+      s = finishLesson(s, null, { xp: 10, accuracy: 100, now: at(10, i), kind: 'graph', extra: { fresh: true } });
+      s = earn(s, extraCoins({ fresh: true, accuracy: 100 }), extraKey(id), at(10, i));
+    });
+    expect(dupeFine(s, at(12)).coins).toBe(0);
+  });
+});

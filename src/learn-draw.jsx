@@ -3,9 +3,10 @@
    графика», GraphStage), поверх — прозрачный слой, на котором ученик ставит точки (они прилипают к сетке,
    рядом — их координаты и пунктир к осям) или тянет кривую. «Проверить»: верно — нужная линия или точка
    появляется на графике по-настоящему и под ним — что это значит; ошибка — что не так и подсказка, можно
-   ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — «+15 опыта» (один раз). */
+   ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — итоги, как после урока
+   (ExtraResult из src/learn-extra-result.jsx): 15 опыта и монеты — один раз, под итогами — построенный график. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowRight, Check, PenLine, RotateCcw, Lightbulb, Maximize2, Minimize2 } from 'lucide-react';
+import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2 } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
@@ -13,6 +14,7 @@ import { CHARTS } from './textbook/charts.js';
 import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour } from './learn/draws.js';
 import { finishLesson, markDraw, countAnswers } from './textbook/learn-state.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
+import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 const CSS = `
   .dl-task { padding: 14px 16px; margin-bottom: 12px; border-radius: 18px; background: var(--ds-card); border: 1px solid var(--ds-rule2);
@@ -89,6 +91,7 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   const [hover, setHover] = useState(null);
   const [tries, setTries] = useState(0);
   const [res, setRes] = useState(null); // { ok, why } | { shown: true }
+  const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   const firstTry = useRef(0);
   const started = useRef(Date.now());
   const root = useRef(null);
@@ -195,10 +198,13 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   };
   const finish = () => {
     Audio.play('register');
-    // шаги, верные с первой попытки, — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
-    if (update) {
-      update((s) => { const t = countAnswers(s, firstTry.current, n); return already ? t : markDraw(finishLesson(t, null, { xp: DRAW_XP, accuracy: Math.round((firstTry.current / n) * 100), seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'draw', extra: { fresh: true } }), id); });
-    }
+    const right = firstTry.current; const accuracy = Math.round((right / n) * 100);
+    const seconds = Math.min(900, (Date.now() - started.current) / 1000);
+    // шаги, верные с первой попытки, — в задание дня «N верных ответов», и при повторе (docs/mechanics.md);
+    // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle)
+    const apply = (s) => { const t = countAnswers(s, right, n); return already ? t : markDraw(finishLesson(t, null, { xp: DRAW_XP, accuracy, seconds, kind: 'draw', extra: { fresh: true } }), id); };
+    const pay = update ? payExtra(learn, update, apply, { id, fresh: !already, accuracy }) : { coins: 0, gains: [], streakUp: 0 };
+    setResult({ xp: already ? 0 : DRAW_XP, right, total: n, ms: Date.now() - started.current, replay: already, ...pay });
     setPhase('done');
   };
   const next = () => {
@@ -317,19 +323,17 @@ export default function DrawLesson({ id, learn, update, onClose }) {
           )}
         </div>
       )}
-      {phase === 'done' && (
-        <div className="gl-page gl-done" data-testid="draw-done">
-          <div className="gl-stage" style={{ marginBottom: 14 }}><GraphStage g={tour} k={n} grid={d.grid} /></div>
-          <div className="gl-medal" aria-hidden="true"><PenLine size={54} strokeWidth={1.8} /></div>
-          <div className="ds-eyebrow">Нарисуй сам</div>
-          <h2>{d.title}</h2>
-          <div className="ds-sub" style={{ fontSize: 15 }}>{already ? 'График построен — к нему можно вернуться на дороге юнита.' : `+${DRAW_XP} опыта · с первой попытки — ${firstTry.current} из ${n}`}</div>
+      {phase === 'done' && result && (
+        <div className="gl-page" data-testid="draw-done">
+          <ExtraResult kind="draw" unitId={d.unitId} title={d.title} r={result}>
+            <div className="gl-stage" data-testid="draw-done-graph"><GraphStage g={tour} k={n} grid={d.grid} /></div>
+          </ExtraResult>
         </div>
       )}
       <div className="gl-foot">
         <div>
           {phase === 'done'
-            ? <Button wide data-testid="draw-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            ? <Button wide data-testid="draw-finish" onClick={() => { Audio.play('click'); onClose(); }}>Дальше</Button>
             : <>
               <Button variant="ghost" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} data-testid="draw-reset" onClick={reset}>Сбросить</Button>
               {resolved
