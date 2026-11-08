@@ -3323,6 +3323,18 @@ test('сообщить об ошибке: флажок на упражнении
   await expect(page.getByTestId('report-thanks')).toBeVisible();
   expect(sent[1]).toMatchObject({ reason: 'unclear', context: { screen: 'textbook', quote } });
   await page.getByRole('button', { name: 'Продолжить' }).click();
+  // после жалобы выделение снято — старая цитата не прилипает; выделение на кнопке (браузер сам выделяет слово от
+  // двойного нажатия) — не цитата (пункт владельца 08.11, вечер: «показывается текст, что я не выделял»)
+  expect(await page.evaluate(() => window.getSelection().toString())).toBe('');
+  await expect(page.getByTestId('report-quote-btn')).toHaveCount(0);
+  await page.getByTestId('learn-book').evaluate((root) => {
+    const b = [...root.querySelectorAll('.ln-textbook button')].find((x) => x.textContent.trim().length > 4);
+    const r = document.createRange(); r.selectNodeContents(b);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  });
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId('report-quote-btn')).toHaveCount(0);
+  await page.evaluate(() => window.getSelection().removeAllRanges());
 
   // владелец: список сообщений, фильтр и «скопировать всё» — в настройках профиля
   await openTab(page, 'profile');

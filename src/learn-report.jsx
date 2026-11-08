@@ -140,15 +140,24 @@ export function ReportFlag({ context, label = 'Сообщить об ошибк�
 /* Цитата из учебника: пока в тексте страницы что-то выделено, внизу экрана — кнопка
    «Сообщить об ошибке» с этим текстом. Выделение запоминаем по selectionchange: нажатие на
    кнопку (особенно пальцем) может его сбросить раньше, чем сработает onClick. */
+/* только выделенное самим учеником в тексте страницы: оба конца выделения — в тексте учебника (scope) и не на кнопке,
+   ссылке, поле или в оглавлении — их браузер выделяет сам от двойного нажатия и долгого касания (жалоба владельца 08.11:
+   «показывается текст, что я не выделял») */
+const NOT_PROSE = 'button, a, input, textarea, select, label, [role="button"], [role="radio"], [role="switch"], [role="tab"], .ds-chip, .ds-opt, nav, .tb-toc-row, .tb-secnav-list, .tb-secnav-head, .tb-chip, .tb-pick, .tb-tool';
+const proseNode = (node, scope) => {
+  const el = node && (node.nodeType === 1 ? node : node.parentElement);
+  return !!el && !!el.closest(scope) && !el.closest(NOT_PROSE);
+};
 const selectedIn = (scope) => {
   try {
     const sel = window.getSelection();
-    const text = sel ? sel.toString().replace(/\s+/g, ' ').trim() : '';
-    if (text.length < 2 || !sel.anchorNode) return '';
-    const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-    return el && el.closest(scope) ? text.slice(0, 500) : '';
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return '';
+    const text = sel.toString().replace(/\s+/g, ' ').trim();
+    if (text.length < 2) return '';
+    return proseNode(sel.anchorNode, scope) && proseNode(sel.focusNode, scope) ? text.slice(0, 500) : '';
   } catch { return ''; }
 };
+const clearSelection = () => { try { window.getSelection().removeAllRanges(); } catch { /* нет выделения */ } };
 export function useSelectedText(scope) {
   const [text, setText] = useState('');
   useEffect(() => {
@@ -173,7 +182,8 @@ export function QuoteReport({ context, scope = '.ln-textbook' }) {
             <Flag size={16} aria-hidden="true" style={{ verticalAlign: -3, marginRight: 6 }} />Сообщить об ошибке в выделенном
           </button>
         </div>, root || document.body)}
-      {open && createPortal(<div className="ln-report-root"><ReportSheet context={open} reasons={THEORY_REASONS} onClose={() => setOpen(null)} /></div>, root || document.body)}
+      {/* закрыли или отправили — выделение снято: старая цитата к следующей жалобе не прилипает */}
+      {open && createPortal(<div className="ln-report-root"><ReportSheet context={open} reasons={THEORY_REASONS} onClose={() => { clearSelection(); setOpen(null); }} /></div>, root || document.body)}
     </span>
   );
 }
