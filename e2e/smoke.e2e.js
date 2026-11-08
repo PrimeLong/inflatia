@@ -1249,7 +1249,7 @@ test('учебник: оглавление, формулы KaTeX, график �
   expect(errors).toEqual([]);
 });
 
-test('игра → учебник: «Подробнее в учебнике» открывает раздел и возвращает в ту же партию', async ({ page, isMobile }) => {
+test('игра → учебник: «Подробнее в учебнике» открывает раздел, «В игру» видна сразу и возвращает в ту же партию', async ({ page, isMobile }) => {
   test.skip(isMobile, 'рычаги на телефоне в отдельной вкладке — логика та же');
   // на Пути уже уровень «Средний» — компас ставки и IS-LM открыты с первого квартала
   await page.addInitScript(() => { try { localStorage.setItem('ems-learn-level', '2'); } catch { /* нет хранилища */ } });
@@ -1269,6 +1269,9 @@ test('игра → учебник: «Подробнее в учебнике» о
   const ch = page.getByTestId('chapter');
   await expect(ch).toHaveAttribute('data-chapter', 'phillips');
   await expect(ch.locator('#expectations')).toBeInViewport();
+  // учебник пролистан к разделу — «← Назад в игру» наверху за краем, а плашка «В игру» на экране (пункт владельца 08.11, вечер)
+  await expect(page.getByRole('button', { name: '← Назад в игру' })).not.toBeInViewport();
+  await expect(page.getByTestId('tb-float-back')).toBeInViewport();
   // в новой главе работает свой график: ожидания сдвигают кривую Филлипса
   const ph = page.locator('[data-chart="phillips"]').first();
   await ph.getByRole('slider', { name: /Ожидаемая инфляция/ }).fill('6');
@@ -1284,7 +1287,8 @@ test('игра → учебник: «Подробнее в учебнике» о
   await compass.getByTestId('book-link').click();
   await expect(page.getByTestId('chapter')).toHaveAttribute('data-chapter', 'policy');
   await expect(page.locator('#taylor')).toBeInViewport();
-  await page.getByRole('button', { name: '← Назад в игру' }).click();
+  // обратно — плашкой «В игру», не листая наверх
+  await page.getByTestId('tb-float-back').click();
   await expect(compass).toBeVisible();
   expect(external).toEqual([]);
   expect(errors).toEqual([]);

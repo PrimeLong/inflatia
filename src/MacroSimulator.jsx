@@ -1266,7 +1266,7 @@ export default function MacroSimulator() {
       <div style={bookOverlay ? { display: 'none' } : undefined}>{screen}</div>
       {bookOverlay && (
         <Suspense fallback={<GameFallback />}>
-          <TextbookScreen key={`${theme}:${JSON.stringify(bookOverlay)}`} startPage={bookOverlay} backLabel="← Назад в игру" onBack={closeBookOverlay} />
+          <TextbookScreen key={`${theme}:${JSON.stringify(bookOverlay)}`} startPage={bookOverlay} backLabel="← Назад в игру" floatBack onBack={closeBookOverlay} />
         </Suspense>
       )}
     </BookLinkContext.Provider>
