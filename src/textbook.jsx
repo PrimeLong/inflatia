@@ -2351,7 +2351,7 @@ const lockedPage = (pg, learn) => {
 const TB_FS_H = 36;
 const tbFsBtn = (big, off) => ({ width: 40, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
   fontFamily: "var(--ds-news, 'PT Serif', Georgia, serif)", fontWeight: 700, fontSize: big ? 19 : 13, lineHeight: 1, color: off ? COLOR.faint : COLOR.text });
-function ReaderBar({ scale, setScale }) {
+function ReaderBar({ scale, setScale, learn = false }) {
   const i = SCALES.indexOf(scale);
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
@@ -2363,7 +2363,7 @@ function ReaderBar({ scale, setScale }) {
         <button type="button" style={tbFsBtn(true, i >= SCALES.length - 1)} aria-label="Крупнее текст" disabled={i >= SCALES.length - 1}
           onClick={() => { Audio.play('tick'); setScale(SCALES[Math.min(SCALES.length - 1, i + 1)]); }}>A</button>
       </span>
-      <AudioControls wave buttonStyle={{ width: TB_FS_H, height: TB_FS_H, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
+      <AudioControls wave learn={learn} buttonStyle={{ width: TB_FS_H, height: TB_FS_H, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
     </div>
   );
 }
@@ -2543,7 +2543,7 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
   const pages = (
     <>
       <style>{TEXTBOOK_CSS + STATS_CSS}</style>
-      {!(embedded && cur.kind === 'toc') && <ReaderBar scale={scale} setScale={setScale} />}
+      {!(embedded && cur.kind === 'toc') && <ReaderBar scale={scale} setScale={setScale} learn={embedded} />}
       <div style={{ zoom: scale, '--tb-zoom': scale }} data-testid="tb-content">
         {cur.kind === 'toc' && <TocPage ctx={ctx} />}
         {cur.kind === 'review' && <ReviewPage ctx={ctx} />}

@@ -14,7 +14,7 @@ import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
-  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme,
+  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx,
 } from './ds-tokens.js';
 import { DsRoot, Tabs } from './ds.jsx';
 import {
@@ -459,7 +459,8 @@ export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked
 
 /* wave — экран без экономики (учебник): вместо «По режиму экономики» — «Волна», пьесы сами сменяют друг друга;
    buttonStyle — кнопка под соседей (в учебнике — круглая, высотой с кнопки размера текста) */
-export function AudioControls({ wave = false, buttonStyle = null }) {
+/* learn — панель внутри обучения: музыка и звуки — настройки обучения (как в профиле), а не «Мира» */
+export function AudioControls({ wave = false, buttonStyle = null, learn = false }) {
   const DD_WIDTH = 268;
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
   // музыку, звуки и громкость читаем из движка при каждом рисовании: их ставит и экран
@@ -519,8 +520,8 @@ export function AudioControls({ wave = false, buttonStyle = null }) {
             </select>
             {wave && (np.locked || 'wave') === 'wave' && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 4, lineHeight: 1.4 }} data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
           </div>
-          {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); setWorldMusic(v); }, Music],
-            ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
+          {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); }, Music],
+            ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); if (learn) setLearnSfx(v); else setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                 <Icon size={12} color={val ? COLOR.gold : COLOR.faint} />
                 <span style={{ fontSize: 12, color: val ? COLOR.text : COLOR.muted, flex: 1 }}>{label}</span>

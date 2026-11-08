@@ -946,6 +946,12 @@ test('музыка: в панели нет «Заставок событий» �
   await expect(font).toContainText('100%');
   const fh = (await font.boundingBox()).height; const mh = (await bar.getByTestId('music-btn').boundingBox()).height;
   expect(Math.abs(fh - mh)).toBeLessThan(2);
+  // музыку включили в учебнике обучения — в настройках обучения она тоже включена (пункт владельца 08.11, вечер)
+  expect(await page.evaluate(() => localStorage.getItem('ems-learn-music'))).toBe('1');
+  await page.getByTestId('music-panel').getByRole('button', { name: 'Закрыть' }).click();
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  await expect(page.getByTestId('prof-music')).toHaveAttribute('aria-checked', 'true');
   expect(errors).toEqual([]);
 });
 
