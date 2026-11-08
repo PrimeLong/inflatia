@@ -7,7 +7,7 @@ import { earn, settle, resetCoinGuard, balance, earned, priceOf, OUTFITS, runCoi
 import { notificationsOf } from '../notify.js';
 import { dustClaim } from '../dust.js';
 import { LESSONS } from '../course.js';
-import { dupeFine, applyDupeAudit, coinCeiling, needsDupeAudit, needsPiggyPass, DUPE_FINE, DUPE_PIGGY } from '../audit.js';
+import { dupeFine, applyDupeAudit, coinCeiling, needsDupeAudit, needsPiggyPass, needsForgive, DUPE_FINE, DUPE_PIGGY, DUPE_FORGIVE } from '../audit.js';
 
 const DAY = 86400000;
 const T0 = Date.UTC(2026, 9, 1, 12);
@@ -172,5 +172,41 @@ describe('списание монет дюпа', () => {
     expect(Object.keys(p.items)).not.toContain(bought[2].id);
     expect(Object.keys(p.items).length).toBeGreaterThan(0);
     Object.keys(p.items).forEach((id) => expect(t.owned[id], id).toBeUndefined());
+  });
+
+  /* «долга нет» (пункт владельца 08.11, вечер: «продал весь урожай, а денег не хватило даже на семена»): остаток минуса,
+     который не покрыли ни копилка, ни покупки, прощается, и заработанное после списания — в кошельке */
+  it('минус после списания прощается: выручка за урожай после дня списания — в кошельке, а не в скрытом долге', () => {
+    const s0 = honest();
+    const day = dayOf(NOW - DAY);
+    // дюп потрачен на то, что не откатить (подарков и покупок нет): кошелёк пуст
+    let s = normalizeLearn({ ...s0, coins: { ...s0.coins, [day]: s0.coins[day] + 4000 } });
+    s = normalizeLearn({ ...s, spent: { ...s.spent, [day]: (s.spent[day] || 0) + balance(s) } });
+    const f = dupeFine(s, NOW, { bookFirst: 0 });
+    // старое списание (до этого правила): минус остался, его прятал ноль кошелька
+    const old = normalizeLearn({ ...s, fines: { [DUPE_FINE]: { ...f, items: {}, refund: 0 } } });
+    expect(walletRaw(old)).toBeLessThan(0);
+    // на следующий день продан урожай — 300 монет, а кошелёк по-прежнему 0
+    const sold = normalizeLearn({ ...old, coins: { ...old.coins, [dayOf(NOW + DAY)]: 300 } });
+    expect(balance(sold)).toBe(0);
+    expect(needsForgive(sold)).toBe(true);
+    const t = normalizeLearn(applyDupeAudit(sold, NOW + DAY + 3600000, { bookFirst: 0 }));
+    expect(t.fines[DUPE_FORGIVE]).toMatchObject({ coins: 0, items: {} });
+    expect(balance(t)).toBe(300);
+    // один раз
+    expect(needsForgive(t)).toBe(false);
+    expect(applyDupeAudit(t, NOW + 2 * DAY)).toBe(t);
+    expect(notificationsOf(t, NOW + DAY + 3600000).find((n) => n.id === `fine:${DUPE_FORGIVE}`).title).toBe('Минус после списания прощён');
+  });
+  it('списание только что прошло и минус остался — прощается ровно остаток: кошелёк 0, дальше новый доход целиком в кошельке', () => {
+    const s0 = honest();
+    const day = dayOf(NOW - DAY);
+    let s = normalizeLearn({ ...s0, coins: { ...s0.coins, [day]: s0.coins[day] + 4000 } });
+    s = normalizeLearn({ ...s, spent: { ...s.spent, [day]: (s.spent[day] || 0) + balance(s) } });
+    const t = normalizeLearn(applyDupeAudit(s, NOW, { bookFirst: 0 }));
+    expect(t.fines[DUPE_FINE].coins).toBeGreaterThan(2000);
+    expect(walletRaw(t)).toBe(0);
+    const later = normalizeLearn({ ...t, coins: { ...t.coins, [dayOf(NOW + DAY)]: 120 } });
+    expect(balance(later)).toBe(120);
   });
 });

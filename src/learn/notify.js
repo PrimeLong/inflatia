@@ -133,6 +133,13 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
         + (fine.piggy ? ` Вклад в копилке закрыт: ${fine.piggy.n} ${coinsWord(fine.piggy.n)} из него пошли на списание.` : '')
         + (names.length ? ` Купленное на них вернулось в лавку: ${names.join(', ')} — ${fine.refund} ${coinsWord(fine.refund)} снова в кошельке.` : '') });
   }
+  // минус после списания прощён: заработанное после него — в кошельке (8 ноября 2026, вечер)
+  const forgive = (learn.fines || {})['dupe-2026-11-forgive'];
+  if (forgive && forgive.refund > 0) {
+    out.push({ id: 'fine:dupe-2026-11-forgive', kind: 'path', icon: 'coins', tone: '#4D7C0F', at: Math.min(now, forgive.at), go: 'shop', toast: true,
+      title: 'Минус после списания прощён',
+      text: 'После списания монет из-за ошибки с бонусами серии в кошельке оставался минус, и новые монеты — за уроки и урожай — уходили в него. Минус прощён: заработанное после списания — в кошельке.' });
+  }
   // второй проход списания (8 ноября 2026): монеты дюпа лежали в копилке — вклад закрыт, при нужде откачены покупки
   const pass = (learn.fines || {})['dupe-2026-11-piggy'];
   if (pass && (pass.piggy || Object.keys(pass.items || {}).length)) {
