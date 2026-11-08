@@ -219,7 +219,13 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
   const beds = gardenPlots(learn).plots.filter(Boolean).map((pl) => ({ pl, gr: growth(pl, now), p: PLANT_BY_ID[pl.plant] })).filter((b) => b.p);
   const ripe = beds.filter((b) => b.gr.ripe); const dry = beds.filter((b) => !b.gr.ripe && b.gr.water && b.gr.water.dry);
   if (ripe.length) {
-    add({ id: ripe.length === 1 ? `ripe:${ripe[0].pl.at}` : `ripe:${ripe.map((b) => b.pl.at).sort((x, y) => x - y).join('+')}`, kind: 'garden', icon: 'sprout', tone: '#4D7C0F',
+    /* собрали часть урожая — набор созревших меньше, но нового в нём нет: остаётся уже показанное уведомление, а не новое
+       (раньше id менялся после каждого сбора и «Созрело» всплывало снова — пункт владельца 08.11, вечер) */
+    const shownRipe = Object.entries(learn.shown || {}).map(([k, t]) => [/^[nt]:(ripe:[\d+]+)$/.exec(k), t]).filter(([m]) => m).map(([m, t]) => ({ id: m[1], t }));
+    const seenAts = new Set(shownRipe.flatMap((x) => x.id.slice(5).split('+')));
+    const ats = ripe.map((b) => String(b.pl.at));
+    const known = shownRipe.length && ats.every((a) => seenAts.has(a)) ? shownRipe.sort((x, y) => y.t - x.t)[0].id : null;
+    add({ id: known || (ripe.length === 1 ? `ripe:${ripe[0].pl.at}` : `ripe:${ripe.map((b) => b.pl.at).sort((x, y) => x - y).join('+')}`), kind: 'garden', icon: 'sprout', tone: '#4D7C0F',
       at: Math.min(now, Math.max(...ripe.map((b) => b.gr.ripeAt || now))), go: 'garden', toast: true, push: true,
       title: `Созрело: ${plantList(ripe.map((b) => b.p.title.toLowerCase()))}`,
       text: ripe.length === 1 ? 'Соберите урожай в саду — продайте или оставьте в гербарии.' : 'Соберите урожай в саду — продайте или оставьте в гербарии. Грядки освободятся для новых посадок.' });
