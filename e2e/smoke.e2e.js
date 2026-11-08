@@ -7279,6 +7279,19 @@ test('синхронизация не прошла — плашка «Нет с�
   expect(errors.filter((e) => !/JSON/.test(e))).toEqual([]);
 });
 
+// марка идущего месяца в тёмной теме — на бумаге, без чёрной рамки (пункт владельца 08.11, вечер)
+test('марка идущего месяца в тёмной теме: зубчатый край — бумага, а не тёмная карточка', async ({ page }) => {
+  await page.addInitScript(() => { localStorage.setItem('ems-learn-dark', '1'); });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'profile' });
+  const cur = page.locator('.pf-mstamp[data-state="current"]').first();
+  await cur.scrollIntoViewIfNeeded();
+  const bg = await cur.locator('.pf-perf').evaluate((el) => getComputedStyle(el).backgroundColor);
+  // бумага: все каналы светлые
+  const [r, g, b] = bg.match(/\d+/g).map(Number);
+  expect(Math.min(r, g, b)).toBeGreaterThan(190);
+  expect(errors).toEqual([]);
+});
+
 test('вход: гость может войти — «Войти» рядом с «Создать аккаунт», регистрация и вход ведут друг в друга', async ({ page }) => {
   test.setTimeout(120_000);
   await withTestFlag(page);
