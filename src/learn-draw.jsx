@@ -5,7 +5,7 @@
    появляется на графике по-настоящему и под ним — что это значит; ошибка — что не так и подсказка, можно
    ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — «+15 опыта» (один раз). */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowRight, Check, PenLine, RotateCcw, Lightbulb } from 'lucide-react';
+import { X, ArrowRight, Check, PenLine, RotateCcw, Lightbulb, Maximize2, Minimize2 } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
@@ -38,6 +38,29 @@ const CSS = `
   .dl-fb .dl-hint { display: flex; gap: 8px; margin-top: 6px; color: var(--ds-ink2); }
   .dl-fb .dl-hint svg { flex: none; margin-top: 3px; color: var(--g-gold); }
   .dl-pin { transition: transform .12s; }
+  /* «На весь экран»: график — во весь экран, сверху условие, снизу кнопки (на телефоне сетка была мелкой) */
+  .dl-box { position: relative; }
+  .dl-box .gl-stage { position: relative; }
+  /* над графиком, а не поверх него: поверх угла кнопка перехватывала касания точек */
+  .dl-tools { display: flex; justify-content: flex-end; margin: 0 0 4px; }
+  .dl-full-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 999px; white-space: nowrap; width: auto; line-height: 1;
+    border: 1px solid var(--ds-rule2); background: color-mix(in srgb, var(--ds-card) 92%, transparent); color: var(--ds-ink2); font: 600 12.5px var(--ds-sans); cursor: pointer; }
+  .dl-full-btn:hover { color: var(--ds-ink); border-color: var(--g-blue); }
+  .dl-full-btn svg { width: 14px !important; height: 14px; flex: none; }
+  .dl-box.full { position: fixed; inset: 0; z-index: 60; background: var(--ds-paper); display: flex; flex-direction: column; gap: 6px;
+    padding: calc(8px + env(safe-area-inset-top)) 10px calc(8px + env(safe-area-inset-bottom)); }
+  .dl-box.full .dl-mini { font: 400 14.5px/1.35 var(--ds-sans); max-height: 4.2em; overflow: auto; padding: 0 2px; }
+  .dl-box.full .dl-mini b { font-weight: 800; }
+  /* график — во всё свободное место: оба слоя (график и поле точек) с одним viewBox вписываются одинаково */
+  .dl-box.full .gl-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0; padding: 4px; }
+  .dl-box.full .dl-wrap { flex: 1; min-height: 0; width: 100%; max-width: none; }
+  .dl-box.full .dl-wrap > svg { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; }
+  @media (max-height: 520px) { .dl-box.full .dl-mini { max-height: 2.8em; font-size: 13.5px; } }
+  .dl-box.full .dl-tools { display: none; }
+  .dl-box.full .dl-mini-fb { font: 600 14px/1.35 var(--ds-sans); padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ds-ok) 10%, var(--ds-card)); }
+  .dl-box.full .dl-mini-fb.bad { background: color-mix(in srgb, var(--ds-warn, #D9822B) 12%, var(--ds-card)); }
+  .dl-full-row { display: flex; gap: 8px; }
+  .dl-full-row > :last-child { flex: 1; }
   @media (prefers-reduced-motion: reduce) { .dl-task, .dl-fb { animation: none; } }
 `;
 
@@ -67,6 +90,27 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   const drag = useRef(null);
   const fb = useRef(null);
   const [already] = useState(() => isDrawDone(learn, id));
+  /* «На весь экран»: свой слой поверх урока; где можно — ещё и полноэкранный режим браузера с поворотом в альбомный */
+  const [full, setFull] = useState(false);
+  const goFull = () => {
+    Audio.play('click'); setFull(true);
+    try {
+      const el = root.current;
+      if (el && el.requestFullscreen && !document.fullscreenElement) {
+        el.requestFullscreen().then(() => { try { if (window.screen.orientation && window.screen.orientation.lock) window.screen.orientation.lock('landscape').catch(() => {}); } catch { /* не телефон */ } }).catch(() => {});
+      }
+    } catch { /* браузер не умеет — хватит слоя */ }
+  };
+  const leaveFull = () => {
+    Audio.play('click'); setFull(false);
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); if (window.screen.orientation && window.screen.orientation.unlock) window.screen.orientation.unlock(); } catch { /* ничего */ }
+  };
+  // вышли из полноэкранного режима жестом «назад» — слой тоже сворачивается
+  useEffect(() => {
+    const on = () => { if (!document.fullscreenElement) setFull(false); };
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [i, phase]);
   // ответ проверен — разбор под графиком в поле зрения (на телефоне он уходил под нижнюю панель)
   useEffect(() => { if (res && fb.current && fb.current.scrollIntoView) fb.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [res]);
@@ -204,19 +248,18 @@ export default function DrawLesson({ id, learn, update, onClose }) {
             <div>{rich(t.text)}</div>
             {!resolved && <span className="dl-how">{HOW[t.do]}</span>}
           </div>
+          <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)}>
+          {full && <div className="dl-mini" data-testid="draw-full-task"><b>Шаг {i + 1} из {n}.</b> {rich(t.text)}</div>}
           <div className="gl-stage">
+            <div className="dl-tools"><button type="button" className="dl-full-btn" data-testid="draw-full" onClick={goFull}><Maximize2 size={14} aria-hidden="true" />На весь экран</button></div>
             <div className="dl-wrap">
-              <GraphStage g={tour} k={k} live={t.do === 'shift' && !resolved ? { [t.control]: v } : null}
+              <GraphStage g={tour} k={k} grid={d.grid} live={t.do === 'shift' && !resolved ? { [t.control]: v } : null}
                 alsoShow={!resolved && t.show ? t.show : null} alsoHide={!resolved && t.hide ? t.hide : null} />
               <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}`} viewBox={`0 0 ${W} ${H}`} data-testid="draw-ink"
                 data-answer={testAnswer} data-ready={String(ready)} aria-label="Поле для рисования"
                 onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }} onPointerLeave={() => setHover(null)}>
                 <defs><clipPath id={`dlc${id}`}><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath></defs>
-                {/* мелкая сетка: крупные деления графика редкие (0, 200, 400), а в условии — «100 пекарей» */}
-                <g pointerEvents="none" stroke="var(--g-grid)" strokeOpacity=".7">
-                  {Array.from({ length: Math.floor((x1 - x0) / d.grid[0]) + 1 }, (_, j) => x0 + j * d.grid[0]).map((x) => <line key={`mx${x}`} x1={sx(x)} x2={sx(x)} y1={M.t} y2={H - M.b} />)}
-                  {Array.from({ length: Math.floor((y1 - y0) / d.grid[1]) + 1 }, (_, j) => y0 + j * d.grid[1]).map((y) => <line key={`my${y}`} x1={M.l} x2={W - M.r} y1={sy(y)} y2={sy(y)} />)}
-                </g>
+                {/* сетка — в самом графике (GraphStage, grid): линии через шаг задания, подписи — только на них */}
                 {!res?.ok && through()}
                 {hover && !drag.current && pts.length < (t.do === 'line' ? 2 : 1) && (
                   <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', coordLabel(hover))}</g>
@@ -236,6 +279,19 @@ export default function DrawLesson({ id, learn, update, onClose }) {
               </label>
             )}
           </div>
+          {full && res && (
+            <div className={`dl-mini-fb${res.ok ? '' : ' bad'}`} data-testid="draw-full-feedback">{res.ok ? 'Верно.' : res.shown ? 'Вот как надо — смотрите на графике.' : `${res.why || 'Не совсем.'} Попробуйте ещё раз.`}</div>
+          )}
+          {full && (
+            <div className="dl-full-row">
+              <Button variant="ghost" icon={Minimize2} data-testid="draw-full-exit" onClick={leaveFull}>Свернуть</Button>
+              <Button variant="ghost" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} onClick={reset}>Сбросить</Button>
+              {resolved
+                ? <Button wide icon={i < n - 1 ? ArrowRight : Check} data-testid="draw-full-next" onClick={() => { if (i >= n - 1) leaveFull(); next(); }}>{i < n - 1 ? 'Дальше' : 'Готово'}</Button>
+                : <Button wide icon={Check} disabled={!ready} data-testid="draw-full-check" onClick={check}>Проверить</Button>}
+            </div>
+          )}
+          </div>
           {res && (
             <div ref={fb} className={`dl-fb${res.ok ? '' : res.shown ? ' shown' : ' bad'}`} role="status" data-testid="draw-feedback" data-ok={String(!!res.ok)} data-shown={String(!!res.shown)}>
               {res.ok && <><b>Верно.</b> {rich(t.done)}</>}
@@ -247,7 +303,7 @@ export default function DrawLesson({ id, learn, update, onClose }) {
       )}
       {phase === 'done' && (
         <div className="gl-page gl-done" data-testid="draw-done">
-          <div className="gl-stage" style={{ marginBottom: 14 }}><GraphStage g={tour} k={n} /></div>
+          <div className="gl-stage" style={{ marginBottom: 14 }}><GraphStage g={tour} k={n} grid={d.grid} /></div>
           <div className="gl-medal" aria-hidden="true"><PenLine size={54} strokeWidth={1.8} /></div>
           <div className="ds-eyebrow">Нарисуй сам</div>
           <h2>{d.title}</h2>

@@ -98,6 +98,15 @@ function ticks(lo, hi, n = 4) {
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v * 1e6) / 1e6);
   return out;
 }
+/* подписи по шагу сетки «Нарисуй сам»: только на её линиях (шаг × 1, 2, 4, 5, 10…), не больше пяти промежутков —
+   иначе линии сетки (через 20) и подписи (через 50) шли вперемешку («сетка неровная») */
+export function gridTicks(lo, hi, g) {
+  const m = [1, 2, 4, 5, 10, 20, 25, 50, 100].find((k) => (hi - lo) / (g * k) <= 5) || 100;
+  const step = g * m; const out = [];
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v * 1e6) / 1e6 + 0);
+  return out;
+}
+const gridLines = (lo, hi, g) => Array.from({ length: Math.floor((hi - lo) / g + 1e-9) + 1 }, (_, j) => Math.round((Math.ceil(lo / g - 1e-9) * g + j * g) * 1e6) / 1e6).filter((v) => v <= hi + 1e-9);
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -124,7 +133,8 @@ function useTweenValues(target, reduced) {
 /* «Нарисуй сам» (src/learn-draw.jsx) рисует на той же сцене: live — ползунки, которые ученик тянет прямо
    сейчас (без плавного перехода — линия идёт за пальцем), alsoShow и alsoHide — что видно и что спрятано,
    пока шаг решают (бледная прежняя линия; прежнее равновесие, чтобы оно не подсказало ответ) */
-export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null }) {
+/* grid — шаг сетки «Нарисуй сам» [по X, по Y]: линии через этот шаг, подписи — только на них */
+export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null, grid = null }) {
   const reduced = useReducedMotion();
   const def = CHARTS[g.chart];
   const view0 = stepView(g, k);
@@ -157,8 +167,9 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
       : m.t === 'y' ? [textBox(m.label, M.l + 4, sy(m.y) - 5, 12, 'start')]
         : m.t === 'seg' ? [textBox(m.label, (sx(m.x0) + sx(m.x1)) / 2, sy(m.y) - 9, 12.5, 'middle')] : [])),
   ];
-  const xTicks = freeTicks(ticks(x0, x1).map((t) => ({ t, box: textBox(fmt(t), sx(t), H - M.b + 15, 12, 'middle') })), fixedText);
-  const yTicks = freeTicks(ticks(y0, y1).filter((t) => sy(t) - M.t > 10).map((t) => ({ t, box: textBox(fmt(t), M.l - 6, sy(t) + 4, 12, 'end') })), fixedText);
+  const tx = grid ? gridTicks(x0, x1, grid[0]) : ticks(x0, x1); const ty = grid ? gridTicks(y0, y1, grid[1]) : ticks(y0, y1);
+  const xTicks = freeTicks(tx.map((t) => ({ t, box: textBox(fmt(t), sx(t), H - M.b + 15, 12, 'middle') })), fixedText);
+  const yTicks = freeTicks(ty.filter((t) => sy(t) - M.t > 10).map((t) => ({ t, box: textBox(fmt(t), M.l - 6, sy(t) + 4, 12, 'end') })), fixedText);
   const curveLabels = scene.curves.filter((c) => c.label && !c.ghost && view.shown.has(c.id));
   const inField = (q) => q.x >= x0 && q.x <= x1 && q.y >= y0 && q.y <= y1;
   const lines = scene.curves.filter((c) => view.shown.has(c.id)).flatMap((c) => c.points.filter(inField).map((q) => dotBox(sx(q.x), sy(q.y), 2.5)));
@@ -183,8 +194,8 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}>
       <defs><clipPath id={clip}><rect x={M.l} y={M.t - 6} width={W - M.l - M.r + 6} height={H - M.t - M.b + 6} /></clipPath></defs>
-      {ticks(x0, x1).map((t) => <line key={`gx${t}`} x1={sx(t)} x2={sx(t)} y1={M.t} y2={H - M.b} stroke="var(--g-grid)" />)}
-      {ticks(y0, y1).map((t) => <line key={`gy${t}`} x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke="var(--g-grid)" />)}
+      {(grid ? gridLines(x0, x1, grid[0]) : tx).map((t) => <line key={`gx${t}`} x1={sx(t)} x2={sx(t)} y1={M.t} y2={H - M.b} stroke="var(--g-grid)" />)}
+      {(grid ? gridLines(y0, y1, grid[1]) : ty).map((t) => <line key={`gy${t}`} x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke="var(--g-grid)" />)}
       <g className={`g-axes${view.focus.has('axes') ? ' on' : ''}`} data-testid="graph-el" data-el="axes" data-on={String(view.focus.has('axes'))}>
         <line x1={M.l} x2={W - M.r} y1={H - M.b} y2={H - M.b} stroke="var(--ds-ink2)" strokeWidth="1.6" />
         <line x1={M.l} x2={M.l} y1={M.t} y2={H - M.b} stroke="var(--ds-ink2)" strokeWidth="1.6" />

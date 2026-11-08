@@ -6899,6 +6899,46 @@ test('итоги урока на телефоне 360: плитки ровные
   expect(errors).toEqual([]);
 });
 
+// «Нарисуй сам» на телефоне (пункт владельца 08.11, вечер): ровная сетка и «На весь экран»
+test('«Нарисуй сам»: подписи осей — на линиях сетки; «На весь экран» — график во весь экран с кнопками', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-id="draw-ppf"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  await expect(g.getByTestId('draw-ink')).toBeVisible();
+  // подписи оси X — через 40, на линиях сетки (через 20), а не через 50
+  const xs = await g.locator('[data-testid=graph-stage] [data-el="axes"] text[text-anchor="middle"]').allTextContents();
+  const nums = xs.filter((x) => /^\d+$/.test(x)).map(Number);
+  // подпись у края может спрятаться под названием оси — остальные кратны 40, а не 50
+  expect(nums.length).toBeGreaterThanOrEqual(4);
+  nums.forEach((x) => expect(x % 40, String(x)).toBe(0));
+  const small = (await g.getByTestId('draw-ink').boundingBox()).width;
+  await g.getByTestId('draw-full').click();
+  const box = g.getByTestId('draw-box');
+  await expect(box).toHaveAttribute('data-full', 'true');
+  const vp = page.viewportSize();
+  const bb = await box.boundingBox();
+  expect(bb.height).toBeGreaterThan(vp.height - 4);
+  await expect(g.getByTestId('draw-full-task')).toContainText('Шаг 1 из');
+  expect((await g.getByTestId('draw-ink').boundingBox()).width).toBeGreaterThanOrEqual(small - 1);
+  // во весь экран — и решать: точки и «Проверить»
+  const ink = g.getByTestId('draw-ink');
+  const pts = JSON.parse(await ink.getAttribute('data-answer')).pts;
+  for (const [x, y] of pts) { const b = await ink.boundingBox(); await page.mouse.click(b.x + (x / 360) * b.width, b.y + (y / 290) * b.height); }
+  await g.getByTestId('draw-full-check').click();
+  await expect(g.getByTestId('draw-full-feedback')).toBeVisible();
+  await g.getByTestId('draw-full-exit').click();
+  await expect(box).toHaveAttribute('data-full', 'false');
+  expect(errors).toEqual([]);
+});
+
 test('«Нарисуй сам» — остановка за графиком юнита: точки по условию, ошибка — подсказка, вторая — «вот как надо», сдвиг ползунком, +15 опыта', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;

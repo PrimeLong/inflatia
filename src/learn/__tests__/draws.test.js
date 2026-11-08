@@ -99,3 +99,20 @@ describe('«Нарисуй сам» на дороге юнита', () => {
     expect(courseLevel(s).parts.extras - courseLevel(emptyLearn()).parts.extras).toBe(1);
   });
 });
+
+describe('«Нарисуй сам»: ровная сетка (08.11, вечер)', async () => {
+  const { gridTicks } = await import('../../learn-graph.jsx');
+  it('подписи осей — только на линиях сетки, не больше пяти промежутков', () => {
+    expect(gridTicks(0, 160, 20)).toEqual([0, 40, 80, 120, 160]);
+    DRAWS.forEach((d) => {
+      const sc = drawScene(d, {});
+      [[sc.xDomain, d.grid[0]], [sc.yDomain, d.grid[1]]].forEach(([[lo, hi], g]) => {
+        const t = gridTicks(lo, hi, g);
+        expect(t.length, d.id).toBeGreaterThanOrEqual(2);
+        expect(t.length - 1, d.id).toBeLessThanOrEqual(5);
+        t.forEach((v) => expect(Math.abs(v / g - Math.round(v / g)), `${d.id}: ${v}`).toBeLessThan(1e-6));
+      });
+    });
+  });
+});
+
