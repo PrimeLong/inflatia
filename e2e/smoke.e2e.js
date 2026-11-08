@@ -179,6 +179,36 @@ test('«Мир»: обещание рынку — плашка наверху в
   expect(errors).toEqual([]);
 });
 
+// «Мир» (пункт владельца 08.11, вечер): компас ставки сворачивается, ссылку на учебник под рычагом можно закрыть крестиком
+test('«Мир»: компас ставки сворачивается в строку; ссылка «IS-LM» под рычагом закрывается крестиком и возвращается в «Настройках вида»', async ({ page, isMobile }) => {
+  // уровень «Средний» на Пути — компас и IS-LM открыты с первого квартала
+  await page.addInitScript(() => { try { localStorage.setItem('ems-learn-level', '2'); } catch { /* нет хранилища */ } });
+  const { errors } = await openApp(page);
+  await startSoloGame(page);
+  if (isMobile) await page.getByText('Решения', { exact: true }).click();
+  const compass = page.getByTestId('rate-compass');
+  await expect(compass).toHaveAttribute('data-collapsed', 'false');
+  await expect(compass).toContainText('Нейтральная r*');
+  await compass.getByTestId('compass-toggle').click();
+  await expect(compass).toHaveAttribute('data-collapsed', 'true');
+  await expect(compass.getByTestId('compass-summary')).toContainText('Реальная ставка');
+  await expect(compass).not.toContainText('Нейтральная r*');
+  expect(await page.evaluate(() => localStorage.getItem('ems-compass-collapsed'))).toBe('1');
+  await compass.getByTestId('compass-toggle').click();
+  await expect(compass).toContainText('Нейтральная r*');
+  // ссылка «IS-LM» под рычагами: крестик — и её нет ни у ставки, ни у госрасходов
+  const islm = page.locator('.ems-booklink[data-chapter]', { has: page.getByTestId('book-link').filter({ hasText: 'IS-LM' }) });
+  await expect(islm.first()).toBeVisible();
+  await islm.first().hover();
+  await islm.first().getByTestId('book-link-close').click();
+  await expect(islm).toHaveCount(0);
+  // «Настройки вида» → вернуть
+  await page.getByRole('button', { name: 'Настройки вида' }).first().click();
+  await page.getByTestId('booklinks-restore').click();
+  await expect(islm.first()).toBeAttached();
+  expect(errors).toEqual([]);
+});
+
 test('обучение: хаб и программа курса открываются', async ({ page }) => {
   const { errors } = await openApp(page);
   await page.getByText('Как играть', { exact: true }).click();

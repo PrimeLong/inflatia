@@ -26,7 +26,7 @@ import {
   botPresidentRegion, regionEventOwner,
 } from './lib/engine.js';
 import { Audio, stingerFor } from './audio/engine.js';
-import { BookLink } from './booklink.jsx';
+import { BookLink, useHiddenBookLinks, restoreBookLinks } from './booklink.jsx';
 import { LEVER_BOOK, WHY_BOOK, COMPASS_BOOK, bookForChain } from './lib/booklinks.js';
 import { advancedOpen, readLearnLevel, ADVANCED_TABS, ADVANCED_ROWS, ADVANCED_CHAPTERS, ADVANCED_QUARTER } from './lib/disclosure.js';
 import {
@@ -296,7 +296,9 @@ export const AdvancedContext = React.createContext(true);
 
 export function LeverSlider({ lever, currentDisplay, value, onChange, preview, onIRF, infTarget }) {
   const advanced = React.useContext(AdvancedContext);
-  const books = (LEVER_BOOK[lever.id] || []).filter((to) => advanced || !ADVANCED_CHAPTERS.includes(to.chapter));
+  // закрытые учеником ссылки на учебник (крестик у ссылки) — не показываем
+  const hiddenBooks = useHiddenBookLinks();
+  const books = (LEVER_BOOK[lever.id] || []).filter((to) => (advanced || !ADVANCED_CHAPTERS.includes(to.chapter)) && !hiddenBooks.includes(to.chapter));
   const delta = lever.type === 'level' ? value - currentDisplay : value;
   // кому из групп общества нравится это значение, а кому нет (см. «Общество»)
   const groupFx = leverGroupEffects(lever.id, value, infTarget);
@@ -315,7 +317,7 @@ export function LeverSlider({ lever, currentDisplay, value, onChange, preview, o
         )}
       </div>
       {lever.hint && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 1 }}>{lever.hint}</div>}
-      {books.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>{books.map((to) => <BookLink key={to.chapter} to={to} compact />)}</div>}
+      {books.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>{books.map((to) => <BookLink key={to.chapter} to={to} compact closable />)}</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
         <input type="range" className="ems-slider" style={trackStyle} min={lever.min} max={lever.max} step={lever.step}
           aria-label={`${lever.label}, текущее значение ${value}${lever.suffix}, допустимо от ${lever.min} до ${lever.max}, шаг ${lever.step}`}
@@ -3532,6 +3534,7 @@ export function ViewSettings({ theme, setTheme, dense, setDense, dashboards, act
   layoutEditMode, setLayoutEditMode, columnOrder, moveColumn, resetLayout, layoutIsDefaultNow, autoPaper, setAutoPaper }) {
   const DD_WIDTH = 250;
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
+  const hiddenBooks = useHiddenBookLinks();
   return (
     <div className="rel">
       <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px' }} title="Вид, тема и доступность" aria-label="Настройки вида"
@@ -3572,6 +3575,18 @@ export function ViewSettings({ theme, setTheme, dense, setDense, dashboards, act
               </div>
               <div style={{ fontSize: 12, color: COLOR.faint, lineHeight: 1.4, marginBottom: 10 }}>
                 При включении «Газета и хроника» открывается сама после каждого нового квартала — не нужно нажимать кнопку.
+              </div>
+            </>
+          )}
+          {hiddenBooks.length > 0 && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: COLOR.muted, flex: 1 }}>Скрыто ссылок на учебник: {hiddenBooks.length}</span>
+                <button className="ems-btn" data-testid="booklinks-restore" style={{ padding: '2px 9px', fontSize: 12 }}
+                  onClick={() => { Audio.play('tick'); restoreBookLinks(); }}>вернуть</button>
+              </div>
+              <div style={{ fontSize: 12, color: COLOR.faint, lineHeight: 1.4, marginBottom: 10 }}>
+                Вернуть ссылки на учебник под рычагами, закрытые крестиком.
               </div>
             </>
           )}
@@ -4265,7 +4280,11 @@ export function CounterfactualCard({ cf, cum }) {
   );
 }
 
+const COMPASS_FOLD_KEY = 'ems-compass-collapsed';
 export function RateCompass({ economy, keyRate }) {
+  // компас сворачивается в одну строку — выбор помнится на устройстве (пункт владельца 08.11, вечер)
+  const [folded, setFolded] = useState(() => { try { return localStorage.getItem(COMPASS_FOLD_KEY) === '1'; } catch { return false; } });
+  const fold = (v) => { setFolded(v); try { if (v) localStorage.setItem(COMPASS_FOLD_KEY, '1'); else localStorage.removeItem(COMPASS_FOLD_KEY); } catch { /* приватный режим */ } };
   const exp = economy.inflationExpectations;
   const real = keyRate - exp;
   const realNow = economy.keyRate - exp;
@@ -4283,8 +4302,21 @@ export function RateCompass({ economy, keyRate }) {
     </div>
   );
   return (
-    <div className="ems-panel" data-testid="rate-compass" style={{ padding: '10px 12px', margin: '4px 0 10px' }}>
-      <div className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft, marginBottom: 4 }}>Компас ставки</div>
+    <div className="ems-panel" data-testid="rate-compass" data-collapsed={String(folded)} style={{ padding: '10px 12px', margin: '4px 0 10px' }}>
+      <div className="row-between" style={{ alignItems: 'center', gap: 8, marginBottom: folded ? 2 : 4 }}>
+        <span className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft }}>Компас ставки</span>
+        <button type="button" className="ems-btn ghost" data-testid="compass-toggle" aria-expanded={!folded}
+          onClick={() => { Audio.play('tick'); fold(!folded); }}
+          style={{ padding: '1px 7px', fontSize: 12, color: COLOR.muted, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+          {folded ? <>развернуть<ChevronDown size={12} /></> : <>свернуть<ChevronUp size={12} /></>}
+        </button>
+      </div>
+      {folded ? (
+        <div className="fs-12 t-muted" data-testid="compass-summary">
+          Реальная ставка <b className="ems-mono" style={{ color: COLOR.text }}>{fmtSigned1(real)}%</b>
+          {Number.isFinite(taylor) && <> · Тейлор <b className="ems-mono" style={{ color: COLOR.text }}>{fmt1(taylor)}%</b></>}
+        </div>
+      ) : <>
       {row(union ? 'Реальная ставка (ЕЦБ − ожидания)' : 'Реальная ставка после решения', `${fmtSigned1(real)}%`,
         Math.abs(real - realNow) > 0.05 ? `сейчас ${fmtSigned1(realNow)}%` : `ожидания ${fmt1(exp)}%`)}
       {row('Нейтральная r*', `${fmt1(rStar)}%`, Math.abs(vsNeutral) < 0.25 ? 'политика нейтральна'
@@ -4295,6 +4327,7 @@ export function RateCompass({ economy, keyRate }) {
         Тейлор: r* + инфляция + 0.5·(инфляция − цель) + 0.5·(разрыв выпуска) = {fmt1(rStar)} + {fmt1(economy.inflation)} + 0.5·({fmtSigned1(economy.inflation - (economy.inflationTarget ?? 4))}) + 0.5·({fmtSigned1(economy.outputGap || 0)}). Ориентир, а не закон: в игре ЦБ может отступать от него — на графике «Ставки» видно, насколько.
       </div>
       <div style={{ marginTop: 6 }}><BookLink to={COMPASS_BOOK} compact /></div>
+      </>}
     </div>
   );
 }

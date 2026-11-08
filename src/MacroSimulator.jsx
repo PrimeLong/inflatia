@@ -259,6 +259,12 @@ export const GlobalStyle = () => (
     .ems-card-btn:hover .ems-card-chevron { transform: translateX(3px) rotate(-90deg); }
     .ems-row-hover { border-radius: 9px !important; transition: background-color .15s ease, border-color .15s ease; user-select: none; -webkit-user-select: none; }
     .ems-row-hover:hover { background: ${COLOR.panelRaised} !important; border-color: ${COLOR.borderStrong} !important; }
+    /* ссылка на учебник под рычагом: крестик — при наведении, на сенсорном экране — всегда */
+    .ems-booklink { display: inline-flex; align-items: center; gap: 1px; }
+    .ems-booklink-x { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: ${COLOR.faint}; cursor: pointer; opacity: 0; transition: opacity .15s; }
+    .ems-booklink:hover .ems-booklink-x, .ems-booklink:focus-within .ems-booklink-x { opacity: 1; }
+    .ems-booklink-x:hover { color: ${COLOR.text}; background: ${COLOR.panelAlt}; }
+    @media (hover: none) { .ems-booklink-x { opacity: .75; } }
     .ems-theme-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px 6px 9px; border-radius: 999px; font-size: 12px;
       cursor: pointer; transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
     .ems-theme-chip:hover { transform: translateY(-1px); }
