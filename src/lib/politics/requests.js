@@ -9,6 +9,17 @@ import { rf2 } from '../content/news.js';
 /* Число в тексте просьбы — «1», «1,5», «0,25»: без хвостовых нулей и с запятой,
    как это читается вслух, а не как в отчёте. */
 export const askNum = (n) => String(Number(Number(n).toFixed(2))).replace('.', ',');
+/* Просьба о ставке не выходит за её границы (пункт владельца 08.11, вечер: «президент просит снизить ставку ниже,
+   чем она возможна»): у просьбы room(s) — сколько можно сдвинуть, п.п.; сила урезается до возможного по шагу просьбы.
+   Не осталось и минимального шага — просить нечего: null. У просьб без room сила не меняется. */
+export function fitStrength(req, s, strength = 1) {
+  const str = Number.isFinite(strength) ? strength : 1;
+  if (!req || !req.scale || !req.room || !s) return str;
+  const step = req.scale.step;
+  const can = Math.floor((Math.max(0, req.room(s)) + 1e-9) / step) * step;
+  if (can < req.scale.min - 1e-9) return null;
+  return Math.min(req.scale.base * str, can) / req.scale.base;
+}
 /* Сколько именно просят: сила указания — множитель к базовой величине просьбы. */
 export const reqAmount = (req, strength) => (req && req.scale ? req.scale.base : 1)
   * (Number.isFinite(strength) ? strength : 1);
@@ -214,6 +225,8 @@ export const REQUESTS = [
   { id: 'rate_cut', from: 'ministry_finance', label: 'Снизить ключевую ставку',
     scale: { base: 1, min: 0.25, max: 2.5, step: 0.25, unit: ' п.п.' },
     ask: (n) => `Просим снизить ключевую ставку на ${askNum(n)} п.п.: стоимость кредита душит инвестиции и обслуживание долга.`,
+    // ставка не ниже нуля (рычаг keyRate — от 0)
+    room: (s) => (Number.isFinite(s.keyRate) ? s.keyRate : 0),
     fit: (s) => (s.outputGap < -1 ? 1.3 : -0.6) + (s.inflation < s.inflationTarget + 1 ? 0.9 : -1.4) + (s.unemployment > 7 ? 0.6 : 0),
     bias: { dove: 0.9, pragmatic: 0.2, hawk: -0.9 },
     // округление к сетке 0,25 не должно съедать частичное согласие целиком: просьба
@@ -230,6 +243,8 @@ export const REQUESTS = [
   { id: 'rate_hike', from: 'ministry_finance', label: 'Решительно подавить инфляцию',
     scale: { base: 2, min: 0.5, max: 4, step: 0.5, unit: ' п.п.' },
     ask: (n) => `Требуем повысить ключевую ставку на ${askNum(n)} п.п.: рост цен обесценивает доходы и расходы быстрее, чем их успевают индексировать.`,
+    // и не выше потолка ставки (keyRateCap: 25%, при высокой инфляции — выше)
+    room: (s) => keyRateCap(s) - (Number.isFinite(s.keyRate) ? s.keyRate : 0),
     fit: (s) => (s.inflation > s.inflationTarget + 2 ? 1.4 : -1.0) + (s.inflationExpectations > s.inflationTarget + 1.5 ? 0.7 : -0.3)
       + (s.outputGap < -2 ? -0.8 : 0.2),
     bias: { hawk: 0.9, pragmatic: 0.2, dove: -0.9 },

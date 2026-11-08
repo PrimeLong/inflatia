@@ -3,7 +3,7 @@ import { PRESIDENT_PERSONAS, clamp, rng } from '../catalog.js';
 import { fmt1, fmtSigned1, getCbPersona, getMofPersona } from '../engine.js';
 import { makeImpulse, sustainedImpulse, taperedImpulse } from '../content/events.js';
 import { ACTION_GROUP_EFFECTS } from './groups.js';
-import { REQUESTS, askText, requestOutcomeText } from './requests.js';
+import { REQUESTS, askText, requestOutcomeText, fitStrength } from './requests.js';
 
 /* =========================================================================================
    ПРЕЗИДЕНТ: власть, у которой нет ни одного ползунка
@@ -663,8 +663,10 @@ export const PRES_DIRECTIVE_COST = 12;
 export function processPresidentialDirective(reqId, economy, cbPersonaId, mofPersonaId, decisions, strength) {
   const req = REQUESTS.find((r) => r.id === reqId);
   if (!req) return null;
-  // чем больше просят сверх обычного, тем охотнее ведомство отказывает
-  const str = clamp(Number.isFinite(strength) ? strength : 1, 0.2, 4);
+  // чем больше просят сверх обычного, тем охотнее ведомство отказывает; просьба о ставке — не дальше её границ
+  const asked = clamp(Number.isFinite(strength) ? strength : 1, 0.2, 4);
+  const fit = fitStrength(req, economy, asked);
+  const str = fit == null ? asked : fit;
   // from: 'ministry_finance' — просьбы к ЦБ, from: 'central_bank' — к Минфину
   const toCb = req.from === 'ministry_finance';
   const persona = toCb ? getCbPersona(cbPersonaId) : getMofPersona(mofPersonaId);
@@ -886,7 +888,8 @@ export function botPresident(s, personaId, difficulty, ctx) {
       // равных к игроку», а не «к игроку всегда»
       + (playerBranch && branchOf(req) === playerBranch ? 0.6 : 0);
   };
-  const pool = REQUESTS.filter((r) => !r.retired);
+  // просьба, которую не выполнить (ставку снижать некуда — она на нуле), в выбор не идёт
+  const pool = REQUESTS.filter((r) => !r.retired && fitStrength(r, s) != null);
   /* Выбираем не строго лучшее, а случайное из близких по смыслу: президент, который
      двенадцать кварталов подряд требует одно и то же слово в слово, читается как
      сломанный, а не как упрямый. Прошлое требование при прочих равных пропускаем. */
@@ -910,9 +913,11 @@ export function botPresident(s, personaId, difficulty, ctx) {
     + (dirAgo <= 1 ? 0.8 : 0);
   // требование стоит политического капитала: на нуле давить не на что
   const canPressure = capital >= PRES_DIRECTIVE_COST + 4;
+  // сила — обычная, но не больше, чем позволяет ставка (при 0,5% — «снизить на 0,5 п.п.», а не на 1)
+  const strength = best ? fitStrength(best.req, s) : 1;
   const directive = canPressure && best && best.sc >= threshold
     ? { reqId: best.req.id, branch: branchOf(best.req), toPlayer: branchOf(best.req) === playerBranch,
-      req: best.req, ask: askText(best.req, 1, 'president', s.politicalRegime) }
+      req: best.req, strength, ask: askText(best.req, strength, 'president', s.politicalRegime) }
     : null;
 
   /* --- 3. смена руководителя ведомства, которым игрок не управляет --- */
@@ -945,7 +950,7 @@ export function botPresident(s, personaId, difficulty, ctx) {
     newsHeadline: `ПРЕЗИДЕНТ ${directive
       ? `→ ${directive.branch === 'monetary' ? 'ЦБ' : 'МИНФИН'}: ${directive.req.label.toUpperCase()}`
       : 'О ПОЛОЖЕНИИ ДЕЛ'}`,
-    demand: directive ? `Президент (${P.name}): ${askText(directive.req, 1, 'president', s.politicalRegime)}` : null,
+    demand: directive ? `Президент (${P.name}): ${directive.ask}` : null,
   };
 }
 

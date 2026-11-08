@@ -47,6 +47,11 @@ export const TEXTBOOK_CSS = `
   .tb-to-top { position: fixed; right: 12px; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 30; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; border-radius: 50%; border: 1px solid var(--ds-rule2, var(--c-border)); background: var(--ds-card, var(--c-panel)); color: var(--u-ink, var(--c-gold-soft)); box-shadow: 0 4px 14px var(--ds-shade, rgba(0,0,0,.18)); cursor: pointer; }
   .tb-to-top.with-nav { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .tb-float-back { position: fixed; left: 12px; top: calc(10px + env(safe-area-inset-top)); z-index: 30; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+    border-radius: 999px; border: 1px solid var(--ds-rule2, var(--c-border)); background: var(--ds-card, var(--c-panel)); color: var(--u-ink, var(--c-gold-soft));
+    font: 700 13px var(--ds-sans, inherit); box-shadow: 0 4px 14px var(--ds-shade, rgba(0,0,0,.18)); cursor: pointer; animation: tb-float-in .25s ease-out; }
+  @keyframes tb-float-in { from { opacity: 0; transform: translateY(-8px); } }
+  @media (prefers-reduced-motion: reduce) { .tb-float-back { animation: none; } }
   /* решённая задача — видно издалека: зелёная кайма слева, лёгкий зелёный фон, плашка «Решена» */
   .tb-chart-axes { margin: 2px auto 0; max-width: 560px; text-align: center; font: italic 12.5px/1.4 var(--ds-sans, sans-serif); color: var(--c-muted, #777); }
   .tb-solved { border-left: 4px solid var(--c-teal, #2E7D5B) !important; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 7%, var(--c-panel, #fff)) !important; }
@@ -2351,7 +2356,7 @@ const lockedPage = (pg, learn) => {
 const TB_FS_H = 36;
 const tbFsBtn = (big, off) => ({ width: 40, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
   fontFamily: "var(--ds-news, 'PT Serif', Georgia, serif)", fontWeight: 700, fontSize: big ? 19 : 13, lineHeight: 1, color: off ? COLOR.faint : COLOR.text });
-function ReaderBar({ scale, setScale }) {
+function ReaderBar({ scale, setScale, learn = false }) {
   const i = SCALES.indexOf(scale);
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
@@ -2363,7 +2368,7 @@ function ReaderBar({ scale, setScale }) {
         <button type="button" style={tbFsBtn(true, i >= SCALES.length - 1)} aria-label="Крупнее текст" disabled={i >= SCALES.length - 1}
           onClick={() => { Audio.play('tick'); setScale(SCALES[Math.min(SCALES.length - 1, i + 1)]); }}>A</button>
       </span>
-      <AudioControls wave buttonStyle={{ width: TB_FS_H, height: TB_FS_H, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
+      <AudioControls wave learn={learn} buttonStyle={{ width: TB_FS_H, height: TB_FS_H, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
     </div>
   );
 }
@@ -2387,7 +2392,25 @@ function ToTop({ withNav = false }) {
   );
 }
 
-export function TextbookScreen({ onBack, onExit = null, resume = false, startPage = null, backLabel, onOpenLab, onStartDrill, onOpenTycoon, onOpenScenario, reportSlot = null, reportFlag = null, asTab = false, homeTick = 0 }) {
+/* Учебник поверх партии: кнопка «← Назад в игру» — наверху страницы, а учебник сразу листается к разделу, и она уходит
+   за край. Ушла — слева вверху плашка «← В игру» (пункт владельца 08.11, вечер; docs/mechanics.md, «„Мир“: решения квартала») */
+function FloatBack({ onBack }) {
+  const [show, setShow] = useState(false);
+  React.useEffect(() => {
+    const on = () => setShow(window.scrollY > 120);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  if (!show) return null;
+  return (
+    <button type="button" className="tb-float-back" data-testid="tb-float-back" onClick={() => { Audio.play('click'); onBack(); }}>
+      <ArrowLeft size={16} aria-hidden="true" />В игру
+    </button>
+  );
+}
+
+export function TextbookScreen({ onBack, onExit = null, resume = false, startPage = null, backLabel, floatBack = false, onOpenLab, onStartDrill, onOpenTycoon, onOpenScenario, reportSlot = null, reportFlag = null, asTab = false, homeTick = 0 }) {
   // аналитика: раздел открыт — не чаще раза в день с устройства (docs/mechanics.md, «Аналитика»)
   useEffect(() => { trackDaily('textbook_open'); }, []);
   /* музыка в учебнике — «Волна»: экономики здесь нет, «по режиму экономики» неуместно (docs/mechanics.md, «Музыка»);
@@ -2543,7 +2566,7 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
   const pages = (
     <>
       <style>{TEXTBOOK_CSS + STATS_CSS}</style>
-      {!(embedded && cur.kind === 'toc') && <ReaderBar scale={scale} setScale={setScale} />}
+      {!(embedded && cur.kind === 'toc') && <ReaderBar scale={scale} setScale={setScale} learn={embedded} />}
       <div style={{ zoom: scale, '--tb-zoom': scale }} data-testid="tb-content">
         {cur.kind === 'toc' && <TocPage ctx={ctx} />}
         {cur.kind === 'review' && <ReviewPage ctx={ctx} />}
@@ -2581,6 +2604,7 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
       lede={cur.kind === 'toc' ? 'Первый год экономического факультета: микро, потом макро. В каждой главе — теория с формулами и графиком, разбор на числах, задачи с решениями и «проверьте в игре»: где эту модель видно в Лаборатории, задачах на 10 минут или в «Своём деле». Учебная модель и то, как это устроено в игре, всегда разведены: в игре коэффициенты подобраны вручную, в учебнике — стандартные модели.' : null}>
       {pages}
       <ToTop />
+      {floatBack && onBack && <FloatBack onBack={onBack} />}
     </TrainerPage>
   );
 }

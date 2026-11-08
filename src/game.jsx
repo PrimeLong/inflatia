@@ -13,20 +13,20 @@ import {
 } from 'lucide-react';
 import {
   ROLES, DIFFICULTIES, GOALS, SCENARIOS, FX_REGIMES, LEVERS, CB_PERSONAS, MOF_PERSONAS, REQUESTS,
-  REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach, regimeInfoText, regimeInfoLabel, POLITICAL_REGIME_INFO,
+  REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach, regimeInfoText, regimeInfoLabel, POLITICAL_REGIME_INFO,
   gameChronicle, clamp, fmt1, fmt2, fmtSigned1, pctFmt, fmtSignedPct, fmtMoney, fmtMoneySigned,
   fmtIndex, fmtMln, quarterLabel, defaultDecisions, getCbPersona, personaAfterElection,
   getMofPersona, MAP_REGIONS, botCentralBank, botFinanceMinistry, processRequest, redescribeCbAction,
   redescribeMofAction, simulateQuarter, makeInitialEconomy, leverPreview, pickPromises,
   evaluatePromise, pickPressQuestion, PRESIDENT_ACTIONS, kidsBlocked, PRES_BY_ID, PRES_GROUP_LABEL, reformShare,
   REFORM_RAMP, processPresidentialDirective, PRES_DIRECTIVE_COST, APPOINT_COST, CB_FULL_TERM,
-  makeImpulse, askText, getPresPersona, botWarOrder, botCampaignPlan, electionForecast,
+  makeImpulse, askText, fitStrength, getPresPersona, botWarOrder, botCampaignPlan, electionForecast,
   botDefenseOrder, botFrontOrder, DEF_ENEMY, botTreaty, botDiplomacy, neighborEventView, WAR_TARGETS, warTargetOf, SOCIAL_GROUPS, ACTION_GROUP_EFFECTS, leverGroupEffects, botPresident,
   directiveProgress, directiveVerdict, militaryCoupRisk, parliamentBlocksReform, scaleLever, currencyUnionRate, taylorRate,
   botPresidentRegion, regionEventOwner,
 } from './lib/engine.js';
 import { Audio, stingerFor } from './audio/engine.js';
-import { BookLink } from './booklink.jsx';
+import { BookLink, useHiddenBookLinks, restoreBookLinks } from './booklink.jsx';
 import { LEVER_BOOK, WHY_BOOK, COMPASS_BOOK, bookForChain } from './lib/booklinks.js';
 import { advancedOpen, readLearnLevel, ADVANCED_TABS, ADVANCED_ROWS, ADVANCED_CHAPTERS, ADVANCED_QUARTER } from './lib/disclosure.js';
 import {
@@ -296,7 +296,9 @@ export const AdvancedContext = React.createContext(true);
 
 export function LeverSlider({ lever, currentDisplay, value, onChange, preview, onIRF, infTarget }) {
   const advanced = React.useContext(AdvancedContext);
-  const books = (LEVER_BOOK[lever.id] || []).filter((to) => advanced || !ADVANCED_CHAPTERS.includes(to.chapter));
+  // закрытые учеником ссылки на учебник (крестик у ссылки) — не показываем
+  const hiddenBooks = useHiddenBookLinks();
+  const books = (LEVER_BOOK[lever.id] || []).filter((to) => (advanced || !ADVANCED_CHAPTERS.includes(to.chapter)) && !hiddenBooks.includes(to.chapter));
   const delta = lever.type === 'level' ? value - currentDisplay : value;
   // кому из групп общества нравится это значение, а кому нет (см. «Общество»)
   const groupFx = leverGroupEffects(lever.id, value, infTarget);
@@ -315,7 +317,7 @@ export function LeverSlider({ lever, currentDisplay, value, onChange, preview, o
         )}
       </div>
       {lever.hint && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 1 }}>{lever.hint}</div>}
-      {books.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>{books.map((to) => <BookLink key={to.chapter} to={to} compact />)}</div>}
+      {books.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>{books.map((to) => <BookLink key={to.chapter} to={to} compact closable />)}</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
         <input type="range" className="ems-slider" style={trackStyle} min={lever.min} max={lever.max} step={lever.step}
           aria-label={`${lever.label}, текущее значение ${value}${lever.suffix}, допустимо от ${lever.min} до ${lever.max}, шаг ${lever.step}`}
@@ -1718,7 +1720,11 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
               <div style={{ fontSize: 12, color: COLOR.faint, letterSpacing: '0.06em', textTransform: 'uppercase', margin: '2px 0 6px' }}>{title}</div>
               {directiveList(toCb).map((r) => {
                 const isSel = directive === r.id;
-                const disabled = !isSel && !canDirective;
+                // просьба о ставке — не дальше её границ: при ставке 0% «снизить» недоступно, ползунок — не дальше возможного
+                const cap = r.scale ? fitStrength(r, economy, r.scale.max / r.scale.base) : 1;
+                const blocked = cap == null;
+                const str = blocked ? 1 : Math.min(directiveStrength || 1, cap);
+                const disabled = (!isSel && !canDirective) || blocked;
                 return (
                   <div key={r.id} className="ems-card-btn" role="button" tabIndex={disabled ? -1 : 0}
                     onClick={() => { if (!disabled) { Audio.play('tick'); setDirective(isSel ? null : r.id); } }}
@@ -1730,7 +1736,8 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
                       {isSel && <Check size={11} color={COLOR.gold} />}
                       <span style={{ fontSize: 12, color: isSel ? COLOR.goldSoft : COLOR.text }}>{r.label}</span>
                     </div>
-                    {isSel && <div style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.4, marginTop: 4 }}>«{askText(r, r.scale ? (directiveStrength || 1) : 1, 'president', economy.politicalRegime)}»</div>}
+                    {blocked && <div className="fs-12 t-faint" data-testid="directive-blocked" style={{ marginTop: 2 }}>{r.id === 'rate_cut' ? 'Ставка уже на нуле — снижать некуда.' : 'Ставка у потолка — повышать некуда.'}</div>}
+                    {isSel && <div style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.4, marginTop: 4 }}>«{askText(r, r.scale ? str : 1, 'president', economy.politicalRegime)}»</div>}
                     {/* «снизить ставку» без указания насколько — это не указание:
                         один пункт для ставки очень много, и просить можно меньше */}
                     {isSel && r.scale && (
@@ -1738,12 +1745,12 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
                           <span className="t-muted">Насколько</span>
                           <span className="ems-mono t-goldsoft">
-                            {fmt2(r.scale.base * (directiveStrength || 1))}{r.scale.unit}
+                            {fmt2(r.scale.base * str)}{r.scale.unit}
                           </span>
                         </div>
                         <input type="range" className="ems-slider"
-                          min={r.scale.min / r.scale.base} max={r.scale.max / r.scale.base}
-                          step={r.scale.step / r.scale.base} value={directiveStrength || 1}
+                          min={r.scale.min / r.scale.base} max={Math.max(r.scale.min / r.scale.base, blocked ? 1 : cap)}
+                          step={r.scale.step / r.scale.base} value={str}
                           onChange={(e) => { Audio.play('tick'); setDirectiveStrength(Number(e.target.value)); }} />
                         <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 3, lineHeight: 1.4 }}>
                           Чем больше просите, тем охотнее ведомство откажет.
@@ -3527,6 +3534,7 @@ export function ViewSettings({ theme, setTheme, dense, setDense, dashboards, act
   layoutEditMode, setLayoutEditMode, columnOrder, moveColumn, resetLayout, layoutIsDefaultNow, autoPaper, setAutoPaper }) {
   const DD_WIDTH = 250;
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
+  const hiddenBooks = useHiddenBookLinks();
   return (
     <div className="rel">
       <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px' }} title="Вид, тема и доступность" aria-label="Настройки вида"
@@ -3567,6 +3575,18 @@ export function ViewSettings({ theme, setTheme, dense, setDense, dashboards, act
               </div>
               <div style={{ fontSize: 12, color: COLOR.faint, lineHeight: 1.4, marginBottom: 10 }}>
                 При включении «Газета и хроника» открывается сама после каждого нового квартала — не нужно нажимать кнопку.
+              </div>
+            </>
+          )}
+          {hiddenBooks.length > 0 && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: COLOR.muted, flex: 1 }}>Скрыто ссылок на учебник: {hiddenBooks.length}</span>
+                <button className="ems-btn" data-testid="booklinks-restore" style={{ padding: '2px 9px', fontSize: 12 }}
+                  onClick={() => { Audio.play('tick'); restoreBookLinks(); }}>вернуть</button>
+              </div>
+              <div style={{ fontSize: 12, color: COLOR.faint, lineHeight: 1.4, marginBottom: 10 }}>
+                Вернуть ссылки на учебник под рычагами, закрытые крестиком.
               </div>
             </>
           )}
@@ -3967,7 +3987,14 @@ export function RegionEventStrip({ event, answered, canAnswer, onOpen }) {
 export function demandItems({ botAction, botAction2, botRole, economy, president }) {
   const items = [];
   if (president) items.push({ who: `Президент (${president.persona.name})`, text: president.directive.ask || askText(president.directive.req, 1, 'president', economy.politicalRegime), color: COLOR.gold });
-  if (economy.mandate) items.push({ who: 'Мандат власти', text: `Новое правительство пришло с задачей: ${MANDATE_LABEL[economy.mandate] || economy.mandate}.`, color: COLOR.gold });
+  // мандат — цель с числами: чего ждут, сколько сейчас, выполняется ли (пункт владельца 08.11, вечер: «а в чём требование?»)
+  if (economy.mandate) {
+    const m = mandateGoal(economy);
+    const label = MANDATE_LABEL[economy.mandate] || economy.mandate;
+    items.push({ who: 'Мандат власти', color: m && m.met ? COLOR.teal : COLOR.gold, testid: 'mandate-demand',
+      text: m ? `${label[0].toUpperCase()}${label.slice(1)}: ${m.goal}. Сейчас ${m.now} — ${m.met ? 'выполняется' : 'пока не выполнено'}. Под эту задачу новая власть назначает министров.`
+        : `Новое правительство пришло с задачей: ${label}.` });
+  }
   if (botAction && botAction.demand) items.push({ who: botRole === 'central_bank' ? 'Центральный банк' : 'Минфин', text: botAction.demand, color: COLOR.blue });
   // у президента оба ведомства — боты, и требования к нему идут с обеих сторон
   if (botAction2 && botAction2.demand) items.push({ who: 'Минфин', text: botAction2.demand, color: COLOR.blue });
@@ -4002,7 +4029,7 @@ export function SummaryBar({ economy, demands = [] }) {
             <Megaphone size={13} />Требования
           </span>
           {demands.map((it, i) => (
-            <span key={i} style={{ fontSize: 13, lineHeight: 1.45 }}>
+            <span key={i} style={{ fontSize: 13, lineHeight: 1.45 }} data-testid={it.testid}>
               <span style={{ color: it.color, fontWeight: 700 }}>{it.who}:</span>{' '}
               <span className="t-muted">{it.text}</span>
             </span>
@@ -4253,7 +4280,11 @@ export function CounterfactualCard({ cf, cum }) {
   );
 }
 
+const COMPASS_FOLD_KEY = 'ems-compass-collapsed';
 export function RateCompass({ economy, keyRate }) {
+  // компас сворачивается в одну строку — выбор помнится на устройстве (пункт владельца 08.11, вечер)
+  const [folded, setFolded] = useState(() => { try { return localStorage.getItem(COMPASS_FOLD_KEY) === '1'; } catch { return false; } });
+  const fold = (v) => { setFolded(v); try { if (v) localStorage.setItem(COMPASS_FOLD_KEY, '1'); else localStorage.removeItem(COMPASS_FOLD_KEY); } catch { /* приватный режим */ } };
   const exp = economy.inflationExpectations;
   const real = keyRate - exp;
   const realNow = economy.keyRate - exp;
@@ -4271,8 +4302,21 @@ export function RateCompass({ economy, keyRate }) {
     </div>
   );
   return (
-    <div className="ems-panel" data-testid="rate-compass" style={{ padding: '10px 12px', margin: '4px 0 10px' }}>
-      <div className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft, marginBottom: 4 }}>Компас ставки</div>
+    <div className="ems-panel" data-testid="rate-compass" data-collapsed={String(folded)} style={{ padding: '10px 12px', margin: '4px 0 10px' }}>
+      <div className="row-between" style={{ alignItems: 'center', gap: 8, marginBottom: folded ? 2 : 4 }}>
+        <span className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft }}>Компас ставки</span>
+        <button type="button" className="ems-btn ghost" data-testid="compass-toggle" aria-expanded={!folded}
+          onClick={() => { Audio.play('tick'); fold(!folded); }}
+          style={{ padding: '1px 7px', fontSize: 12, color: COLOR.muted, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+          {folded ? <>развернуть<ChevronDown size={12} /></> : <>свернуть<ChevronUp size={12} /></>}
+        </button>
+      </div>
+      {folded ? (
+        <div className="fs-12 t-muted" data-testid="compass-summary">
+          Реальная ставка <b className="ems-mono" style={{ color: COLOR.text }}>{fmtSigned1(real)}%</b>
+          {Number.isFinite(taylor) && <> · Тейлор <b className="ems-mono" style={{ color: COLOR.text }}>{fmt1(taylor)}%</b></>}
+        </div>
+      ) : <>
       {row(union ? 'Реальная ставка (ЕЦБ − ожидания)' : 'Реальная ставка после решения', `${fmtSigned1(real)}%`,
         Math.abs(real - realNow) > 0.05 ? `сейчас ${fmtSigned1(realNow)}%` : `ожидания ${fmt1(exp)}%`)}
       {row('Нейтральная r*', `${fmt1(rStar)}%`, Math.abs(vsNeutral) < 0.25 ? 'политика нейтральна'
@@ -4283,7 +4327,24 @@ export function RateCompass({ economy, keyRate }) {
         Тейлор: r* + инфляция + 0.5·(инфляция − цель) + 0.5·(разрыв выпуска) = {fmt1(rStar)} + {fmt1(economy.inflation)} + 0.5·({fmtSigned1(economy.inflation - (economy.inflationTarget ?? 4))}) + 0.5·({fmtSigned1(economy.outputGap || 0)}). Ориентир, а не закон: в игре ЦБ может отступать от него — на графике «Ставки» видно, насколько.
       </div>
       <div style={{ marginTop: 6 }}><BookLink to={COMPASS_BOOK} compact /></div>
+      </>}
     </div>
+  );
+}
+
+/* Обещание рынку видно сразу (пункт владельца 08.11, вечер: «приходится листать вниз»): пока путь ставки действует —
+   плашка наверху вкладки денежных решений, касание ведёт к выбору обещания (docs/mechanics.md, «„Мир“: решения квартала») */
+const quartersWord = (n) => { const a = Math.abs(n) % 100; const b = a % 10; return a > 10 && a < 20 ? 'кварталов' : b === 1 ? 'квартал' : b >= 2 && b <= 4 ? 'квартала' : 'кварталов'; };
+export function GuidanceBadge({ economy }) {
+  const cur = economy.guidance && economy.guidance.left > 0 ? economy.guidance : null;
+  if (!cur) return null;
+  return (
+    <button type="button" className="ems-btn" data-testid="guidance-badge" data-left={cur.left}
+      onClick={() => { Audio.play('tick'); const el = document.getElementById('ems-guidance'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }}
+      style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '7px 10px', marginBottom: 10, fontSize: 12.5, textAlign: 'left', borderColor: COLOR.gold, color: COLOR.goldSoft }}>
+      <span>Обещание рынку: {GUIDANCE_LABEL[cur.dir]} ставку</span>
+      <b style={{ whiteSpace: 'nowrap' }}>ещё {cur.left} {quartersWord(cur.left)}</b>
+    </button>
   );
 }
 
@@ -4293,7 +4354,7 @@ export function GuidancePicker({ economy, value, onChange, keyRate }) {
   // что сейчас будет нарушением: подсветка прямо под ставкой, пока ползунок ещё можно вернуть
   const breach = cur ? guidanceBreach(cur.dir, keyRate - economy.keyRate) : 0;
   return (
-    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLOR.hairline}` }}>
+    <div id="ems-guidance" style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLOR.hairline}`, scrollMarginTop: 80 }}>
       <div className="row-between" style={{ alignItems: 'baseline' }}>
         <span style={{ fontSize: 13 }}>Путь ставки — обещание рынку</span>
         {cur && <span className="fs-12 t-muted">действует: {GUIDANCE_LABEL[cur.dir]}, ещё {cur.left} кв.</span>}
@@ -4711,11 +4772,11 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
       }
       const dir = presidentPlan.directive;
       if (dir && dir.toPlayer) {
-        directiveMet = directiveProgress(dir.reqId, decisionsBaseline, decisions, economy);
+        directiveMet = directiveProgress(dir.reqId, decisionsBaseline, decisions, economy, dir.strength);
         // требование стоит президенту капитала — иначе давить можно бесконечно
         eff = { ...eff, presidentDirectiveMet: directiveMet, presidentExtraSpend: PRES_DIRECTIVE_COST };
       } else if (dir) {
-        presDirResult = processPresidentialDirective(dir.reqId, economy, cbPersonaId, mofPersonaId, eff);
+        presDirResult = processPresidentialDirective(dir.reqId, economy, cbPersonaId, mofPersonaId, eff, dir.strength);
         if (presDirResult) {
           eff = { ...presDirResult.decisions, presidentActive: true,
             presidentActions: presidentPlan.actions, presidentPatience: presPersona.patience,
@@ -5503,6 +5564,7 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
 
             {levTab === 'monetary-core' && (
               <div>
+                {!economy.currencyUnion && <GuidanceBadge economy={economy} />}
                 {advanced ? <RateCompass economy={economy} keyRate={economy.currencyUnion ? currencyUnionRate(economy) : decisions.keyRate} />
                   : <div className="t-muted" data-testid="advanced-later" style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}>Компас ставки, правило Тейлора и риски откроются с {ADVANCED_QUARTER}-го квартала — или сразу, когда на Пути будет уровень «Средний».</div>}
                 {levers.filter((l) => l.group === 'monetary' && l.subgroup === 'core').map((l) => (

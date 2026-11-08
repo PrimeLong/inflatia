@@ -175,7 +175,7 @@ async function passCards(page) {
   }
 }
 
-// приветствие на ПК: две колонки (docs/mechanics.md, «Приветствие и загрузка»); остальные снимки — телефонные
+// приветствие на ПК: одна колонка посередине (docs/mechanics.md, «Приветствие и загрузка»); остальные снимки — телефонные
 test('экраны: приветствие на ПК (desktop)', async ({ page, isMobile }) => {
   test.skip(isMobile, 'снимок ПК');
   await page.setViewportSize({ width: 1440, height: 900 });

@@ -300,6 +300,28 @@ export const GRAPH_BY_UNIT = Object.fromEntries(GRAPHS.map((g) => [g.unitId, g])
 // по какому графику урок предлагает «Разобрать график по шагам»
 export const GRAPH_BY_CHART = Object.fromEntries(GRAPHS.map((g) => [g.chart, g]));
 export const isGraphDone = (learn, id) => !!((learn && learn.graphs) || {})[id];
+/* Алмазный уровень «Разбора графика» (docs/mechanics.md, «Особые уроки юнита»): в тексте шага пропущено первое
+   выделенное слово или число — выбрать из трёх. Подсказки — выделенное в других шагах того же графика, сначала того же
+   рода (к числу — числа, к слову — слова), ближайшие по порядку. Шаг без выделенного — без вопроса (null).
+   Ответ шага: { term, before, after, options } — текст до и после пропуска. */
+const termOf = (text) => (/\*\*([^*]+)\*\*/.exec(text) || [])[1] || null;
+const numeric = (t) => /\d/.test(t);
+export function graphCloze(g) {
+  const terms = g.steps.map((s) => termOf(s.text));
+  return g.steps.map((s, k) => {
+    const term = terms[k];
+    if (!term) return null;
+    const seen = new Set([term.toLowerCase()]);
+    const pool = terms.map((t, j) => ({ t, j })).filter(({ t, j }) => t && j !== k)
+      .sort((a, b) => (numeric(a.t) === numeric(term) ? 0 : 1) - (numeric(b.t) === numeric(term) ? 0 : 1) || Math.abs(a.j - k) - Math.abs(b.j - k) || a.j - b.j)
+      .filter(({ t }) => { const key = t.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; })
+      .slice(0, 2).map(({ t }) => t);
+    if (!pool.length) return null;
+    const all = [term, ...pool]; const r = k % all.length;
+    const at = s.text.indexOf(`**${term}**`);
+    return { term, before: s.text.slice(0, at), after: s.text.slice(at + term.length + 4), options: [...all.slice(r), ...all.slice(0, r)] };
+  });
+}
 // карточка урока зовёт разбор своего графика событием — разбор открывается поверх урока (src/learn.jsx)
 export const GRAPH_EVENT = 'ems-graph';
 export const openGraph = (id) => { try { window.dispatchEvent(new CustomEvent(GRAPH_EVENT, { detail: { id } })); } catch { /* нет окна */ } };

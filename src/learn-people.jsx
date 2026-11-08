@@ -3,15 +3,17 @@
    медальон с инициалами), имя крупно, кто он, годы жизни на ленте веков с отметкой главного года,
    рассказ, главная идея, «Знаете ли вы» и вопрос. В конце — стена галереи: три портрета
    повисают в рамах, опыт — один раз. Отдельный ленивый чанк. */
-import React, { useEffect, useRef, useState } from 'react';
-import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
-import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf } from './learn/people.js';
+import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf, quizIdea } from './learn/people.js';
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
-import { finishLesson, markMet } from './textbook/learn-state.js';
+import { finishLesson, markMet, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
+import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 export const PEOPLE_CSS = `
   .pp-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -76,6 +78,9 @@ export const PEOPLE_CSS = `
   .pp-ask { margin-top: 22px; }
   .pp-ask-q { font: 700 18px/1.35 var(--ds-head); margin-bottom: 10px; }
   .pp-opts { display: grid; gap: 8px; }
+  .pp-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; }
+  .pp-who-item { margin: 0 0 22px; }
+  .pp-who-idea { margin: 0 0 10px; padding: 12px 14px; border-radius: 14px; background: var(--ds-card); border: 1px solid var(--ds-rule2); font: 600 16.5px/1.45 var(--ds-sans); }
   .pp-opt { text-align: left; font: 500 15.5px/1.35 var(--ds-sans); padding: 13px 15px; border-radius: 14px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink); cursor: pointer; transition: border-color .15s, background .15s, transform .1s; }
   .pp-opt:hover:not(:disabled) { border-color: color-mix(in srgb, var(--pp) 60%, var(--ds-rule2)); }
   .pp-opt.ok { border-color: var(--ds-ok); background: var(--ds-ok-bg); }
@@ -110,7 +115,6 @@ export const PEOPLE_CSS = `
   .pp-hang .pp-frame > .pp-pic { border-radius: 51px 51px 8px 8px; }
   .pp-hang figcaption { margin-top: 8px; text-align: center; font: 700 13px var(--ds-head); max-width: 120px; }
   .pp-done { text-align: center; }
-  .pp-done h2 { font: 700 26px var(--ds-head); margin: 10px 0 4px; }
   @media (max-width: 560px) {
     .pp-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 14px; }
     .pp-role { justify-content: center; }
@@ -190,13 +194,48 @@ function Era({ p }) {
   );
 }
 
-export default function PeopleView({ id, learn, update, onClose }) {
+/* Алмазный уровень: «Чья это идея?» — идея без имени, выбрать автора; ответ один раз, ошибка видна сразу */
+function WhoIdea({ items, picks, onPick }) {
+  return (
+    <div className="pp-page" data-testid="people-who">
+      <div className="pp-ask-q" style={{ fontSize: 22 }}>Чья это идея?</div>
+      <div className="ds-sub" style={{ fontSize: 15, margin: '0 0 16px' }}>Алмазный уровень: у каждой идеи выберите автора. Алмаз — без единой ошибки.</div>
+      {items.map((it) => {
+        const mine = picks[it.k];
+        return (
+          <div key={it.k} className="pp-who-item" data-testid="people-who-item" data-answered={mine != null ? 'true' : 'false'}>
+            <div className="pp-who-idea"><Lightbulb size={18} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 6, color: 'var(--ds-gold)' }} />{it.idea}</div>
+            <div className="pp-opts" role="group" aria-label="Кто автор">
+              {it.options.map((o) => {
+                const st = mine == null ? '' : o === it.answer ? 'ok' : o === mine ? 'bad' : '';
+                return <button key={o} type="button" className={`pp-opt ${st}`} disabled={mine != null} data-testid="people-who-opt" data-ok={o === it.answer ? 'true' : undefined} onClick={() => onPick(it.k, o)}>{o}</button>;
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function PeopleView({ id, learn, update, onClose, gem = false }) {
   const g = PEOPLE_BY_ID[id];
   const reduced = useReducedMotion();
   const [k, setK] = useState(0);
   const [picked, setPicked] = useState({});
   const [order] = useState(() => g.people.map((p) => p.ask.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5)));
   const [finished, setFinished] = useState(false);
+  const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
+  // алмазный уровень: после людей — «Чья это идея?»; алмаз — без единой ошибки
+  const who = useMemo(() => (gem && g ? quizIdea(g) : []), [gem, g]);
+  const [whoStage, setWhoStage] = useState(false);
+  const [whoPicks, setWhoPicks] = useState({});
+  const whoDone = who.length > 0 && who.every((it) => whoPicks[it.k] != null);
+  const pickWho = (k, name) => {
+    if (whoPicks[k] != null) return;
+    Audio.play(name === who[k].answer ? 'coin' : 'down');
+    setWhoPicks((m) => ({ ...m, [k]: name }));
+  };
   const started = useRef(Date.now());
   const firstOk = useRef({});
   const root = useRef(null);
@@ -204,7 +243,7 @@ export default function PeopleView({ id, learn, update, onClose }) {
   const [already] = useState(() => isMet(learn, id));
   // все три портрета — сразу при входе, а не по одному при переходе к человеку
   useEffect(() => { preloadPhotos(g.people); }, [g]);
-  useEffect(() => { if (root.current) root.current.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }, [k, finished, reduced]);
+  useEffect(() => { if (root.current) root.current.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }, [k, finished, whoStage, reduced]);
   const p = g.people[k];
   const choice = picked[k];
   const answered = choice != null && order[k][choice].ok;
@@ -227,8 +266,27 @@ export default function PeopleView({ id, learn, update, onClose }) {
   const next = () => {
     Audio.play('paper');
     if (k < g.people.length - 1) { setK(k + 1); return; }
+    if (gem && !whoStage) { setWhoStage(true); return; }
     const acc = (Object.values(firstOk.current).filter(Boolean).length / g.people.length) * 100;
-    if (!already) update((s) => markMet(finishLesson(s, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id));
+    const right = Object.values(firstOk.current).filter(Boolean).length;
+    if (gem) {
+      // алмаз — без единой ошибки и в вопросах о людях, и в «Чья это идея?»; опыт и монеты — за первый взятый
+      const whoRight = who.filter((it) => whoPicks[it.k] === it.answer).length;
+      const all = g.people.length + who.length; const ok = right + whoRight;
+      const won = ok === all; const had = hasGem(learn, id);
+      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: MET_XP, accuracy: 100, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: false } }), id) : t; };
+      const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy: (ok / all) * 100 });
+      Audio.play(won ? 'stamp' : 'register');
+      setResult({ xp: won && !had ? MET_XP : 0, right: ok, total: all, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+      setFinished(true);
+      return;
+    }
+    // верные ответы — в задание дня «N верных ответов», и при повторе (docs/mechanics.md);
+    // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle); итоги — как после урока
+    const apply = (s) => { const t = countAnswers(s, right, g.people.length); return already ? t : markMet(finishLesson(t, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id); };
+    const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy: acc });
+    Audio.play('register');
+    setResult({ xp: already ? 0 : MET_XP, right, total: g.people.length, ms: Date.now() - started.current, replay: already, ...pay });
     setFinished(true);
   };
   // назад — к прошлому человеку: его ответ и разбор на месте
@@ -241,18 +299,19 @@ export default function PeopleView({ id, learn, update, onClose }) {
       <div className="pp-top">
         <IconButton label="Закрыть" icon={X} data-testid="people-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="pp-title"><small>Персоналии</small>{g.title}</div>
+        {gem && <span className="pp-gem-tag" data-testid="people-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
         <div className="pp-pips" aria-hidden="true">
           {g.people.map((x, i) => <i key={x.id} className={finished || i < k ? 'ok' : i === k ? 'on' : ''}>{finished || i < k ? <Check size={13} strokeWidth={3} /> : i + 1}</i>)}
         </div>
         {/* «Сообщить об ошибке» — как в любом уроке: человек, вопрос и выбранный ответ уходят в жалобу */}
         <ReportFlag context={() => ({
           screen: 'people', lesson: id, unit: g.unitId, kind: 'people',
-          step: finished ? 'итог' : `${p.name}, ${k + 1} из ${g.people.length}`,
-          prompt: finished ? g.title : `${p.ask.prompt} — ${p.ask.options.map((o) => o.text).join(' / ')}`.slice(0, 1500),
-          answer: !finished && choice != null ? order[k][choice].text : '',
+          step: finished ? 'итог' : whoStage ? 'алмаз: «Чья это идея?»' : `${p.name}, ${k + 1} из ${g.people.length}${gem ? ' (алмаз)' : ''}`,
+          prompt: finished ? g.title : whoStage ? `Чья это идея? ${who.map((it) => it.idea).join(' / ')}`.slice(0, 1500) : `${p.ask.prompt} — ${p.ask.options.map((o) => o.text).join(' / ')}`.slice(0, 1500),
+          answer: finished ? '' : whoStage ? who.map((it) => whoPicks[it.k] || '—').join(' / ') : choice != null ? order[k][choice].text : '',
         })} />
       </div>
-      {!finished ? (
+      {!finished && whoStage ? <WhoIdea items={who} picks={whoPicks} onPick={pickWho} /> : !finished ? (
         <div className="pp-page pp-two" key={p.id} data-testid="people-page" data-person={p.id}>
           <div className="pp-col-l">
           <div className="pp-hero">
@@ -291,9 +350,8 @@ export default function PeopleView({ id, learn, update, onClose }) {
         </div>
       ) : (
         <div className="pp-page pp-done" data-testid="people-done">
-          <div className="ds-eyebrow">Новые знакомства</div>
-          <h2>{g.title}</h2>
-          <div className="ds-sub" style={{ fontSize: 15 }}>{already ? 'Вы уже знакомы — портреты висят в галерее профиля.' : `+${MET_XP} опыта · портреты — в галерее профиля`}</div>
+          {result && <ExtraResult kind="people" unitId={g.unitId} title={g.title} r={result} />}
+          <div className="ds-eyebrow" style={{ marginTop: 22 }}>{already ? 'Портреты — в галерее профиля' : 'Новые знакомства — в галерее профиля'}</div>
           <div className="pp-wall" data-testid="people-wall">
             {g.people.map((x, i) => (
               <figure key={x.id} className="pp-hang" style={{ '--i': i, margin: 0 }}>
@@ -308,10 +366,11 @@ export default function PeopleView({ id, learn, update, onClose }) {
       <div className="pp-foot">
         <div>
           {finished
-            ? <Button wide data-testid="people-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            ? <Button wide data-testid="people-finish" onClick={() => { Audio.play('click'); onClose(); }}>Дальше</Button>
+            : whoStage ? <Button wide icon={Check} disabled={!whoDone} data-testid="people-next" onClick={next}>{whoDone ? 'Готово' : 'Выберите автора у каждой идеи'}</Button>
             : <>
               <Button variant="ghost" icon={ArrowLeft} disabled={k === 0} data-testid="people-back" onClick={back}>Назад</Button>
-              <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : 'В галерею'}</Button>
+              <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : gem ? 'Чья это идея?' : 'В галерею'}</Button>
             </>}
         </div>
       </div>

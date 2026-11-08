@@ -66,6 +66,20 @@ describe('уведомления: Путь, сад, копилка', () => {
     const picked = { ...s, harvest: { [planted]: at(TODAY, 9) } };
     expect(notificationsOf(picked, at(TODAY, 10)).some((n) => n.id === `ripe:${planted}`)).toBe(false);
   });
+  it('собрали часть урожая — «Созрело» не всплывает снова; созрела новая грядка — всплывает (пункт владельца 08.11, вечер)', () => {
+    const a = at(TODAY, 6); const b = at(TODAY, 6) + 60000; const c = at(TODAY, 8);
+    const s = learner({ garden: { [a]: 'chamomile@0', [b]: 'chamomile@1', [c]: 'chamomile@2' } });
+    const ripeOf = (x, now) => notificationsOf(x, now).find((n) => n.kind === 'garden' && n.id.startsWith('ripe:'));
+    // созрели первые две — одно уведомление, его показали
+    const first = ripeOf(s, at(TODAY, 9));
+    expect(first.id).toBe(`ripe:${a}+${b}`);
+    const shown = { ...s, shown: { [`t:${first.id}`]: at(TODAY, 9) } };
+    // собрали одну — осталась одна созревшая, но уведомление прежнее, уже показанное
+    const picked = { ...shown, harvest: { [a]: at(TODAY, 9) + 1000 } };
+    expect(ripeOf(picked, at(TODAY, 9) + 2000).id).toBe(first.id);
+    // созрела третья грядка — уведомление новое
+    expect(ripeOf(picked, at(TODAY, 11)).id).toBe(`ripe:${b}+${c}`);
+  });
   it('сад — одно уведомление на все грядки: «Грядкам нужна вода» со списком; полили часть — остались остальные', () => {
     const t0 = at(addDays(TODAY, -1), 8);
     let s = learner({ garden: { [t0]: 'peony@0', [t0 + 1]: 'lavender@1', [t0 + 2]: 'orchid@2', [t0 + 3]: 'peony@3' } });

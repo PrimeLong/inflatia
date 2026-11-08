@@ -53,7 +53,7 @@ export const emptyLearn = () => ({
   coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
   policyAt: 0, policyOff: 0, policyLapse: 0, premiums: {}, monthPlan: {},
   seen: {}, best: {}, boost: 0, piggy: {}, piggyOut: {}, piggyTop: {}, piggyAdd: {}, garden: {}, harvest: {}, water: {},
-  shown: {}, read: {}, readGem: {}, met: {}, fixed: {}, books: {}, graphs: {}, draws: {}, fines: {},
+  shown: {}, read: {}, readGem: {}, gems: {}, met: {}, fixed: {}, books: {}, graphs: {}, draws: {}, fines: {},
 });
 /* Показанное ученику — общее для всех его устройств (жалоба: «прошёл юнит на ПК — марка и уведомления
    повторяются на телефоне»): ключ → когда впервые показали. Префиксы: c: — церемония (марка, печать),
@@ -76,6 +76,14 @@ export function markReadGem(s, id, now = Date.now()) {
   if (!okKey(id) || (s.readGem || {})[id]) return s;
   return upd(s, { read: (s.read || {})[id] ? s.read : { ...s.read, [id]: now }, readGem: { ...s.readGem, [id]: now } });
 }
+/* алмаз «Персоналий», «Разбора графика» и «Нарисуй сам» (gems: id урока → когда впервые; docs/mechanics.md,
+   «Особые уроки юнита»): один раз, общий для всех устройств, при слиянии — более раннее время */
+export function markGem(s, id, now = Date.now()) {
+  if (!okKey(id) || (s.gems || {})[id]) return s;
+  return upd(s, { gems: { ...s.gems, [id]: now } });
+}
+// алмаз особого урока взят: у «Чтения» — своя отметка readGem, у остальных — gems
+export const hasGem = (s, id) => !!((s && s.gems) || {})[id] || !!((s && s.readGem) || {})[id];
 /* «Персоналии» юнита пройдены (met: id подборки → когда) и «Работа над ошибками» юнита пройдена
    (fixed: юнит → когда): обе — один раз, общие для всех устройств, при слиянии — более раннее время. */
 export function markMet(s, id, now = Date.now()) {
@@ -226,6 +234,14 @@ export function mergeRun(a, b, later) {
   const za = a.z || 0; const zb = b.z || 0;
   if (za !== zb) return za > zb ? a : b;
   return later(a, b);
+}
+/* ответы особых уроков («Чтение», «Персоналии», «Разбор графика», «Нарисуй сам») — в счёт ответов дня и задание
+   «N верных ответов» (docs/mechanics.md); серию верных подряд они не трогают */
+export function countAnswers(s, right, total, now = Date.now()) {
+  const n = Math.max(0, Math.round(total || 0)); const ok = Math.max(0, Math.min(n, Math.round(right || 0)));
+  if (!n) return s;
+  const day = dayOf(now); const d = dayEntry(s, day);
+  return upd(s, { daily: { ...s.daily, [day]: { ...d, a: d.a + n, c: d.c + ok } } });
 }
 /* серия, с которой начинается урок: бессрочная run; у прогресса без run (до бессрочной серии) — сегодняшняя rc */
 export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n : dayEntry(s, dayOf(now)).rc);
@@ -673,7 +689,7 @@ function normalizeProgram(r) {
     seen: countMap(r.seen, MAX_SEEN, 9999), best: countMap(r.best, MAX_BEST, 1e6), boost: cnt(r.boost, 1e14),
     piggy: piggyMap(r.piggy), piggyOut: piggyMap(r.piggyOut), piggyTop: piggyTopMap(r.piggyTop), piggyAdd: piggyAddMap(r.piggyAdd), garden: gardenMap(r.garden), harvest: harvestMap(r.harvest), water: waterMap(r.water),
     // показанное: самые свежие SHOWN_MAX по времени
-    read: tsMap(r.read, 200), readGem: tsMap(r.readGem, 200), met: tsMap(r.met, 200), fixed: tsMap(r.fixed, 200), books: tsMap(r.books, 100), graphs: tsMap(r.graphs, 100), draws: tsMap(r.draws, 100),
+    read: tsMap(r.read, 200), readGem: tsMap(r.readGem, 200), gems: tsMap(r.gems, 300), met: tsMap(r.met, 200), fixed: tsMap(r.fixed, 200), books: tsMap(r.books, 100), graphs: tsMap(r.graphs, 100), draws: tsMap(r.draws, 100),
     shown: Object.fromEntries(Object.entries(tsMap(r.shown, 5000)).sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)).slice(-SHOWN_MAX)),
   };
 }
@@ -706,7 +722,7 @@ function mergeProgram(x, y) {
     harvest: minTs(x.harvest, y.harvest),
     water: Object.fromEntries([...new Set([...Object.keys(x.water), ...Object.keys(y.water)])].map((k) => [k, [x.water[k], y.water[k]].filter(Boolean).sort()[0]])),
     shown: minTs(x.shown, y.shown),
-    read: minTs(x.read, y.read), readGem: minTs(x.readGem, y.readGem), met: minTs(x.met, y.met), fixed: minTs(x.fixed, y.fixed), books: minTs(x.books, y.books), graphs: minTs(x.graphs, y.graphs), draws: minTs(x.draws, y.draws),
+    read: minTs(x.read, y.read), readGem: minTs(x.readGem, y.readGem), gems: minTs(x.gems, y.gems), met: minTs(x.met, y.met), fixed: minTs(x.fixed, y.fixed), books: minTs(x.books, y.books), graphs: minTs(x.graphs, y.graphs), draws: minTs(x.draws, y.draws),
   };
 }
 /* Слияние двух устройств: счётчики — по максимуму (одно и то же занятие не удваивается),

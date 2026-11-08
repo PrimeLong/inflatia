@@ -3,16 +3,19 @@
    графика», GraphStage), поверх — прозрачный слой, на котором ученик ставит точки (они прилипают к сетке,
    рядом — их координаты и пунктир к осям) или тянет кривую. «Проверить»: верно — нужная линия или точка
    появляется на графике по-настоящему и под ним — что это значит; ошибка — что не так и подсказка, можно
-   ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — «+15 опыта» (один раз). */
+   ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — итоги, как после урока
+   (ExtraResult из src/learn-extra-result.jsx): 15 опыта и монеты — один раз, под итогами — построенный график. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowRight, Check, PenLine, RotateCcw, Lightbulb } from 'lucide-react';
+import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour } from './learn/draws.js';
-import { finishLesson, markDraw } from './textbook/learn-state.js';
+import { finishLesson, markDraw, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
+import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 const CSS = `
   .dl-task { padding: 14px 16px; margin-bottom: 12px; border-radius: 18px; background: var(--ds-card); border: 1px solid var(--ds-rule2);
@@ -26,6 +29,12 @@ const CSS = `
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
   .dl-coord { font: 700 11.5px var(--ds-sans); }
+  .dl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
+  .dl-table { margin: 10px 0 2px; border-collapse: collapse; font: 400 15px var(--ds-sans); font-variant-numeric: tabular-nums; }
+  .dl-table th { padding: 4px 16px 4px 0; text-align: left; font: 600 12.5px var(--ds-sans); color: var(--ds-ink3); border-bottom: 1px solid var(--ds-rule2); }
+  .dl-table td { padding: 4px 16px 4px 0; color: var(--ds-ink); border-bottom: 1px solid var(--ds-rule); }
+  .dl-table td:first-child { color: var(--ds-ink3); }
+  .dl-mini-rows { font-weight: 700; white-space: nowrap; }
   .dl-shift { display: flex; align-items: center; gap: 10px; padding: 8px 12px 6px; font: 600 14px var(--ds-sans); color: var(--ds-ink2); }
   .dl-shift input { flex: 1; accent-color: var(--g-blue); }
   .dl-shift output { min-width: 7.5em; text-align: right; font-weight: 800; color: var(--ds-ink); font-variant-numeric: tabular-nums; }
@@ -38,19 +47,43 @@ const CSS = `
   .dl-fb .dl-hint { display: flex; gap: 8px; margin-top: 6px; color: var(--ds-ink2); }
   .dl-fb .dl-hint svg { flex: none; margin-top: 3px; color: var(--g-gold); }
   .dl-pin { transition: transform .12s; }
+  /* «На весь экран»: график — во весь экран, сверху условие, снизу кнопки (на телефоне сетка была мелкой) */
+  .dl-box { position: relative; }
+  .dl-box .gl-stage { position: relative; }
+  /* над графиком, а не поверх него: поверх угла кнопка перехватывала касания точек */
+  .dl-tools { display: flex; justify-content: flex-end; margin: 0 0 4px; }
+  .dl-full-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 999px; white-space: nowrap; width: auto; line-height: 1;
+    border: 1px solid var(--ds-rule2); background: color-mix(in srgb, var(--ds-card) 92%, transparent); color: var(--ds-ink2); font: 600 12.5px var(--ds-sans); cursor: pointer; }
+  .dl-full-btn:hover { color: var(--ds-ink); border-color: var(--g-blue); }
+  .dl-full-btn svg { width: 14px !important; height: 14px; flex: none; }
+  .dl-box.full { position: fixed; inset: 0; z-index: 60; background: var(--ds-paper); display: flex; flex-direction: column; gap: 6px;
+    padding: calc(8px + env(safe-area-inset-top)) 10px calc(8px + env(safe-area-inset-bottom)); }
+  .dl-box.full .dl-mini { font: 400 14.5px/1.35 var(--ds-sans); max-height: 4.2em; overflow: auto; padding: 0 2px; }
+  .dl-box.full .dl-mini b { font-weight: 800; }
+  /* график — во всё свободное место: оба слоя (график и поле точек) с одним viewBox вписываются одинаково */
+  .dl-box.full .gl-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0; padding: 4px; }
+  .dl-box.full .dl-wrap { flex: 1; min-height: 0; width: 100%; max-width: none; }
+  .dl-box.full .dl-wrap > svg { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; }
+  @media (max-height: 520px) { .dl-box.full .dl-mini { max-height: 2.8em; font-size: 13.5px; } }
+  .dl-box.full .dl-tools { display: none; }
+  .dl-box.full .dl-mini-fb { font: 600 14px/1.35 var(--ds-sans); padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ds-ok) 10%, var(--ds-card)); }
+  .dl-box.full .dl-mini-fb.bad { background: color-mix(in srgb, var(--ds-warn, #D9822B) 12%, var(--ds-card)); }
+  .dl-full-row { display: flex; gap: 8px; }
+  .dl-full-row > :last-child { flex: 1; }
   @media (prefers-reduced-motion: reduce) { .dl-task, .dl-fb { animation: none; } }
 `;
 
 const rich = (t) => String(t).split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : <React.Fragment key={i}>{p}</React.Fragment>));
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const HOW = {
-  line: 'Нажмите на график в двух местах — точки прилипают к сетке; точку можно перетащить.',
-  point: 'Нажмите на график — точку можно перетащить.',
+  line: 'Нажмите на график в двух местах — точки прилипают к сетке; точку можно перетащить, а касанием — убрать.',
+  points: 'Каждая строка таблицы — точка на графике; точки прилипают к сетке, их можно перетащить, а касанием — убрать.',
+  point: 'Нажмите на график — точку можно перетащить, а касанием — убрать.',
   shift: 'Потяните график пальцем или мышью вбок — или двигайте ползунок под ним.',
   area: 'Нажмите внутрь нужной области.',
 };
 
-export default function DrawLesson({ id, learn, update, onClose }) {
+export default function DrawLesson({ id, learn, update, onClose, gem = false }) {
   const d = DRAW_BY_ID[id];
   const tour = useMemo(() => (d ? drawTour(d) : null), [d]);
   const [i, setI] = useState(0);
@@ -60,6 +93,7 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   const [hover, setHover] = useState(null);
   const [tries, setTries] = useState(0);
   const [res, setRes] = useState(null); // { ok, why } | { shown: true }
+  const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   const firstTry = useRef(0);
   const started = useRef(Date.now());
   const root = useRef(null);
@@ -67,6 +101,27 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   const drag = useRef(null);
   const fb = useRef(null);
   const [already] = useState(() => isDrawDone(learn, id));
+  /* «На весь экран»: свой слой поверх урока; где можно — ещё и полноэкранный режим браузера с поворотом в альбомный */
+  const [full, setFull] = useState(false);
+  const goFull = () => {
+    Audio.play('click'); setFull(true);
+    try {
+      const el = root.current;
+      if (el && el.requestFullscreen && !document.fullscreenElement) {
+        el.requestFullscreen().then(() => { try { if (window.screen.orientation && window.screen.orientation.lock) window.screen.orientation.lock('landscape').catch(() => {}); } catch { /* не телефон */ } }).catch(() => {});
+      }
+    } catch { /* браузер не умеет — хватит слоя */ }
+  };
+  const leaveFull = () => {
+    Audio.play('click'); setFull(false);
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); if (window.screen.orientation && window.screen.orientation.unlock) window.screen.orientation.unlock(); } catch { /* ничего */ }
+  };
+  // вышли из полноэкранного режима жестом «назад» — слой тоже сворачивается
+  useEffect(() => {
+    const on = () => { if (!document.fullscreenElement) setFull(false); };
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [i, phase]);
   // ответ проверен — разбор под графиком в поле зрения (на телефоне он уходил под нижнюю панель)
   useEffect(() => { if (res && fb.current && fb.current.scrollIntoView) fb.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [res]);
@@ -81,9 +136,12 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   const sy = (y) => H - M.b - ((y - y0) / (y1 - y0)) * (H - M.t - M.b);
   const ctl = t.do === 'shift' ? CHARTS[d.chart].controls(d.attrs).find((c) => c.id === t.control) : null;
   const clampV = (x) => (ctl ? Math.max(ctl.min, Math.min(ctl.max, Math.round(x / d.snap[0]) * d.snap[0])) : x);
+  // сколько точек ставит ученик: линия — две, таблица — по строке, точка и площадь — одну
+  const maxPts = t.do === 'line' ? 2 : t.do === 'points' ? t.at.length : 1;
   // ответ ученика в виде, который понимает checkTask
-  const answer = t.do === 'line' ? (pts.length === 2 ? { a: pts[0], b: pts[1] } : null) : t.do === 'shift' ? { v } : pts.length ? { p: pts[0] } : null;
-  const ready = t.do === 'shift' ? v !== 0 : t.do === 'line' ? pts.length === 2 : pts.length === 1;
+  const answer = t.do === 'line' ? (pts.length === 2 ? { a: pts[0], b: pts[1] } : null) : t.do === 'points' ? (pts.length === maxPts ? { ps: pts } : null)
+    : t.do === 'shift' ? { v } : pts.length ? { p: pts[0] } : null;
+  const ready = t.do === 'shift' ? v !== 0 : pts.length === maxPts;
 
   // экран → данные графика: viewBox слоя совпадает со сценой, getScreenCTM учитывает масштаб
   const toData = (e) => {
@@ -103,10 +161,13 @@ export default function DrawLesson({ id, learn, update, onClose }) {
     touch();
     if (t.do === 'shift') { drag.current = { x: raw.x, v }; return; }
     const p = place(raw);
-    if (t.do === 'line') {
-      // рядом с поставленной точкой — тащим её; две уже есть — переставляем ближнюю
-      const near = pts.map((q, k) => ({ k, dd: Math.hypot(sx(q.x) - sx(raw.x), sy(q.y) - sy(raw.y)) })).sort((a, b) => a.dd - b.dd)[0];
-      const k = near && (near.dd < 16 || pts.length >= 2) ? near.k : pts.length;
+    // касание прямо в поставленную точку: отпустили, не сдвинув, — точка убирается; потянули — едет за пальцем
+    const near = pts.map((q, k) => ({ k, dd: Math.hypot(sx(q.x) - sx(raw.x), sy(q.y) - sy(raw.y)) })).sort((a, b) => a.dd - b.dd)[0];
+    const onPin = t.do !== 'area' && near && near.dd < 16;
+    if (onPin) { drag.current = { k: near.k, x: e.clientX, y: e.clientY, tap: true }; return; }
+    if (t.do === 'line' || t.do === 'points') {
+      // все уже стоят — переставляем ближнюю
+      const k = near && pts.length >= maxPts ? near.k : pts.length;
       const next = [...pts]; next[k] = p; setPts(next); drag.current = { k };
     } else { setPts([p]); drag.current = { k: 0 }; }
     Audio.play('tick');
@@ -115,10 +176,15 @@ export default function DrawLesson({ id, learn, update, onClose }) {
     const raw = toData(e); if (!raw) return;
     if (!drag.current) { if (e.pointerType === 'mouse' && !resolved && t.do !== 'shift') setHover(place(raw)); return; }
     if (t.do === 'shift') { setV(clampV(drag.current.v + (raw.x - drag.current.x))); return; }
+    // от касания точки — в перетаскивание, только когда палец сдвинулся заметно
+    if (drag.current.tap) { if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) < 6) return; drag.current = { k: drag.current.k }; }
     const p = place(raw); const k = drag.current.k;
     setPts((prev) => { const next = [...prev]; next[k] = p; return next; });
   };
-  const up = () => { drag.current = null; };
+  const up = () => {
+    const dr = drag.current; drag.current = null;
+    if (dr && dr.tap) { Audio.play('tick'); setPts((prev) => prev.filter((_, j) => j !== dr.k)); }
+  };
 
   const check = () => {
     if (!ready || resolved) return;
@@ -129,14 +195,28 @@ export default function DrawLesson({ id, learn, update, onClose }) {
       Audio.play('coin'); setRes({ ok: true }); return;
     }
     Audio.play('down');
-    if (tries >= 1) { setRes({ shown: true, why: r.why }); setTries(tries + 1); return; }
+    // алмазный уровень — одна попытка: ошибка — сразу «вот как надо» (docs/mechanics.md, «Особые уроки юнита»)
+    if (tries >= 1 || gem) { setRes({ shown: true, why: r.why }); setTries(tries + 1); return; }
     setTries(1); setRes({ ok: false, why: r.why });
   };
   const finish = () => {
     Audio.play('register');
-    if (!already && update) {
-      update((s) => markDraw(finishLesson(s, null, { xp: DRAW_XP, accuracy: Math.round((firstTry.current / n) * 100), seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'draw', extra: { fresh: true } }), id));
+    const right = firstTry.current; const accuracy = Math.round((right / n) * 100);
+    const seconds = Math.min(900, (Date.now() - started.current) / 1000);
+    if (gem && update) {
+      // алмаз — все шаги с первой (и единственной) попытки; опыт и монеты — за первый взятый
+      const won = right === n; const had = hasGem(learn, id);
+      const apply = (s) => { const t = countAnswers(s, right, n); return won && !had ? markGem(finishLesson(t, null, { xp: DRAW_XP, accuracy: 100, seconds, kind: 'draw', extra: { fresh: false } }), id) : t; };
+      const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy });
+      setResult({ xp: won && !had ? DRAW_XP : 0, right, total: n, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+      setPhase('done');
+      return;
     }
+    // шаги, верные с первой попытки, — в задание дня «N верных ответов», и при повторе (docs/mechanics.md);
+    // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle)
+    const apply = (s) => { const t = countAnswers(s, right, n); return already ? t : markDraw(finishLesson(t, null, { xp: DRAW_XP, accuracy, seconds, kind: 'draw', extra: { fresh: true } }), id); };
+    const pay = update ? payExtra(learn, update, apply, { id, fresh: !already, accuracy }) : { coins: 0, gains: [], streakUp: 0 };
+    setResult({ xp: already ? 0 : DRAW_XP, right, total: n, ms: Date.now() - started.current, replay: already, ...pay });
     setPhase('done');
   };
   const next = () => {
@@ -149,8 +229,8 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   // что видно на графике: решено — шаг вперёд (новое появляется), иначе — как было плюс то, что нужно шагу
   const k = phase === 'done' ? n : i + (resolved ? 1 : 0);
   const sol = res && res.shown ? solveTask(d, t) : null;
-  const solveView = sol ? (sol.a ? [sol.a, sol.b] : sol.p ? [sol.p] : []).map((q) => [Math.round(sx(q.x) * 10) / 10, Math.round(sy(q.y) * 10) / 10]) : [];
-  const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : { pts: (s.a ? [s.a, s.b] : [s.p]).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
+  const solveView = sol ? (sol.ps || (sol.a ? [sol.a, sol.b] : sol.p ? [sol.p] : [])).map((q) => [Math.round(sx(q.x) * 10) / 10, Math.round(sy(q.y) * 10) / 10]) : [];
+  const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : { pts: (s.ps || (s.a ? [s.a, s.b] : [s.p])).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
   const mine = res && res.shown ? 'var(--g-rust)' : 'var(--g-blue)';
   const coordLabel = (q) => `${fmt(q.x)}; ${fmt(q.y)}`;
   const pin = (q, key, col, label) => (
@@ -178,9 +258,10 @@ export default function DrawLesson({ id, learn, update, onClose }) {
         <div className="gl-top">
           <IconButton label="Закрыть" icon={X} data-testid="draw-close" onClick={() => { Audio.play('paper'); onClose(); }} />
           <div className="gl-title"><small>Нарисуй сам</small>{d.title}</div>
+          {gem && <span className="dl-gem-tag" data-testid="draw-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
           <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в задании? Шаг, его текст и устройство приложатся сами." context={() => ({
             screen: 'draw', lesson: id, unit: d.unitId, kind: 'draw',
-            step: phase === 'done' ? 'итог' : `шаг ${i + 1} из ${n}`,
+            step: (phase === 'done' ? 'итог' : `шаг ${i + 1} из ${n}`) + (gem ? ' (алмаз)' : ''),
             prompt: (phase === 'done' ? d.title : t.text).replace(/\*\*/g, '').slice(0, 1500),
             answer: answer ? JSON.stringify(answer).slice(0, 300) : '',
           })} />
@@ -193,23 +274,29 @@ export default function DrawLesson({ id, learn, update, onClose }) {
             {i === 0 && <p className="dl-lead">{rich(d.intro)}</p>}
             <span className="gl-step">Шаг {i + 1} из {n}</span>
             <div>{rich(t.text)}</div>
-            {!resolved && <span className="dl-how">{HOW[t.do]}</span>}
+            {t.do === 'points' && (
+              <table className="dl-table" data-testid="draw-table">
+                <thead><tr><th>Вариант</th>{t.cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+                <tbody>{t.at.map((q, j) => <tr key={j}><td>{j + 1}</td><td>{fmt(q.x)}</td><td>{fmt(q.y)}</td></tr>)}</tbody>
+              </table>
+            )}
+            {!resolved && <span className="dl-how">{HOW[t.do]}{gem ? ' Алмаз: одна попытка на шаг.' : ''}</span>}
           </div>
+          <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)}>
+          {full && <div className="dl-mini" data-testid="draw-full-task"><b>Шаг {i + 1} из {n}.</b> {rich(t.text)}
+            {t.do === 'points' && <span className="dl-mini-rows"> {t.cols.join('; ')}: {t.at.map((q) => `${fmt(q.x)}; ${fmt(q.y)}`).join(' · ')}</span>}</div>}
           <div className="gl-stage">
+            <div className="dl-tools"><button type="button" className="dl-full-btn" data-testid="draw-full" onClick={goFull}><Maximize2 size={14} aria-hidden="true" />На весь экран</button></div>
             <div className="dl-wrap">
-              <GraphStage g={tour} k={k} live={t.do === 'shift' && !resolved ? { [t.control]: v } : null}
+              <GraphStage g={tour} k={k} grid={d.grid} live={t.do === 'shift' && !resolved ? { [t.control]: v } : null}
                 alsoShow={!resolved && t.show ? t.show : null} alsoHide={!resolved && t.hide ? t.hide : null} />
               <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}`} viewBox={`0 0 ${W} ${H}`} data-testid="draw-ink"
                 data-answer={testAnswer} data-ready={String(ready)} aria-label="Поле для рисования"
-                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => setHover(null)}>
+                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }} onPointerLeave={() => setHover(null)}>
                 <defs><clipPath id={`dlc${id}`}><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath></defs>
-                {/* мелкая сетка: крупные деления графика редкие (0, 200, 400), а в условии — «100 пекарей» */}
-                <g pointerEvents="none" stroke="var(--g-grid)" strokeOpacity=".7">
-                  {Array.from({ length: Math.floor((x1 - x0) / d.grid[0]) + 1 }, (_, j) => x0 + j * d.grid[0]).map((x) => <line key={`mx${x}`} x1={sx(x)} x2={sx(x)} y1={M.t} y2={H - M.b} />)}
-                  {Array.from({ length: Math.floor((y1 - y0) / d.grid[1]) + 1 }, (_, j) => y0 + j * d.grid[1]).map((y) => <line key={`my${y}`} x1={M.l} x2={W - M.r} y1={sy(y)} y2={sy(y)} />)}
-                </g>
+                {/* сетка — в самом графике (GraphStage, grid): линии через шаг задания, подписи — только на них */}
                 {!res?.ok && through()}
-                {hover && !drag.current && pts.length < (t.do === 'line' ? 2 : 1) && (
+                {hover && !drag.current && pts.length < maxPts && (
                   <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', coordLabel(hover))}</g>
                 )}
                 {!res?.ok && pts.map((q, j) => pin(q, `p${j}`, mine, t.do === 'area' ? null : coordLabel(q)))}
@@ -227,6 +314,19 @@ export default function DrawLesson({ id, learn, update, onClose }) {
               </label>
             )}
           </div>
+          {full && res && (
+            <div className={`dl-mini-fb${res.ok ? '' : ' bad'}`} data-testid="draw-full-feedback">{res.ok ? 'Верно.' : res.shown ? 'Вот как надо — смотрите на графике.' : `${res.why || 'Не совсем.'} Попробуйте ещё раз.`}</div>
+          )}
+          {full && (
+            <div className="dl-full-row">
+              <Button variant="ghost" icon={Minimize2} data-testid="draw-full-exit" onClick={leaveFull}>Свернуть</Button>
+              <Button variant="ghost" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} onClick={reset}>Сбросить</Button>
+              {resolved
+                ? <Button wide icon={i < n - 1 ? ArrowRight : Check} data-testid="draw-full-next" onClick={() => { if (i >= n - 1) leaveFull(); next(); }}>{i < n - 1 ? 'Дальше' : 'Готово'}</Button>
+                : <Button wide icon={Check} disabled={!ready} data-testid="draw-full-check" onClick={check}>Проверить</Button>}
+            </div>
+          )}
+          </div>
           {res && (
             <div ref={fb} className={`dl-fb${res.ok ? '' : res.shown ? ' shown' : ' bad'}`} role="status" data-testid="draw-feedback" data-ok={String(!!res.ok)} data-shown={String(!!res.shown)}>
               {res.ok && <><b>Верно.</b> {rich(t.done)}</>}
@@ -236,19 +336,17 @@ export default function DrawLesson({ id, learn, update, onClose }) {
           )}
         </div>
       )}
-      {phase === 'done' && (
-        <div className="gl-page gl-done" data-testid="draw-done">
-          <div className="gl-stage" style={{ marginBottom: 14 }}><GraphStage g={tour} k={n} /></div>
-          <div className="gl-medal" aria-hidden="true"><PenLine size={54} strokeWidth={1.8} /></div>
-          <div className="ds-eyebrow">Нарисуй сам</div>
-          <h2>{d.title}</h2>
-          <div className="ds-sub" style={{ fontSize: 15 }}>{already ? 'График построен — к нему можно вернуться на дороге юнита.' : `+${DRAW_XP} опыта · с первой попытки — ${firstTry.current} из ${n}`}</div>
+      {phase === 'done' && result && (
+        <div className="gl-page" data-testid="draw-done">
+          <ExtraResult kind="draw" unitId={d.unitId} title={d.title} r={result}>
+            <div className="gl-stage" data-testid="draw-done-graph"><GraphStage g={tour} k={n} grid={d.grid} /></div>
+          </ExtraResult>
         </div>
       )}
       <div className="gl-foot">
         <div>
           {phase === 'done'
-            ? <Button wide data-testid="draw-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            ? <Button wide data-testid="draw-finish" onClick={() => { Audio.play('click'); onClose(); }}>Дальше</Button>
             : <>
               <Button variant="ghost" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} data-testid="draw-reset" onClick={reset}>Сбросить</Button>
               {resolved

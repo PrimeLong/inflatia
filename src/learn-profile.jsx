@@ -108,6 +108,11 @@ export const PROFILE_CSS = `
   .pf-mstamp.big .pf-frame { width: 156px; height: 122px; padding: 0; display: grid; }
   .pf-mstamp[data-state="current"] .pf-frame { background: #FFFBF1; box-shadow: none; outline: 1.5px dashed color-mix(in srgb, var(--u) 75%, #FFFBF1); outline-offset: -3px; }
   .pf-mstamp[data-state="current"] .pf-frame > * { opacity: 1; filter: none; }
+  /* идущий месяц — на бумаге и в тёмной теме: зубчатый край той же бумаги, что у полученных марок (раньше — цвет карточки
+     тёмной темы, чёрная рамка вокруг кремовой марки — пункт владельца 08.11, вечер) */
+  .pf-mstamp[data-state="current"] .pf-perf { background: #FFFBF1; }
+  .ds-dark .pf-mstamp[data-state="current"] .pf-perf { background: #EFE6D2; }
+  .ds-dark .pf-mstamp[data-state="current"] { filter: drop-shadow(0 0 .6px rgba(237, 230, 211, .5)) drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
   /* полученная марка месяца больше не вспыхивает свечением раз в 4 секунды: это мигание принимали за
      сбой («марка странно мигает, будто сайт сам обновляется»). Отклик — только на наведение */
   .pf-item:hover .pf-mstamp[data-state="got"] .pf-perf, .pf-item:focus-visible .pf-mstamp[data-state="got"] .pf-perf { background: color-mix(in srgb, var(--u) 18%, #FFFBF1); }
@@ -158,7 +163,7 @@ function MonthStamp({ it, big = false }) {
           <text x="27" y="11" textAnchor="middle" fontSize="8" fontWeight="700" letterSpacing=".8" fill={ink} fontFamily="var(--ds-head)">{MONTH_ABBR[it.month - 1]}</text>
           <Icon x={17} y={14} width={20} height={20} color={ink} strokeWidth={state === 'got' ? 2.2 : 1.8} />
           {state === 'current' ? (
-            <g><rect x="11" y="40" width="32" height="3.5" rx="1.75" fill="var(--ds-rule)" /><rect x="11" y="40" width={Math.max(2, 32 * share)} height="3.5" rx="1.75" fill={color} /></g>
+            <g><rect x="11" y="40" width="32" height="3.5" rx="1.75" fill="#E2D6BD" /><rect x="11" y="40" width={Math.max(2, 32 * share)} height="3.5" rx="1.75" fill={color} /></g>
           ) : <text x="27" y="45" textAnchor="middle" fontSize="6.5" fontWeight="700" fill={ink} opacity=".9" fontFamily="var(--ds-mono)">{it.year}</text>}
         </svg>
       </span></span>

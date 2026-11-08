@@ -5,16 +5,18 @@
    (один раз). Открывается остановкой на дороге юнита и кнопкой «Разобрать график по шагам» на карточке
    урока с этим графиком — тогда без опыта (peek), поверх урока. При «уменьшить движение» — без анимаций. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion, useMedia } from './ds-art.jsx';
 import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
-import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView } from './learn/graphs.js';
-import { finishLesson, markGraph } from './textbook/learn-state.js';
+import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView, graphCloze } from './learn/graphs.js';
+import { finishLesson, markGraph, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
+import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 import { textBox, dotBox, aroundPoint, placeLabels, freeTicks } from './learn/label-place.js';
 
 export const GRAPH_CSS = `
@@ -72,6 +74,10 @@ export const GRAPH_CSS = `
   /* вопрос и финал */
   .gl-quiz h2 { margin: 18px 0 12px; font: 700 21px/1.3 var(--ds-head); }
   .gl-opts { display: grid; gap: 10px; }
+  .gl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
+  .gl-blank { display: inline-block; min-width: 64px; border-bottom: 2.5px solid var(--g-blue); margin: 0 2px; vertical-align: -2px; color: transparent; }
+  .gl-cloze { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .gl-cloze .gl-opt { padding: 9px 14px; border-radius: 12px; font: 600 15px/1.3 var(--ds-sans); }
   .gl-opt { text-align: left; padding: 14px 16px; border-radius: 16px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink);
     font: 600 16px/1.35 var(--ds-sans); cursor: pointer; transition: transform .15s, border-color .2s; }
   .gl-opt:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--g-blue); }
@@ -98,6 +104,15 @@ function ticks(lo, hi, n = 4) {
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v * 1e6) / 1e6);
   return out;
 }
+/* подписи по шагу сетки «Нарисуй сам»: только на её линиях (шаг × 1, 2, 4, 5, 10…), не больше пяти промежутков —
+   иначе линии сетки (через 20) и подписи (через 50) шли вперемешку («сетка неровная») */
+export function gridTicks(lo, hi, g) {
+  const m = [1, 2, 4, 5, 10, 20, 25, 50, 100].find((k) => (hi - lo) / (g * k) <= 5) || 100;
+  const step = g * m; const out = [];
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v * 1e6) / 1e6 + 0);
+  return out;
+}
+const gridLines = (lo, hi, g) => Array.from({ length: Math.floor((hi - lo) / g + 1e-9) + 1 }, (_, j) => Math.round((Math.ceil(lo / g - 1e-9) * g + j * g) * 1e6) / 1e6).filter((v) => v <= hi + 1e-9);
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -124,7 +139,8 @@ function useTweenValues(target, reduced) {
 /* «Нарисуй сам» (src/learn-draw.jsx) рисует на той же сцене: live — ползунки, которые ученик тянет прямо
    сейчас (без плавного перехода — линия идёт за пальцем), alsoShow и alsoHide — что видно и что спрятано,
    пока шаг решают (бледная прежняя линия; прежнее равновесие, чтобы оно не подсказало ответ) */
-export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null }) {
+/* grid — шаг сетки «Нарисуй сам» [по X, по Y]: линии через этот шаг, подписи — только на них */
+export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null, grid = null }) {
   const reduced = useReducedMotion();
   const def = CHARTS[g.chart];
   const view0 = stepView(g, k);
@@ -157,8 +173,9 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
       : m.t === 'y' ? [textBox(m.label, M.l + 4, sy(m.y) - 5, 12, 'start')]
         : m.t === 'seg' ? [textBox(m.label, (sx(m.x0) + sx(m.x1)) / 2, sy(m.y) - 9, 12.5, 'middle')] : [])),
   ];
-  const xTicks = freeTicks(ticks(x0, x1).map((t) => ({ t, box: textBox(fmt(t), sx(t), H - M.b + 15, 12, 'middle') })), fixedText);
-  const yTicks = freeTicks(ticks(y0, y1).filter((t) => sy(t) - M.t > 10).map((t) => ({ t, box: textBox(fmt(t), M.l - 6, sy(t) + 4, 12, 'end') })), fixedText);
+  const tx = grid ? gridTicks(x0, x1, grid[0]) : ticks(x0, x1); const ty = grid ? gridTicks(y0, y1, grid[1]) : ticks(y0, y1);
+  const xTicks = freeTicks(tx.map((t) => ({ t, box: textBox(fmt(t), sx(t), H - M.b + 15, 12, 'middle') })), fixedText);
+  const yTicks = freeTicks(ty.filter((t) => sy(t) - M.t > 10).map((t) => ({ t, box: textBox(fmt(t), M.l - 6, sy(t) + 4, 12, 'end') })), fixedText);
   const curveLabels = scene.curves.filter((c) => c.label && !c.ghost && view.shown.has(c.id));
   const inField = (q) => q.x >= x0 && q.x <= x1 && q.y >= y0 && q.y <= y1;
   const lines = scene.curves.filter((c) => view.shown.has(c.id)).flatMap((c) => c.points.filter(inField).map((q) => dotBox(sx(q.x), sy(q.y), 2.5)));
@@ -183,8 +200,8 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}>
       <defs><clipPath id={clip}><rect x={M.l} y={M.t - 6} width={W - M.l - M.r + 6} height={H - M.t - M.b + 6} /></clipPath></defs>
-      {ticks(x0, x1).map((t) => <line key={`gx${t}`} x1={sx(t)} x2={sx(t)} y1={M.t} y2={H - M.b} stroke="var(--g-grid)" />)}
-      {ticks(y0, y1).map((t) => <line key={`gy${t}`} x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke="var(--g-grid)" />)}
+      {(grid ? gridLines(x0, x1, grid[0]) : tx).map((t) => <line key={`gx${t}`} x1={sx(t)} x2={sx(t)} y1={M.t} y2={H - M.b} stroke="var(--g-grid)" />)}
+      {(grid ? gridLines(y0, y1, grid[1]) : ty).map((t) => <line key={`gy${t}`} x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke="var(--g-grid)" />)}
       <g className={`g-axes${view.focus.has('axes') ? ' on' : ''}`} data-testid="graph-el" data-el="axes" data-on={String(view.focus.has('axes'))}>
         <line x1={M.l} x2={W - M.r} y1={H - M.b} y2={H - M.b} stroke="var(--ds-ink2)" strokeWidth="1.6" />
         <line x1={M.l} x2={M.l} y1={M.t} y2={H - M.b} stroke="var(--ds-ink2)" strokeWidth="1.6" />
@@ -298,7 +315,7 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
   );
 }
 
-export default function GraphLesson({ id, learn, update, onClose, peek = false }) {
+export default function GraphLesson({ id, learn, update, onClose, peek = false, gem = false }) {
   const g = GRAPH_BY_ID[id];
   const [k, setK] = useState(0);
   const [replay, setReplay] = useState(0);
@@ -309,6 +326,12 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const started = useRef(Date.now());
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
+  const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты (не при подсказке из урока — peek)
+  /* алмазный уровень: в тексте шага пропущено выделенное слово или число — выбрать из трёх; ошибка остаётся видна,
+     можно выбрать снова, но алмаз — без единой ошибки (docs/mechanics.md, «Особые уроки юнита») */
+  const cloze = useMemo(() => (gem && g ? graphCloze(g) : []), [gem, g]);
+  const [cz, setCz] = useState({}); // шаг → выбранные варианты по порядку
+  const czMiss = useRef(new Set());
   // ПК с мышью: поля по бокам разбора — черновик, как в уроке (learn-sketch.jsx)
   const sketch = useMedia(SKETCH_QUERY);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [k, phase]);
@@ -317,6 +340,16 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const n = g.steps.length;
   const view = stepView(g, k);
   const answered = picked != null && order[picked].ok;
+  const cq = gem ? cloze[k] : null;
+  const cPicks = cz[k] || [];
+  const cOk = !cq || cPicks.includes(cq.term);
+  const pickTerm = (o) => {
+    if (cOk) return;
+    const ok = o === cq.term;
+    if (!ok) czMiss.current.add(k);
+    Audio.play(ok ? 'coin' : 'down');
+    setCz((m) => ({ ...m, [k]: [...(m[k] || []), o] }));
+  };
   const pick = (i) => {
     if (answered) return;
     const ok = !!order[i].ok;
@@ -326,7 +359,22 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   };
   const finish = () => {
     Audio.play('register');
-    if (!peek && !already && update) update((s) => markGraph(finishLesson(s, null, { xp: GRAPH_XP, accuracy: firstOk.current ? 100 : 60, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id));
+    // ответ на вопрос разбора — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
+    // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle); итоги — как после урока
+    if (!peek && update && gem) {
+      // алмаз — без единой ошибки в пропусках и в вопросе; опыт и монеты — за первый взятый
+      const qs = cloze.filter(Boolean).length;
+      const ok = qs - czMiss.current.size + (firstOk.current ? 1 : 0); const all = qs + 1;
+      const won = ok === all; const had = hasGem(learn, id);
+      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: false } }), id) : t; };
+      const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy: (ok / all) * 100 });
+      setResult({ xp: won && !had ? GRAPH_XP : 0, right: ok, total: all, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+    } else if (!peek && update) {
+      const right = firstOk.current ? 1 : 0; const accuracy = firstOk.current ? 100 : 60;
+      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? t : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id); };
+      const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy });
+      setResult({ xp: already ? 0 : GRAPH_XP, right, total: 1, accuracy, ms: Date.now() - started.current, replay: already, ...pay });
+    }
     setPhase('done');
   };
   const next = () => {
@@ -342,10 +390,11 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
       <div className="gl-top">
         <IconButton label="Закрыть" icon={X} data-testid="graph-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="gl-title"><small>Разбор графика</small>{g.title}</div>
+        {gem && <span className="gl-gem-tag" data-testid="graph-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
         {/* «Ошибка?» — флажок с подписью (серый значок не замечали): шаг (или вопрос) и его текст уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({
           screen: 'graph', lesson: id, unit: g.unitId, kind: 'graph',
-          step: phase === 'tour' ? `шаг ${k + 1} из ${n}` : phase === 'quiz' ? 'вопрос' : 'итог',
+          step: (phase === 'tour' ? `шаг ${k + 1} из ${n}` : phase === 'quiz' ? 'вопрос' : 'итог') + (gem ? ' (алмаз)' : ''),
           prompt: (phase === 'tour' ? g.steps[k].text : `${g.quiz.q} — ${g.quiz.options.map((o) => o.text).join(' / ')}`).replace(/\*\*/g, '').slice(0, 1500),
           answer: phase === 'quiz' && picked != null ? order[picked].text : '',
         })} />
@@ -360,7 +409,17 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
           </div>
           <div className="gl-text" key={k} data-testid="graph-text" aria-live="polite">
             <span className="gl-step">Шаг {k + 1} из {n}</span>
-            <div>{rich(view.text)}</div>
+            {cq && !cOk
+              ? <div data-testid="graph-cloze-text">{rich(cq.before)}<span className="gl-blank" aria-label="пропуск">___</span>{rich(cq.after)}</div>
+              : <div>{rich(view.text)}</div>}
+            {cq && (
+              <div className="gl-cloze" role="group" aria-label="Что пропущено" data-testid="graph-cloze" data-done={String(cOk)}>
+                {cq.options.map((o) => {
+                  const st = cPicks.includes(o) ? (o === cq.term ? 'ok' : 'bad') : '';
+                  return <button key={o} type="button" className={`gl-opt ${st}`} disabled={cOk || cPicks.includes(o)} data-testid="graph-cloze-opt" data-ok={o === cq.term ? 'true' : undefined} onClick={() => pickTerm(o)}>{o}</button>;
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -381,7 +440,14 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
           )}
         </div>
       )}
-      {phase === 'done' && (
+      {phase === 'done' && result && (
+        <div className="gl-page" data-testid="graph-done">
+          <ExtraResult kind="graph" unitId={g.unitId} title={g.title} r={result}>
+            <div className="gl-stage"><GraphStage g={g} k={n - 1} /></div>
+          </ExtraResult>
+        </div>
+      )}
+      {phase === 'done' && !result && (
         <div className="gl-page gl-done" data-testid="graph-done">
           <div className="gl-medal" aria-hidden="true"><ChartSpline size={58} strokeWidth={1.8} /></div>
           <div className="ds-eyebrow">Разбор графика</div>
@@ -393,11 +459,11 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
       <div className="gl-foot">
         <div>
           {phase === 'done'
-            ? <Button wide data-testid="graph-finish" onClick={() => { Audio.play('click'); onClose(); }}>Готово</Button>
+            ? <Button wide data-testid="graph-finish" onClick={() => { Audio.play('click'); onClose(); }}>{result ? 'Дальше' : 'Готово'}</Button>
             : <>
               <Button variant="ghost" icon={ArrowLeft} disabled={phase === 'tour' && k === 0} data-testid="graph-back" onClick={back}>Назад</Button>
-              <Button wide icon={phase === 'quiz' ? Check : ArrowRight} disabled={phase === 'quiz' && !answered} data-testid="graph-next" onClick={next}>
-                {phase === 'quiz' ? 'Готово' : k < n - 1 ? 'Дальше' : 'К вопросу'}
+              <Button wide icon={phase === 'quiz' ? Check : ArrowRight} disabled={(phase === 'quiz' && !answered) || (phase === 'tour' && !cOk)} data-testid="graph-next" onClick={next}>
+                {phase === 'quiz' ? 'Готово' : phase === 'tour' && !cOk ? 'Выберите пропущенное' : k < n - 1 ? 'Дальше' : 'К вопросу'}
               </Button>
             </>}
         </div>

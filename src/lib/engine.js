@@ -10,7 +10,7 @@ import { STOCK_NORM, TAX_REF, TFP_SCALE, complianceFor, computeRevenue, computeS
 import { CAMPAIGN_COST, CAMPAIGN_POINTS, POLL_WINDOW, PROMISE_POOL, botCampaignPlan, campaignBonus, campaignStep, electionForecast, evaluatePromise, pickPromises, sanitizeCampaignPlan, swingLabel } from './politics/elections.js';
 import { ACTION_GROUP_EFFECTS, SOCIAL_GROUPS, buildReport, coalitionOf, groupDemandStep, groupEpisodes, groupMemoryOf, groupStatus, groupStep, groupTurnoutShift, leverGroupEffects, propagandaEditorial, publicGroupDemand, regionBlurb, regionGroupSupport, regionVoteShares } from './politics/groups.js';
 import { APPOINT_COST, BOT_CORE_GROUPS, CB_FULL_TERM, DIRECTIVE_FULL, DIRECTIVE_PART, PRESIDENT_ACTIONS, PRES_BY_ID, PRES_DIRECTIVE_COST, PRES_GROUP_LABEL, REFORM_RAMP, applyPresidentActions, appointmentEffects, botPresident, directiveProgress, directiveVerdict, getPresPersona, militaryCoupRisk, parliamentBlocksReform, politicalCapitalRegen, presActionAvailable, kidsBlocked, presidentSatisfactionNext, processPresidentialDirective, reformEffects, reformShare } from './politics/president.js';
-import { REQUESTS, TAX_DEMAND_CAP, TAX_KEYS, askText, processRequest, reqAmount, taxSum } from './politics/requests.js';
+import { REQUESTS, TAX_DEMAND_CAP, TAX_KEYS, askText, processRequest, reqAmount, taxSum, fitStrength } from './politics/requests.js';
 import { DIPLO_ACTIONS, NEIGHBOR_EVENTS, NEIGHBOR_IDS, RELATIONS_START, atWarWith, botDiplomacy, deshtAttackRoll, deshtWarMultiplier, diploActionAvailable, diplomacyStep, neighborEventView, peaceStep, relationEffects, relationTarget, relationsOf, sanitizeDiplomacy, ultimatumChance } from './world/diplomacy.js';
 import { ALL_REGIONS, ANNEX_REGIONS, ANNEX_REGION_OF, INTEGRATED_AT, INTEGRATION_COST, MAP_REGIONS, PARTISAN_BELOW, PROJECT_BY_ID, REGION_EVENTS, REGION_EVENT_BY_ID, REGION_PROJECTS, activeRegions, annexLoyalty, botRegionPlan, botPresidentRegion, regionEventOwner, projectBlocker, projectSpendPct, regionById, regionStep, regionStress, votingRegions, warFrontRegion } from './world/regions.js';
 import { ANNEX_EFFECT, DEFENSE_STANCES, DEF_ENEMY, DEF_FRONT, INTEGRATION_DONE, OBJECTIVE_VALUE, REVANCHE_WARN, WAR_OBJECTIVES, WAR_OBJECTIVE_BY_ID, WAR_STANCES, WAR_TARGETS, annexStep, botDefenseOrder, botFrontOrder, botTreaty, botWarOrder, defaultDefenseOrder, defaultFrontOrder, defaultWarOrder, defaultWarTarget, defenseStep, dropAnnexed, newDefenseCampaign, newWarCampaign, revancheGrowth, revancheStep, sanitizeIntegration, sanitizeTreaty, sanitizeWarTarget, treatyCost, warCampaignStep, warObjectiveOpen, warObjectivesFor, warStrength, warTargetAvailable, warTargetOf } from './world/war.js';
@@ -224,6 +224,25 @@ function personaAfterElection(kind, economy) {
   return line === 'populist' ? 'dove' : line === 'austerity' ? 'hawk' : 'pragmatic';
 }
 const MANDATE_LABEL = { jobs: 'занятость любой ценой', prices: 'обуздать цены', budget: 'привести бюджет в порядок', growth: 'вернуть рост' };
+/* Мандат власти — цель с числами (docs/mechanics.md, «„Мир“: решения квартала»): чего ждут от новой власти, сколько
+   сейчас и выполняется ли. Пороги — как у выбора мандата на выборах (simulateQuarter, «смена власти»). */
+function mandateGoal(e) {
+  if (!e || !e.mandate || !MANDATE_LABEL[e.mandate]) return null;
+  const num = (v) => rf1(Number.isFinite(v) ? v : 0);
+  if (e.mandate === 'jobs') {
+    const lim = (Number.isFinite(e.nairu) ? e.nairu : 5) + 0.5;
+    return { goal: `безработица — не выше ${num(lim)}% (естественный уровень + 0,5 п.п.)`, now: `${num(e.unemployment)}%`, met: e.unemployment <= lim };
+  }
+  if (e.mandate === 'prices') {
+    const lim = (Number.isFinite(e.inflationTarget) ? e.inflationTarget : 4) + 1;
+    return { goal: `инфляция — не выше ${num(lim)}% (цель + 1 п.п.)`, now: `${num(e.inflation)}%`, met: e.inflation <= lim };
+  }
+  if (e.mandate === 'budget') {
+    const deficit = -(Number.isFinite(e.budgetBalancePctGdp) ? e.budgetBalancePctGdp : 0);
+    return { goal: 'дефицит бюджета — не больше 3% ВВП', now: `${deficit > 0 ? num(deficit) : '0'}% ВВП, долг ${num(e.debtToGdp)}% ВВП`, met: deficit <= 3 };
+  }
+  return { goal: 'рост ВВП — не ниже 2% в год', now: `${num(e.gdpGrowth)}%`, met: e.gdpGrowth >= 2 };
+}
 const getMofPersona = (id) => MOF_PERSONAS.find((p) => p.id === id) || MOF_PERSONAS[0];
 
 // Бот-ЦБ: правило Тейлора вокруг нейтральной ставки + макропруденциальная и кризисная реакция
@@ -2615,7 +2634,7 @@ function leverPreview(id, newVal, s, difficulty) {
 export {
   CONFIG, ROLES, DIFFICULTIES, GOALS, SCENARIOS, FX_REGIMES, LEVERS, UNCERTAINTY,
   CB_PERSONAS, MOF_PERSONAS, REQUESTS, EVENTS, CHANNEL_HEADLINE, TAX_REF,
-  STOCK_NORM, TFP_SCALE, STORY_TEMPLATES, REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, regimeInfoText, regimeInfoLabel,
+  STOCK_NORM, TFP_SCALE, STORY_TEMPLATES, REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, regimeInfoText, regimeInfoLabel,
   POLITICAL_REGIME_INFO, propagandaEditorial, gameChronicle, MAP_REGIONS, regionStress, regionBlurb, regionVoteShares, REGION_PROJECTS, REGION_EVENTS, projectBlocker, projectSpendPct, warFrontRegion, defaultWarOrder, WAR_OBJECTIVES, WAR_STANCES, warObjectiveOpen, warStrength, botWarOrder, ANNEX_EFFECT, CAMPAIGN_POINTS, CAMPAIGN_COST, POLL_WINDOW, electionForecast, sanitizeCampaignPlan, botCampaignPlan, swingLabel,
   ANNEX_REGIONS, ALL_REGIONS, regionById, activeRegions, votingRegions, annexLoyalty, sanitizeIntegration,
   PARTISAN_BELOW, INTEGRATED_AT, INTEGRATION_COST, INTEGRATION_DONE,
@@ -2638,7 +2657,7 @@ export {
   presActionAvailable, kidsBlocked, applyPresidentActions, politicalCapitalRegen, parliamentBlocksReform,
   PRESIDENT_PERSONAS, getPresPersona, botPresident, presidentSatisfactionNext, militaryCoupRisk,
   directiveProgress, directiveVerdict, DIRECTIVE_FULL, DIRECTIVE_PART,
-  processPresidentialDirective, PRES_DIRECTIVE_COST, askText, reqAmount, appointmentEffects, APPOINT_COST, CB_FULL_TERM,
+  processPresidentialDirective, PRES_DIRECTIVE_COST, askText, reqAmount, fitStrength, appointmentEffects, APPOINT_COST, CB_FULL_TERM,
   headlineFor, spreadOf, makeImpulse, pickEvent, buildEventImpulses, tickImpulses,
   complianceFor, taxBases, computeRevenue, taxWedge, potentialFrom, computeScores,
   simulateQuarter, SKIPPABLE_STEPS, FIRMS, FIRM_MODE_LABEL, QUINTILES, giniOf, groupRealIncome, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach,

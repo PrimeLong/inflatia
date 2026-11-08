@@ -17,18 +17,20 @@ import {
   X, ArrowLeft, Flame, Zap, Coins, Target, Lock, Check, Gem, ChevronLeft, Calculator, BookOpenText, BookOpen, Trophy, Timer, Delete, ChevronRight, RotateCcw, Sparkles, Dumbbell,
   Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link, Utensils, Boxes, Users,
   Snowflake, ArrowDownToLine, ArrowUpToLine, Languages, MessageCircle, Headphones, Gamepad2, Repeat, Flag, Croissant, Landmark, Radio, MapPin, ArrowUp, ChevronDown, SkipForward,
-  Wrench, Feather, ChartSpline, PenLine, Factory, Bike,
+  Wrench, Feather, ChartSpline, PenLine, Factory, Bike, WifiOff,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
 import { BookDock } from './learn-bookdock.jsx';
+// огонёк серии на итогах — общий с итогами особых уроков
+import { StreakBurst } from './learn-extra-result.jsx';
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
 import { askSave, askLogin } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
 import { track, trackOnce, reportsMe } from './lib/client.js';
 import { TRACK, rememberTeam } from './learn/track.js';
-import { Audio, getPlayerId, syncProfile } from './MacroSimulator.jsx';
+import { Audio, getPlayerId, syncProfile, SYNC_EVENT, syncState } from './MacroSimulator.jsx';
 import { Blocks, Inline, ChartSvg, ChartLegend, TEXTBOOK_CSS, TextbookScreen } from './textbook.jsx';
 import { CHARTS, chartDefaults } from './textbook/charts.js';
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, reviewQueue } from './textbook/progress.js';
@@ -489,6 +491,11 @@ const CSS = `
   .ln-ticket-stub { width: 86px; background: color-mix(in srgb, var(--u) 13%, var(--ds-card)); display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 6px; color: var(--u-ink); position: relative; }
   .ln-album { display: flex; flex-wrap: wrap; gap: 10px; }
+  .ln-sync { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--ds-bad) 45%, var(--ds-rule2));
+    background: color-mix(in srgb, var(--ds-bad) 8%, var(--ds-card)); color: var(--ds-ink); }
+  .ln-sync > svg { flex: none; color: var(--ds-bad); }
+  .ln-sync b { display: block; font: 700 15px var(--ds-sans); }
+  .ln-sync span { display: block; font-size: 13.5px; line-height: 1.4; color: var(--ds-ink2); margin-top: 2px; }
   .ln-key { margin-top: 14px; padding: 8px 12px 10px; border: 2px solid var(--u); border-radius: 10px; background: color-mix(in srgb, var(--u) 8%, var(--ds-card)); }
   .ln-key .ds-eyebrow { color: var(--u-ink); }
   /* формула целиком: дробь (ΔQ над ΔL) — блоком с запасом по вертикали, а не строкой, у которой верх срезался (жалоба mw6t15ic) */
@@ -1971,21 +1978,6 @@ function StepsExplain({ blocks }) {
    Шаг «В формуле Q_D = 100 − 2P …» — и под ним «Q_D — объём спроса…; P — цена…». */
 const mathIn = (nodes, out = []) => { (nodes || []).forEach((n) => { if (n.t === 'math') out.push(n.v); else if (n.c) mathIn(n.c, out); }); return out; };
 // серия на итогах урока: огонёк вспыхивает, счётчик дней перещёлкивается с прошлого на сегодняшний
-const SPARKS = [-70, -35, 0, 35, 70, 110, -110];
-function StreakBurst({ days }) {
-  return (
-    <div className="ln-burst" data-testid="result-streak" data-days={days} role="img" aria-label={`Серия: ${days} ${plural(days, 'день', 'дня', 'дней')} подряд`}>
-      <span className="ln-burst-flame">
-        {SPARKS.map((a) => <i key={a} style={{ '--a': `${a}deg` }} />)}
-        <Flame size={52} color="var(--ds-bad)" fill="color-mix(in srgb, var(--ds-bad) 30%, transparent)" aria-hidden="true" />
-      </span>
-      <span style={{ textAlign: 'left' }} aria-hidden="true">
-        <span className="ln-burst-num"><span className="old">{days - 1}</span><span className="new">{days}</span></span>
-        <span className="ln-burst-cap">{plural(days, 'день', 'дня', 'дней')} подряд</span>
-      </span>
-    </div>
-  );
-}
 // формула шага, по которой считают упражнения после него, — с пометкой «Запомнить», как в главе
 function StepRemember({ tex }) {
   return (
@@ -2400,6 +2392,13 @@ export function extraInfo(x) {
   }
   return null;
 }
+// чем алмазный уровень особого урока сложнее (docs/mechanics.md, «Особые уроки юнита»)
+const EXTRA_GEM = {
+  read: 'контекст цитаты — только после ответа, в конце — «Кто это сказал?»',
+  people: 'в конце — «Чья это идея?»: идея без имени, кто её автор',
+  graph: 'в каждом шаге пропущено главное слово или число — выберите его',
+  draw: 'на каждый шаг — одна попытка, без подсказки',
+};
 function ExtraSheet({ x, onStart, onClose }) {
   const info = extraInfo(x);
   if (!info) return null;
@@ -2422,13 +2421,18 @@ function ExtraSheet({ x, onStart, onClose }) {
       </div>
       <p className="ds-sub" style={{ fontSize: 15, lineHeight: 1.45, margin: '14px 2px 0' }} data-testid="extra-inside">{info.inside}</p>
       <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
-        {/* прочитанное «Чтение» — и на алмазном уровне: контекст после ответа, «Кто это сказал?», без ошибок (пункт владельца 08.11) */}
-        {x.type === 'read' && x.done && (
-          <Button wide icon={Gem} data-testid="extra-gem" style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
-            {x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
-          </Button>
+        {/* пройденный особый урок — и на алмазном уровне, у всех четырёх видов (пункты владельца 08.11 и 08.11, вечер) */}
+        {x.done && EXTRA_GEM[x.type] && (
+          <>
+            <Button wide icon={Gem} data-testid="extra-gem" style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
+              {x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
+            </Button>
+            <div className="ds-faint" style={{ fontSize: 13.5, lineHeight: 1.4, textAlign: 'center', margin: '-2px 6px 2px' }} data-testid="extra-gem-what">
+              Алмаз: {EXTRA_GEM[x.type]}; без единой ошибки{x.gem ? '' : ` — ${indexed(COIN.diamond)}–${indexed(COIN.diamond + COIN.diamondPerfect)} монет`}.
+            </div>
+          </>
         )}
-        <Button wide variant={x.type === 'read' && x.done ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+        <Button wide variant={x.done && EXTRA_GEM[x.type] ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
       </div>
     </Sheet>
   );
@@ -3109,6 +3113,33 @@ function useCelebrations(learn, update) {
 const MORNING_KEY = 'ems-learn-morning';
 /* Гость (src/lib/guest.js): прогресс пока только на этом устройстве — карточка зовёт создать
    аккаунт. После урока — на итогах, потом — вверху Пути. Регистрация заберёт прогресс. */
+/* «Нет связи с сервером»: последняя синхронизация не прошла (VPN, сеть, сбой) — прогресс других устройств не подтянулся.
+   «Повторить» — синхронизировать сейчас; удачная синхронизация убирает плашку сама (docs/mechanics.md, «Регистрация и вход») */
+function SyncBanner() {
+  const [fail, setFail] = useState(() => { const s = syncState(); return !!s && !s.ok; });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const on = (e) => setFail(!!e.detail && !e.detail.ok);
+    window.addEventListener(SYNC_EVENT, on);
+    return () => window.removeEventListener(SYNC_EVENT, on);
+  }, []);
+  if (!fail) return null;
+  const retry = () => {
+    Audio.play('click'); setBusy(true);
+    syncProfile(getPlayerId()).then((pf) => { if (pf) window.dispatchEvent(new CustomEvent(PROGRESS_EVENT, { detail: loadProgress() })); }).finally(() => setBusy(false));
+  };
+  return (
+    <div className="ln-sync" role="alert" data-testid="sync-fail">
+      <WifiOff size={20} aria-hidden="true" />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <b>Нет связи с сервером</b>
+        <span>Прогресс с других устройств не подтянулся, а этот пока сохраняется только здесь. Проверьте интернет; если включён VPN — попробуйте без него.</span>
+      </div>
+      <Button small variant="secondary" disabled={busy} data-testid="sync-retry" onClick={retry}>{busy ? 'Проверяем…' : 'Повторить'}</Button>
+    </div>
+  );
+}
+
 function GuestSave({ learn, afterLesson = false }) {
   const done = Object.values(learn.lessons || {}).filter((l) => l && l.runs > 0).length;
   return (
@@ -3245,9 +3276,9 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     setExtraSheet(null);
     // x.gem — алмаз у остановки уже взят; x.diamond — открыть на алмазном уровне
     if (x.type === 'read') setReading({ id: x.id, gem: !!x.diamond });
-    else if (x.type === 'people') setPeople(x.id);
-    else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
-    else if (x.type === 'draw') setDraw(x.id);
+    else if (x.type === 'people') setPeople({ id: x.id, gem: !!x.diamond });
+    else if (x.type === 'graph') setGraph({ id: x.id, peek: false, gem: !!x.diamond });
+    else if (x.type === 'draw') setDraw({ id: x.id, gem: !!x.diamond });
     // вышли посреди «Работы над ошибками» — она продолжается с того же места (сутки, как обычный урок)
     else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId, resume: getResume(`fix:${x.unitId}`) });
   };
@@ -3306,6 +3337,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       )}
       {/* пока идёт урок или открыт учебник, экран под ними недоступен ни с клавиатуры, ни для чтения с экрана */}
       <div inert={over} style={book || reports || analytics ? { display: 'none' } : undefined} className="ln-tab" key={tab}>
+        <SyncBanner />
         {tab === 'path' && !tasks && guest && <GuestSave learn={learn} />}
         {tab === 'path' && !tasks && <PathView learn={learn} update={update} onLesson={setSheet} onStart={start} onOpenBook={openBook} onChest={setChest}
           onTasks={() => { setTasks(true); window.scrollTo(0, 0); }} visible={!over} homeTick={pathHome} folded={folded}
@@ -3345,7 +3377,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {sheet && <LessonSheet l={sheet} learn={learn} weak={weakLessons(learn).some((w) => w.id === sheet.id)} onStart={start} onClose={() => setSheet(null)} onOpenBook={openBook}
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
       {reading && <Lazy><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
-      {people && <Lazy><PeopleView id={people} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
+      {people && <Lazy><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
       {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
@@ -3360,8 +3392,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       )}
       {run && <Runner key={JSON.stringify({ ...run, resume: !!run.resume })} run={run} learn={learn} update={update} hidden={!!book} guest={guest}
         onClose={() => setRun(null)} onOpenBook={(page) => openBook(page)} />}
-      {graph && <Lazy><GraphLesson id={graph.id} learn={learn} update={update} peek={graph.peek} onClose={() => setGraph(null)} /></Lazy>}
-      {draw && <Lazy><DrawLesson id={draw} learn={learn} update={update} onClose={() => setDraw(null)} /></Lazy>}
+      {graph && <Lazy><GraphLesson key={`${graph.id}:${!!graph.gem}`} id={graph.id} learn={learn} update={update} peek={graph.peek} gem={!!graph.gem} onClose={() => setGraph(null)} /></Lazy>}
+      {draw && <Lazy><DrawLesson key={`${draw.id}:${draw.gem}`} id={draw.id} gem={draw.gem} learn={learn} update={update} onClose={() => setDraw(null)} /></Lazy>}
     </DsRoot>
     </OutfitContext.Provider>
   );

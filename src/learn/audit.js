@@ -20,6 +20,9 @@ export const DUPE_FINE = 'dupe-2026-11';
 /* второй проход (8 ноября 2026): у кого списание прошло, когда копилку ещё не трогали, а минус кошелька остался —
    его прятал открытый вклад с монетами дюпа (кошелёк показывал 0, вклад рос дальше) */
 export const DUPE_PIGGY = 'dupe-2026-11-piggy';
+/* «долга нет» (8 ноября 2026, вечер): остаток минуса, который не покрыли ни копилка, ни покупки, прощается — раньше он
+   прятался за нулём кошелька и съедал весь новый доход, даже выручку за урожай */
+export const DUPE_FORGIVE = 'dupe-2026-11-forgive';
 // за активный день — пять витрин по 2 монеты; цель дня (до 20 минут → 20 монет) — по ключам g: или по максимуму
 export const DAY_CEILING = 10;
 const GOAL_MAX = goalCoins(20);
@@ -83,6 +86,8 @@ export function coinCeiling(s, now = Date.now(), { bookFirst = null } = {}) {
     return a + (p && g ? Math.ceil(p.crowns * g.mult * 1.15 * RATE_MAX) : 0);
   }, 0);
   parts.book = (bookFirst != null ? bookFirst : days.size * 10) * COIN.book;
+  // алмазы особых уроков (docs/mechanics.md, «Особые уроки юнита») — как алмаз урока, по разу
+  parts.gems = (Object.keys(s.gems || {}).length + Object.keys(s.readGem || {}).length) * (COIN.diamond + COIN.diamondPerfect);
   const raw = Object.values(parts).reduce((a, x) => a + x, 0);
   // индексация наград — не выше индекса цен на сегодня
   const index = Math.max(1, priceIndex(dayOf(now)));
@@ -132,11 +137,25 @@ export function piggyPass(s, now = Date.now()) {
 }
 export const needsDupeAudit = (s) => !((s.fines || {})[DUPE_FINE]) && Object.keys(s.lessons || {}).length > 0;
 // записать списание (один раз); вернуть то же состояние, если записывать нечего
+/* Минус после списания и обоих проходов — прощается: кошелёк не ниже нуля, долга нет. Списание прошло сейчас — прощается
+   ровно остаток; прошло раньше — всё, что заработано после дня списания, тоже ушло в минус (кошелёк показывал 0, тратить
+   было нечего), и прощается так, чтобы оно оказалось в кошельке. */
+export const needsForgive = (s) => !!(s.fines || {})[DUPE_FINE] && !(s.fines || {})[DUPE_FORGIVE] && walletRaw(s) < 0;
+export function forgiveDebt(s, now = Date.now()) {
+  if (!needsForgive(s)) return null;
+  const fine = s.fines[DUPE_FINE];
+  const fineDay = dayOf(fine.at);
+  const since = fine.at >= now ? 0 : Object.entries(s.coins || {}).filter(([d]) => d > fineDay).reduce((a, [, v]) => a + v, 0);
+  const refund = Math.round(-walletRaw(s) + since);
+  return { at: now, coins: 0, refund, items: {} };
+}
 export function applyDupeAudit(s, now = Date.now(), opts = {}) {
   let t = s;
   if (needsDupeAudit(t)) { const f = dupeFine(t, now, opts); if (f) t = withFine(t, DUPE_FINE, f); }
   const p = piggyPass(t, now);
-  return p ? withFine(t, DUPE_PIGGY, p) : t;
+  if (p) t = withFine(t, DUPE_PIGGY, p);
+  const g = forgiveDebt(t, now);
+  return g ? withFine(t, DUPE_FORGIVE, g) : t;
 }
 // что увидит ученик: сколько списано и какие вещи вернулись в лавку
 export const fineOf = (s) => (s.fines || {})[DUPE_FINE] || null;

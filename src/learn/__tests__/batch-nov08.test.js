@@ -83,3 +83,97 @@ describe('«Чтение» на алмаз', async () => {
     expect(courseLevel(s).parts.diamond - courseLevel({ ...s, readGem: {} }).parts.diamond).toBe(1);
   });
 });
+
+describe('задание дня «N верных ответов» — и в особых уроках (08.11, вечер)', async () => {
+  const { countAnswers, dailyOf: daily } = await import('../../textbook/learn-state.js');
+  it('ответы особого урока — в счёт верных ответов дня; серию не трогают', () => {
+    let s = recordAttempt(emptyLearn(), 'choice', true, 1000, { now: at(10) });
+    const run = s.run;
+    s = countAnswers(s, 3, 4, at(11));
+    expect(daily(s, at(11))).toMatchObject({ a: 5, c: 4 });
+    expect(s.run).toEqual(run);
+    // ничего не ответили — то же состояние; верных не больше ответов
+    expect(countAnswers(s, 0, 0, at(12))).toBe(s);
+    expect(daily(countAnswers(s, 9, 2, at(12)), at(12)).c).toBe(6);
+  });
+});
+
+describe('особые уроки платят монеты, как урок (08.11, вечер)', async () => {
+  const { extraCoins, extraKey, earn, hasClaim, COIN } = await import('../rewards.js');
+  const { finishLesson } = await import('../../textbook/learn-state.js');
+  const { dupeFine } = await import('../audit.js');
+  it('впервые — 10, без ошибок — ещё 5; повтор — без монет; ключ x:<id> — один раз', () => {
+    expect(extraCoins({ fresh: true, accuracy: 100 })).toBe(COIN.lesson + COIN.perfect);
+    expect(extraCoins({ fresh: true, accuracy: 80 })).toBe(COIN.lesson);
+    expect(extraCoins({ fresh: false, accuracy: 100 })).toBe(0);
+    expect(extraKey('draw-ppf')).toBe('x:draw-ppf');
+    const s = earn(emptyLearn(), 15, extraKey('draw-ppf'), at(10));
+    expect(hasClaim(s, 'x:draw-ppf')).toBe(true);
+    expect(earn(s, 15, extraKey('draw-ppf'), at(11))).toBe(s);
+  });
+  it('монеты особых уроков — в честной границе списания: честному ученику ничего не списывается', () => {
+    let s = finishLesson(emptyLearn(), 'sc-i1', { xp: 20, accuracy: 100, now: at(9) });
+    s = earn(s, COIN.lesson + COIN.perfect, 'l:sc-i1', at(9));
+    // дюжина особых уроков — больше запаса в 100 монет: их покрывает граница по законченным прохождениям
+    Array.from({ length: 12 }, (_, i) => `x-${i}`).forEach((id, i) => {
+      s = finishLesson(s, null, { xp: 10, accuracy: 100, now: at(10, i), kind: 'graph', extra: { fresh: true } });
+      s = earn(s, extraCoins({ fresh: true, accuracy: 100 }), extraKey(id), at(10, i));
+    });
+    expect(dupeFine(s, at(12)).coins).toBe(0);
+  });
+});
+
+describe('алмаз — у всех особых уроков (08.11, вечер)', async () => {
+  const { PEOPLE, quizIdea } = await import('../people.js');
+  const { GRAPHS, graphCloze } = await import('../graphs.js');
+  const { markGem, hasGem } = await import('../../textbook/learn-state.js');
+  const { courseLevel } = await import('../grade.js');
+  const { extraCoins, extraKey, COIN } = await import('../rewards.js');
+  const { coinCeiling } = await import('../audit.js');
+  it('«Чья это идея?»: верный среди вариантов, имена не повторяются, чужой — ровно один; в идее нет фамилии автора', () => {
+    PEOPLE.forEach((g) => {
+      const q = quizIdea(g);
+      expect(q).toHaveLength(g.people.length);
+      const own = new Set(g.people.map((p) => p.name));
+      q.forEach((it) => {
+        expect(it.options, g.id).toContain(it.answer);
+        expect(new Set(it.options).size, g.id).toBe(it.options.length);
+        expect(it.options.filter((o) => !own.has(o)), g.id).toHaveLength(1);
+        expect(it.idea.includes(it.answer.split(' ').pop().slice(0, 5)), `${g.id}: ${it.answer}`).toBe(false);
+      });
+      // верный — не на одном и том же месте у всех идей
+      expect(new Set(q.map((it) => it.options.indexOf(it.answer))).size, g.id).toBeGreaterThan(1);
+    });
+  });
+  it('«Разбор графика» на алмаз: в каждом графике не меньше пяти пропусков; пропуск — выделенное в тексте шага; варианты разные', () => {
+    GRAPHS.forEach((g) => {
+      const c = graphCloze(g);
+      expect(c.filter(Boolean).length, g.id).toBeGreaterThanOrEqual(5);
+      c.forEach((q, k) => {
+        if (!q) return;
+        expect(`${q.before}**${q.term}**${q.after}`, `${g.id}#${k}`).toBe(g.steps[k].text);
+        expect(q.options, `${g.id}#${k}`).toContain(q.term);
+        expect(q.options.length, `${g.id}#${k}`).toBeGreaterThanOrEqual(2);
+        expect(new Set(q.options.map((o) => o.toLowerCase())).size, `${g.id}#${k}`).toBe(q.options.length);
+      });
+    });
+  });
+  it('отметка алмаза — один раз, на всех устройствах (раньшее время); в уровне знаний — +1; на дороге — ромб', () => {
+    const s0 = emptyLearn();
+    const s = markGem(s0, 'graph-ppf', at(9));
+    expect(hasGem(s, 'graph-ppf')).toBe(true);
+    expect(markGem(s, 'graph-ppf', at(10))).toBe(s);
+    const m = mergeLearn(normalizeLearn(JSON.parse(JSON.stringify(s))), markGem(s0, 'graph-ppf', at(11)));
+    expect(m.gems['graph-ppf']).toBe(at(9));
+    expect(courseLevel(s).parts.diamond - courseLevel(s0).parts.diamond).toBe(1);
+    expect(hasGem(markGem(s0, 'people-scarcity'), 'people-scarcity')).toBe(true);
+  });
+  it('монеты за алмаз особого урока — как за алмаз урока, один раз; не взят или уже был — без монет; в границе списания учтены', () => {
+    expect(extraCoins({ diamond: true, won: true, accuracy: 100 })).toBe(COIN.diamond + COIN.diamondPerfect);
+    expect(extraCoins({ diamond: true, won: true, gem: true, accuracy: 100 })).toBe(0);
+    expect(extraCoins({ diamond: true, won: false, accuracy: 80 })).toBe(0);
+    expect(extraKey('draw-ppf', true)).toBe('xd:draw-ppf');
+    const s = markGem(markGem(emptyLearn(), 'graph-ppf'), 'draw-ppf');
+    expect(coinCeiling({ ...s, readGem: { 'read-choice': 1 } }).parts.gems).toBe(3 * (COIN.diamond + COIN.diamondPerfect));
+  });
+});

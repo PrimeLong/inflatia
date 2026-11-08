@@ -14,7 +14,7 @@ import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
-  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme,
+  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx,
 } from './ds-tokens.js';
 import { DsRoot, Tabs } from './ds.jsx';
 import {
@@ -259,6 +259,12 @@ export const GlobalStyle = () => (
     .ems-card-btn:hover .ems-card-chevron { transform: translateX(3px) rotate(-90deg); }
     .ems-row-hover { border-radius: 9px !important; transition: background-color .15s ease, border-color .15s ease; user-select: none; -webkit-user-select: none; }
     .ems-row-hover:hover { background: ${COLOR.panelRaised} !important; border-color: ${COLOR.borderStrong} !important; }
+    /* ссылка на учебник под рычагом: крестик — при наведении, на сенсорном экране — всегда */
+    .ems-booklink { display: inline-flex; align-items: center; gap: 1px; }
+    .ems-booklink-x { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: ${COLOR.faint}; cursor: pointer; opacity: 0; transition: opacity .15s; }
+    .ems-booklink:hover .ems-booklink-x, .ems-booklink:focus-within .ems-booklink-x { opacity: 1; }
+    .ems-booklink-x:hover { color: ${COLOR.text}; background: ${COLOR.panelAlt}; }
+    @media (hover: none) { .ems-booklink-x { opacity: .75; } }
     .ems-theme-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px 6px 9px; border-radius: 999px; font-size: 12px;
       cursor: pointer; transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
     .ems-theme-chip:hover { transform: translateY(-1px); }
@@ -459,7 +465,8 @@ export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked
 
 /* wave — экран без экономики (учебник): вместо «По режиму экономики» — «Волна», пьесы сами сменяют друг друга;
    buttonStyle — кнопка под соседей (в учебнике — круглая, высотой с кнопки размера текста) */
-export function AudioControls({ wave = false, buttonStyle = null }) {
+/* learn — панель внутри обучения: музыка и звуки — настройки обучения (как в профиле), а не «Мира» */
+export function AudioControls({ wave = false, buttonStyle = null, learn = false }) {
   const DD_WIDTH = 268;
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
   // музыку, звуки и громкость читаем из движка при каждом рисовании: их ставит и экран
@@ -519,8 +526,8 @@ export function AudioControls({ wave = false, buttonStyle = null }) {
             </select>
             {wave && (np.locked || 'wave') === 'wave' && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 4, lineHeight: 1.4 }} data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
           </div>
-          {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); setWorldMusic(v); }, Music],
-            ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
+          {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); }, Music],
+            ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); if (learn) setLearnSfx(v); else setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                 <Icon size={12} color={val ? COLOR.gold : COLOR.faint} />
                 <span style={{ fontSize: 12, color: val ? COLOR.text : COLOR.muted, flex: 1 }}>{label}</span>
@@ -740,12 +747,22 @@ export const writeLocalProgress = (profile, { replace = false } = {}) => {
 /* Синхронизация прогресса — всегда двусторонняя и всегда объединением: отправляем
    своё, получаем общее, записываем обратно. Ошибка сети тут ничего не ломает:
    локальные данные остаются как были, а следующий заход в меню попробует снова. */
+/* Итог последней синхронизации — для плашки «Нет связи с сервером» в обучении (docs/mechanics.md, «Регистрация и
+   вход»): VPN, плохая сеть или сбой сервера раньше молча оставляли устройство со своим старым прогрессом. */
+export const SYNC_EVENT = 'ems-sync';
+let lastSync = null;
+export const syncState = () => lastSync;
+const tellSync = (ok) => {
+  lastSync = { ok, at: Date.now() };
+  try { window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: lastSync })); } catch { /* нет окна */ }
+};
 export async function syncProfile(playerId) {
   try {
     const profile = await syncProgress(playerId, readLocalProgress());
     writeLocalProgress(profile);
+    tellSync(true);
     return profile;
-  } catch { return null; }
+  } catch { tellSync(false); return null; }
 }
 
 
@@ -1255,7 +1272,7 @@ export default function MacroSimulator() {
       <div style={bookOverlay ? { display: 'none' } : undefined}>{screen}</div>
       {bookOverlay && (
         <Suspense fallback={<GameFallback />}>
-          <TextbookScreen key={`${theme}:${JSON.stringify(bookOverlay)}`} startPage={bookOverlay} backLabel="← Назад в игру" onBack={closeBookOverlay} />
+          <TextbookScreen key={`${theme}:${JSON.stringify(bookOverlay)}`} startPage={bookOverlay} backLabel="← Назад в игру" floatBack onBack={closeBookOverlay} />
         </Suspense>
       )}
     </BookLinkContext.Provider>
