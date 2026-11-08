@@ -338,6 +338,9 @@ function AuthForm({ mode, go, plan, onCancel = null }) {
             {busy ? 'Минутку…' : mode === 'register' ? (kidYear && !parentStep ? 'Дальше: подтверждение родителя' : 'Создать аккаунт') : mode === 'recover' ? 'Задать пароль' : 'Войти'}
           </Button>
           {mode === 'login' && <Button variant="ghost" wide onClick={() => go('recover')}>Забыли пароль?</Button>}
+          {/* войти и создать — друг из друга: гость, открывший «Сохраните прогресс», мог уже иметь аккаунт */}
+          {mode === 'register' && !parentStep && <Button variant="ghost" wide data-testid="auth-to-login" onClick={() => { Audio.play('paper'); go('login'); }}>У меня уже есть аккаунт — войти</Button>}
+          {mode === 'login' && <Button variant="ghost" wide data-testid="auth-to-register" onClick={() => { Audio.play('paper'); go(onCancel ? 'register' : 'goal'); }}>Нет аккаунта? Создать</Button>}
         </div>
       </form>
     </div>

@@ -3,10 +3,11 @@
    закрывают откаченные покупки, с самых новых; на других устройствах вещь не возвращается. */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { emptyLearn, normalizeLearn, mergeLearn, dayOf } from '../../textbook/learn-state.js';
-import { earn, settle, resetCoinGuard, balance, earned, priceOf, OUTFITS, runCoins, indexed } from '../rewards.js';
+import { earn, settle, resetCoinGuard, balance, earned, priceOf, OUTFITS, runCoins, indexed, walletRaw, piggyPut, piggyState } from '../rewards.js';
+import { notificationsOf } from '../notify.js';
 import { dustClaim } from '../dust.js';
 import { LESSONS } from '../course.js';
-import { dupeFine, applyDupeAudit, coinCeiling, needsDupeAudit, DUPE_FINE } from '../audit.js';
+import { dupeFine, applyDupeAudit, coinCeiling, needsDupeAudit, needsPiggyPass, DUPE_FINE, DUPE_PIGGY } from '../audit.js';
 
 const DAY = 86400000;
 const T0 = Date.UTC(2026, 9, 1, 12);
@@ -95,5 +96,81 @@ describe('списание монет дюпа', () => {
     const b = { ...s, fines: { [DUPE_FINE]: { at: NOW + 1000, coins: 700, refund: 0, items: {} } } };
     expect(mergeLearn(a, b).fines[DUPE_FINE].coins).toBe(500);
     expect(mergeLearn(b, a).fines[DUPE_FINE].coins).toBe(500);
+  });
+
+  // монеты дюпа переложены в копилку (пункт владельца от 8 ноября 2026: «то, что было в копилке, не откатило»)
+  const withPiggy = () => {
+    const s0 = honest();
+    const day = dayOf(NOW - DAY);
+    let s = normalizeLearn({ ...s0, coins: { ...s0.coins, [day]: s0.coins[day] + 4000 } });
+    // одна вещь куплена, всё остальное — в копилку
+    const item = pricey[0]; const at = NOW - 5 * 3600000;
+    s = normalizeLearn({ ...s, owned: { ...s.owned, [item.id]: at }, spent: { ...s.spent, [day]: (s.spent[day] || 0) + priceOf(item.id, dayOf(at)) } });
+    const deposit = balance(s); const depAt = NOW - 3600000;
+    const put = piggyPut(s, deposit, depAt);
+    expect(put.ok).toBe(true);
+    return { s: normalizeLearn(put.s), item, at, deposit, depAt };
+  };
+  it('монеты дюпа в копилке: вклад закрывается досрочно и покрывает минус раньше покупок', () => {
+    const { s, item, at, deposit, depAt } = withPiggy();
+    expect(balance(s)).toBe(0);
+    const f = dupeFine(s, NOW, { bookFirst: 0 });
+    expect(f.coins).toBeGreaterThan(2000);
+    expect(deposit).toBeGreaterThanOrEqual(f.coins);
+    // вклад покрыл весь минус — вещь остаётся
+    expect(f.piggy).toEqual({ at: depAt, n: f.coins });
+    expect(f.items).toEqual({});
+    const t = normalizeLearn(applyDupeAudit(s, NOW, { bookFirst: 0 }));
+    expect(t.fines[DUPE_FINE].piggy).toEqual(f.piggy);
+    expect(piggyState(t, NOW)).toBeNull();
+    expect(t.owned[item.id]).toBe(at);
+    // вложенное — на минус, остаток — в кошелёк; процент сгорел
+    expect(balance(t)).toBe(deposit - f.coins);
+    expect(needsPiggyPass(t)).toBe(false);
+    expect(notificationsOf(t, NOW).find((n) => n.id === `fine:${DUPE_FINE}`).text).toContain(`Вклад в копилке закрыт: ${f.coins}`);
+  });
+  it('второй проход: списание прошло, когда копилку не трогали, — вклад с монетами дюпа закрывается, один раз и на всех устройствах', () => {
+    const { s, deposit, depAt } = withPiggy();
+    const f = dupeFine(s, NOW, { bookFirst: 0 });
+    // старое списание: без копилки — кошелёк показывал 0, минус прятал вклад
+    const old = normalizeLearn({ ...s, fines: { [DUPE_FINE]: { at: NOW, coins: f.coins, refund: 0, items: {} } } });
+    expect(balance(old)).toBe(0);
+    expect(walletRaw(old)).toBe(-f.coins);
+    expect(piggyState(old, NOW + DAY)).toBeTruthy();
+    expect(needsPiggyPass(old)).toBe(true);
+    const t = normalizeLearn(applyDupeAudit(old, NOW + DAY, { bookFirst: 0 }));
+    expect(t.fines[DUPE_FINE]).toEqual(old.fines[DUPE_FINE]);
+    expect(t.fines[DUPE_PIGGY]).toMatchObject({ at: NOW + DAY, coins: 0, refund: 0, items: {}, piggy: { at: depAt, n: f.coins } });
+    expect(piggyState(t, NOW + DAY)).toBeNull();
+    expect(balance(t)).toBe(deposit - f.coins);
+    // второй раз — ничего
+    expect(applyDupeAudit(t, NOW + 2 * DAY)).toBe(t);
+    // ученику — честно, что и почему
+    const n = notificationsOf(t, NOW + DAY).find((x) => x.id === `fine:${DUPE_PIGGY}`);
+    expect(n.text).toContain(`Вклад закрыт: ${f.coins}`);
+    expect(n.go).toBe('piggy');
+    // другое устройство ещё с открытым вкладом: после слияния вклад закрыт, запись одна
+    const m = mergeLearn(old, t);
+    expect(piggyState(m, NOW + DAY)).toBeNull();
+    expect(m.fines[DUPE_PIGGY]).toEqual(t.fines[DUPE_PIGGY]);
+    expect(balance(m)).toBe(balance(t));
+  });
+  it('второй проход без копилки: минус закрывают ещё не откаченные покупки', () => {
+    const s0 = honest();
+    const day = dayOf(NOW - DAY);
+    let s = normalizeLearn({ ...s0, coins: { ...s0.coins, [day]: s0.coins[day] + 4000 } });
+    const bought = pricey.map((o, i) => ({ id: o.id, at: NOW - (3 - i) * 3600000 }));
+    s = normalizeLearn({ ...s, owned: { ...s.owned, ...Object.fromEntries(bought.map((b) => [b.id, b.at])) }, spent: { ...s.spent, [day]: (s.spent[day] || 0) + balance(s) } });
+    const f = dupeFine(s, NOW, { bookFirst: 0 });
+    // старое списание откатило только самую новую вещь, а минус остался
+    const old = normalizeLearn({ ...s, fines: { [DUPE_FINE]: { at: NOW, coins: f.coins, refund: priceOf(bought[2].id, dayOf(bought[2].at)), items: { [bought[2].id]: bought[2].at } } } });
+    expect(old.owned[bought[2].id]).toBeUndefined();
+    expect(walletRaw(old)).toBeLessThan(0);
+    const t = normalizeLearn(applyDupeAudit(old, NOW + DAY, { bookFirst: 0 }));
+    const p = t.fines[DUPE_PIGGY];
+    expect(p.piggy).toBeUndefined();
+    expect(Object.keys(p.items)).not.toContain(bought[2].id);
+    expect(Object.keys(p.items).length).toBeGreaterThan(0);
+    Object.keys(p.items).forEach((id) => expect(t.owned[id], id).toBeUndefined());
   });
 });

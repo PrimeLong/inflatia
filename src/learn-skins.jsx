@@ -143,6 +143,26 @@ export const SKIN_CSS = `
     box-shadow: 0 0 10px #fff; animation: sk-shoot 1.1s ease-out forwards; }
   @keyframes sk-shoot { from { transform: translate(-30vw, 0) rotate(18deg); opacity: 0 } 20% { opacity: 1 } to { transform: translate(70vw, 22vh) rotate(18deg); opacity: 0 } }
 
+  /* ---------- во всех темах: ввод числа — поле ответа, цифровая клавиатура, калькулятор (пункт владельца 08.11) ---------- */
+  .sk-on[data-skin="exchange"] { --sk-key-bg: rgba(8,26,18,.92); --sk-key-ink: #D7F5E6; --sk-key-rule: #1E5A3E; --sk-key-font: var(--ds-mono); --sk-key-r: 6px; }
+  .sk-on[data-skin="mint"] { --sk-key-bg: linear-gradient(#FFFDF5, #FAF0D4); --sk-key-ink: #2A2112; --sk-key-rule: #C9A548; --sk-key-font: var(--ds-news, Georgia, serif); --sk-key-r: 4px; }
+  .sk-on[data-skin="blueprint"] { --sk-key-bg: rgba(17,64,110,.92); --sk-key-ink: #EAF4FF; --sk-key-rule: rgba(234,244,255,.7); --sk-key-font: var(--ds-mono); --sk-key-r: 2px; }
+  .sk-on[data-skin="aurora"] { --sk-key-bg: rgba(255,255,255,.08); --sk-key-ink: #EEF2FF; --sk-key-rule: rgba(255,255,255,.26); --sk-key-font: var(--ds-sans); --sk-key-r: 14px; }
+  .sk-on[data-skin] .ds-key, .sk-on[data-skin] .ds-field, .sk-on[data-skin] .lp-calc-screen { background: var(--sk-key-bg); color: var(--sk-key-ink); border: 1.5px solid var(--sk-key-rule); border-radius: var(--sk-key-r); }
+  .sk-on[data-skin] .ds-key { font-family: var(--sk-key-font); box-shadow: 0 3px 0 color-mix(in srgb, var(--sk-key-rule) 75%, transparent); }
+  .sk-on[data-skin] .ds-key:hover:not(:disabled) { border-color: var(--sk-ok); }
+  .sk-on[data-skin] .ds-key:active:not(:disabled) { box-shadow: 0 1px 0 color-mix(in srgb, var(--sk-key-rule) 75%, transparent); border-color: var(--sk-ok); }
+  .sk-on[data-skin] .ds-key:disabled { opacity: .55; }
+  .sk-on[data-skin] .ds-field.ds-num, .sk-on[data-skin] .lp-calc-screen { font-family: var(--sk-key-font); }
+  .sk-on[data-skin] .ds-field:focus { border-color: var(--sk-ok); box-shadow: 0 0 0 1px var(--sk-ok); background: var(--sk-key-bg); }
+  .sk-on[data-skin] .ds-field::placeholder { color: color-mix(in srgb, var(--sk-key-ink) 50%, transparent); }
+  .sk-on[data-skin] .lp-calc-expr { color: color-mix(in srgb, var(--sk-key-ink) 70%, transparent); }
+  .sk-on[data-skin] .lp-calc-val { color: var(--sk-ok); }
+  .sk-on[data-skin="exchange"] .lp-calc-screen { box-shadow: inset 0 0 18px rgba(25,195,125,.12); }
+  .sk-on[data-skin="mint"] .ds-key { box-shadow: inset 0 0 0 3px #FFFDF5, inset 0 0 0 4px rgba(154,116,19,.3), 0 3px 0 #B38A2E; }
+  .sk-on[data-skin="mint"] .lp-calc-val { color: #7A5A0A; }
+  .sk-on[data-skin="aurora"] .ds-key, .sk-on[data-skin="aurora"] .ds-field, .sk-on[data-skin="aurora"] .lp-calc-screen { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
   /* ---------- во всех темах: прогресс урока, вид задания, «Калькулятор», выключенная главная кнопка ---------- */
   .sk-on[data-skin] .ds-level-track i, .sk-on[data-skin] .ds-level-track button { background: color-mix(in srgb, var(--sk-rule) 50%, transparent); border-radius: var(--sk-seg-r, 3px); }
   .sk-on[data-skin] .ds-level-track .ok { background: var(--sk-ok); }

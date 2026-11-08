@@ -130,7 +130,18 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
     out.push({ id: 'fine:dupe-2026-11', kind: 'path', icon: 'shield-alert', tone: '#B8423A', at: Math.min(now, fine.at), go: 'shop', toast: true,
       title: 'Исправили ошибку с монетами',
       text: `Из-за ошибки бонусы серии выплачивались снова и снова. Лишние ${fine.coins} ${coinsWord(fine.coins)} списаны.`
+        + (fine.piggy ? ` Вклад в копилке закрыт: ${fine.piggy.n} ${coinsWord(fine.piggy.n)} из него пошли на списание.` : '')
         + (names.length ? ` Купленное на них вернулось в лавку: ${names.join(', ')} — ${fine.refund} ${coinsWord(fine.refund)} снова в кошельке.` : '') });
+  }
+  // второй проход списания (8 ноября 2026): монеты дюпа лежали в копилке — вклад закрыт, при нужде откачены покупки
+  const pass = (learn.fines || {})['dupe-2026-11-piggy'];
+  if (pass && (pass.piggy || Object.keys(pass.items || {}).length)) {
+    const names = Object.keys(pass.items || {}).map((id) => (OUTFIT_BY_ID[id] ? `«${OUTFIT_BY_ID[id].title}»` : null)).filter(Boolean);
+    out.push({ id: 'fine:dupe-2026-11-piggy', kind: 'path', icon: 'shield-alert', tone: '#B8423A', at: Math.min(now, pass.at), go: pass.piggy ? 'piggy' : 'shop', toast: true,
+      title: 'Списание дошло до копилки',
+      text: 'Часть монет из-за ошибки с бонусами серии лежала в копилке, и прошлое списание её не тронуло.'
+        + (pass.piggy ? ` Вклад закрыт: ${pass.piggy.n} ${coinsWord(pass.piggy.n)} из него пошли на списание, остальное вложенное — в кошельке.` : '')
+        + (names.length ? ` Вернулось в лавку: ${names.join(', ')}.` : '') });
   }
   const add = (n) => { if (prefs[n.kind] !== false) out.push(n); };
   const started = Object.keys(learn.done || {}).length > 0 || Object.keys(learn.lessons || {}).length > 0;

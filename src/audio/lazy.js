@@ -59,6 +59,8 @@ export const Audio = {
     return !!earlyCtx;
   },
   primed() { return real ? real.primed() : !!earlyCtx; },
+  // движок уже загружен (до первого клика — нет)
+  loaded() { return !!real; },
   play: deferred('play', { drop: true }),
   startMusic: deferred('startMusic'),
   stopMusic: deferred('stopMusic'),

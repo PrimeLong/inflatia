@@ -1493,8 +1493,10 @@ const productChart = {
     const samp = (fn, from = 0, to = Lend) => Array.from({ length: 80 }, (_, i) => { const x = from + ((to - from) * i) / 79; return { x, y: fn(x) }; });
     const avg = A.view === 'avg';
     const stage = f.mp(L) > f.ap(L) ? 'AP растёт: MP > AP' : f.mp(L) > 0.01 ? 'AP падает: MP < AP' : 'выпуск не растёт: MP = 0';
+    // что двигает ползунок и что такое выпуск — первыми строками (жалоба mw6v38k3: «что меняется на графике, что за выпуск»)
     const readout = [
-      { label: 'Общий продукт TP', value: `${r1(f.tp(L))} шт.` },
+      { label: 'Работников L', value: `${r1(L)} чел.` },
+      { label: 'Выпуск цеха Q (общий продукт TP)', value: `${r1(f.tp(L))} велосипедов в день` },
       { label: 'Предельный продукт MP', value: `${r1(f.mp(L))} шт.` },
       { label: 'Средний продукт AP', value: `${r1(f.ap(L))} шт.` },
       { label: 'Что происходит', value: stage },
@@ -1519,7 +1521,7 @@ const productChart = {
     const yMax = Math.ceil((f0.tp(f0.tpMaxL) * 1.5 * 1.08) / 20) * 20;
     return {
       xDomain: [0, Math.ceil(Lend)], yDomain: [0, yMax], xLabel: 'L, чел.', yLabel: 'Q, шт.',
-      axes: ['L — число работников, чел.', 'Q — выпуск цеха, шт.'],
+      axes: ['L — число работников, чел.', 'Q — выпуск цеха, велосипедов в день'],
       curves: [
         ...(tech !== 1 ? [{ id: 'TP0', points: samp(f0.tp), ghost: true, color: 'gold' }] : []),
         { id: 'TP', label: 'TP', labelPos: 0.97, points: samp(f.tp), color: 'gold' },

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import {
   COLOR, Audio, AudioControls, GlobalStyle, ACHIEVEMENTS, ACHIEVEMENTS_KEY, loadUnlockedAchievements, TYCOON_SAVE_KEY,
-  TYCOON_META_KEY, loadTycoonMeta, getPlayerId, loadAccount, emblemIcon, loadFold, saveFold,
+  TYCOON_META_KEY, loadTycoonMeta, getPlayerId, loadAccount, emblemIcon, loadFold, saveFold, leaveWave,
 } from './MacroSimulator.jsx';
 import { fetchTycoonSlots, fetchTycoonSlot, saveTycoonSlot, deleteTycoonSlot, fetchRecords, submitRecord, trackDaily } from './lib/client.js';
 import { taskText } from './textbook/tycoon-tasks.js';
@@ -158,6 +158,8 @@ export function TycoonScreen({ initial, setupNew, onExit, lesson = null }) {
     // партию, выброшенную после банкротства, при закрытии экрана не записываем обратно
     return () => { clearInterval(id); window.removeEventListener('pagehide', onHide); document.removeEventListener('visibilitychange', onHide); if (!discarded.current) saveLocal(stRef.current); };
   }, []);
+  // из учебника — с «Волной»: в партии музыка снова следует за экономикой
+  useEffect(() => { leaveWave(); }, []);
   useEffect(() => { Audio.setRole('trader'); return () => Audio.setRole(null); }, []);
 
   // новости своего бизнеса — всплывающими плашками; кварталы — вехи и достижения

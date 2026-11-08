@@ -4,7 +4,11 @@
    что в этой формуле есть.
 
    Ключ — запись обозначения в TeX: «Q_D», «P^*», «\pi^e», «MC», «\text{АС}». Индекс можно
-   писать и в фигурных скобках — Q_D найдёт и Q_{D}. Модуль чистый: его читают тесты. */
+   писать и в фигурных скобках — Q_D найдёт и Q_{D}. Модуль чистый: его читают тесты.
+
+   Обозначение из латинского сокращения (AP_L, MC, MRP_L) получает английскую расшифровку в скобках после русского
+   названия: «средний продукт труда (average product): …» — из src/textbook/abbr.js (docs/mechanics.md). */
+import { abbrEn } from './abbr.js';
 
 export const SYMBOLS = {
   scarcity: {
@@ -196,12 +200,20 @@ function keyRe(key) {
   const before = word ? '(?<![A-Za-ce-z\\\\])' : '(?<!\\\\[A-Za-z]*)';
   return new RegExp(`${before}${src}${after}`, 'g');
 }
+// «средний продукт труда: выпуск на…» → «средний продукт труда (average product): выпуск на…»
+export function withEn(key, text, chapter) {
+  const m = /^([A-Z]{2,5})(?:_|$)/.exec(key);
+  const en = m && abbrEn(m[1], chapter);
+  if (!en || text.toLowerCase().includes(en.toLowerCase())) return text;
+  const cut = text.search(/[:;—]/);
+  return cut > 0 ? `${text.slice(0, cut).trimEnd()} (${en})${text.slice(cut).startsWith('—') ? ' ' : ''}${text.slice(cut)}` : `${text} (${en})`;
+}
 const COMPILED = {};
 const compiled = (chapter) => {
   if (!COMPILED[chapter]) {
     const map = SYMBOLS[chapter] || {};
     // длинные записи раньше коротких: MC раньше C, P^* раньше P
-    COMPILED[chapter] = Object.keys(map).sort((a, b) => b.length - a.length).map((k) => ({ key: k, re: keyRe(k), text: map[k] }));
+    COMPILED[chapter] = Object.keys(map).sort((a, b) => b.length - a.length).map((k) => ({ key: k, re: keyRe(k), text: withEn(k, map[k], chapter) }));
   }
   return COMPILED[chapter];
 };

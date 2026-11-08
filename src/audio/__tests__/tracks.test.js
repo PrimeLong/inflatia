@@ -132,6 +132,24 @@ describe('звуковой движок без Web Audio', () => {
     a.setMood({ ...base, regime: 'normal', politicalRegime: 'totalitarian' });
     expect(a.playlist().map((p) => p.id)).toEqual(MOOD_PLAYLISTS.totalitarian);
   });
+
+  // «Волна» — в учебнике, где экономики нет (docs/mechanics.md, «Музыка»): настроения по кругу, без повторов подряд
+  it('«Волна»: все пьесы пяти спокойных настроений, одинаковое настроение подряд не звучит (и по кругу тоже)', () => {
+    const wave = MOOD_PLAYLISTS.wave;
+    const moods = ['calm', 'boom', 'slump', 'frost', 'stag'];
+    expect([...wave].sort()).toEqual(moods.flatMap((m) => MOOD_PLAYLISTS[m]).sort());
+    wave.forEach((id, i) => expect(TRACKS[id].mood, `${i}: ${id}`).not.toBe(TRACKS[wave[(i + 1) % wave.length]].mood));
+    expect(MOOD_LABEL.wave).toBe('Волна');
+    const a = createAudioEngine();
+    a.setPlaylist('wave');
+    expect(a.playlist().map((p) => p.id)).toEqual(wave);
+    expect(a.nowPlaying().locked).toBe('wave');
+    // экономика меняется — «Волна» держится, пока её не сняли
+    a.setMood({ regime: 'banking', politicalRegime: 'democracy', inflationRisk: 0, bankingRisk: 0, debtRisk: 0, recessionRisk: 0, gdpGrowth: 2 });
+    expect(a.playlist().map((p) => p.id)).toEqual(wave);
+    a.setPlaylist(null);
+    expect(a.playlist().map((p) => p.id)).toEqual(MOOD_PLAYLISTS.crisis);
+  });
 });
 
 describe('настроение и заставки', () => {

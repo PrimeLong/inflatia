@@ -12,18 +12,19 @@
    data-nav-target — e2e проверяет, что на одном экране нет двух путей в одно место.
    Карта экранов — src/learn/screens.js. */
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, ArrowLeft, Flame, Zap, Coins, Target, Lock, Check, Gem, ChevronLeft, Calculator, BookOpenText, BookOpen, Trophy, Timer, Delete, ChevronRight, RotateCcw, Sparkles, Dumbbell,
   Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link, Utensils, Boxes, Users,
   Snowflake, ArrowDownToLine, ArrowUpToLine, Languages, MessageCircle, Headphones, Gamepad2, Repeat, Flag, Croissant, Landmark, Radio, MapPin, ArrowUp, ChevronDown, SkipForward,
-  Wrench, Feather, ChartSpline, PenLine, Factory,
+  Wrench, Feather, ChartSpline, PenLine, Factory, Bike,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
 import { BookDock } from './learn-bookdock.jsx';
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
-import { askSave } from './lib/guest.js';
+import { askSave, askLogin } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
 import { track, trackOnce, reportsMe } from './lib/client.js';
 import { TRACK, rememberTeam } from './learn/track.js';
@@ -45,7 +46,7 @@ import {
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
 import { runCoins, runKey, earn, settle, indexed, COIN, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
-import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer } from './learn-decor.jsx';
+import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer, DESK_QUERY } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
 import { lessonOpts, weakLessons, recommend, courseCtx, theoryNotice } from './learn/program.js';
@@ -335,7 +336,10 @@ const CSS = `
   .ln-skip-tag { font: 700 12px var(--ds-sans); color: var(--ds-ink2); }
   .ln-overlay { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; }
   /* «предыдущая карточка» — слой под шапкой урока: своё тело с прокруткой и «Вернуться» внизу */
-  .ln-peek { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; flex-direction: column; background: var(--ds-paper); animation: ln-peek-in .28s cubic-bezier(.2, .9, .3, 1); }
+  /* прошлая карточка — на фоне самого урока (тема из лавки, украшения, черновик): слой прозрачный, а текущая карточка
+     с нижней панелью на это время прячется — ответ, ход и прокрутка целы (раньше слой цвета бумаги в теме урока был чёрным прямоугольником) */
+  .ln-peek { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; flex-direction: column; background: transparent; animation: ln-peek-in .28s cubic-bezier(.2, .9, .3, 1); }
+  .ln-overlay[data-peek] > .ln-body, .ln-overlay[data-peek] > .ln-foot { visibility: hidden; }
   @keyframes ln-peek-in { from { opacity: 0; transform: translateX(-18px) } }
   .ln-peek-verdict { margin-top: 12px; padding: 10px 12px; border-radius: 12px; font-size: 15.5px; line-height: 1.45; border-left: 4px solid var(--ds-ok); background: var(--ds-ok-bg); color: var(--ds-ok-ink); }
   .ln-peek-verdict.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 10%, var(--ds-card)); color: var(--ds-ink); }
@@ -424,6 +428,14 @@ const CSS = `
   .ln-m2-row.on .ln-m2-slot { border-color: var(--u-ink); color: var(--u-ink); }
   .ln-m2-slot.full { border-style: solid; border-color: color-mix(in srgb, var(--u-ink) 60%, var(--ds-rule2)); background: color-mix(in srgb, var(--u) 12%, var(--ds-card)); color: var(--ds-ink); }
   .ln-m2-mark { font: 800 18px var(--ds-sans); }
+  /* перетаскивание: слово под пальцем не прокручивает страницу; копия едет за пальцем; место под ней подсвечено */
+  .ln-m2-word, .ln-m2-slot.full { touch-action: none; -webkit-user-select: none; user-select: none; }
+  .ln-m2-word.dragging, .ln-m2-slot.full.dragging { opacity: .35; }
+  .ln-m2-ghost { position: fixed; z-index: 60; pointer-events: none; width: auto; margin: 0; padding: 8px 12px; font-size: 14.5px; line-height: 1.25; transform: rotate(-2deg) scale(1.04);
+    box-shadow: 0 14px 26px -12px rgba(0,0,0,.45); border-color: var(--u-ink); }
+  .ln-m2-row.drop { border-color: var(--u-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--u) 30%, transparent); }
+  .ln-m2-row.drop .ln-m2-slot { border-color: var(--u-ink); background: color-mix(in srgb, var(--u) 14%, var(--ds-card)); }
+  .ln-m2-bank.drop { outline: 2px dashed var(--u-ink); outline-offset: 2px; border-radius: 10px; }
   /* после проверки: верная строка — зелёная с ✓, неверная — красная с ✗, зачёркнутым словом и «верно: …» */
   .ln-m2-row[data-verdict="ok"] { border-color: var(--ds-ok); background: color-mix(in srgb, var(--ds-ok) 8%, var(--ds-card)); }
   .ln-m2-row[data-verdict="bad"] { border-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 7%, var(--ds-card)); }
@@ -479,7 +491,9 @@ const CSS = `
   .ln-album { display: flex; flex-wrap: wrap; gap: 10px; }
   .ln-key { margin-top: 14px; padding: 8px 12px 10px; border: 2px solid var(--u); border-radius: 10px; background: color-mix(in srgb, var(--u) 8%, var(--ds-card)); }
   .ln-key .ds-eyebrow { color: var(--u-ink); }
-  .ln-key-tex { font-size: 19px; text-align: center; margin-top: 4px; overflow-x: auto; overflow-y: hidden; }
+  /* формула целиком: дробь (ΔQ над ΔL) — блоком с запасом по вертикали, а не строкой, у которой верх срезался (жалоба mw6t15ic) */
+  .ln-key-tex { font-size: 19px; text-align: center; margin-top: 4px; padding: 4px 0 6px; overflow-x: auto; overflow-y: hidden; }
+  .ln-key-tex .katex { display: inline-block; padding: 3px 0; }
   .ln-legend { margin-top: 12px; padding: 8px 12px; border-left: 4px solid var(--u); background: color-mix(in srgb, var(--u) 6%, var(--ds-card)); font-size: 14.5px; line-height: 1.55; border-radius: 4px 12px 12px 4px; }
   .ln-how { background: none; border: none; padding: 4px 0; margin-top: 6px; font: 700 14px var(--ds-sans); color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
   /* «Ошибка в разборе?» — тихая ссылка под разбором в плашке ответа */
@@ -686,7 +700,7 @@ function MiniChart({ type, attrs, values = null, tween = false }) {
 }
 const PICS = {
   clock: Clock, scale: Scale, hourglass: Hourglass, ticket: Ticket, 'trending-up': TrendingUp, 'circle-check': CircleCheck, medal: Medal,
-  'arrow-left-right': ArrowLeftRight, handshake: Handshake, coffee: Coffee, wallet: Wallet, link: Link, utensils: Utensils, boxes: Boxes, users: Users, factory: Factory,
+  'arrow-left-right': ArrowLeftRight, handshake: Handshake, coffee: Coffee, wallet: Wallet, link: Link, utensils: Utensils, boxes: Boxes, users: Users, factory: Factory, bike: Bike,
   snowflake: Snowflake, 'arrow-down-to-line': ArrowDownToLine, 'arrow-up-to-line': ArrowUpToLine, croissant: Croissant, landmark: Landmark, radio: Radio, flag: Flag,
 };
 // картинка шага — значок в медальоне с розеткой, как клеймо на купюре
@@ -739,6 +753,80 @@ function ChoiceCalc({ options, numOf, onPick }) {
     </>
   );
 }
+/* Перетаскивание слова в «Соедините» (docs/mechanics.md, «Задания урока»): пальцем или мышью. Сдвиг больше 8 px —
+   перетаскивание: копия слова едет за пальцем (слой в корне урока, без касаний), место под пальцем подсвечено;
+   отпустили — onDrop({ row }) над строкой, onDrop({ bank: true }) над банком. Без сдвига — обычное нажатие. */
+const DRAG_MIN = 8;
+function dropTarget(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const row = el && el.closest('[data-drop-row]');
+  if (row) return { row: row.getAttribute('data-drop-row'), el: row };
+  const bank = el && el.closest('[data-drop-bank]');
+  return bank ? { bank: true, el: bank } : null;
+}
+function DragWord({ as: Tag = 'button', label, disabled = false, onDrop, className = '', children, ...rest }) {
+  const ref = useRef(null);
+  const st = useRef(null);
+  const [ghost, setGhost] = useState(null);
+  const hover = (t) => {
+    const prev = st.current && st.current.over;
+    if (prev && (!t || prev !== t.el)) prev.classList.remove('drop');
+    if (t) t.el.classList.add('drop');
+    if (st.current) st.current.over = t ? t.el : null;
+  };
+  const end = (e, drop) => {
+    const s = st.current; st.current = null;
+    if (!s) return;
+    if (s.raf) cancelAnimationFrame(s.raf);
+    if (s.drag) {
+      if (s.over) s.over.classList.remove('drop');
+      setGhost(null);
+      // после перетаскивания браузер может прислать «нажатие» сразу за отпусканием — его глушим, следующее — уже нет
+      const kill = (ev) => { ev.stopPropagation(); ev.preventDefault(); window.removeEventListener('click', kill, true); };
+      window.addEventListener('click', kill, true); setTimeout(() => window.removeEventListener('click', kill, true), 0);
+      const t = drop ? dropTarget(e.clientX, e.clientY) : null;
+      if (t) onDrop(t.row ? { row: t.row } : { bank: true });
+    }
+  };
+  const handlers = disabled ? {} : {
+    onPointerDown: (e) => {
+      if (e.button > 0 || !ref.current) return;
+      const r = ref.current.getBoundingClientRect();
+      st.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, drag: false, over: null };
+    },
+    onPointerMove: (e) => {
+      const s = st.current; if (!s || s.id !== e.pointerId) return;
+      if (!s.drag && Math.hypot(e.clientX - s.x0, e.clientY - s.y0) < DRAG_MIN) return;
+      if (!s.drag) { s.drag = true; try { ref.current.setPointerCapture(e.pointerId); } catch { /* уже отпущен */ } Audio.play('tick'); }
+      e.preventDefault();
+      s.x = e.clientX; s.y = e.clientY;
+      setGhost({ x: e.clientX - s.dx, y: e.clientY - s.dy, w: s.w });
+      hover(dropTarget(e.clientX, e.clientY));
+      /* у края урока — прокрутка: нижняя строка на телефоне может быть за экраном; пока палец у края, урок едет */
+      const box = ref.current && ref.current.closest('.ln-body');
+      if (box && !s.raf) {
+        const tick = () => {
+          const cur = st.current; if (!cur || !cur.drag) return;
+          const r = box.getBoundingClientRect();
+          const v = cur.y > r.bottom - 56 ? 10 : cur.y < r.top + 56 ? -10 : 0;
+          if (v) { box.scrollTop += v; hover(dropTarget(cur.x, cur.y)); }
+          cur.raf = requestAnimationFrame(tick);
+        };
+        s.raf = requestAnimationFrame(tick);
+      }
+    },
+    onPointerUp: (e) => end(e, true),
+    onPointerCancel: (e) => end(e, false),
+  };
+  const host = ref.current && (ref.current.closest('.ln-overlay') || document.body);
+  return (
+    <>
+      <Tag ref={ref} className={`${className}${ghost ? ' dragging' : ''}`} disabled={Tag === 'button' ? disabled : undefined} {...rest} {...handlers}>{children}</Tag>
+      {ghost && host && createPortal(<span className="ds-opt ln-m2-ghost" data-testid="match-ghost" aria-hidden="true" style={{ left: ghost.x, top: ghost.y, minWidth: Math.min(ghost.w, 260) }}>{label}</span>, host)}
+    </>
+  );
+}
+
 function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit = () => {} }) {
   const pick = (v) => { if (!locked) { Audio.play('tick'); setResp(v); } };
   const optClass = (key, correct) => (!fb ? '' : correct ? 'right' : key === resp && !fb.ok ? 'wrong' : '');
@@ -855,16 +943,29 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         if (x.key in termIn) { const n = { ...r }; delete n[termIn[x.key]]; setResp(n); }
         setSel(x.key);
       };
+      // перетащили слово l (из банка или с места from) — на строку: занятое слово уходит в банк или меняется местами
+      const dropWord = (l, from, t) => {
+        if (locked) return;
+        const n = { ...r };
+        if (t.bank) { if (from) { delete n[l]; setResp(n); setSel(from); Audio.play('tick'); } return; }
+        if (t.row === from) return;
+        const other = termIn[t.row];
+        if (other) { if (from) n[other] = from; else delete n[other]; }
+        n[l] = t.row;
+        Audio.play('tick'); setResp(n); setSel(null);
+      };
+      const raw = (key) => { const l = inst.left.find((x) => x.key === key); return (l && (l.raw || '')) || ''; };
       return (
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
           {/* пары на время: по нулю ответ уходит на проверку таким, какой есть */}
           {inst.timer && <TimerBar seconds={inst.timer} running={!locked} onEnd={() => onSubmit(inst._resp.current || {})} />}
-          {!checked && <div className="ln-m2-how" data-testid="match-how">Нажмите слово — оно встанет в подсвеченное место. Нажмите место со словом — слово вернётся.</div>}
-          {(bank.length > 0 || !checked) && <div className="ln-m2-bank" data-testid="match-bank">
+          {!checked && <div className="ln-m2-how" data-testid="match-how">Нажмите или перетащите слово на место. Нажмите место со словом — слово вернётся.</div>}
+          {(bank.length > 0 || !checked) && <div className="ln-m2-bank" data-testid="match-bank" data-drop-bank="1">
             {bank.map((l) => (
-              <button key={l.key} type="button" className="ds-opt" data-side="left" data-key={l.key} disabled={locked || !active} onClick={() => place(l.key)}>
-                <Inline nodes={l.text} ctx={ctx} /></button>
+              <DragWord key={l.key} type="button" className="ds-opt ln-m2-word" data-side="left" data-key={l.key} disabled={locked || !active} label={l.raw || <Inline nodes={l.text} ctx={ctx} />}
+                onClick={() => place(l.key)} onDrop={(t) => dropWord(l.key, null, t)}>
+                <Inline nodes={l.text} ctx={ctx} /></DragWord>
             ))}
             {!bank.length && <span className="ln-m2-bank-done">Все слова на местах — можно проверять.</span>}
           </div>}
@@ -874,10 +975,13 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
             const fix = verdict === 'bad' ? inst.left.find((l) => l.key === x.key) : null;
             const on = !locked && active === x.key;
             return (
-              <button key={x.key} type="button" className={`ln-m2-row${on ? ' on' : ''}`} data-side="right" data-key={x.key} data-verdict={verdict || undefined}
+              <button key={x.key} type="button" className={`ln-m2-row${on ? ' on' : ''}`} data-side="right" data-key={x.key} data-drop-row={locked ? undefined : x.key} data-verdict={verdict || undefined}
                 aria-label={`${t ? `Слово: ${inst.left.find((l) => l.key === t).raw || ''}` : 'Пустое место'}. ${x.raw || ''}`} disabled={locked} onClick={() => slot(x)}>
-                <span className={`ln-m2-slot${t ? ' full' : ''}`} data-testid={t ? 'match-tag' : 'match-empty'}>
-                  {t ? <Inline nodes={inst.left.find((l) => l.key === t).text} ctx={ctx} /> : on ? 'слово сюда' : '…'}</span>
+                {t ? (
+                  <DragWord as="span" className="ln-m2-slot full" data-testid="match-tag" disabled={locked} label={raw(t) || <Inline nodes={inst.left.find((l) => l.key === t).text} ctx={ctx} />}
+                    onDrop={(d) => dropWord(t, x.key, d)}>
+                    <Inline nodes={inst.left.find((l) => l.key === t).text} ctx={ctx} /></DragWord>
+                ) : <span className="ln-m2-slot" data-testid="match-empty">{on ? 'слово сюда' : '…'}</span>}
                 <span className="ln-m2-def"><Inline nodes={x.text} ctx={ctx} /></span>
                 {verdict ? <span className="ln-m2-mark" aria-hidden="true">{verdict === 'ok' ? '✓' : '✗'}</span> : <span />}
                 {fix && <span className="ln-m2-fix" data-testid="match-fix">верно: <Inline nodes={fix.text} ctx={ctx} /></span>}
@@ -1120,7 +1224,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const [replay] = useState(() => run.mode === 'lesson' && lessonDone(learn, run.lessonId));
   const diamond = !!plan.diamond;
   // украшение урока из лавки (learn-decor.jsx); гость лавки не видел
-  const desk = guest ? null : deskOf(learn);
+  // украшение урока — только на ПК и планшете: на телефоне оно отнимало высоту и закрывало угол (пункт владельца 08.11)
+  const roomy = useMedia(DESK_QUERY);
+  const desk = guest || !roomy ? null : deskOf(learn);
   // тема урока из лавки (learn-skins.jsx): фон, кнопки и отклик на ответ; тёмная тема — тёмная палитра
   const skin = guest ? null : SKINS[themeOf(learn)] || null;
   const [gem] = useState(() => !!(run.lessonId && learn.lessons[run.lessonId] && learn.lessons[run.lessonId].diamond));
@@ -1166,6 +1272,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
      урок — и серия снова тут (жалоба). Каждое изменение огонька сразу пишется в rc (syncStreak). */
   const [run3, setRun3Raw] = useState(() => streakNow(learn));
   const setRun3 = (next) => { setRun3Raw(next); update((s) => syncStreak(s, next)); };
+  /* серия поменялась на другом устройстве (тот же урок открыт и на телефоне: там ошибка) — молния урока берёт общее
+     число из синхронизации, а не перезаписывает его своим следующим ответом (пункт владельца от 8 ноября 2026).
+     Свои ответы меняют молнию и run вместе, в одном обновлении, — тут они совпадают и ничего не происходит */
+  const sharedRun = learn.run && learn.run.at ? learn.run.n : null;
+  useEffect(() => { if (sharedRun != null) setRun3Raw((n) => (n === sharedRun ? n : sharedRun)); }, [sharedRun]);
   // линия графика прогресса: первые попытки по порядку; pulse — короткая вспышка на верном ответе серии
   const [log, setLog] = useState(rs ? rs.log || [] : []);
   /* «Слушай» и «История» — лента: прошлые сообщения и отвеченные вопросы остаются в ней
@@ -1477,7 +1588,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
 
   return (
     <DsRoot theme={skin ? skinTheme(skin) : dsThemeId()} accent={color} className={skin ? 'ln-overlay sk-on' : 'ln-overlay'} data-testid="lesson" data-mode={run.mode} data-diamond={diamond ? 'true' : undefined} role="dialog" aria-label={title}
-      data-skin={skin ? skin.key : undefined} style={{ ...(skin ? skinVars(skin) : null), display: hidden ? 'none' : undefined }}>
+      data-peek={peek && prevShot && stage !== 'done' ? 'true' : undefined} data-skin={skin ? skin.key : undefined} style={{ ...(skin ? skinVars(skin) : null), display: hidden ? 'none' : undefined }}>
       <ArtStyle /><style>{CSS + PLAY_CSS + FEED_CSS + REPORT_CSS + MODEL_CSS + DOMINO_CSS + (sketch ? SKETCH_CSS : '') + (skin ? SKIN_CSS : '')}</style>
       {skin && <LessonSkin id={skin.id} />}
       <div className="ln-head" ref={headRef}>
@@ -2304,14 +2415,20 @@ function ExtraSheet({ x, onStart, onClose }) {
           <div className="ds-num ds-sub ln-ticket-meta" data-testid="extra-meta">
             <span><Timer size={15} aria-hidden="true" />≈{info.min} мин</span>
             <span><Coins size={15} aria-hidden="true" />{x.done ? 'опыт получен' : `+${info.xp} опыта`}</span>
-            {x.done && <span data-testid="extra-done-mark" style={{ color: 'var(--ds-ok)', fontWeight: 700 }}><Check size={15} aria-hidden="true" />пройден</span>}
+            {x.done && <span data-testid="extra-done-mark" style={{ color: x.gem ? DIAMOND_COLOR : 'var(--ds-ok)', fontWeight: 700 }}>{x.gem ? <Gem size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{x.gem ? 'алмаз' : 'пройден'}</span>}
           </div>
         </div>
         <div className="ln-ticket-stub"><Icon size={30} aria-hidden="true" /></div>
       </div>
       <p className="ds-sub" style={{ fontSize: 15, lineHeight: 1.45, margin: '14px 2px 0' }} data-testid="extra-inside">{info.inside}</p>
       <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
-        <Button wide data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+        {/* прочитанное «Чтение» — и на алмазном уровне: контекст после ответа, «Кто это сказал?», без ошибок (пункт владельца 08.11) */}
+        {x.type === 'read' && x.done && (
+          <Button wide icon={Gem} data-testid="extra-gem" style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
+            {x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
+          </Button>
+        )}
+        <Button wide variant={x.type === 'read' && x.done ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
       </div>
     </Sheet>
   );
@@ -2358,11 +2475,11 @@ function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra =
           return (
             <div key={x.id} className="ln-stop" style={{ left: pts[i][0], top: pts[i][1] - 31 }}>
               {isRec && <span className="ln-pin rec" data-testid="path-rec">рекомендуем сейчас</span>}
-              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined}
+              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined} data-diamond={x.gem ? 'true' : undefined}
                 data-nav-target={`extra:${x.id}`} aria-label={`${EXTRA_KIND[x.type]}: ${x.title}${x.done ? ', пройдено' : x.open ? '' : ', закрыто'}`}
                 onClick={() => { Audio.prime(); Audio.play('click'); onExtra(x); }}>
                 {x.open || x.done ? <Icon size={25} /> : <Lock size={22} />}
-                {x.done && <span className="ln-seal" aria-hidden="true"><Check size={13} strokeWidth={3.2} /></span>}
+                {x.done && <span className={`ln-seal ${x.gem ? 'diamond' : ''}`} aria-hidden="true">{x.gem ? <Gem size={13} strokeWidth={2.6} /> : <Check size={13} strokeWidth={3.2} />}</span>}
                 {x.type === 'fix' && <span className="ln-fix-count" data-testid="path-fix-count" aria-hidden="true">{x.count}</span>}
               </button>
               <button type="button" className={`ln-stop-title ln-extra-title side-${ts.side} ${x.open || x.done ? '' : 'locked'}`} tabIndex={-1} aria-hidden="true"
@@ -3000,7 +3117,11 @@ function GuestSave({ learn, afterLesson = false }) {
       <div className="ds-sub" style={{ fontSize: 14.5, lineHeight: 1.45, margin: '4px 0 10px' }}>
         {done ? `${done} ${plural(done, 'урок', 'урока', 'уроков')} и монеты пока хранятся только в этом браузере.` : 'Пока прогресс хранится только в этом браузере.'} Создайте аккаунт — и он будет с вами на любом устройстве.
       </div>
-      <Button wide small data-testid="guest-register" onClick={() => { Audio.play('click'); askSave(); }}>Создать аккаунт</Button>
+      {/* у кого аккаунт уже есть (начал на новом устройстве) — «Войти»: прогресс гостя объединится с аккаунтом */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+        <Button wide small data-testid="guest-register" onClick={() => { Audio.play('click'); askSave(); }}>Создать аккаунт</Button>
+        <Button wide small variant="secondary" data-testid="guest-login" onClick={() => { Audio.play('click'); askLogin(); }}>Войти</Button>
+      </div>
     </Card>
   );
 }
@@ -3122,7 +3243,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   };
   const openExtra = (x) => {
     setExtraSheet(null);
-    if (x.type === 'read') setReading(x.id);
+    // x.gem — алмаз у остановки уже взят; x.diamond — открыть на алмазном уровне
+    if (x.type === 'read') setReading({ id: x.id, gem: !!x.diamond });
     else if (x.type === 'people') setPeople(x.id);
     else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
     else if (x.type === 'draw') setDraw(x.id);
@@ -3222,7 +3344,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         }} /></React.Suspense>}
       {sheet && <LessonSheet l={sheet} learn={learn} weak={weakLessons(learn).some((w) => w.id === sheet.id)} onStart={start} onClose={() => setSheet(null)} onOpenBook={openBook}
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
-      {reading && <Lazy><ReadingView id={reading} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
+      {reading && <Lazy><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
       {people && <Lazy><PeopleView id={people} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}

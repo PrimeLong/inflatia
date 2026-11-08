@@ -10,8 +10,9 @@ import { emptyLearn, markDraw } from '../../textbook/learn-state.js';
 import { courseLevel } from '../grade.js';
 
 describe('«Нарисуй сам»: содержание', () => {
-  it('три юнита, у каждого — по уроку; опыт 15', () => {
-    expect(DRAWS.map((d) => d.unitId)).toEqual(['supply-demand', 'labor', 'competition-monopoly']);
+  it('в каждом юните Пути — по уроку (правило «четыре особых урока»); опыт 15', () => {
+    const units = Object.values(UNIT_BY_ID).filter((u) => u.lessons.length).map((u) => u.id).sort();
+    expect(DRAWS.map((d) => d.unitId).sort()).toEqual(units);
     expect(DRAW_XP).toBe(15);
     DRAWS.forEach((d) => { expect(UNIT_BY_ID[d.unitId], d.id).toBeTruthy(); expect(CHARTS[d.chart], d.id).toBeTruthy(); expect(DRAW_BY_UNIT[d.unitId]).toBe(d); });
   });
@@ -28,7 +29,10 @@ describe('«Нарисуй сам»: содержание', () => {
     }));
   });
   it('числа из условий лежат на своих линиях (две точки из текста засчитываются)', () => {
-    const pairs = { 'draw-sd': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]], 'draw-labor': [[[100, 200], [200, 100]], [[40, 100], [140, 200]]], 'draw-monopoly': [[[20, 80], [60, 40]], [[20, 60], [40, 20]]] };
+    const pairs = { 'draw-sd': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]], 'draw-labor': [[[100, 200], [200, 100]], [[40, 100], [140, 200]]], 'draw-monopoly': [[[20, 80], [60, 40]], [[20, 60], [40, 20]]],
+      'draw-ppf': [[[100, 0], [0, 100]]], 'draw-revenue': [[[10, 800], [20, 1200]], [[30, 1200], [40, 800]]], 'draw-tax': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]],
+      'draw-money': [[[10, 5.5], [20, 3.7]]], 'draw-inflation': [[[1, 108], [5, 147]], [[1, 110], [5, 161]]], 'draw-budget': [[[0, 120], [60, 0]]],
+      'draw-product': [[[2, 20], [6, 108]]], 'draw-costs': [[[2, 8], [5, 35]]], 'draw-moncomp': [[[16, 90], [26, 60]], [[10, 78], [20, 18]]] };
     DRAWS.forEach((d) => {
       const lines = d.tasks.filter((t) => t.do === 'line');
       lines.forEach((t, k) => { const [a, b] = pairs[d.id][k]; expect(checkTask(d, t, { a: { x: a[0], y: a[1] }, b: { x: b[0], y: b[1] } }).ok, `${d.id} ${t.el}`).toBe(true); });
@@ -38,6 +42,18 @@ describe('«Нарисуй сам»: содержание', () => {
     const sd = DRAWS[0]; expect(taskTarget(sd, sd.tasks[2])).toEqual({ x: 60, y: 20 }); expect(taskTarget(sd, sd.tasks[4])).toEqual({ x: 80, y: 25 });
     const lb = DRAWS[1]; expect(taskTarget(lb, lb.tasks[2])).toEqual({ x: 120, y: 180 }); expect(taskTarget(lb, lb.tasks[4])).toEqual({ x: 150, y: 150 });
     const mo = DRAWS[2]; expect(taskTarget(mo, mo.tasks[3])).toEqual({ x: 40, y: 60 });
+    // новые: числа из итогов — с графика
+    const by = Object.fromEntries(DRAWS.map((d) => [d.id, d]));
+    const at = (id, i) => { const d = by[id]; const p = taskTarget(d, d.tasks[i]); return [Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100]; };
+    expect(at('draw-ppf', 1)).toEqual([60, 80]); expect(Math.round(at('draw-ppf', 4)[1])).toBe(89);
+    expect(at('draw-revenue', 2)).toEqual([25, 1250]); expect(at('draw-revenue', 3)).toEqual([35, 1050]);
+    expect(at('draw-tax', 2)).toEqual([60, 20]); expect(at('draw-tax', 4)).toEqual([52, 24]);
+    expect(at('draw-money', 1)).toEqual([15, 4.4]); expect(at('draw-money', 2)).toEqual([20, 3.67]); expect(at('draw-money', 3)).toEqual([15, 2.89]);
+    expect(at('draw-inflation', 2)).toEqual([5, 146.93]); expect(at('draw-inflation', 3)).toEqual([5, 176.23]);
+    expect(at('draw-budget', 3)).toEqual([40, 0]); expect(at('draw-budget', 4)).toEqual([0, 150]);
+    expect(at('draw-product', 1)).toEqual([4, 64]); expect(at('draw-product', 3)).toEqual([4, 80]);
+    expect(at('draw-costs', 1)).toEqual([3, 11]); expect(at('draw-costs', 2)).toEqual([5, 35]);
+    expect(at('draw-moncomp', 3)).toEqual([16, 90]); expect(at('draw-moncomp', 5)).toEqual([10, 60]);
   });
 });
 
@@ -67,19 +83,19 @@ describe('«Нарисуй сам»: проверка', () => {
 });
 
 describe('«Нарисуй сам» на дороге юнита', () => {
-  it('остановка — сразу за «Разбором графика»; у «Биржи труда» разбора нет — после урока, где график появился', () => {
+  it('остановка — сразу за «Разбором графика» (правило: в каждом юните есть оба)', () => {
     const order = (unitId) => unitStops(pathState(emptyLearn()).find((s) => s.course.id === unitId), emptyLearn()).map((x) => x.type);
     const sd = order('supply-demand'); expect(sd[sd.indexOf('graph') + 1]).toBe('draw');
     const cm = order('competition-monopoly'); expect(cm[cm.indexOf('graph') + 1]).toBe('draw');
-    const lm = order('labor'); expect(lm.slice(0, 2)).toEqual(['lesson', 'draw']);
+    const lm = order('labor'); expect(lm.slice(0, 3)).toEqual(['lesson', 'graph', 'draw']);
   });
   it('следующий урок ждёт его, пройденное помнит прогресс и засчитывает в уровень знаний', () => {
     const unit = UNIT_BY_ID.labor;
-    expect(extraLocks(unit, emptyLearn())[0]).toEqual([{ type: 'draw', id: 'draw-labor', title: 'Рынок труда пекарей', done: false }]);
+    expect(extraLocks(unit, emptyLearn())[0].find((x) => x.type === 'draw')).toEqual({ type: 'draw', id: 'draw-labor', title: 'Рынок труда пекарей', done: false });
     const s = markDraw(emptyLearn(), 'draw-labor', 5);
     expect(s.draws).toEqual({ 'draw-labor': 5 });
     expect(markDraw(s, 'draw-labor', 9)).toBe(s);
-    expect(extraLocks(unit, s)[0][0].done).toBe(true);
+    expect(extraLocks(unit, s)[0].find((x) => x.type === 'draw').done).toBe(true);
     expect(courseLevel(s).parts.extras - courseLevel(emptyLearn()).parts.extras).toBe(1);
   });
 });

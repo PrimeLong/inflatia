@@ -15,3 +15,6 @@ export function startGuest(now = Date.now()) {
 export const endGuest = () => { try { localStorage.removeItem(GUEST_KEY); } catch { /* приватный режим */ } };
 // «Сохраните прогресс»: открыть регистрацию поверх приложения
 export const askSave = () => window.dispatchEvent(new Event(GUEST_SAVE));
+// «Войти»: у гостя уже есть аккаунт — открыть вход поверх приложения (прогресс гостя объединится с аккаунтом)
+export const GUEST_LOGIN = 'ems-guest-login';
+export const askLogin = () => window.dispatchEvent(new Event(GUEST_LOGIN));

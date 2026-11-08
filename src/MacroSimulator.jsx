@@ -10,7 +10,7 @@ import {
 import { Audio } from './audio/lazy.js';
 import { BrandLoader } from './logo.jsx';
 import { useAccount, loadAccount, refreshAccount, NameGate } from './account.jsx';
-import { isGuest, GUEST_START, GUEST_SAVE } from './lib/guest.js';
+import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -454,7 +454,12 @@ export function useExclusiveDropdown(width) {
   return { open, setOpen, toggle, btnRef, pos };
 }
 
-export function AudioControls() {
+/* «Волна» играет в учебнике; в партии музыка снова следует за экономикой (docs/mechanics.md, «Музыка») */
+export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked === 'wave') Audio.setPlaylist(null); };
+
+/* wave — экран без экономики (учебник): вместо «По режиму экономики» — «Волна», пьесы сами сменяют друг друга;
+   buttonStyle — кнопка под соседей (в учебнике — круглая, высотой с кнопки размера текста) */
+export function AudioControls({ wave = false, buttonStyle = null }) {
   const DD_WIDTH = 268;
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
   // музыку, звуки и громкость читаем из движка при каждом рисовании: их ставит и экран
@@ -466,18 +471,18 @@ export function AudioControls() {
   const anyOn = music || sfx;
   const np = Audio.nowPlaying();
   const list = Audio.playlist();
-  // названия пьес и заставок приезжают вместе с движком (см. audio/lazy.js)
-  const { TRACKS = {}, STINGERS = {}, MOOD_LABEL = {} } = Audio.meta() || {};
-  const moods = [['auto', 'По режиму экономики'], ['calm', MOOD_LABEL.calm], ['boom', MOOD_LABEL.boom],
+  // названия настроений приезжают вместе с движком (см. audio/lazy.js)
+  const { MOOD_LABEL = {} } = Audio.meta() || {};
+  const moods = [wave ? ['wave', 'Волна'] : ['auto', 'По режиму экономики'], ['calm', MOOD_LABEL.calm], ['boom', MOOD_LABEL.boom],
     ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
   return (
     <div style={{ position: 'relative' }}>
-      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px' }} title={`Музыка: ${np.name}`}
+      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
         onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
         {anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
       {open && (
-        <div className="ems-panel-raised ems-fade-in" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, padding: 13, zIndex: 60, maxHeight: pos.maxHeight, overflowY: 'auto' }}>
+        <div className="ems-panel-raised ems-fade-in" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, padding: 13, zIndex: 60, maxHeight: pos.maxHeight, overflowY: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
             <Music size={13} color={COLOR.gold} />
             <span className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft }}>Саундтрек</span>
@@ -505,30 +510,21 @@ export function AudioControls() {
               ))}
             </div>
           )}
-          {music && (
-            <div style={{ marginBottom: 9 }}>
-              <div style={{ fontSize: 12, color: COLOR.muted, marginBottom: 4 }}>Заставки событий</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {Object.values(STINGERS).map((st) => (
-                  <button key={st.id} className="ems-btn" style={{ padding: '2px 7px', fontSize: 12 }}
-                    onClick={() => Audio.stinger(st.id)}>{st.name}</button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* «Заставки событий» и справки о числе пьес в панели нет: заставки звучат в партии сами (пункт владельца 08.11) */}
           <div style={{ marginBottom: 9 }}>
             <div style={{ fontSize: 12, color: COLOR.muted, marginBottom: 4 }}>Что играть</div>
-            <select className="ems-btn" value={np.locked || 'auto'} style={{ width: '100%', padding: '5px 8px', fontSize: 12 }}
+            <select className="ems-btn" data-testid="music-what" value={np.locked || (wave ? 'wave' : 'auto')} style={{ width: '100%', padding: '5px 8px', fontSize: 12 }}
               onChange={(e) => { Audio.play('tab'); Audio.setPlaylist(e.target.value === 'auto' ? null : e.target.value); }}>
               {moods.map(([id, label]) => (<option key={id} value={id}>{label}</option>))}
             </select>
+            {wave && (np.locked || 'wave') === 'wave' && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 4, lineHeight: 1.4 }} data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
           </div>
           {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); setWorldMusic(v); }, Music],
             ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                 <Icon size={12} color={val ? COLOR.gold : COLOR.faint} />
                 <span style={{ fontSize: 12, color: val ? COLOR.text : COLOR.muted, flex: 1 }}>{label}</span>
-                <button className="ems-btn" style={{ padding: '2px 9px', fontSize: 12, background: val ? COLOR.sel : COLOR.panelAlt, color: val ? COLOR.selText : COLOR.muted, borderColor: val ? COLOR.selBorder : COLOR.border }}
+                <button className="ems-btn" data-testid={Icon === Music ? 'music-toggle' : 'sfx-toggle'} style={{ padding: '2px 9px', fontSize: 12, background: val ? COLOR.sel : COLOR.panelAlt, color: val ? COLOR.selText : COLOR.muted, borderColor: val ? COLOR.selBorder : COLOR.border }}
                   onClick={() => set(!val)}>{val ? 'вкл' : 'выкл'}</button>
               </div>
             ))}
@@ -536,9 +532,6 @@ export function AudioControls() {
             <span style={{ fontSize: 12, color: COLOR.muted, width: 54 }}>Громкость</span>
             <input type="range" className="ems-slider" min={0} max={1} step={0.05} value={vol}
               onChange={(e) => { const v = parseFloat(e.target.value); setVol(v); Audio.setVolume(v); setWorldVolume(v); }} />
-          </div>
-          <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 9, lineHeight: 1.45 }}>
-            {Object.keys(TRACKS).length} пьес в {new Set(Object.values(TRACKS).map((t) => t.mood)).size} настроениях. Каждая состоит из нескольких частей с разной оркестровкой, на повторах играется с вариациями, а темп дышит экономикой — при высокой инфляции музыка разгоняется. Смена настроения не обрывает пьесу: она затихает за такт и передаёт место следующей. На выборы, переворот, падение и возвращение демократии и остановленные цены звучат короткие заставки.
           </div>
         </div>
       )}
@@ -1033,10 +1026,12 @@ export default function MacroSimulator() {
     const ready = () => { setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
     const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('path'); setFirstLesson(true); window.scrollTo(0, 0); };
     const guestSave = () => { setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
+    const guestLogin = () => { setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
     window.addEventListener('ems-account-ready', ready);
     window.addEventListener(GUEST_START, guestStart);
     window.addEventListener(GUEST_SAVE, guestSave);
-    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); };
+    window.addEventListener(GUEST_LOGIN, guestLogin);
+    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); window.removeEventListener(GUEST_LOGIN, guestLogin); };
   }, []);
   React.useEffect(() => { if (!account && !guest) { setGateScreen('hello'); setGate(true); } }, [account, guest]);
   // детский режим и имя — с сервера при каждом запуске (профиль мог поменяться на другом устройстве)
@@ -1070,6 +1065,7 @@ export default function MacroSimulator() {
   }, []);
   const closeBookOverlay = () => {
     setBookOverlay(null);
+    leaveWave();
     requestAnimationFrame(() => window.scrollTo(0, gameScroll.current));
   };
   const [setupPreset, setSetupPreset] = useState(null);

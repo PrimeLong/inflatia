@@ -10,7 +10,7 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { trackDaily, cancelSubmission, createRoom, fetchRoom, joinRoom, kickFromRoom, leaveRoom, listPublicRooms, reportPortfolioValue, sendChatMessage, setRoomDifficulty, submitDecisions, watchRoom } from './lib/client.js';
 import {
   Audio, AudioControls, AuthModal, COLOR, GlobalStyle, NETWORK_SLOT_COUNT, ROLE_ICON,
-  clearNetworkSlotAt, emblemIcon, forgetAccount, useAccount, accountKidsMode, loadNetworkSlots, roomCodeFromUrl, useNetworkSlotPreviews,
+  clearNetworkSlotAt, emblemIcon, forgetAccount, useAccount, accountKidsMode, loadNetworkSlots, roomCodeFromUrl, useNetworkSlotPreviews, leaveWave,
 } from './MacroSimulator.jsx';
 import { AchievementsModal } from './world-menu.jsx';
 import { StateSeal } from './state-seal.jsx';
@@ -691,6 +691,8 @@ export function NetworkGameScreen({ network, theme, setTheme, onExit }) {
     prevEconomyRef.current = r.economy;
     Audio.setMood(r.economy);
   }, (e) => failWithError(e), () => (sentRef.current ? 2500 : 5000), seat, token), [id, seat, token]);
+  // из учебника — с «Волной»: в партии музыка снова следует за экономикой
+  React.useEffect(() => { leaveWave(); }, []);
   // у президентского кресла своя тема, у трейдерской комнаты — репертуар торгового зала
   React.useEffect(() => {
     Audio.setRole(seat === 'president' ? 'president' : room.mode === 'trader' ? 'trader' : null);

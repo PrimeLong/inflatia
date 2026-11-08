@@ -5,7 +5,7 @@
 `public/people/` под именем из таблицы. После сборки на Vercel портрет появится сам —
 сайт отдаёт его со своего адреса, поэтому Википедия ученику не нужна.
 
-Сейчас лежит 29 из 32. Этот файл пишет команда `npm run people:export`.
+Сейчас лежит 29 из 35. Этот файл пишет команда `npm run people:export`.
 
 ## Как добавить портрет
 
@@ -81,3 +81,6 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 | 30 | Йозеф Шумпетер | 1883–1950 | Люди власти рынка | `schumpeter.jpg` | [статья](https://en.wikipedia.org/wiki/Joseph_Schumpeter) | ✓ schumpeter.jpg, подпись есть |
 | 31 | Эдвард Чемберлин | 1899–1967 | Люди бренда | `chamberlin.jpg` | [статья](https://en.wikipedia.org/wiki/Edward_Chamberlin) | ✓ chamberlin.jpg, подпись есть |
 | 32 | Гарольд Хотеллинг | 1895–1973 | Люди бренда | `hotelling.jpg` | [статья](https://en.wikipedia.org/wiki/Harold_Hotelling) | — |
+| 33 | Анн Робер Жак Тюрго | 1727–1781 | Люди отдачи | `turgot.jpg` | [статья](https://en.wikipedia.org/wiki/Anne_Robert_Jacques_Turgot) | — |
+| 34 | Иоганн Генрих фон Тюнен | 1783–1850 | Люди отдачи | `thunen.jpg` | [статья](https://en.wikipedia.org/wiki/Johann_Heinrich_von_Thunen) | — |
+| 35 | Пол Дуглас | 1892–1976 | Люди отдачи | `douglas.jpg` | [статья](https://en.wikipedia.org/wiki/Paul_Douglas) | — |

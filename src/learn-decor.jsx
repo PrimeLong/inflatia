@@ -14,6 +14,8 @@ import React, { useEffect, useRef } from 'react';
 import { useReducedMotion } from './ds-art.jsx';
 
 export const DECOR_IDS = ['desk-bunting', 'desk-cradle', 'desk-mobile'];
+// где украшение висит в уроке: ПК и планшет; на телефоне (уже 700 px) его нет (docs/mechanics.md, «Украшения урока»)
+export const DESK_QUERY = '(min-width: 700px)';
 export const ANSWER_EVENT = 'ems-answer';
 // урок сообщает вещице об ответе
 export const tellAnswer = (ok) => { try { window.dispatchEvent(new CustomEvent(ANSWER_EVENT, { detail: { ok } })); } catch { /* нет окна */ } };

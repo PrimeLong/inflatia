@@ -111,8 +111,8 @@ describe('«Персоналии» — данные', async () => {
   const { PEOPLE, PERSON_BY_ID, initialsOf, eraPos, galleryOf } = await import('../people.js');
   const { UNIT_BY_ID } = await import('../course.js');
   it('по три человека на каждый готовый юнит; годы, роль, рассказ, идея, факт', () => {
-    expect(PEOPLE).toHaveLength(11);
-    expect(new Set(PEOPLE.map((g) => g.unitId)).size).toBe(11);
+    expect(PEOPLE).toHaveLength(12);
+    expect(new Set(PEOPLE.map((g) => g.unitId)).size).toBe(12);
     PEOPLE.forEach((g) => {
       expect(UNIT_BY_ID[g.unitId] && UNIT_BY_ID[g.unitId].lessons.length, g.id).toBeTruthy();
       expect(g.people, g.id).toHaveLength(3);
@@ -149,7 +149,7 @@ describe('«Персоналии» — данные', async () => {
     expect(initialsOf('Адам Смит')).toBe('АС');
     expect(initialsOf('Антуан Огюстен Курно')).toBe('АК');
     const g = galleryOf({ met: { 'people-market': 1 } });
-    expect(g).toHaveLength(32);
+    expect(g).toHaveLength(35);
     expect(g.filter((p) => p.met).map((p) => p.id)).toEqual(['smith', 'jenkin', 'marshall']);
   });
 });
@@ -188,8 +188,9 @@ describe('остановки дороги юнита', async () => {
   const stopsOf = (learn) => unitStops(pathState(learn).find((s) => s.course.id === 'scarcity'), learn);
   it('«Персоналии» — после второго урока, «Чтение» — на середине; открываются, когда пройден урок перед ними', () => {
     const s0 = stopsOf(emptyLearn());
-    // в «Мастерской» 14 уроков: «Персоналии» — после 2-го, «Разбор графика» — сразу после 4-го, где КПВ появляется (выпуск 28 октября), «Чтение» — после 8-го
-    expect(s0.map((x) => x.type)).toEqual(['lesson', 'lesson', 'people', 'lesson', 'lesson', 'graph', 'lesson', 'lesson', 'lesson', 'lesson', 'read', ...Array(6).fill('lesson')]);
+    // в «Мастерской» 14 уроков: «Персоналии» — после 2-го, «Разбор графика» и за ним «Нарисуй сам» — сразу после 4-го, где КПВ
+    // появляется (выпуск 28 октября; «Нарисуй сам» — правило «четыре особых урока», 8 ноября), «Чтение» — после 8-го
+    expect(s0.map((x) => x.type)).toEqual(['lesson', 'lesson', 'people', 'lesson', 'lesson', 'graph', 'draw', 'lesson', 'lesson', 'lesson', 'lesson', 'read', ...Array(6).fill('lesson')]);
     expect(s0.find((x) => x.type === 'people')).toMatchObject({ id: 'people-scarcity', open: false, done: false });
     const s2 = stopsOf(doneFirst(2));
     expect(s2.find((x) => x.type === 'people').open).toBe(true);

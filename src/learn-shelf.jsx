@@ -9,7 +9,7 @@
    рамах: знакомые — в цвете, остальные — силуэтом; касание знакомого — карточка с главной идеей.
    Отдельный ленивый чанк: тексты книг не грузятся, пока профиль не открыт. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw, Volume1, Volume2, VolumeX, ArrowUp } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Card, IconButton, Sheet, Button } from './ds.jsx';
 import { shelfBooks, BOOK_BY_ID, wordsIn, bookReadAt, bookSpeech, speechSeconds, readLockSeconds } from './learn/shelf.js';
@@ -23,6 +23,7 @@ import { READING_BY_UNIT } from './learn/reading.js';
 import { PEOPLE_BY_UNIT } from './learn/people.js';
 import { placeOf } from './ds-tokens.js';
 import { Portrait, PEOPLE_CSS, PhotoCredit } from './learn-people.jsx';
+import { ReportFlag, REPORT_CSS, BOOK_REASONS } from './learn-report.jsx';
 
 const CSS = `
   .lb-shelf { position: relative; display: flex; align-items: flex-end; gap: 6px; padding: 14px 10px 0; margin: 10px 0 18px; min-height: 164px; overflow-x: auto; scrollbar-width: thin; }
@@ -132,6 +133,29 @@ const CSS = `
   .lb-think svg { position: absolute; left: 16px; top: 15px; color: var(--ds-gold); }
   .lb-orn { text-align: center; color: var(--ds-ink3); letter-spacing: .6em; margin-top: 26px; }
   .lb-note { margin-top: 30px; font-size: 13px; color: var(--ds-ink3); line-height: 1.5; border-top: 1px dashed var(--ds-rule); padding-top: 12px; }
+  /* размер текста читалки: пять ступеней (--lb-fs), помнит устройство (ems-book-font) */
+  .lb-reader .lb-passage p { font-size: calc(18px * var(--lb-fs, 1)); }
+  .lb-reader .lb-passage h3 { font-size: calc(22px * var(--lb-fs, 1)); }
+  .lb-reader .lb-passage .where { font-size: calc(12.5px * var(--lb-fs, 1)); }
+  .lb-reader .lb-think { font-size: calc(15px * var(--lb-fs, 1)); }
+  .lb-reader .lb-passage p:first-of-type::first-letter { font-size: calc(54px * var(--lb-fs, 1)); }
+  /* «Наверх»: прокрутили больше экрана — кнопка в правом нижнем углу; над мини-проигрывателем, если он внизу */
+  .lb-up { position: fixed; z-index: 4; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--b) 30%, var(--ds-rule2)); background: color-mix(in srgb, var(--ds-card) 94%, transparent); color: var(--ds-ink); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 10px 24px -12px rgba(0,0,0,.45); animation: lb-up-in .25s ease-out; transition: bottom .25s ease; }
+  .lb-up.over { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  /* открыт ползунок громкости мини-проигрывателя — «Наверх» выше него */
+  .lb-reader:has(.lb-mini-vol-pop) .lb-up.over { bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+  .lb-up:hover { background: color-mix(in srgb, var(--b) 12%, var(--ds-card)); }
+  @keyframes lb-up-in { from { opacity: 0; transform: translateY(10px) scale(.9); } }
+  @media (prefers-reduced-motion: reduce) { .lb-up { animation: none; transition: none; } }
+  .lb-fs { flex: none; display: inline-flex; align-items: stretch; height: 36px; border-radius: 999px; border: 1px solid var(--ds-rule2); background: var(--ds-card); overflow: hidden; }
+  .lb-fs button { width: 40px; border: 0; background: none; color: var(--ds-ink); cursor: pointer; display: grid; place-items: center; font-family: var(--ds-news, 'PT Serif', Georgia, serif); font-weight: 700; line-height: 1; }
+  .lb-fs button:first-child { font-size: 13px; } .lb-fs button:last-child { font-size: 19px; }
+  .lb-fs button + button { border-left: 1px solid var(--ds-rule2); }
+  .lb-fs button:hover:not(:disabled) { background: color-mix(in srgb, var(--b) 10%, transparent); }
+  .lb-fs button:disabled { color: var(--ds-ink3); cursor: default; }
+  .lb-fs button:focus-visible { outline: 2px solid var(--b); outline-offset: -2px; }
   @media (prefers-reduced-motion: reduce) { .lb-cover, .lb-stamp, .lb-xp, .lb-ribbon, .lb-tick, .lb-mini, .lb-bars i, .lb-listen.on .lb-play::after, .lb-passage.now::before { animation: none !important; } .lb-book { transition: none; } }
 `;
 
@@ -213,8 +237,19 @@ function Volume({ p }) {
   );
 }
 
+/* размер текста читалки (docs/mechanics.md, «Профиль»): ступень на устройстве, одна для всех книг */
+export const FONT_STEPS = [0.88, 1, 1.12, 1.25, 1.4];
+const FONT_KEY = 'ems-book-font';
+const savedFont = () => { try { const raw = localStorage.getItem(FONT_KEY); const v = Number(raw); return raw !== null && Number.isInteger(v) && v >= 0 && v < FONT_STEPS.length ? v : 1; } catch { return 1; } };
+function useBookFont() {
+  const [step, setStep] = useState(savedFont);
+  const set = (k) => { const v = Math.max(0, Math.min(FONT_STEPS.length - 1, k)); setStep(v); try { localStorage.setItem(FONT_KEY, String(v)); } catch { /* приватный режим */ } };
+  return [step, set];
+}
+
 export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null }) {
   const b = BOOK_BY_ID[id];
+  const [font, setFont] = useBookFont();
   const [fresh, setFresh] = useState(false);
   const wait = useReadClock(id, readLockSeconds(b), !readAt && !!onRead);
   const root = useRef(null);
@@ -222,7 +257,18 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
   const player = useBookPlayer(b, parts, speechSeconds(b));
   const card = useRef(null);
   const [cardSeen, setCardSeen] = useState(true);
+  // «Наверх» — когда прокрутили больше экрана
+  const [far, setFar] = useState(false);
+  const onScroll = (e) => { const f = e.currentTarget.scrollTop > e.currentTarget.clientHeight; if (f !== far) setFar(f); };
   useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  /* читалка — слой поверх страницы: пока она открыта, страница под ней не прокручивается и не показывает свой ползунок —
+     ползунок один, у книги (раньше на ПК их было два, пункт владельца 08.11) */
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const els = [document.documentElement, document.body]; const was = els.map((el) => el.style.overflow);
+    els.forEach((el) => { el.style.overflow = 'hidden'; });
+    return () => { els.forEach((el, k) => { el.style.overflow = was[k]; }); };
+  }, []);
   /* читалка открыта — мини-проигрыватель над вкладками прячется (у читалки свой); закрыли — книга звучит
      дальше, а над вкладками снова мини-проигрыватель */
   useEffect(() => { bookPlayer.setReader(id); return () => { if (getBookState().reader === id) bookPlayer.setReader(null); }; }, [id]);
@@ -232,20 +278,40 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
     const t = setTimeout(() => { const el = root.current && root.current.querySelector(`[data-passage="${passage}"]`); if (el) el.scrollIntoView({ block: 'start' }); }, 60);
     return () => clearTimeout(t);
   }, [passage]);
-  // проигрыватель под обложкой ушёл с экрана — внизу мини-проигрыватель
+  /* большая кнопка проигрывателя ушла под шапку читалки (видна не целиком) — внизу мини-проигрыватель: раньше ждали,
+     пока с экрана уйдёт весь проигрыватель, и, прокрутив чуть-чуть, паузу было не нажать (пункт владельца 08.11) */
   useEffect(() => {
-    const el = card.current;
+    const el = card.current && (card.current.querySelector('.lb-play') || card.current);
     if (!el || typeof IntersectionObserver !== 'function') return undefined;
-    const io = new IntersectionObserver(([e]) => setCardSeen(e.isIntersecting), { root: root.current, threshold: 0 });
+    const top = root.current && root.current.querySelector('.lb-top');
+    const io = new IntersectionObserver(([e]) => setCardSeen(e.intersectionRatio >= 0.98), { root: root.current, threshold: [0, 0.98, 1], rootMargin: `-${top ? top.offsetHeight : 0}px 0px 0px 0px` });
     io.observe(el);
     return () => io.disconnect();
   }, [player.mode]);
   const go = (pid) => { const el = root.current && root.current.querySelector(`[data-passage="${pid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  // отрывок на экране — последний, чей заголовок уже под шапкой (для жалобы)
+  const onScreen = () => {
+    const r = root.current; if (!r) return b.passages[0];
+    const top = (r.querySelector('.lb-top') || r).getBoundingClientRect().bottom + 40;
+    let cur = b.passages[0];
+    r.querySelectorAll('[data-passage]').forEach((el) => { if (el.getBoundingClientRect().top <= top) cur = b.passages.find((x) => x.id === el.getAttribute('data-passage')) || cur; });
+    return cur;
+  };
   return (
-    <div className="lb-reader" ref={root} style={{ '--b': b.color }} role="dialog" aria-label={`${b.author}. ${b.title}`} data-testid="book-reader" data-book={id}>
+    <div className="lb-reader" ref={root} style={{ '--b': b.color, '--lb-fs': FONT_STEPS[font] }} role="dialog" aria-label={`${b.author}. ${b.title}`} data-testid="book-reader" data-book={id} data-font={font} onScroll={onScroll}>
       <div className="lb-top">
         <IconButton label="Закрыть книгу" icon={X} data-testid="book-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <b>{b.author} · {b.short}</b>
+        {/* «Ошибка?»: книга и отрывок на экране уходят в жалобу */}
+        <ReportFlag withText text="Ошибка?" reasons={BOOK_REASONS} sub="Что не так в книге? Отрывок на экране и устройство приложатся сами." context={() => {
+          const p = onScreen();
+          return { screen: 'book', kind: 'book', lesson: b.id, unit: b.unitId, page: `${b.author}, «${b.title}», ${b.year}`, step: `${p.title} (${p.where})`, quote: (p.text || []).join(' ').slice(0, 500) };
+        }} />
+        {/* размер текста: меньше / крупнее */}
+        <span className="lb-fs" role="group" aria-label={`Размер текста: ${Math.round(FONT_STEPS[font] * 100)}%`}>
+          <button type="button" aria-label="Текст мельче" data-testid="book-font-down" disabled={font === 0} onClick={() => { Audio.play('tick'); setFont(font - 1); }}>A</button>
+          <button type="button" aria-label="Текст крупнее" data-testid="book-font-up" disabled={font === FONT_STEPS.length - 1} onClick={() => { Audio.play('tick'); setFont(font + 1); }}>A</button>
+        </span>
       </div>
       <div className="lb-page">
         <div className="lb-cover"><small>{b.author}</small><h2>{b.title}</h2><small>{b.year}</small></div>
@@ -292,7 +358,13 @@ export function Reader({ id, onClose, readAt = 0, onRead = null, passage = null 
         <div className="lb-note">Перевод — редакции «Инфляции», с сокращениями: пропуски отмечены «[…]». Текст {b.year} года — в общественном достоянии.</div>
       </div>
       {player.started && !cardSeen && <MiniPlayer b={b} p={player} onGo={go} />}
-      <style>{MINI_CSS}</style>
+      {far && (
+        <button type="button" className={`lb-up${player.started && !cardSeen ? ' over' : ''}`} aria-label="Наверх, к обложке" data-testid="book-top"
+          onClick={() => { Audio.play('paper'); const r = root.current; if (r) r.scrollTo({ top: 0, behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }}>
+          <ArrowUp size={22} aria-hidden="true" />
+        </button>
+      )}
+      <style>{MINI_CSS + REPORT_CSS}</style>
     </div>
   );
 }
