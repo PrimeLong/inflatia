@@ -26,6 +26,11 @@ const CSS = `
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
   .dl-coord { font: 700 11.5px var(--ds-sans); }
+  .dl-table { margin: 10px 0 2px; border-collapse: collapse; font: 400 15px var(--ds-sans); font-variant-numeric: tabular-nums; }
+  .dl-table th { padding: 4px 16px 4px 0; text-align: left; font: 600 12.5px var(--ds-sans); color: var(--ds-ink3); border-bottom: 1px solid var(--ds-rule2); }
+  .dl-table td { padding: 4px 16px 4px 0; color: var(--ds-ink); border-bottom: 1px solid var(--ds-rule); }
+  .dl-table td:first-child { color: var(--ds-ink3); }
+  .dl-mini-rows { font-weight: 700; white-space: nowrap; }
   .dl-shift { display: flex; align-items: center; gap: 10px; padding: 8px 12px 6px; font: 600 14px var(--ds-sans); color: var(--ds-ink2); }
   .dl-shift input { flex: 1; accent-color: var(--g-blue); }
   .dl-shift output { min-width: 7.5em; text-align: right; font-weight: 800; color: var(--ds-ink); font-variant-numeric: tabular-nums; }
@@ -68,6 +73,7 @@ const rich = (t) => String(t).split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWi
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const HOW = {
   line: 'Нажмите на график в двух местах — точки прилипают к сетке; точку можно перетащить, а касанием — убрать.',
+  points: 'Каждая строка таблицы — точка на графике; точки прилипают к сетке, их можно перетащить, а касанием — убрать.',
   point: 'Нажмите на график — точку можно перетащить, а касанием — убрать.',
   shift: 'Потяните график пальцем или мышью вбок — или двигайте ползунок под ним.',
   area: 'Нажмите внутрь нужной области.',
@@ -125,9 +131,12 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   const sy = (y) => H - M.b - ((y - y0) / (y1 - y0)) * (H - M.t - M.b);
   const ctl = t.do === 'shift' ? CHARTS[d.chart].controls(d.attrs).find((c) => c.id === t.control) : null;
   const clampV = (x) => (ctl ? Math.max(ctl.min, Math.min(ctl.max, Math.round(x / d.snap[0]) * d.snap[0])) : x);
+  // сколько точек ставит ученик: линия — две, таблица — по строке, точка и площадь — одну
+  const maxPts = t.do === 'line' ? 2 : t.do === 'points' ? t.at.length : 1;
   // ответ ученика в виде, который понимает checkTask
-  const answer = t.do === 'line' ? (pts.length === 2 ? { a: pts[0], b: pts[1] } : null) : t.do === 'shift' ? { v } : pts.length ? { p: pts[0] } : null;
-  const ready = t.do === 'shift' ? v !== 0 : t.do === 'line' ? pts.length === 2 : pts.length === 1;
+  const answer = t.do === 'line' ? (pts.length === 2 ? { a: pts[0], b: pts[1] } : null) : t.do === 'points' ? (pts.length === maxPts ? { ps: pts } : null)
+    : t.do === 'shift' ? { v } : pts.length ? { p: pts[0] } : null;
+  const ready = t.do === 'shift' ? v !== 0 : pts.length === maxPts;
 
   // экран → данные графика: viewBox слоя совпадает со сценой, getScreenCTM учитывает масштаб
   const toData = (e) => {
@@ -151,9 +160,9 @@ export default function DrawLesson({ id, learn, update, onClose }) {
     const near = pts.map((q, k) => ({ k, dd: Math.hypot(sx(q.x) - sx(raw.x), sy(q.y) - sy(raw.y)) })).sort((a, b) => a.dd - b.dd)[0];
     const onPin = t.do !== 'area' && near && near.dd < 16;
     if (onPin) { drag.current = { k: near.k, x: e.clientX, y: e.clientY, tap: true }; return; }
-    if (t.do === 'line') {
-      // две уже есть — переставляем ближнюю
-      const k = near && pts.length >= 2 ? near.k : pts.length;
+    if (t.do === 'line' || t.do === 'points') {
+      // все уже стоят — переставляем ближнюю
+      const k = near && pts.length >= maxPts ? near.k : pts.length;
       const next = [...pts]; next[k] = p; setPts(next); drag.current = { k };
     } else { setPts([p]); drag.current = { k: 0 }; }
     Audio.play('tick');
@@ -202,8 +211,8 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   // что видно на графике: решено — шаг вперёд (новое появляется), иначе — как было плюс то, что нужно шагу
   const k = phase === 'done' ? n : i + (resolved ? 1 : 0);
   const sol = res && res.shown ? solveTask(d, t) : null;
-  const solveView = sol ? (sol.a ? [sol.a, sol.b] : sol.p ? [sol.p] : []).map((q) => [Math.round(sx(q.x) * 10) / 10, Math.round(sy(q.y) * 10) / 10]) : [];
-  const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : { pts: (s.a ? [s.a, s.b] : [s.p]).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
+  const solveView = sol ? (sol.ps || (sol.a ? [sol.a, sol.b] : sol.p ? [sol.p] : [])).map((q) => [Math.round(sx(q.x) * 10) / 10, Math.round(sy(q.y) * 10) / 10]) : [];
+  const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : { pts: (s.ps || (s.a ? [s.a, s.b] : [s.p])).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
   const mine = res && res.shown ? 'var(--g-rust)' : 'var(--g-blue)';
   const coordLabel = (q) => `${fmt(q.x)}; ${fmt(q.y)}`;
   const pin = (q, key, col, label) => (
@@ -246,10 +255,17 @@ export default function DrawLesson({ id, learn, update, onClose }) {
             {i === 0 && <p className="dl-lead">{rich(d.intro)}</p>}
             <span className="gl-step">Шаг {i + 1} из {n}</span>
             <div>{rich(t.text)}</div>
+            {t.do === 'points' && (
+              <table className="dl-table" data-testid="draw-table">
+                <thead><tr><th>Вариант</th>{t.cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+                <tbody>{t.at.map((q, j) => <tr key={j}><td>{j + 1}</td><td>{fmt(q.x)}</td><td>{fmt(q.y)}</td></tr>)}</tbody>
+              </table>
+            )}
             {!resolved && <span className="dl-how">{HOW[t.do]}</span>}
           </div>
           <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)}>
-          {full && <div className="dl-mini" data-testid="draw-full-task"><b>Шаг {i + 1} из {n}.</b> {rich(t.text)}</div>}
+          {full && <div className="dl-mini" data-testid="draw-full-task"><b>Шаг {i + 1} из {n}.</b> {rich(t.text)}
+            {t.do === 'points' && <span className="dl-mini-rows"> {t.cols.join('; ')}: {t.at.map((q) => `${fmt(q.x)}; ${fmt(q.y)}`).join(' · ')}</span>}</div>}
           <div className="gl-stage">
             <div className="dl-tools"><button type="button" className="dl-full-btn" data-testid="draw-full" onClick={goFull}><Maximize2 size={14} aria-hidden="true" />На весь экран</button></div>
             <div className="dl-wrap">
@@ -261,7 +277,7 @@ export default function DrawLesson({ id, learn, update, onClose }) {
                 <defs><clipPath id={`dlc${id}`}><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath></defs>
                 {/* сетка — в самом графике (GraphStage, grid): линии через шаг задания, подписи — только на них */}
                 {!res?.ok && through()}
-                {hover && !drag.current && pts.length < (t.do === 'line' ? 2 : 1) && (
+                {hover && !drag.current && pts.length < maxPts && (
                   <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', coordLabel(hover))}</g>
                 )}
                 {!res?.ok && pts.map((q, j) => pin(q, `p${j}`, mine, t.do === 'area' ? null : coordLabel(q)))}

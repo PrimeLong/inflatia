@@ -6913,6 +6913,9 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   await page.getByTestId('extra-start').click();
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-ink')).toBeVisible();
+  // КПВ строят по таблице (жалоба ученика 08.11): три варианта, а не две крайние точки
+  await expect(g.getByTestId('draw-task')).toHaveAttribute('data-do', 'points');
+  await expect(g.getByTestId('draw-table').locator('tbody tr')).toHaveCount(3);
   // подписи оси X — через 40, на линиях сетки (через 20), а не через 50
   const xs = await g.locator('[data-testid=graph-stage] [data-el="axes"] text[text-anchor="middle"]').allTextContents();
   const nums = xs.filter((x) => /^\d+$/.test(x)).map(Number);
@@ -6931,9 +6934,17 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   // во весь экран — и решать: точки и «Проверить»
   const ink = g.getByTestId('draw-ink');
   const pts = JSON.parse(await ink.getAttribute('data-answer')).pts;
-  for (const [x, y] of pts) { const b = await ink.boundingBox(); await page.mouse.click(b.x + (x / 360) * b.width, b.y + (y / 290) * b.height); }
+  expect(pts).toHaveLength(3);
+  for (const [j, [x, y]] of pts.entries()) {
+    await expect(ink).toHaveAttribute('data-ready', 'false');
+    // во весь экран график вписан в поле с полями по краям — координаты переводим так же, как само приложение (getScreenCTM)
+    const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x, y]);
+    await page.mouse.click(cx, cy);
+    if (j < pts.length - 1) await expect(g.getByTestId('draw-full-check')).toBeDisabled();
+  }
+  await expect(ink).toHaveAttribute('data-ready', 'true');
   await g.getByTestId('draw-full-check').click();
-  await expect(g.getByTestId('draw-full-feedback')).toBeVisible();
+  await expect(g.getByTestId('draw-full-feedback')).toHaveText('Верно.');
   await g.getByTestId('draw-full-exit').click();
   await expect(box).toHaveAttribute('data-full', 'false');
   expect(errors).toEqual([]);

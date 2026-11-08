@@ -24,13 +24,18 @@ describe('«Нарисуй сам»: содержание', () => {
       const sc = drawScene(d, t.values || {});
       if (t.do === 'line' || t.do === 'shift') expect(sc.curves.some((c) => c.id === t.el), id).toBe(true);
       if (t.do === 'point') expect(taskTarget(d, t), id).toBeTruthy();
+      // таблица: строки — на своей кривой (её и проводят через точки ученика), столбцов — два
+      if (t.do === 'points') {
+        expect(t.cols, id).toHaveLength(2); expect(t.at.length, id).toBeGreaterThanOrEqual(3);
+        t.at.slice(1).forEach((q) => expect(checkTask(d, { do: 'line', el: t.el, values: t.values }, { a: t.at[0], b: q }).ok, `${id} ${q.x}; ${q.y}`).toBe(true));
+      }
       if (t.do === 'area') expect((sc.polys || []).some((p) => `poly:${p.label}` === t.el) || /^rect:\d$/.test(t.el), id).toBe(true);
       if (t.do === 'shift') { const c = CHARTS[d.chart].controls(d.attrs).find((x) => x.id === t.control); expect(c, id).toBeTruthy(); expect(t.target).toBeGreaterThanOrEqual(c.min); expect(t.target).toBeLessThanOrEqual(c.max); }
     }));
   });
   it('числа из условий лежат на своих линиях (две точки из текста засчитываются)', () => {
     const pairs = { 'draw-sd': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]], 'draw-labor': [[[100, 200], [200, 100]], [[40, 100], [140, 200]]], 'draw-monopoly': [[[20, 80], [60, 40]], [[20, 60], [40, 20]]],
-      'draw-ppf': [[[100, 0], [0, 100]]], 'draw-revenue': [[[10, 800], [20, 1200]], [[30, 1200], [40, 800]]], 'draw-tax': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]],
+      'draw-revenue': [[[10, 800], [20, 1200]], [[30, 1200], [40, 800]]], 'draw-tax': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]],
       'draw-money': [[[10, 5.5], [20, 3.7]]], 'draw-inflation': [[[1, 108], [5, 147]], [[1, 110], [5, 161]]], 'draw-budget': [[[0, 120], [60, 0]]],
       'draw-product': [[[2, 20], [6, 108]]], 'draw-costs': [[[2, 8], [5, 35]]], 'draw-moncomp': [[[16, 90], [26, 60]], [[10, 78], [20, 18]]] };
     DRAWS.forEach((d) => {
@@ -62,7 +67,7 @@ describe('«Нарисуй сам»: проверка', () => {
     DRAWS.forEach((d) => d.tasks.forEach((t, i) => {
       const s = solveTask(d, t);
       expect(checkTask(d, t, s).ok, `${d.id}#${i}`).toBe(true);
-      const snapped = s.p ? { p: snapTo(d, s.p) } : s.a ? { a: snapTo(d, s.a), b: snapTo(d, s.b) } : s;
+      const snapped = s.p ? { p: snapTo(d, s.p) } : s.a ? { a: snapTo(d, s.a), b: snapTo(d, s.b) } : s.ps ? { ps: s.ps.map((q) => snapTo(d, q)) } : s;
       expect(checkTask(d, t, snapped).ok, `${d.id}#${i} на сетке`).toBe(true);
     }));
   });
@@ -76,6 +81,18 @@ describe('«Нарисуй сам»: проверка', () => {
     expect(checkTask(sd, sd.tasks[3], { v: 30 }).ok).toBe(true);
     const mo = DRAWS[2];
     expect(checkTask(mo, mo.tasks[4], { p: { x: 20, y: 40 } }).ok).toBe(false);
+  });
+  it('КПВ — по таблице (жалоба ученика 08.11): две крайние точки — мало, средняя на прямой — не там, порядок любой', () => {
+    const d = DRAWS.find((x) => x.id === 'draw-ppf'); const t = d.tasks[0];
+    expect(t.do).toBe('points');
+    const P = (x, y) => ({ x, y });
+    expect(checkTask(d, t, { ps: [P(100, 0), P(0, 100)] }).why).toMatch(/все строки/);
+    // средняя точка на прямой между концами — КПВ так не выглядит
+    expect(checkTask(d, t, { ps: [P(0, 100), P(80, 20), P(100, 0)] }).why).toMatch(/Одна точка/);
+    // одна точка не закрывает две строки
+    expect(checkTask(d, t, { ps: [P(0, 100), P(0, 100), P(100, 0)] }).ok).toBe(false);
+    expect(checkTask(d, t, { ps: [P(20, 20), P(40, 40), P(60, 140)] }).why).toMatch(/Ни одна/);
+    expect(checkTask(d, t, { ps: [P(100, 0), P(80, 60), P(0, 100)] }).ok).toBe(true);
   });
   it('«разбор» урока: шаг 0 — данное, дальше — по заданию на шаг', () => {
     DRAWS.forEach((d) => { const g = drawTour(d); expect(g.steps).toHaveLength(d.tasks.length + 1); expect(g.steps[0].add).toEqual(d.given); });
