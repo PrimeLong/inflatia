@@ -83,7 +83,6 @@ const CSS = `
   .rd-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: #fff; background: #B3123F; }
   .rd-who-q { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--ds-rule); }
   .rd-who-q q { display: block; font: italic 400 17px/1.45 var(--ds-news, 'PT Serif', Georgia, serif); quotes: '«' '»'; margin-bottom: 8px; }
-  .rd-done .rd-gem { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; margin-top: 10px; color: #fff; background: radial-gradient(circle at 35% 30%, #FFC2D2, #E5527B 45%, #B3123F 70%); box-shadow: 0 10px 22px -10px rgba(179,18,63,.7); animation: rd-up .5s ease-out backwards; }
   @media (prefers-reduced-motion: reduce) { .rd-sheet, .rd-w, .rd-w.hit, .rd-book.new, .rd-fb { animation: none; } .rd-w.hit { background-size: 100% 100%; } }
 `;
 
@@ -240,14 +239,14 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     // ответы — в задание дня «N верных ответов», и при перечитывании (docs/mechanics.md)
     const whoRight = who.filter((it, k) => picks[k] === it.answer).length;
     if (gem) {
-      update((s) => countAnswers(s, right + whoRight, r.pages.length + who.length));
-      // алмаз — без единой ошибки и на страницах, и в «Кто это сказал?»; опыт — за первый взятый
+      // алмаз — без единой ошибки и на страницах, и в «Кто это сказал?»; опыт и монеты — за первый взятый
       const clean = right === r.pages.length && who.every((it, k) => picks[k] === it.answer);
+      const ok = right + whoRight; const all = r.pages.length + who.length; const had = isReadGem(learn, r.id);
+      const apply = (s) => { const t = countAnswers(s, ok, all); return clean && !had ? markReadGem(finishLesson(t, null, { xp: READ_GEM_XP, accuracy: 100, seconds, kind: 'read', extra: { fresh: false } }), r.id) : t; };
+      const pay = payExtra(learn, update, apply, { id: r.id, diamond: true, won: clean, gem: had, accuracy: (ok / all) * 100 });
+      setResult({ xp: clean && !had ? READ_GEM_XP : 0, right: ok, total: all, ms: Date.now() - startAt, diamond: true, won: clean, replay: clean && had, ...pay });
       setWon(clean);
-      if (clean && !isReadGem(learn, r.id)) {
-        update((s) => markReadGem(finishLesson(s, null, { xp: READ_GEM_XP, accuracy: 100, seconds, kind: 'read', extra: { fresh: false } }), r.id));
-        setGot(READ_GEM_XP);
-      }
+      if (clean && !had) setGot(READ_GEM_XP);
       setDone(true);
       Audio.play(clean ? 'stamp' : 'paper');
       return;
@@ -286,12 +285,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
         </div>
       ) : gem ? (
         <div className="rd-page rd-done" data-testid="reading-done" data-won={String(!!won)}>
-          {won ? <span className="rd-gem" aria-hidden="true"><Gem size={30} /></span> : null}
-          <h2>{won ? 'Алмаз взят' : 'Алмаз не взят'}</h2>
-          <div className="ds-sub" style={{ fontSize: 15.5, lineHeight: 1.5 }}>
-            «{r.title}»: {answers.filter((a) => a && a.ok).length + who.filter((it, k) => picks[k] === it.answer).length} из {r.pages.length + who.length} верно.
-            {won ? (got ? ` +${got} опыта.` : ' Алмаз уже был — опыт получен раньше.') : ' Нужно без единой ошибки — попробуйте ещё раз.'}
-          </div>
+          {result && <ExtraResult kind="read" unitId={r.unitId} title={r.title} r={result} />}
         </div>
       ) : (
         <div className="rd-page rd-done" data-testid="reading-done">

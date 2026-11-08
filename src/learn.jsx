@@ -2392,6 +2392,13 @@ export function extraInfo(x) {
   }
   return null;
 }
+// чем алмазный уровень особого урока сложнее (docs/mechanics.md, «Особые уроки юнита»)
+const EXTRA_GEM = {
+  read: 'контекст цитаты — только после ответа, в конце — «Кто это сказал?»',
+  people: 'в конце — «Чья это идея?»: идея без имени, кто её автор',
+  graph: 'в каждом шаге пропущено главное слово или число — выберите его',
+  draw: 'на каждый шаг — одна попытка, без подсказки',
+};
 function ExtraSheet({ x, onStart, onClose }) {
   const info = extraInfo(x);
   if (!info) return null;
@@ -2414,13 +2421,18 @@ function ExtraSheet({ x, onStart, onClose }) {
       </div>
       <p className="ds-sub" style={{ fontSize: 15, lineHeight: 1.45, margin: '14px 2px 0' }} data-testid="extra-inside">{info.inside}</p>
       <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
-        {/* прочитанное «Чтение» — и на алмазном уровне: контекст после ответа, «Кто это сказал?», без ошибок (пункт владельца 08.11) */}
-        {x.type === 'read' && x.done && (
-          <Button wide icon={Gem} data-testid="extra-gem" style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
-            {x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
-          </Button>
+        {/* пройденный особый урок — и на алмазном уровне, у всех четырёх видов (пункты владельца 08.11 и 08.11, вечер) */}
+        {x.done && EXTRA_GEM[x.type] && (
+          <>
+            <Button wide icon={Gem} data-testid="extra-gem" style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
+              {x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
+            </Button>
+            <div className="ds-faint" style={{ fontSize: 13.5, lineHeight: 1.4, textAlign: 'center', margin: '-2px 6px 2px' }} data-testid="extra-gem-what">
+              Алмаз: {EXTRA_GEM[x.type]}; без единой ошибки{x.gem ? '' : ` — ${indexed(COIN.diamond)}–${indexed(COIN.diamond + COIN.diamondPerfect)} монет`}.
+            </div>
+          </>
         )}
-        <Button wide variant={x.type === 'read' && x.done ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+        <Button wide variant={x.done && EXTRA_GEM[x.type] ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
       </div>
     </Sheet>
   );
@@ -3264,9 +3276,9 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     setExtraSheet(null);
     // x.gem — алмаз у остановки уже взят; x.diamond — открыть на алмазном уровне
     if (x.type === 'read') setReading({ id: x.id, gem: !!x.diamond });
-    else if (x.type === 'people') setPeople(x.id);
-    else if (x.type === 'graph') setGraph({ id: x.id, peek: false });
-    else if (x.type === 'draw') setDraw(x.id);
+    else if (x.type === 'people') setPeople({ id: x.id, gem: !!x.diamond });
+    else if (x.type === 'graph') setGraph({ id: x.id, peek: false, gem: !!x.diamond });
+    else if (x.type === 'draw') setDraw({ id: x.id, gem: !!x.diamond });
     // вышли посреди «Работы над ошибками» — она продолжается с того же места (сутки, как обычный урок)
     else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId, resume: getResume(`fix:${x.unitId}`) });
   };
@@ -3365,7 +3377,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {sheet && <LessonSheet l={sheet} learn={learn} weak={weakLessons(learn).some((w) => w.id === sheet.id)} onStart={start} onClose={() => setSheet(null)} onOpenBook={openBook}
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
       {reading && <Lazy><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
-      {people && <Lazy><PeopleView id={people} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
+      {people && <Lazy><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
       {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
@@ -3380,8 +3392,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       )}
       {run && <Runner key={JSON.stringify({ ...run, resume: !!run.resume })} run={run} learn={learn} update={update} hidden={!!book} guest={guest}
         onClose={() => setRun(null)} onOpenBook={(page) => openBook(page)} />}
-      {graph && <Lazy><GraphLesson id={graph.id} learn={learn} update={update} peek={graph.peek} onClose={() => setGraph(null)} /></Lazy>}
-      {draw && <Lazy><DrawLesson id={draw} learn={learn} update={update} onClose={() => setDraw(null)} /></Lazy>}
+      {graph && <Lazy><GraphLesson key={`${graph.id}:${!!graph.gem}`} id={graph.id} learn={learn} update={update} peek={graph.peek} gem={!!graph.gem} onClose={() => setGraph(null)} /></Lazy>}
+      {draw && <Lazy><DrawLesson key={`${draw.id}:${draw.gem}`} id={draw.id} gem={draw.gem} learn={learn} update={update} onClose={() => setDraw(null)} /></Lazy>}
     </DsRoot>
     </OutfitContext.Provider>
   );

@@ -5,15 +5,16 @@
    (один раз). Открывается остановкой на дороге юнита и кнопкой «Разобрать график по шагам» на карточке
    урока с этим графиком — тогда без опыта (peek), поверх урока. При «уменьшить движение» — без анимаций. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion, useMedia } from './ds-art.jsx';
 import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
-import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView } from './learn/graphs.js';
-import { finishLesson, markGraph, countAnswers } from './textbook/learn-state.js';
+import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView, graphCloze } from './learn/graphs.js';
+import { finishLesson, markGraph, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 import { textBox, dotBox, aroundPoint, placeLabels, freeTicks } from './learn/label-place.js';
@@ -73,6 +74,10 @@ export const GRAPH_CSS = `
   /* вопрос и финал */
   .gl-quiz h2 { margin: 18px 0 12px; font: 700 21px/1.3 var(--ds-head); }
   .gl-opts { display: grid; gap: 10px; }
+  .gl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
+  .gl-blank { display: inline-block; min-width: 64px; border-bottom: 2.5px solid var(--g-blue); margin: 0 2px; vertical-align: -2px; color: transparent; }
+  .gl-cloze { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .gl-cloze .gl-opt { padding: 9px 14px; border-radius: 12px; font: 600 15px/1.3 var(--ds-sans); }
   .gl-opt { text-align: left; padding: 14px 16px; border-radius: 16px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink);
     font: 600 16px/1.35 var(--ds-sans); cursor: pointer; transition: transform .15s, border-color .2s; }
   .gl-opt:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--g-blue); }
@@ -310,7 +315,7 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
   );
 }
 
-export default function GraphLesson({ id, learn, update, onClose, peek = false }) {
+export default function GraphLesson({ id, learn, update, onClose, peek = false, gem = false }) {
   const g = GRAPH_BY_ID[id];
   const [k, setK] = useState(0);
   const [replay, setReplay] = useState(0);
@@ -322,6 +327,11 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты (не при подсказке из урока — peek)
+  /* алмазный уровень: в тексте шага пропущено выделенное слово или число — выбрать из трёх; ошибка остаётся видна,
+     можно выбрать снова, но алмаз — без единой ошибки (docs/mechanics.md, «Особые уроки юнита») */
+  const cloze = useMemo(() => (gem && g ? graphCloze(g) : []), [gem, g]);
+  const [cz, setCz] = useState({}); // шаг → выбранные варианты по порядку
+  const czMiss = useRef(new Set());
   // ПК с мышью: поля по бокам разбора — черновик, как в уроке (learn-sketch.jsx)
   const sketch = useMedia(SKETCH_QUERY);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [k, phase]);
@@ -330,6 +340,16 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   const n = g.steps.length;
   const view = stepView(g, k);
   const answered = picked != null && order[picked].ok;
+  const cq = gem ? cloze[k] : null;
+  const cPicks = cz[k] || [];
+  const cOk = !cq || cPicks.includes(cq.term);
+  const pickTerm = (o) => {
+    if (cOk) return;
+    const ok = o === cq.term;
+    if (!ok) czMiss.current.add(k);
+    Audio.play(ok ? 'coin' : 'down');
+    setCz((m) => ({ ...m, [k]: [...(m[k] || []), o] }));
+  };
   const pick = (i) => {
     if (answered) return;
     const ok = !!order[i].ok;
@@ -341,7 +361,15 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
     Audio.play('register');
     // ответ на вопрос разбора — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
     // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle); итоги — как после урока
-    if (!peek && update) {
+    if (!peek && update && gem) {
+      // алмаз — без единой ошибки в пропусках и в вопросе; опыт и монеты — за первый взятый
+      const qs = cloze.filter(Boolean).length;
+      const ok = qs - czMiss.current.size + (firstOk.current ? 1 : 0); const all = qs + 1;
+      const won = ok === all; const had = hasGem(learn, id);
+      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: false } }), id) : t; };
+      const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy: (ok / all) * 100 });
+      setResult({ xp: won && !had ? GRAPH_XP : 0, right: ok, total: all, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+    } else if (!peek && update) {
       const right = firstOk.current ? 1 : 0; const accuracy = firstOk.current ? 100 : 60;
       const apply = (s) => { const t = countAnswers(s, right, 1); return already ? t : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id); };
       const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy });
@@ -362,10 +390,11 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
       <div className="gl-top">
         <IconButton label="Закрыть" icon={X} data-testid="graph-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="gl-title"><small>Разбор графика</small>{g.title}</div>
+        {gem && <span className="gl-gem-tag" data-testid="graph-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
         {/* «Ошибка?» — флажок с подписью (серый значок не замечали): шаг (или вопрос) и его текст уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({
           screen: 'graph', lesson: id, unit: g.unitId, kind: 'graph',
-          step: phase === 'tour' ? `шаг ${k + 1} из ${n}` : phase === 'quiz' ? 'вопрос' : 'итог',
+          step: (phase === 'tour' ? `шаг ${k + 1} из ${n}` : phase === 'quiz' ? 'вопрос' : 'итог') + (gem ? ' (алмаз)' : ''),
           prompt: (phase === 'tour' ? g.steps[k].text : `${g.quiz.q} — ${g.quiz.options.map((o) => o.text).join(' / ')}`).replace(/\*\*/g, '').slice(0, 1500),
           answer: phase === 'quiz' && picked != null ? order[picked].text : '',
         })} />
@@ -380,7 +409,17 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
           </div>
           <div className="gl-text" key={k} data-testid="graph-text" aria-live="polite">
             <span className="gl-step">Шаг {k + 1} из {n}</span>
-            <div>{rich(view.text)}</div>
+            {cq && !cOk
+              ? <div data-testid="graph-cloze-text">{rich(cq.before)}<span className="gl-blank" aria-label="пропуск">___</span>{rich(cq.after)}</div>
+              : <div>{rich(view.text)}</div>}
+            {cq && (
+              <div className="gl-cloze" role="group" aria-label="Что пропущено" data-testid="graph-cloze" data-done={String(cOk)}>
+                {cq.options.map((o) => {
+                  const st = cPicks.includes(o) ? (o === cq.term ? 'ok' : 'bad') : '';
+                  return <button key={o} type="button" className={`gl-opt ${st}`} disabled={cOk || cPicks.includes(o)} data-testid="graph-cloze-opt" data-ok={o === cq.term ? 'true' : undefined} onClick={() => pickTerm(o)}>{o}</button>;
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -423,8 +462,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
             ? <Button wide data-testid="graph-finish" onClick={() => { Audio.play('click'); onClose(); }}>{result ? 'Дальше' : 'Готово'}</Button>
             : <>
               <Button variant="ghost" icon={ArrowLeft} disabled={phase === 'tour' && k === 0} data-testid="graph-back" onClick={back}>Назад</Button>
-              <Button wide icon={phase === 'quiz' ? Check : ArrowRight} disabled={phase === 'quiz' && !answered} data-testid="graph-next" onClick={next}>
-                {phase === 'quiz' ? 'Готово' : k < n - 1 ? 'Дальше' : 'К вопросу'}
+              <Button wide icon={phase === 'quiz' ? Check : ArrowRight} disabled={(phase === 'quiz' && !answered) || (phase === 'tour' && !cOk)} data-testid="graph-next" onClick={next}>
+                {phase === 'quiz' ? 'Готово' : phase === 'tour' && !cOk ? 'Выберите пропущенное' : k < n - 1 ? 'Дальше' : 'К вопросу'}
               </Button>
             </>}
         </div>

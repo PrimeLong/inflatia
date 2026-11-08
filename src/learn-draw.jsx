@@ -6,13 +6,14 @@
    ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — итоги, как после урока
    (ExtraResult из src/learn-extra-result.jsx): 15 опыта и монеты — один раз, под итогами — построенный график. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2 } from 'lucide-react';
+import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour } from './learn/draws.js';
-import { finishLesson, markDraw, countAnswers } from './textbook/learn-state.js';
+import { finishLesson, markDraw, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
@@ -28,6 +29,7 @@ const CSS = `
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
   .dl-coord { font: 700 11.5px var(--ds-sans); }
+  .dl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
   .dl-table { margin: 10px 0 2px; border-collapse: collapse; font: 400 15px var(--ds-sans); font-variant-numeric: tabular-nums; }
   .dl-table th { padding: 4px 16px 4px 0; text-align: left; font: 600 12.5px var(--ds-sans); color: var(--ds-ink3); border-bottom: 1px solid var(--ds-rule2); }
   .dl-table td { padding: 4px 16px 4px 0; color: var(--ds-ink); border-bottom: 1px solid var(--ds-rule); }
@@ -81,7 +83,7 @@ const HOW = {
   area: 'Нажмите внутрь нужной области.',
 };
 
-export default function DrawLesson({ id, learn, update, onClose }) {
+export default function DrawLesson({ id, learn, update, onClose, gem = false }) {
   const d = DRAW_BY_ID[id];
   const tour = useMemo(() => (d ? drawTour(d) : null), [d]);
   const [i, setI] = useState(0);
@@ -193,13 +195,23 @@ export default function DrawLesson({ id, learn, update, onClose }) {
       Audio.play('coin'); setRes({ ok: true }); return;
     }
     Audio.play('down');
-    if (tries >= 1) { setRes({ shown: true, why: r.why }); setTries(tries + 1); return; }
+    // алмазный уровень — одна попытка: ошибка — сразу «вот как надо» (docs/mechanics.md, «Особые уроки юнита»)
+    if (tries >= 1 || gem) { setRes({ shown: true, why: r.why }); setTries(tries + 1); return; }
     setTries(1); setRes({ ok: false, why: r.why });
   };
   const finish = () => {
     Audio.play('register');
     const right = firstTry.current; const accuracy = Math.round((right / n) * 100);
     const seconds = Math.min(900, (Date.now() - started.current) / 1000);
+    if (gem && update) {
+      // алмаз — все шаги с первой (и единственной) попытки; опыт и монеты — за первый взятый
+      const won = right === n; const had = hasGem(learn, id);
+      const apply = (s) => { const t = countAnswers(s, right, n); return won && !had ? markGem(finishLesson(t, null, { xp: DRAW_XP, accuracy: 100, seconds, kind: 'draw', extra: { fresh: false } }), id) : t; };
+      const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy });
+      setResult({ xp: won && !had ? DRAW_XP : 0, right, total: n, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+      setPhase('done');
+      return;
+    }
     // шаги, верные с первой попытки, — в задание дня «N верных ответов», и при повторе (docs/mechanics.md);
     // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle)
     const apply = (s) => { const t = countAnswers(s, right, n); return already ? t : markDraw(finishLesson(t, null, { xp: DRAW_XP, accuracy, seconds, kind: 'draw', extra: { fresh: true } }), id); };
@@ -246,9 +258,10 @@ export default function DrawLesson({ id, learn, update, onClose }) {
         <div className="gl-top">
           <IconButton label="Закрыть" icon={X} data-testid="draw-close" onClick={() => { Audio.play('paper'); onClose(); }} />
           <div className="gl-title"><small>Нарисуй сам</small>{d.title}</div>
+          {gem && <span className="dl-gem-tag" data-testid="draw-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
           <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в задании? Шаг, его текст и устройство приложатся сами." context={() => ({
             screen: 'draw', lesson: id, unit: d.unitId, kind: 'draw',
-            step: phase === 'done' ? 'итог' : `шаг ${i + 1} из ${n}`,
+            step: (phase === 'done' ? 'итог' : `шаг ${i + 1} из ${n}`) + (gem ? ' (алмаз)' : ''),
             prompt: (phase === 'done' ? d.title : t.text).replace(/\*\*/g, '').slice(0, 1500),
             answer: answer ? JSON.stringify(answer).slice(0, 300) : '',
           })} />
@@ -267,7 +280,7 @@ export default function DrawLesson({ id, learn, update, onClose }) {
                 <tbody>{t.at.map((q, j) => <tr key={j}><td>{j + 1}</td><td>{fmt(q.x)}</td><td>{fmt(q.y)}</td></tr>)}</tbody>
               </table>
             )}
-            {!resolved && <span className="dl-how">{HOW[t.do]}</span>}
+            {!resolved && <span className="dl-how">{HOW[t.do]}{gem ? ' Алмаз: одна попытка на шаг.' : ''}</span>}
           </div>
           <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)}>
           {full && <div className="dl-mini" data-testid="draw-full-task"><b>Шаг {i + 1} из {n}.</b> {rich(t.text)}

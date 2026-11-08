@@ -5549,7 +5549,12 @@ test('«Чтение» на алмаз: контекст после ответа
   // без ошибок — алмаз и +12 опыта; на дороге — алмазная печать
   done = await pass(false);
   await expect(done).toHaveAttribute('data-won', 'true');
-  await expect(done).toContainText('+12 опыта');
+  // итоги — как после урока на алмазе: опыт и монеты за алмаз (25 и ещё 10 «без ошибок») — один раз
+  const gres = done.getByTestId('extra-result');
+  await expect(gres).toHaveAttribute('data-diamond', 'true');
+  await expect(gres.getByTestId('result-diamond')).toContainText('Алмазный уровень взят');
+  await expect(gres.getByTestId('result-xp')).toContainText('+12');
+  expect(Number(await gres.getAttribute('data-coins'))).toBeGreaterThanOrEqual(35);
   await page.getByTestId('reading-finish').click();
   await expect(card).toHaveAttribute('data-diamond', 'true');
   expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.readGem['read-choice'])).toBe(true);
@@ -6961,6 +6966,106 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   await expect(g.getByTestId('draw-full-feedback')).toHaveText('Верно.');
   await g.getByTestId('draw-full-exit').click();
   await expect(box).toHaveAttribute('data-full', 'false');
+  expect(errors).toEqual([]);
+});
+
+// алмаз у всех особых уроков (пункт владельца 08.11, вечер: «все квадратные уроки тоже должны проходиться на алмаз»)
+test('«Разбор графика» на алмаз: пропущенное слово в каждом шаге; с ошибкой — не взят, без ошибок — алмаз и монеты, ромб на дороге', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-id="graph-ppf"]');
+  await expect(stop).toHaveAttribute('data-state', 'done');
+  const pass = async (slip) => {
+    await stop.scrollIntoViewIfNeeded(); await stop.click();
+    const sheet = page.getByTestId('extra-sheet');
+    await expect(sheet.getByTestId('extra-gem-what')).toContainText('пропущено главное слово');
+    await sheet.getByTestId('extra-gem').click();
+    const g = page.getByTestId('graph-lesson');
+    await expect(g.getByTestId('graph-gem-tag')).toBeVisible();
+    for (let k = 0; k < 12 && await g.getAttribute('data-phase') === 'tour'; k += 1) {
+      const cz = g.getByTestId('graph-cloze');
+      if (await cz.count()) {
+        // пока пропуск не выбран — дальше нельзя; ошибка видна и снимает алмаз
+        await expect(g.getByTestId('graph-next')).toBeDisabled();
+        if (slip && k === 0) await cz.locator('[data-testid=graph-cloze-opt]:not([data-ok])').first().click();
+        await cz.locator('[data-testid=graph-cloze-opt][data-ok]').click();
+        await expect(cz).toHaveAttribute('data-done', 'true');
+      }
+      await g.getByTestId('graph-next').click();
+    }
+    await g.locator('[data-testid=graph-opt][data-ok="true"]').click();
+    await g.getByTestId('graph-next').click();
+    const res = g.getByTestId('extra-result');
+    await expect(res).toHaveAttribute('data-diamond', 'true');
+    return res;
+  };
+  let res = await pass(true);
+  await expect(res).toHaveAttribute('data-won', 'false');
+  await expect(res).toContainText('Алмаз не взят');
+  await expect(res).toHaveAttribute('data-coins', '0');
+  await page.getByTestId('graph-finish').click();
+  await expect(stop).not.toHaveAttribute('data-diamond', 'true');
+  res = await pass(false);
+  await expect(res).toHaveAttribute('data-won', 'true');
+  await expect(res.getByTestId('result-diamond')).toContainText('Алмазный уровень взят');
+  await expect(res.getByTestId('result-xp')).toContainText('+10');
+  expect(Number(await res.getAttribute('data-coins'))).toBeGreaterThanOrEqual(35);
+  await page.getByTestId('graph-finish').click();
+  await expect(stop).toHaveAttribute('data-diamond', 'true');
+  expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.gems['graph-ppf'])).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('«Персоналии» на алмаз — «Чья это идея?»; «Нарисуй сам» на алмаз — одна попытка: ошибка — сразу «вот как надо»', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), met: { 'people-scarcity': at }, graphs: { 'graph-ppf': at }, draws: { 'draw-ppf': at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const pp = page.locator('[data-testid=path-extra][data-id="people-scarcity"]');
+  await pp.scrollIntoViewIfNeeded(); await pp.click();
+  await expect(page.getByTestId('extra-gem-what')).toContainText('Чья это идея?');
+  await page.getByTestId('extra-gem').click();
+  const view = page.getByTestId('people');
+  await expect(view.getByTestId('people-gem-tag')).toBeVisible();
+  for (let k = 0; k < 3; k += 1) {
+    await view.locator('[data-testid=people-opt][data-ok="true"]').click();
+    await view.getByTestId('people-next').click();
+  }
+  const who = view.getByTestId('people-who');
+  await expect(who.getByTestId('people-who-item')).toHaveCount(3);
+  await expect(view.getByTestId('people-next')).toBeDisabled();
+  for (let k = 0; k < 3; k += 1) await who.getByTestId('people-who-item').nth(k).locator('[data-testid=people-who-opt][data-ok]').click();
+  await view.getByTestId('people-next').click();
+  const res = view.getByTestId('extra-result');
+  await expect(res).toHaveAttribute('data-won', 'true');
+  expect(Number(await res.getAttribute('data-coins'))).toBeGreaterThanOrEqual(35);
+  await view.getByTestId('people-finish').click();
+  await expect(pp).toHaveAttribute('data-diamond', 'true');
+  // «Нарисуй сам» на алмаз: точки не там — проверка сразу показывает, как надо, без второй попытки
+  const dr = page.locator('[data-testid=path-extra][data-id="draw-ppf"]');
+  await dr.scrollIntoViewIfNeeded(); await dr.click();
+  await expect(page.getByTestId('extra-gem-what')).toContainText('одна попытка');
+  await page.getByTestId('extra-gem').click();
+  const g = page.getByTestId('draw-lesson');
+  await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
+  const ink = g.getByTestId('draw-ink');
+  for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
+    const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x + 40, Math.max(30, y - 40)]);
+    await page.mouse.click(cx, cy);
+  }
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toContainText('Вот как надо');
+  await expect(g.getByTestId('draw-solution').first()).toBeVisible();
+  await expect(g.getByTestId('draw-next')).toBeVisible();
+  await g.getByTestId('draw-close').click();
   expect(errors).toEqual([]);
 });
 

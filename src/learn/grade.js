@@ -38,8 +38,9 @@ export function courseLevel(learn) {
     if (st.complete || tested) parts.units += 1;
   });
   parts.extras = Object.entries(EXTRA_IDS).reduce((a, [key, ids]) => a + ids.filter((id) => ((learn || {})[key] || {})[id]).length, 0);
-  // «Чтение» на алмаз — как урок на алмазном уровне
+  // особый урок на алмаз — как урок на алмазном уровне («Чтение» — readGem, остальные — gems)
   parts.diamond += EXTRA_IDS.read.filter((id) => ((learn || {}).readGem || {})[id]).length;
+  parts.diamond += [...EXTRA_IDS.met, ...EXTRA_IDS.graphs, ...EXTRA_IDS.draws].filter((id) => ((learn || {}).gems || {})[id]).length;
   const points = parts.lessons * KNOW.lesson + parts.perfect * KNOW.perfect + parts.diamond * KNOW.diamond + parts.extras * KNOW.extra + parts.units * KNOW.unit;
   const all = units.flatMap((s) => s.lessons);
   const done = all.filter((l) => l.done).length;

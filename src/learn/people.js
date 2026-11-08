@@ -457,6 +457,18 @@ export const PEOPLE_BY_UNIT = Object.fromEntries(PEOPLE.map((p) => [p.unitId, p]
 // человек — по первой встрече
 export const PERSON_BY_ID = Object.fromEntries(PEOPLE.flatMap((g) => g.people.filter((p) => !p.again).map((p) => [p.id, { ...p, group: g.id }])));
 export const isMet = (learn, id) => !!((learn && learn.met) || {})[id];
+/* Алмазный уровень «Персоналий» (docs/mechanics.md, «Особые уроки юнита»): «Чья это идея?» — идея каждого человека
+   подборки без имени; варианты — люди подборки и один человек из другой (первый из следующих подборок, кого здесь нет).
+   Порядок вариантов у каждой идеи свой (сдвиг по кругу), чтобы верный не стоял всегда на одном месте. */
+export function quizIdea(g) {
+  const own = g.people.map((p) => p.name);
+  const i = PEOPLE.findIndex((x) => x.id === g.id);
+  const rest = [...PEOPLE.slice(i + 1), ...PEOPLE.slice(0, Math.max(0, i))];
+  const other = rest.flatMap((x) => x.people.map((p) => p.name)).find((n) => !own.includes(n));
+  const names = [...own, ...(other ? [other] : [])];
+  // сдвиг 2k + 1: верный встаёт у каждой идеи на своё место (сдвиг k + 1 ставил бы его всегда последним)
+  return g.people.map((p, k) => { const r = (2 * k + 1) % names.length; return { k, idea: p.idea, answer: p.name, options: [...names.slice(r), ...names.slice(0, r)] }; });
+}
 // инициалы для медальона: «Джон Д. Рокфеллер» → «ДР»
 export const initialsOf = (name) => { const w = name.replace(/\b[А-ЯЁA-Z]\.\s*/g, '').split(/\s+/).filter(Boolean); return (w[0][0] + w[w.length - 1][0]).toUpperCase(); };
 // лента веков: доля положения года на шкале 1640–2030

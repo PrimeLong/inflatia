@@ -64,10 +64,14 @@ export function runCoins({ mode, replay = false, accuracy = 0, pass = null, item
 // ключ награды: первое прохождение урока и первый алмаз — по разу
 export const runKey = ({ mode, lessonId, replay, diamond, gem }) => (mode !== 'lesson' ? null : diamond ? (gem ? null : `d:${lessonId}`) : replay ? null : `l:${lessonId}`);
 /* Особые уроки — «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам» (docs/mechanics.md, «Особые уроки юнита»):
-   пройден впервые — как урок (10, без ошибок — ещё 5). Повтор — без монет: задания в нём те же самые (обычный урок
-   на повторе собирается из новых задач). Ключ x:<id> — один раз на всех устройствах. */
-export const extraCoins = ({ fresh = false, accuracy = 0 }) => (fresh ? COIN.lesson + (accuracy >= 100 ? COIN.perfect : 0) : 0);
-export const extraKey = (id) => `x:${id}`;
+   пройден впервые — как урок (10, без ошибок — ещё 5); алмаз взят впервые (won, а gem — уже был) — как алмаз урока
+   (25 и ещё 10 «без ошибок»). Повтор — без монет: задания в нём те же самые (обычный урок на повторе собирается
+   из новых задач). Ключи x:<id> и xd:<id> — один раз на всех устройствах. */
+export function extraCoins({ fresh = false, accuracy = 0, diamond = false, won = false, gem = false }) {
+  if (diamond) return won && !gem ? COIN.diamond + (accuracy >= 100 ? COIN.diamondPerfect : 0) : 0;
+  return fresh ? COIN.lesson + (accuracy >= 100 ? COIN.perfect : 0) : 0;
+}
+export const extraKey = (id, diamond = false) => `${diamond ? 'xd' : 'x'}:${id}`;
 
 /* ------------------------------ КУРС ------------------------------
    Сколько монет стоит одна крона в этот день: r = 1 + 0,75·(r_вчера − 1) + шум ±0,07.

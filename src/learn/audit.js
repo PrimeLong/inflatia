@@ -86,6 +86,8 @@ export function coinCeiling(s, now = Date.now(), { bookFirst = null } = {}) {
     return a + (p && g ? Math.ceil(p.crowns * g.mult * 1.15 * RATE_MAX) : 0);
   }, 0);
   parts.book = (bookFirst != null ? bookFirst : days.size * 10) * COIN.book;
+  // алмазы особых уроков (docs/mechanics.md, «Особые уроки юнита») — как алмаз урока, по разу
+  parts.gems = (Object.keys(s.gems || {}).length + Object.keys(s.readGem || {}).length) * (COIN.diamond + COIN.diamondPerfect);
   const raw = Object.values(parts).reduce((a, x) => a + x, 0);
   // индексация наград — не выше индекса цен на сегодня
   const index = Math.max(1, priceIndex(dayOf(now)));

@@ -53,3 +53,17 @@ describe('особые уроки юнита: в каждом — все чет�
     });
   });
 });
+
+describe('алмаз на дороге — у всех четырёх видов (08.11, вечер)', async () => {
+  const { markGem, markReadGem } = await import('../../textbook/learn-state.js');
+  it('взятый алмаз особого урока — gem у его остановки', () => {
+    const u = units[0];
+    const ids = [PEOPLE_BY_UNIT[u.id].id, GRAPH_BY_UNIT[u.id].id, DRAW_BY_UNIT[u.id].id];
+    let learn = ids.reduce((s, id) => markGem(s, id), emptyLearn());
+    learn = markReadGem(learn, READING_BY_UNIT[u.id].id);
+    const st = pathState(learn).find((x) => x.course.id === u.id);
+    const stops = unitStops(st, learn).filter((x) => KINDS.includes(x.type));
+    expect(stops).toHaveLength(4);
+    stops.forEach((x) => expect(x.gem, x.type).toBe(true));
+  });
+});
