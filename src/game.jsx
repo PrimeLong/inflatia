@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import {
   ROLES, DIFFICULTIES, GOALS, SCENARIOS, FX_REGIMES, LEVERS, CB_PERSONAS, MOF_PERSONAS, REQUESTS,
-  REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach, regimeInfoText, regimeInfoLabel, POLITICAL_REGIME_INFO,
+  REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach, regimeInfoText, regimeInfoLabel, POLITICAL_REGIME_INFO,
   gameChronicle, clamp, fmt1, fmt2, fmtSigned1, pctFmt, fmtSignedPct, fmtMoney, fmtMoneySigned,
   fmtIndex, fmtMln, quarterLabel, defaultDecisions, getCbPersona, personaAfterElection,
   getMofPersona, MAP_REGIONS, botCentralBank, botFinanceMinistry, processRequest, redescribeCbAction,
@@ -3972,7 +3972,14 @@ export function RegionEventStrip({ event, answered, canAnswer, onOpen }) {
 export function demandItems({ botAction, botAction2, botRole, economy, president }) {
   const items = [];
   if (president) items.push({ who: `Президент (${president.persona.name})`, text: president.directive.ask || askText(president.directive.req, 1, 'president', economy.politicalRegime), color: COLOR.gold });
-  if (economy.mandate) items.push({ who: 'Мандат власти', text: `Новое правительство пришло с задачей: ${MANDATE_LABEL[economy.mandate] || economy.mandate}.`, color: COLOR.gold });
+  // мандат — цель с числами: чего ждут, сколько сейчас, выполняется ли (пункт владельца 08.11, вечер: «а в чём требование?»)
+  if (economy.mandate) {
+    const m = mandateGoal(economy);
+    const label = MANDATE_LABEL[economy.mandate] || economy.mandate;
+    items.push({ who: 'Мандат власти', color: m && m.met ? COLOR.teal : COLOR.gold, testid: 'mandate-demand',
+      text: m ? `${label[0].toUpperCase()}${label.slice(1)}: ${m.goal}. Сейчас ${m.now} — ${m.met ? 'выполняется' : 'пока не выполнено'}. Под эту задачу новая власть назначает министров.`
+        : `Новое правительство пришло с задачей: ${label}.` });
+  }
   if (botAction && botAction.demand) items.push({ who: botRole === 'central_bank' ? 'Центральный банк' : 'Минфин', text: botAction.demand, color: COLOR.blue });
   // у президента оба ведомства — боты, и требования к нему идут с обеих сторон
   if (botAction2 && botAction2.demand) items.push({ who: 'Минфин', text: botAction2.demand, color: COLOR.blue });
@@ -4007,7 +4014,7 @@ export function SummaryBar({ economy, demands = [] }) {
             <Megaphone size={13} />Требования
           </span>
           {demands.map((it, i) => (
-            <span key={i} style={{ fontSize: 13, lineHeight: 1.45 }}>
+            <span key={i} style={{ fontSize: 13, lineHeight: 1.45 }} data-testid={it.testid}>
               <span style={{ color: it.color, fontWeight: 700 }}>{it.who}:</span>{' '}
               <span className="t-muted">{it.text}</span>
             </span>

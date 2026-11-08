@@ -224,6 +224,25 @@ function personaAfterElection(kind, economy) {
   return line === 'populist' ? 'dove' : line === 'austerity' ? 'hawk' : 'pragmatic';
 }
 const MANDATE_LABEL = { jobs: 'занятость любой ценой', prices: 'обуздать цены', budget: 'привести бюджет в порядок', growth: 'вернуть рост' };
+/* Мандат власти — цель с числами (docs/mechanics.md, «„Мир“: решения квартала»): чего ждут от новой власти, сколько
+   сейчас и выполняется ли. Пороги — как у выбора мандата на выборах (simulateQuarter, «смена власти»). */
+function mandateGoal(e) {
+  if (!e || !e.mandate || !MANDATE_LABEL[e.mandate]) return null;
+  const num = (v) => rf1(Number.isFinite(v) ? v : 0);
+  if (e.mandate === 'jobs') {
+    const lim = (Number.isFinite(e.nairu) ? e.nairu : 5) + 0.5;
+    return { goal: `безработица — не выше ${num(lim)}% (естественный уровень + 0,5 п.п.)`, now: `${num(e.unemployment)}%`, met: e.unemployment <= lim };
+  }
+  if (e.mandate === 'prices') {
+    const lim = (Number.isFinite(e.inflationTarget) ? e.inflationTarget : 4) + 1;
+    return { goal: `инфляция — не выше ${num(lim)}% (цель + 1 п.п.)`, now: `${num(e.inflation)}%`, met: e.inflation <= lim };
+  }
+  if (e.mandate === 'budget') {
+    const deficit = -(Number.isFinite(e.budgetBalancePctGdp) ? e.budgetBalancePctGdp : 0);
+    return { goal: 'дефицит бюджета — не больше 3% ВВП', now: `${deficit > 0 ? num(deficit) : '0'}% ВВП, долг ${num(e.debtToGdp)}% ВВП`, met: deficit <= 3 };
+  }
+  return { goal: 'рост ВВП — не ниже 2% в год', now: `${num(e.gdpGrowth)}%`, met: e.gdpGrowth >= 2 };
+}
 const getMofPersona = (id) => MOF_PERSONAS.find((p) => p.id === id) || MOF_PERSONAS[0];
 
 // Бот-ЦБ: правило Тейлора вокруг нейтральной ставки + макропруденциальная и кризисная реакция
@@ -2615,7 +2634,7 @@ function leverPreview(id, newVal, s, difficulty) {
 export {
   CONFIG, ROLES, DIFFICULTIES, GOALS, SCENARIOS, FX_REGIMES, LEVERS, UNCERTAINTY,
   CB_PERSONAS, MOF_PERSONAS, REQUESTS, EVENTS, CHANNEL_HEADLINE, TAX_REF,
-  STOCK_NORM, TFP_SCALE, STORY_TEMPLATES, REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, regimeInfoText, regimeInfoLabel,
+  STOCK_NORM, TFP_SCALE, STORY_TEMPLATES, REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, regimeInfoText, regimeInfoLabel,
   POLITICAL_REGIME_INFO, propagandaEditorial, gameChronicle, MAP_REGIONS, regionStress, regionBlurb, regionVoteShares, REGION_PROJECTS, REGION_EVENTS, projectBlocker, projectSpendPct, warFrontRegion, defaultWarOrder, WAR_OBJECTIVES, WAR_STANCES, warObjectiveOpen, warStrength, botWarOrder, ANNEX_EFFECT, CAMPAIGN_POINTS, CAMPAIGN_COST, POLL_WINDOW, electionForecast, sanitizeCampaignPlan, botCampaignPlan, swingLabel,
   ANNEX_REGIONS, ALL_REGIONS, regionById, activeRegions, votingRegions, annexLoyalty, sanitizeIntegration,
   PARTISAN_BELOW, INTEGRATED_AT, INTEGRATION_COST, INTEGRATION_DONE,
