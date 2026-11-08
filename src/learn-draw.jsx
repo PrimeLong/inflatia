@@ -11,7 +11,7 @@ import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour } from './learn/draws.js';
-import { finishLesson, markDraw } from './textbook/learn-state.js';
+import { finishLesson, markDraw, countAnswers } from './textbook/learn-state.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 
 const CSS = `
@@ -134,8 +134,9 @@ export default function DrawLesson({ id, learn, update, onClose }) {
   };
   const finish = () => {
     Audio.play('register');
-    if (!already && update) {
-      update((s) => markDraw(finishLesson(s, null, { xp: DRAW_XP, accuracy: Math.round((firstTry.current / n) * 100), seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'draw', extra: { fresh: true } }), id));
+    // шаги, верные с первой попытки, — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
+    if (update) {
+      update((s) => { const t = countAnswers(s, firstTry.current, n); return already ? t : markDraw(finishLesson(t, null, { xp: DRAW_XP, accuracy: Math.round((firstTry.current / n) * 100), seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'draw', extra: { fresh: true } }), id); });
     }
     setPhase('done');
   };

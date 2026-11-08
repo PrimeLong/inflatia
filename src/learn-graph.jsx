@@ -13,7 +13,7 @@ import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView } from './learn/graphs.js';
-import { finishLesson, markGraph } from './textbook/learn-state.js';
+import { finishLesson, markGraph, countAnswers } from './textbook/learn-state.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { textBox, dotBox, aroundPoint, placeLabels, freeTicks } from './learn/label-place.js';
 
@@ -326,7 +326,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false }
   };
   const finish = () => {
     Audio.play('register');
-    if (!peek && !already && update) update((s) => markGraph(finishLesson(s, null, { xp: GRAPH_XP, accuracy: firstOk.current ? 100 : 60, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id));
+    // ответ на вопрос разбора — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
+    if (!peek && update) update((s) => { const t = countAnswers(s, firstOk.current ? 1 : 0, 1); return already ? t : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy: firstOk.current ? 100 : 60, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id); });
     setPhase('done');
   };
   const next = () => {

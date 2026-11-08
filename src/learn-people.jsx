@@ -10,7 +10,7 @@ import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf } from './learn/people.js';
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
-import { finishLesson, markMet } from './textbook/learn-state.js';
+import { finishLesson, markMet, countAnswers } from './textbook/learn-state.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 
 export const PEOPLE_CSS = `
@@ -228,7 +228,9 @@ export default function PeopleView({ id, learn, update, onClose }) {
     Audio.play('paper');
     if (k < g.people.length - 1) { setK(k + 1); return; }
     const acc = (Object.values(firstOk.current).filter(Boolean).length / g.people.length) * 100;
-    if (!already) update((s) => markMet(finishLesson(s, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id));
+    const right = Object.values(firstOk.current).filter(Boolean).length;
+    // верные ответы — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
+    update((s) => { const t = countAnswers(s, right, g.people.length); return already ? t : markMet(finishLesson(t, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id); });
     setFinished(true);
   };
   // назад — к прошлому человеку: его ответ и разбор на месте

@@ -83,3 +83,17 @@ describe('«Чтение» на алмаз', async () => {
     expect(courseLevel(s).parts.diamond - courseLevel({ ...s, readGem: {} }).parts.diamond).toBe(1);
   });
 });
+
+describe('задание дня «N верных ответов» — и в особых уроках (08.11, вечер)', async () => {
+  const { countAnswers, dailyOf: daily } = await import('../../textbook/learn-state.js');
+  it('ответы особого урока — в счёт верных ответов дня; серию не трогают', () => {
+    let s = recordAttempt(emptyLearn(), 'choice', true, 1000, { now: at(10) });
+    const run = s.run;
+    s = countAnswers(s, 3, 4, at(11));
+    expect(daily(s, at(11))).toMatchObject({ a: 5, c: 4 });
+    expect(s.run).toEqual(run);
+    // ничего не ответили — то же состояние; верных не больше ответов
+    expect(countAnswers(s, 0, 0, at(12))).toBe(s);
+    expect(daily(countAnswers(s, 9, 2, at(12)), at(12)).c).toBe(6);
+  });
+});

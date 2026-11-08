@@ -9,7 +9,7 @@ import { Button, IconButton } from './ds.jsx';
 import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho } from './learn/reading.js';
-import { finishLesson, markRead, markReadGem } from './textbook/learn-state.js';
+import { finishLesson, markRead, markReadGem, countAnswers } from './textbook/learn-state.js';
 
 const CSS = `
   .rd-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -235,6 +235,9 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     if (gem && !whoStage) { setWhoStage(true); toTop(); return; }
     const right = answers.filter((a) => a && a.ok).length;
     const seconds = Math.round((Date.now() - startAt) / 1000);
+    // ответы — в задание дня «N верных ответов», и при перечитывании (docs/mechanics.md)
+    const whoRight = who.filter((it, k) => picks[k] === it.answer).length;
+    update((s) => countAnswers(s, right + (gem ? whoRight : 0), r.pages.length + (gem ? who.length : 0)));
     if (gem) {
       // алмаз — без единой ошибки и на страницах, и в «Кто это сказал?»; опыт — за первый взятый
       const clean = right === r.pages.length && who.every((it, k) => picks[k] === it.answer);

@@ -227,6 +227,14 @@ export function mergeRun(a, b, later) {
   if (za !== zb) return za > zb ? a : b;
   return later(a, b);
 }
+/* ответы особых уроков («Чтение», «Персоналии», «Разбор графика», «Нарисуй сам») — в счёт ответов дня и задание
+   «N верных ответов» (docs/mechanics.md); серию верных подряд они не трогают */
+export function countAnswers(s, right, total, now = Date.now()) {
+  const n = Math.max(0, Math.round(total || 0)); const ok = Math.max(0, Math.min(n, Math.round(right || 0)));
+  if (!n) return s;
+  const day = dayOf(now); const d = dayEntry(s, day);
+  return upd(s, { daily: { ...s.daily, [day]: { ...d, a: d.a + n, c: d.c + ok } } });
+}
 /* серия, с которой начинается урок: бессрочная run; у прогресса без run (до бессрочной серии) — сегодняшняя rc */
 export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n : dayEntry(s, dayOf(now)).rc);
 const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h'];
