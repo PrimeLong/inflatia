@@ -10,7 +10,7 @@ import { STOCK_NORM, TAX_REF, TFP_SCALE, complianceFor, computeRevenue, computeS
 import { CAMPAIGN_COST, CAMPAIGN_POINTS, POLL_WINDOW, PROMISE_POOL, botCampaignPlan, campaignBonus, campaignStep, electionForecast, evaluatePromise, pickPromises, sanitizeCampaignPlan, swingLabel } from './politics/elections.js';
 import { ACTION_GROUP_EFFECTS, SOCIAL_GROUPS, buildReport, coalitionOf, groupDemandStep, groupEpisodes, groupMemoryOf, groupStatus, groupStep, groupTurnoutShift, leverGroupEffects, propagandaEditorial, publicGroupDemand, regionBlurb, regionGroupSupport, regionVoteShares } from './politics/groups.js';
 import { APPOINT_COST, BOT_CORE_GROUPS, CB_FULL_TERM, DIRECTIVE_FULL, DIRECTIVE_PART, PRESIDENT_ACTIONS, PRES_BY_ID, PRES_DIRECTIVE_COST, PRES_GROUP_LABEL, REFORM_RAMP, applyPresidentActions, appointmentEffects, botPresident, directiveProgress, directiveVerdict, getPresPersona, militaryCoupRisk, parliamentBlocksReform, politicalCapitalRegen, presActionAvailable, kidsBlocked, presidentSatisfactionNext, processPresidentialDirective, reformEffects, reformShare } from './politics/president.js';
-import { REQUESTS, TAX_DEMAND_CAP, TAX_KEYS, askText, processRequest, reqAmount, taxSum } from './politics/requests.js';
+import { REQUESTS, TAX_DEMAND_CAP, TAX_KEYS, askText, processRequest, reqAmount, taxSum, fitStrength } from './politics/requests.js';
 import { DIPLO_ACTIONS, NEIGHBOR_EVENTS, NEIGHBOR_IDS, RELATIONS_START, atWarWith, botDiplomacy, deshtAttackRoll, deshtWarMultiplier, diploActionAvailable, diplomacyStep, neighborEventView, peaceStep, relationEffects, relationTarget, relationsOf, sanitizeDiplomacy, ultimatumChance } from './world/diplomacy.js';
 import { ALL_REGIONS, ANNEX_REGIONS, ANNEX_REGION_OF, INTEGRATED_AT, INTEGRATION_COST, MAP_REGIONS, PARTISAN_BELOW, PROJECT_BY_ID, REGION_EVENTS, REGION_EVENT_BY_ID, REGION_PROJECTS, activeRegions, annexLoyalty, botRegionPlan, botPresidentRegion, regionEventOwner, projectBlocker, projectSpendPct, regionById, regionStep, regionStress, votingRegions, warFrontRegion } from './world/regions.js';
 import { ANNEX_EFFECT, DEFENSE_STANCES, DEF_ENEMY, DEF_FRONT, INTEGRATION_DONE, OBJECTIVE_VALUE, REVANCHE_WARN, WAR_OBJECTIVES, WAR_OBJECTIVE_BY_ID, WAR_STANCES, WAR_TARGETS, annexStep, botDefenseOrder, botFrontOrder, botTreaty, botWarOrder, defaultDefenseOrder, defaultFrontOrder, defaultWarOrder, defaultWarTarget, defenseStep, dropAnnexed, newDefenseCampaign, newWarCampaign, revancheGrowth, revancheStep, sanitizeIntegration, sanitizeTreaty, sanitizeWarTarget, treatyCost, warCampaignStep, warObjectiveOpen, warObjectivesFor, warStrength, warTargetAvailable, warTargetOf } from './world/war.js';
@@ -2638,7 +2638,7 @@ export {
   presActionAvailable, kidsBlocked, applyPresidentActions, politicalCapitalRegen, parliamentBlocksReform,
   PRESIDENT_PERSONAS, getPresPersona, botPresident, presidentSatisfactionNext, militaryCoupRisk,
   directiveProgress, directiveVerdict, DIRECTIVE_FULL, DIRECTIVE_PART,
-  processPresidentialDirective, PRES_DIRECTIVE_COST, askText, reqAmount, appointmentEffects, APPOINT_COST, CB_FULL_TERM,
+  processPresidentialDirective, PRES_DIRECTIVE_COST, askText, reqAmount, fitStrength, appointmentEffects, APPOINT_COST, CB_FULL_TERM,
   headlineFor, spreadOf, makeImpulse, pickEvent, buildEventImpulses, tickImpulses,
   complianceFor, taxBases, computeRevenue, taxWedge, potentialFrom, computeScores,
   simulateQuarter, SKIPPABLE_STEPS, FIRMS, FIRM_MODE_LABEL, QUINTILES, giniOf, groupRealIncome, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach,

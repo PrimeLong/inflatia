@@ -49,7 +49,7 @@ export function advanceCountry(country, { noEvents = false, firm = null } = {}) 
       ? { [plan.appointBot.kind === 'central_bank' ? 'appointCb' : 'appointMof']: plan.appointBot.persona } : {};
     eff = { ...eff, presidentActive: true, presidentActions: plan.actions, presidentPatience: plan.persona.patience, ...appoint };
     if (plan.directive && !plan.directive.toPlayer) {
-      const res = processPresidentialDirective(plan.directive.reqId, economy, cbPersona, mofPersona, eff);
+      const res = processPresidentialDirective(plan.directive.reqId, economy, cbPersona, mofPersona, eff, plan.directive.strength);
       if (res) {
         eff = { ...res.decisions, presidentActive: true, presidentActions: plan.actions,
           presidentPatience: plan.persona.patience, presidentExtraSpend: PRES_DIRECTIVE_COST, ...appoint };

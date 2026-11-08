@@ -20,7 +20,7 @@ import {
   redescribeMofAction, simulateQuarter, makeInitialEconomy, leverPreview, pickPromises,
   evaluatePromise, pickPressQuestion, PRESIDENT_ACTIONS, kidsBlocked, PRES_BY_ID, PRES_GROUP_LABEL, reformShare,
   REFORM_RAMP, processPresidentialDirective, PRES_DIRECTIVE_COST, APPOINT_COST, CB_FULL_TERM,
-  makeImpulse, askText, getPresPersona, botWarOrder, botCampaignPlan, electionForecast,
+  makeImpulse, askText, fitStrength, getPresPersona, botWarOrder, botCampaignPlan, electionForecast,
   botDefenseOrder, botFrontOrder, DEF_ENEMY, botTreaty, botDiplomacy, neighborEventView, WAR_TARGETS, warTargetOf, SOCIAL_GROUPS, ACTION_GROUP_EFFECTS, leverGroupEffects, botPresident,
   directiveProgress, directiveVerdict, militaryCoupRisk, parliamentBlocksReform, scaleLever, currencyUnionRate, taylorRate,
   botPresidentRegion, regionEventOwner,
@@ -1718,7 +1718,11 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
               <div style={{ fontSize: 12, color: COLOR.faint, letterSpacing: '0.06em', textTransform: 'uppercase', margin: '2px 0 6px' }}>{title}</div>
               {directiveList(toCb).map((r) => {
                 const isSel = directive === r.id;
-                const disabled = !isSel && !canDirective;
+                // просьба о ставке — не дальше её границ: при ставке 0% «снизить» недоступно, ползунок — не дальше возможного
+                const cap = r.scale ? fitStrength(r, economy, r.scale.max / r.scale.base) : 1;
+                const blocked = cap == null;
+                const str = blocked ? 1 : Math.min(directiveStrength || 1, cap);
+                const disabled = (!isSel && !canDirective) || blocked;
                 return (
                   <div key={r.id} className="ems-card-btn" role="button" tabIndex={disabled ? -1 : 0}
                     onClick={() => { if (!disabled) { Audio.play('tick'); setDirective(isSel ? null : r.id); } }}
@@ -1730,7 +1734,8 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
                       {isSel && <Check size={11} color={COLOR.gold} />}
                       <span style={{ fontSize: 12, color: isSel ? COLOR.goldSoft : COLOR.text }}>{r.label}</span>
                     </div>
-                    {isSel && <div style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.4, marginTop: 4 }}>«{askText(r, r.scale ? (directiveStrength || 1) : 1, 'president', economy.politicalRegime)}»</div>}
+                    {blocked && <div className="fs-12 t-faint" data-testid="directive-blocked" style={{ marginTop: 2 }}>{r.id === 'rate_cut' ? 'Ставка уже на нуле — снижать некуда.' : 'Ставка у потолка — повышать некуда.'}</div>}
+                    {isSel && <div style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.4, marginTop: 4 }}>«{askText(r, r.scale ? str : 1, 'president', economy.politicalRegime)}»</div>}
                     {/* «снизить ставку» без указания насколько — это не указание:
                         один пункт для ставки очень много, и просить можно меньше */}
                     {isSel && r.scale && (
@@ -1738,12 +1743,12 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
                           <span className="t-muted">Насколько</span>
                           <span className="ems-mono t-goldsoft">
-                            {fmt2(r.scale.base * (directiveStrength || 1))}{r.scale.unit}
+                            {fmt2(r.scale.base * str)}{r.scale.unit}
                           </span>
                         </div>
                         <input type="range" className="ems-slider"
-                          min={r.scale.min / r.scale.base} max={r.scale.max / r.scale.base}
-                          step={r.scale.step / r.scale.base} value={directiveStrength || 1}
+                          min={r.scale.min / r.scale.base} max={Math.max(r.scale.min / r.scale.base, blocked ? 1 : cap)}
+                          step={r.scale.step / r.scale.base} value={str}
                           onChange={(e) => { Audio.play('tick'); setDirectiveStrength(Number(e.target.value)); }} />
                         <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 3, lineHeight: 1.4 }}>
                           Чем больше просите, тем охотнее ведомство откажет.
@@ -4727,11 +4732,11 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
       }
       const dir = presidentPlan.directive;
       if (dir && dir.toPlayer) {
-        directiveMet = directiveProgress(dir.reqId, decisionsBaseline, decisions, economy);
+        directiveMet = directiveProgress(dir.reqId, decisionsBaseline, decisions, economy, dir.strength);
         // требование стоит президенту капитала — иначе давить можно бесконечно
         eff = { ...eff, presidentDirectiveMet: directiveMet, presidentExtraSpend: PRES_DIRECTIVE_COST };
       } else if (dir) {
-        presDirResult = processPresidentialDirective(dir.reqId, economy, cbPersonaId, mofPersonaId, eff);
+        presDirResult = processPresidentialDirective(dir.reqId, economy, cbPersonaId, mofPersonaId, eff, dir.strength);
         if (presDirResult) {
           eff = { ...presDirResult.decisions, presidentActive: true,
             presidentActions: presidentPlan.actions, presidentPatience: presPersona.patience,
