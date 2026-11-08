@@ -156,6 +156,29 @@ test('одиночная партия: квартал проходит, газе
   expect(errors).toEqual([]);
 });
 
+// «Мир» (пункт владельца 08.11, вечер): обещание рынку — сколько ещё действует, видно наверху денежных решений
+test('«Мир»: обещание рынку — плашка наверху вкладки решений ЦБ, сколько кварталов ещё действует, касание ведёт к выбору', async ({ page, isMobile }) => {
+  const { errors } = await openApp(page);
+  await startSoloGame(page);
+  const decide = async () => { if (isMobile && !(await page.getByRole('button', { name: 'Будем снижать' }).isVisible().catch(() => false))) await page.getByText('Решения', { exact: true }).click(); };
+  await decide();
+  await expect(page.getByTestId('guidance-badge')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Будем снижать' }).click();
+  await page.getByRole('button', { name: 'Завершить квартал и применить решения' }).click();
+  const close = page.getByRole('button', { name: 'Закрыть газету' });
+  if (await close.isVisible({ timeout: 3000 }).catch(() => false)) await close.click();
+  await decide();
+  const badge = page.getByTestId('guidance-badge');
+  await expect(badge).toContainText('Обещание рынку: снижать ставку');
+  await expect(badge).toContainText('ещё 2 квартала');
+  // плашка — выше выбора обещания и ползунка ставки: листать не нужно
+  const pick = page.locator('#ems-guidance');
+  expect((await badge.boundingBox()).y).toBeLessThan((await pick.boundingBox()).y);
+  await badge.click();
+  await expect(pick).toBeInViewport();
+  expect(errors).toEqual([]);
+});
+
 test('обучение: хаб и программа курса открываются', async ({ page }) => {
   const { errors } = await openApp(page);
   await page.getByText('Как играть', { exact: true }).click();

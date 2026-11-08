@@ -4287,13 +4287,29 @@ export function RateCompass({ economy, keyRate }) {
   );
 }
 
+/* Обещание рынку видно сразу (пункт владельца 08.11, вечер: «приходится листать вниз»): пока путь ставки действует —
+   плашка наверху вкладки денежных решений, касание ведёт к выбору обещания (docs/mechanics.md, «„Мир“: решения квартала») */
+const quartersWord = (n) => { const a = Math.abs(n) % 100; const b = a % 10; return a > 10 && a < 20 ? 'кварталов' : b === 1 ? 'квартал' : b >= 2 && b <= 4 ? 'квартала' : 'кварталов'; };
+export function GuidanceBadge({ economy }) {
+  const cur = economy.guidance && economy.guidance.left > 0 ? economy.guidance : null;
+  if (!cur) return null;
+  return (
+    <button type="button" className="ems-btn" data-testid="guidance-badge" data-left={cur.left}
+      onClick={() => { Audio.play('tick'); const el = document.getElementById('ems-guidance'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }}
+      style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '7px 10px', marginBottom: 10, fontSize: 12.5, textAlign: 'left', borderColor: COLOR.gold, color: COLOR.goldSoft }}>
+      <span>Обещание рынку: {GUIDANCE_LABEL[cur.dir]} ставку</span>
+      <b style={{ whiteSpace: 'nowrap' }}>ещё {cur.left} {quartersWord(cur.left)}</b>
+    </button>
+  );
+}
+
 export function GuidancePicker({ economy, value, onChange, keyRate }) {
   const cur = economy.guidance && economy.guidance.left > 0 ? economy.guidance : null;
   const pick = value || null;
   // что сейчас будет нарушением: подсветка прямо под ставкой, пока ползунок ещё можно вернуть
   const breach = cur ? guidanceBreach(cur.dir, keyRate - economy.keyRate) : 0;
   return (
-    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLOR.hairline}` }}>
+    <div id="ems-guidance" style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLOR.hairline}`, scrollMarginTop: 80 }}>
       <div className="row-between" style={{ alignItems: 'baseline' }}>
         <span style={{ fontSize: 13 }}>Путь ставки — обещание рынку</span>
         {cur && <span className="fs-12 t-muted">действует: {GUIDANCE_LABEL[cur.dir]}, ещё {cur.left} кв.</span>}
@@ -5503,6 +5519,7 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
 
             {levTab === 'monetary-core' && (
               <div>
+                {!economy.currencyUnion && <GuidanceBadge economy={economy} />}
                 {advanced ? <RateCompass economy={economy} keyRate={economy.currencyUnion ? currencyUnionRate(economy) : decisions.keyRate} />
                   : <div className="t-muted" data-testid="advanced-later" style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}>Компас ставки, правило Тейлора и риски откроются с {ADVANCED_QUARTER}-го квартала — или сразу, когда на Пути будет уровень «Средний».</div>}
                 {levers.filter((l) => l.group === 'monetary' && l.subgroup === 'core').map((l) => (
