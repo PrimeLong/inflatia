@@ -7251,6 +7251,22 @@ test('дюп: лишние монеты списаны, купленная на 
 
 /* Вход для гостя (пункт 1 от 08.11: «нигде нет кнопки войти, только огромная „создать“»): в карточке «Сохраните
    прогресс» — «Создать аккаунт» и «Войти»; из регистрации — «У меня уже есть аккаунт — войти», из входа — «Нет аккаунта?» */
+// нет связи с сервером (VPN, сеть) — плашка с советом и «Повторить» (пункт владельца 08.11, вечер)
+test('синхронизация не прошла — плашка «Нет связи с сервером»; «Повторить» после восстановления убирает её', async ({ page }) => {
+  let down = true;
+  const api = (req) => (down && req.url().includes('/api/solo') ? 'not json' : '{}');
+  const { errors } = await openApp(page, '/', api, { tab: 'path' });
+  const banner = page.getByTestId('sync-fail');
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText('Нет связи с сервером');
+  await expect(banner).toContainText('VPN');
+  // связь вернулась — «Повторить» синхронизирует, плашка уходит
+  down = false;
+  await banner.getByTestId('sync-retry').click();
+  await expect(banner).toHaveCount(0);
+  expect(errors.filter((e) => !/JSON/.test(e))).toEqual([]);
+});
+
 test('вход: гость может войти — «Войти» рядом с «Создать аккаунт», регистрация и вход ведут друг в друга', async ({ page }) => {
   test.setTimeout(120_000);
   await withTestFlag(page);

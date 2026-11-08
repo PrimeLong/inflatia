@@ -17,7 +17,7 @@ import {
   X, ArrowLeft, Flame, Zap, Coins, Target, Lock, Check, Gem, ChevronLeft, Calculator, BookOpenText, BookOpen, Trophy, Timer, Delete, ChevronRight, RotateCcw, Sparkles, Dumbbell,
   Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link, Utensils, Boxes, Users,
   Snowflake, ArrowDownToLine, ArrowUpToLine, Languages, MessageCircle, Headphones, Gamepad2, Repeat, Flag, Croissant, Landmark, Radio, MapPin, ArrowUp, ChevronDown, SkipForward,
-  Wrench, Feather, ChartSpline, PenLine, Factory, Bike,
+  Wrench, Feather, ChartSpline, PenLine, Factory, Bike, WifiOff,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
@@ -28,7 +28,7 @@ import { askSave, askLogin } from './lib/guest.js';
 import { writeLearnLevel } from './lib/disclosure.js';
 import { track, trackOnce, reportsMe } from './lib/client.js';
 import { TRACK, rememberTeam } from './learn/track.js';
-import { Audio, getPlayerId, syncProfile } from './MacroSimulator.jsx';
+import { Audio, getPlayerId, syncProfile, SYNC_EVENT, syncState } from './MacroSimulator.jsx';
 import { Blocks, Inline, ChartSvg, ChartLegend, TEXTBOOK_CSS, TextbookScreen } from './textbook.jsx';
 import { CHARTS, chartDefaults } from './textbook/charts.js';
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, reviewQueue } from './textbook/progress.js';
@@ -489,6 +489,11 @@ const CSS = `
   .ln-ticket-stub { width: 86px; background: color-mix(in srgb, var(--u) 13%, var(--ds-card)); display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 6px; color: var(--u-ink); position: relative; }
   .ln-album { display: flex; flex-wrap: wrap; gap: 10px; }
+  .ln-sync { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--ds-bad) 45%, var(--ds-rule2));
+    background: color-mix(in srgb, var(--ds-bad) 8%, var(--ds-card)); color: var(--ds-ink); }
+  .ln-sync > svg { flex: none; color: var(--ds-bad); }
+  .ln-sync b { display: block; font: 700 15px var(--ds-sans); }
+  .ln-sync span { display: block; font-size: 13.5px; line-height: 1.4; color: var(--ds-ink2); margin-top: 2px; }
   .ln-key { margin-top: 14px; padding: 8px 12px 10px; border: 2px solid var(--u); border-radius: 10px; background: color-mix(in srgb, var(--u) 8%, var(--ds-card)); }
   .ln-key .ds-eyebrow { color: var(--u-ink); }
   /* формула целиком: дробь (ΔQ над ΔL) — блоком с запасом по вертикали, а не строкой, у которой верх срезался (жалоба mw6t15ic) */
@@ -3109,6 +3114,33 @@ function useCelebrations(learn, update) {
 const MORNING_KEY = 'ems-learn-morning';
 /* Гость (src/lib/guest.js): прогресс пока только на этом устройстве — карточка зовёт создать
    аккаунт. После урока — на итогах, потом — вверху Пути. Регистрация заберёт прогресс. */
+/* «Нет связи с сервером»: последняя синхронизация не прошла (VPN, сеть, сбой) — прогресс других устройств не подтянулся.
+   «Повторить» — синхронизировать сейчас; удачная синхронизация убирает плашку сама (docs/mechanics.md, «Регистрация и вход») */
+function SyncBanner() {
+  const [fail, setFail] = useState(() => { const s = syncState(); return !!s && !s.ok; });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const on = (e) => setFail(!!e.detail && !e.detail.ok);
+    window.addEventListener(SYNC_EVENT, on);
+    return () => window.removeEventListener(SYNC_EVENT, on);
+  }, []);
+  if (!fail) return null;
+  const retry = () => {
+    Audio.play('click'); setBusy(true);
+    syncProfile(getPlayerId()).then((pf) => { if (pf) window.dispatchEvent(new CustomEvent(PROGRESS_EVENT, { detail: loadProgress() })); }).finally(() => setBusy(false));
+  };
+  return (
+    <div className="ln-sync" role="alert" data-testid="sync-fail">
+      <WifiOff size={20} aria-hidden="true" />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <b>Нет связи с сервером</b>
+        <span>Прогресс с других устройств не подтянулся, а этот пока сохраняется только здесь. Проверьте интернет; если включён VPN — попробуйте без него.</span>
+      </div>
+      <Button small variant="secondary" disabled={busy} data-testid="sync-retry" onClick={retry}>{busy ? 'Проверяем…' : 'Повторить'}</Button>
+    </div>
+  );
+}
+
 function GuestSave({ learn, afterLesson = false }) {
   const done = Object.values(learn.lessons || {}).filter((l) => l && l.runs > 0).length;
   return (
@@ -3306,6 +3338,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       )}
       {/* пока идёт урок или открыт учебник, экран под ними недоступен ни с клавиатуры, ни для чтения с экрана */}
       <div inert={over} style={book || reports || analytics ? { display: 'none' } : undefined} className="ln-tab" key={tab}>
+        <SyncBanner />
         {tab === 'path' && !tasks && guest && <GuestSave learn={learn} />}
         {tab === 'path' && !tasks && <PathView learn={learn} update={update} onLesson={setSheet} onStart={start} onOpenBook={openBook} onChest={setChest}
           onTasks={() => { setTasks(true); window.scrollTo(0, 0); }} visible={!over} homeTick={pathHome} folded={folded}

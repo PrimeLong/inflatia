@@ -741,12 +741,22 @@ export const writeLocalProgress = (profile, { replace = false } = {}) => {
 /* Синхронизация прогресса — всегда двусторонняя и всегда объединением: отправляем
    своё, получаем общее, записываем обратно. Ошибка сети тут ничего не ломает:
    локальные данные остаются как были, а следующий заход в меню попробует снова. */
+/* Итог последней синхронизации — для плашки «Нет связи с сервером» в обучении (docs/mechanics.md, «Регистрация и
+   вход»): VPN, плохая сеть или сбой сервера раньше молча оставляли устройство со своим старым прогрессом. */
+export const SYNC_EVENT = 'ems-sync';
+let lastSync = null;
+export const syncState = () => lastSync;
+const tellSync = (ok) => {
+  lastSync = { ok, at: Date.now() };
+  try { window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: lastSync })); } catch { /* нет окна */ }
+};
 export async function syncProfile(playerId) {
   try {
     const profile = await syncProgress(playerId, readLocalProgress());
     writeLocalProgress(profile);
+    tellSync(true);
     return profile;
-  } catch { return null; }
+  } catch { tellSync(false); return null; }
 }
 
 
