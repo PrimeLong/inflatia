@@ -7319,9 +7319,11 @@ test('дюп: лишние монеты списаны, купленная на 
   await expect(toast).toContainText('Исправили ошибку с монетами');
   await expect(toast).toContainText('вернулось в лавку');
   const learn = () => page.evaluate(() => JSON.parse(localStorage.getItem('ems-textbook-v1')).learn);
-  await expect.poll(async () => Object.keys((await learn()).fines || {})).toEqual(['dupe-2026-11']);
+  // корона и медаль не покрыли всё списанное — остаток минуса прощается второй записью (пункт владельца 08.11, вечер)
+  await expect.poll(async () => Object.keys((await learn()).fines || {}).sort()).toEqual(['dupe-2026-11', 'dupe-2026-11-forgive']);
   const s = await learn();
   const f = s.fines['dupe-2026-11'];
+  expect(s.fines['dupe-2026-11-forgive'].refund).toBeGreaterThan(0);
   expect(f.coins).toBeGreaterThan(3000);
   // откатывается с самой новой покупки — медаль; она снята
   expect(Object.keys(f.items)[0]).toBe('medal');
@@ -7333,6 +7335,7 @@ test('дюп: лишние монеты списаны, купленная на 
   // после перезагрузки — не списывается второй раз
   await page.reload({ waitUntil: 'networkidle' });
   await expect.poll(async () => (await learn()).fines['dupe-2026-11'].at).toBe(f.at);
+  expect((await learn()).fines['dupe-2026-11-forgive'].at).toBe(s.fines['dupe-2026-11-forgive'].at);
   expect(errors).toEqual([]);
 });
 
