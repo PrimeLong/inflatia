@@ -477,34 +477,30 @@ async function expectGateOnly(page) {
   for (const id of ['bottom-nav', 'shell', 'path', 'tasks', 'learn-profile', 'world', 'lesson', 'learn-book']) await expect(page.getByTestId(id)).toHaveCount(0);
 }
 
-/* Приветствие на ПК (docs/mechanics.md, «Приветствие и загрузка»): две колонки, «Начать» видна без прокрутки при
-   1440×900, уведомление о памяти браузера не закрывает ни демо-урок, ни «Начать». */
-test('вход: приветствие на ПК — две колонки, «Начать» без прокрутки, плашка про cookie не на демо-уроке', async ({ page, isMobile }) => {
+/* Приветствие на ПК (docs/mechanics.md, «Приветствие и загрузка»): одна колонка посередине, без мини-урока (пункт
+   владельца 08.11, вечер), «Начать» видна без прокрутки при 1440×900, уведомление о памяти браузера её не закрывает. */
+test('вход: приветствие на ПК — одна колонка посередине, без мини-урока, «Начать» без прокрутки, плашка про cookie не на кнопках', async ({ page, isMobile }) => {
   test.skip(isMobile, 'раскладка ПК');
   await page.setViewportSize({ width: 1440, height: 900 });
   // уведомление о памяти браузера — как при первом открытии (скрипт страницы идёт после скрипта контекста)
   await page.addInitScript(() => localStorage.removeItem('ems-storage-notice'));
   const { errors } = await openApp(page, '/', '{}', { tab: null });
-  const start = page.getByRole('button', { name: 'Начать' });
-  const demo = page.getByTestId('welcome-try');
+  const start = page.getByRole('button', { name: 'Начать', exact: true });
   const notice = page.getByTestId('storage-notice');
   await expect(start).toBeVisible();
   await expect(notice).toBeVisible();
+  await expect(page.getByTestId('welcome-try')).toHaveCount(0);
   await page.waitForTimeout(1500); // приветствие проявляется по шагам
-  const [s, d, n, v] = await Promise.all([start.boundingBox(), demo.boundingBox(), notice.boundingBox(), page.getByTestId('welcome-values').boundingBox()]);
-  // две колонки: демо-урок справа от обещаний и кнопок
-  expect(d.x).toBeGreaterThan(v.x + v.width);
-  expect(d.x).toBeGreaterThan(s.x + s.width);
+  const [s, n, v, b] = await Promise.all([start.boundingBox(), notice.boundingBox(), page.getByTestId('welcome-values').boundingBox(), page.getByTestId('brand').boundingBox()]);
+  // одна колонка посередине: знак, обещания и «Начать» — по центру экрана, друг под другом
+  for (const box of [s, v, b]) expect(Math.abs(box.x + box.width / 2 - 720)).toBeLessThan(40);
+  expect(b.y).toBeLessThan(v.y); expect(v.y).toBeLessThan(s.y);
   // «Начать» — в первом экране, без прокрутки
   expect(s.y + s.height).toBeLessThanOrEqual(900);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
-  // плашка не закрывает ни демо-урок, ни «Начать»
-  const hit = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-  expect(hit(n, d), 'плашка на демо-уроке').toBe(false);
+  // плашка не закрывает «Начать»
+  const hit = (a, c) => a.x < c.x + c.width && c.x < a.x + a.width && a.y < c.y + c.height && c.y < a.y + a.height;
   expect(hit(n, s), 'плашка на «Начать»').toBe(false);
-  // демо-урок отвечает и на ПК
-  await demo.getByRole('button', { name: 'Станет меньше' }).click();
-  await expect(page.getByTestId('welcome-try-say')).toContainText('Верно');
   expect(errors).toEqual([]);
 });
 
@@ -533,10 +529,9 @@ test('вход: первый запуск — приветствие, цель, 
   test.setTimeout(120_000);
   await withTestFlag(page);
   const { errors, external } = await openApp(page, '/', accountApi, { tab: null });
-  // приветствие: три обещания и мини-задача с ответом сразу
+  // приветствие: три обещания; мини-урока «за 30 секунд» нет (пункт владельца 08.11, вечер)
   await expect(page.getByTestId('welcome-values').locator('li')).toHaveCount(3);
-  await page.getByTestId('welcome-try').getByRole('button', { name: 'Станет меньше' }).click();
-  await expect(page.getByTestId('welcome-try-say')).toContainText('закон спроса');
+  await expect(page.getByTestId('welcome-try')).toHaveCount(0);
   const hello = page.getByTestId('welcome');
   await expect(hello).toBeVisible();
   await expect(hello.getByTestId('mascot').first()).toHaveAttribute('data-mood', 'wave');
