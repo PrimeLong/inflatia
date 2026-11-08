@@ -70,7 +70,8 @@ export function ExtraResult({ kind, unitId, title, r, children = null }) {
     <div className="xr" data-testid="extra-result" data-kind={kind} data-coins={r.coins} data-replay={r.replay ? 'true' : undefined}
       data-diamond={r.diamond ? 'true' : undefined} data-won={r.diamond ? String(!!r.won) : undefined} style={{ '--u': pl.color }}>
       <style>{CSS}</style>
-      <CoinShower seed={(r.xp || 0) + (r.coins || 0) + 1} />
+      {/* дождь монет — когда есть что получать: на повторе без выплат и на невзятом алмазе — без него */}
+      {((r.xp || 0) + (r.coins || 0) + (r.gains || []).reduce((x, gn) => x + gn.coins, 0)) > 0 && <CoinShower seed={(r.xp || 0) + (r.coins || 0) + 1} />}
       <Card style={{ padding: 0, overflow: 'hidden', textAlign: 'center', position: 'relative' }}>
         <Guilloche height={22} />
         <div style={{ padding: '14px 16px 18px' }}>

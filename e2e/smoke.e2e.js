@@ -5477,6 +5477,8 @@ test('«Чтение» — урок на дороге юнита: после у�
   await expect(rres.getByTestId('result-coins')).toBeVisible();
   expect(Number(await rres.getAttribute('data-coins'))).toBeGreaterThanOrEqual(15);
   await expect(page.locator('[data-testid=reading-book][data-done="true"]')).toHaveCount(1);
+  // прочитана впервые — книга падает на полку
+  await expect(page.locator('[data-testid=reading-book][data-new="true"]')).toHaveCount(1);
   await expect(page.getByTestId('reading-keep')).toContainText('Роббинс');
   await page.getByTestId('reading-finish').click();
   await expect(reading).toHaveCount(0);
@@ -5491,6 +5493,43 @@ test('«Чтение» — урок на дороге юнита: после у�
   await expect(page.getByTestId('reading-feedback')).toContainText('Нужные слова подчёркнуты');
   await page.getByTestId('reading-close').click();
   await expect(reading).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// жалоба ученика mw7qac86 (08.11): «у меня уже была эта книга, и на телефоне книги сжались» — перечитанная не падает заново, полки по шесть
+test('«Чтение» перечитано: книга уже стоит на полке (без падения), монет нет; книги на полках по шесть и не сужаются', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), read: { 'read-choice': at }, met: { 'people-scarcity': at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const card = page.locator('[data-testid=path-extra][data-id="read-choice"]');
+  await card.scrollIntoViewIfNeeded(); await card.click();
+  await page.getByTestId('extra-start').click();
+  const reading = page.getByTestId('reading');
+  for (let k = 1; k <= 3; k += 1) {
+    const p = reading.getByTestId('reading-page');
+    await expect(p).toHaveAttribute('data-page', String(k));
+    if (await p.getAttribute('data-kind') === 'mark') await p.locator('[data-testid=reading-word][data-hit="1"]').first().click();
+    else await p.locator('[data-testid=reading-opt][data-ok]').click();
+    await page.getByTestId('reading-next').click();
+  }
+  const done = page.getByTestId('reading-done');
+  await expect(done.getByTestId('extra-result')).toHaveAttribute('data-replay', 'true');
+  await expect(done.getByTestId('extra-result')).toHaveAttribute('data-coins', '0');
+  await expect(done.getByTestId('reading-shelf-count')).toContainText('Книга уже стояла на полке');
+  await expect(done.locator('[data-testid=reading-book][data-new]')).toHaveCount(0);
+  await expect(done.locator('[data-testid=reading-book][data-done="true"]')).toHaveCount(1);
+  // полки по шесть книг, каждая — во всю свою ширину (38px), а не сплющена
+  const rows = done.getByTestId('reading-shelf-row');
+  expect(await rows.count()).toBeGreaterThanOrEqual(2);
+  for (const n of await rows.evaluateAll((els) => els.map((e) => e.children.length))) expect(n).toBeLessThanOrEqual(6);
+  const widths = await done.getByTestId('reading-book').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+  widths.forEach((w) => expect(w).toBeGreaterThanOrEqual(37));
+  const shelf = await done.getByTestId('reading-shelf').boundingBox();
+  expect(shelf.x + shelf.width).toBeLessThanOrEqual(page.viewportSize().width + 1);
   expect(errors).toEqual([]);
 });
 

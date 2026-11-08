@@ -59,10 +59,11 @@ const CSS = `
   @keyframes rd-up { from { opacity: 0; transform: translateY(6px); } }
   .rd-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--ds-paper) 92%, transparent); border-top: 1px solid var(--ds-rule2); backdrop-filter: blur(8px); }
   .rd-foot > * { max-width: 680px; margin: 0 auto; }
-  .rd-shelf { position: relative; margin: 20px auto 6px; max-width: 520px; height: 168px; display: flex; align-items: flex-end; justify-content: center; gap: 6px; padding: 0 18px; }
+  .rd-shelves { margin: 20px auto 6px; max-width: 520px; display: grid; gap: 30px; }
+  .rd-shelf { position: relative; height: 168px; display: flex; align-items: flex-end; justify-content: center; gap: 6px; padding: 0 18px; }
   .rd-shelf::after { content: ''; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px; border-radius: 3px; background: linear-gradient(#b08a5c, #8a6a44); box-shadow: 0 6px 12px -6px rgba(0,0,0,.4); }
   .ds-dark .rd-shelf::after { background: linear-gradient(#6b5236, #4a3826); }
-  .rd-book { position: relative; width: 38px; border-radius: 4px 4px 2px 2px; display: flex; align-items: center; justify-content: center; color: #fff;
+  .rd-book { position: relative; flex: none; width: 38px; border-radius: 4px 4px 2px 2px; display: flex; align-items: center; justify-content: center; color: #fff;
     background: linear-gradient(90deg, rgba(0,0,0,.18), transparent 18%, transparent 82%, rgba(0,0,0,.22)), var(--b);
     box-shadow: inset 0 0 0 1px rgba(0,0,0,.12), 0 2px 0 rgba(0,0,0,.08); }
   .rd-book span { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 12.5px var(--ds-head); letter-spacing: .04em; white-space: nowrap; }
@@ -154,17 +155,26 @@ function Page({ p, i, n, answered, onAnswer, gem = false }) {
   );
 }
 
-// полка: все подборки, прочитанные — книгами, новая падает на место
-function Shelf({ learn, fresh }) {
+/* полка: все подборки, прочитанные — книгами; прочитанная впервые (fresh) падает на место, перечитанная (here) просто
+   стоит. Книги — по шесть на полке и не сужаются: в один ряд на телефоне они сплющивались (жалоба ученика 08.11) */
+const PER_SHELF = 6;
+function Shelf({ learn, fresh = null, here = null }) {
+  const books = shelfOf(learn);
+  const rows = Array.from({ length: Math.ceil(books.length / PER_SHELF) }, (_, i) => books.slice(i * PER_SHELF, (i + 1) * PER_SHELF));
   return (
-    <div className="rd-shelf" data-testid="reading-shelf" aria-label="Полка прочитанного">
-      {shelfOf(learn).map((b, k) => {
-        const on = b.done || b.id === fresh;
-        return (
-          <div key={b.id} className={`rd-book${on ? '' : ' empty'}${b.id === fresh ? ' new' : ''}`} data-testid="reading-book" data-done={String(on)}
-            style={{ '--b': b.color, height: 118 + (k % 3) * 14 }} title={on ? b.title : `${b.title} — ещё не прочитано`}><span>{on ? b.spine : '?'}</span></div>
-        );
-      })}
+    <div className="rd-shelves" data-testid="reading-shelf" aria-label="Полка прочитанного">
+      {rows.map((row, r) => (
+        <div key={r} className="rd-shelf" data-testid="reading-shelf-row">
+          {row.map((b, j) => {
+            const k = r * PER_SHELF + j;
+            const on = b.done || b.id === fresh || b.id === here;
+            return (
+              <div key={b.id} className={`rd-book${on ? '' : ' empty'}${b.id === fresh ? ' new' : ''}`} data-testid="reading-book" data-done={String(on)} data-new={b.id === fresh ? 'true' : undefined}
+                style={{ '--b': b.color, height: 118 + (k % 3) * 14 }} title={on ? b.title : `${b.title} — ещё не прочитано`}><span>{on ? b.spine : '?'}</span></div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -290,7 +300,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
       ) : (
         <div className="rd-page rd-done" data-testid="reading-done">
           {result && <ExtraResult kind="read" unitId={r.unitId} title={r.title} r={result} />}
-          <Shelf learn={learn} fresh={r.id} />
+          <Shelf learn={learn} fresh={got ? r.id : null} here={r.id} />
           <div className="ds-sub" style={{ fontSize: 15.5, lineHeight: 1.5, marginTop: 18 }} data-testid="reading-shelf-count">
             {got ? 'Книга на полке.' : 'Книга уже стояла на полке.'} На полке — {shelfOf(learn).filter((b) => b.done || b.id === r.id).length} из {shelfOf(learn).length}.
           </div>
