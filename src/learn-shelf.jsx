@@ -440,7 +440,7 @@ export default function Library({ learn, update = null }) {
         <Sheet label={person.name} onClose={() => setPerson(null)} testid="gallery-card">
           <div style={{ '--pp': person.group.color, '--pp-ink': `color-mix(in srgb, ${person.group.color} 82%, #000)` }}>
             <div className="pp-hero" style={{ animation: 'none' }}>
-              <div><div className="pp-frame"><Portrait p={person} color={person.group.color} /></div><PhotoCredit p={person} /></div>
+              <div><div className="pp-frame"><Portrait p={person} color={person.group.color} zoom /></div><PhotoCredit p={person} /></div>
               <div style={{ minWidth: 0 }}>
                 <div className="pp-name" style={{ fontSize: 26 }}>{person.name}</div>
                 <div className="pp-role"><span>{person.years}</span><span>{person.role}</span></div>

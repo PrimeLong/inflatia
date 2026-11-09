@@ -10,6 +10,7 @@ import { COLOR, Audio, AudioControls, getPlayerId, syncProfile } from './MacroSi
 import { TrainerPage } from './trainer.jsx';
 import { TopBar, IconButton } from './ds.jsx';
 import { useWide, Engraving, Guilloche } from './ds-art.jsx';
+import { Zoomable } from './zoom-view.jsx';
 import { placeOf } from './ds-tokens.js';
 import { LEVERS, SCENARIOS } from './lib/engine.js';
 import { LAB_LEVERS } from './lib/lab.js';
@@ -361,9 +362,14 @@ export const TEXTBOOK_CSS = `
 // кругооборот и балансы банков (src/textbook-diagrams.jsx); подпись — как у графика
 function DiagramBox({ b, ctx }) {
   const n = (k, d) => (b.attrs[k] != null && Number.isFinite(Number(b.attrs[k])) ? Number(b.attrs[k]) : d);
+  // касание рисунка кругооборота — на весь экран, с приближением, в том виде, что выбран переключателем
+  // (docs/mechanics.md, «Картинки на весь экран»); балансы банков — таблицы, их не увеличиваем
+  const frame = (svg) => (
+    <Zoomable title="Кругооборот доходов и расходов" testid="tb-diagram-zoom" width={460} caption={b.caption ? <Inline nodes={b.caption} ctx={ctx} /> : null} view={() => svg}>{svg}</Zoomable>
+  );
   return (
     <div className="ems-panel" style={{ padding: 14, margin: '16px 0' }}>
-      {b.diagram === 'circular' && <CircularFlow total={n('total', 1000)} />}
+      {b.diagram === 'circular' && <CircularFlow total={n('total', 1000)} frame={frame} />}
       {b.diagram === 'balance' && <BalanceSheets base={n('base', 1000)} rr={n('rr', 0.1)} />}
       {b.caption && <div style={{ fontSize: 12.5, color: COLOR.muted, lineHeight: 1.55, marginTop: 8 }} data-testid="tb-caption"><Inline nodes={b.caption} ctx={ctx} /></div>}
     </div>
@@ -990,7 +996,11 @@ function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = 
           <RotateCcw size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Сбросить
         </button>
       </div>
-      <ChartSvg scene={scene} />
+      {/* касание графика — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»); там — как выставлено ползунками */}
+      <Zoomable title={def.title} testid="tb-chart-zoom" caption={caption ? <Inline nodes={fillVars(caption, captionVars(type, attrs, values))} ctx={ctx} /> : null}
+        view={() => <><ChartSvg scene={scene} />{def.legend && <ChartLegend items={def.legend(attrs, values)} />}</>}>
+        <ChartSvg scene={scene} />
+      </Zoomable>
       {def.legend && <ChartLegend items={def.legend(attrs, values)} />}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '8px 16px', marginTop: 8 }}>
         {controls.map((c) => {

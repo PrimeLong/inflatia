@@ -1365,6 +1365,100 @@ test('учебник: график с ползунком едет плавно �
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 09.11: «хотелось бы, чтобы можно было нажать на картинку и она открылась на весь экран»
+test('картинка на весь экран: график учебника — целиком посередине, приближается кнопками, двойным касанием и колёсиком, двигается; Esc закрывает только его', async ({ page, isMobile }) => {
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+  const chart = page.getByTestId('chapter').getByTestId('tb-chart').first();
+  await chart.scrollIntoViewIfNeeded();
+  // ползунок работает как раньше и ничего не открывает
+  const slider = chart.getByRole('slider').first();
+  await slider.fill(await slider.getAttribute('max'));
+  await expect(page.getByTestId('zoom-view')).toHaveCount(0);
+  const title = (await chart.locator('.ems-serif').first().textContent()).trim();
+  await chart.getByTestId('tb-chart-zoom').click();
+  const zv = page.getByTestId('zoom-view');
+  await expect(zv).toBeVisible();
+  // сверху — название графика, снизу — подпись, как в главе
+  await expect(zv).toContainText(title);
+  await expect(zv.getByTestId('zoom-caption')).toBeVisible();
+  const level = zv.getByTestId('zoom-level');
+  await expect(level).toHaveText('×1,0');
+  const content = zv.getByTestId('zoom-content');
+  const stage = await zv.getByTestId('zoom-stage').boundingBox();
+  const fit = await content.boundingBox();
+  // целиком, посередине и не крупнее, чем вдвое (подписи не раздуваются)
+  expect(fit.x).toBeGreaterThanOrEqual(stage.x - 1);
+  expect(fit.x + fit.width).toBeLessThanOrEqual(stage.x + stage.width + 1);
+  expect(fit.y).toBeGreaterThanOrEqual(stage.y - 1);
+  expect(fit.y + fit.height).toBeLessThanOrEqual(stage.y + stage.height + 1);
+  expect(Math.abs(fit.x + fit.width / 2 - (stage.x + stage.width / 2))).toBeLessThan(2);
+  expect(fit.width).toBeLessThanOrEqual(560 * 2 + 1);
+  await expect(zv.getByTestId('zoom-out')).toBeDisabled();
+  // «+» — крупнее; приближенный график двигается мышью или пальцем
+  await zv.getByTestId('zoom-in').click();
+  await expect(level).toHaveText('×1,6');
+  const big = await content.boundingBox();
+  expect(big.width).toBeGreaterThan(fit.width * 1.55);
+  const cx = stage.x + stage.width / 2; const cy = stage.y + stage.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 30, cy, { steps: 3 });
+  await page.mouse.move(cx + 60, cy, { steps: 3 });
+  await page.mouse.up();
+  await expect.poll(async () => (await content.boundingBox()).x).toBeGreaterThan(big.x + 40);
+  // «Вписать» — снова целиком
+  await zv.getByTestId('zoom-fit').click();
+  await expect(level).toHaveText('×1,0');
+  // двойное касание — ×2,5 к этому месту, ещё раз — целиком
+  await zv.getByTestId('zoom-stage').dblclick({ position: { x: stage.width / 2, y: stage.height / 2 } });
+  await expect(level).toHaveText('×2,5');
+  if (!isMobile) {
+    // колёсико — к курсору: прокрутили к себе — меньше
+    await page.mouse.move(cx, cy);
+    await page.mouse.wheel(0, 200);
+    await expect.poll(async () => Number((await level.textContent()).replace('×', '').replace(',', '.'))).toBeLessThan(2.4);
+  }
+  // Esc закрывает только картинку: глава на месте
+  await page.keyboard.press('Escape');
+  await expect(zv).toHaveCount(0);
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  // и крестиком
+  await chart.getByTestId('tb-chart-zoom').click();
+  await page.getByTestId('zoom-close').click();
+  await expect(page.getByTestId('zoom-view')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('картинка на весь экран: фото в «Персоналиях» открывается целиком, без обрезки аркой; урок остаётся на месте', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-l1': { at, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await page.locator('[data-testid=path-extra][data-id="people-scarcity"]').click();
+  await page.getByTestId('extra-start').click();
+  const pg = page.getByTestId('people');
+  await expect(pg.getByTestId('people-page')).toHaveAttribute('data-person', 'robbins');
+  await expect(pg.getByTestId('people-portrait')).toHaveAttribute('data-photo', 'true');
+  await pg.getByTestId('people-portrait-zoom').click();
+  const zv = page.getByTestId('zoom-view');
+  await expect(zv).toBeVisible();
+  await expect(zv).toContainText('Лайонел Роббинс');
+  const img = zv.locator('img');
+  await expect(img).toHaveAttribute('src', '/people/robbins.jpg');
+  // целиком: пропорции картинки — как у файла, а не у рамки-арки
+  await expect.poll(() => img.evaluate((el) => el.naturalWidth)).toBeGreaterThan(0);
+  const ratio = await img.evaluate((el) => ({ file: el.naturalWidth / el.naturalHeight, shown: el.getBoundingClientRect().width / el.getBoundingClientRect().height }));
+  expect(Math.abs(ratio.file - ratio.shown)).toBeLessThan(0.02);
+  await page.keyboard.press('Escape');
+  await expect(zv).toHaveCount(0);
+  await expect(pg.getByTestId('people-page')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 // пункт владельца 09.11: «хотелось бы свернуть оглавление, когда читаешь»
 test('учебник: оглавление главы сворачивается — глава шире, выбор помнится после перезагрузки', async ({ page, isMobile }) => {
   const { errors } = await openApp(page);

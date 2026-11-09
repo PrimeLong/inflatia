@@ -90,6 +90,7 @@ import { antistressUnlocked } from './learn/antistress.js';
 import { useFriends, pushCard, friendsState } from './lib/friends-store.js';
 import { buildCard, raceOffer } from './learn/friends.js';
 import { plural } from './lib/plural.js';
+import { Zoomable } from './zoom-view.jsx';
 
 export { SCREENS } from './learn/screens.js';
 
@@ -666,7 +667,7 @@ function CardPicture({ c }) {
   const tour = GRAPH_BY_CHART[c.chart];
   return (
     <>
-      <MiniChart type={c.chart} attrs={c.attrs} />
+      <MiniChart type={c.chart} attrs={c.attrs} zoom />
       {tour && (
         <div style={{ textAlign: 'center', margin: '-2px 0 10px' }}>
           <button type="button" className="ln-graph-btn" data-testid="graph-open" data-graph={tour.id} onClick={() => { Audio.play('paper'); openGraph(tour.id); }}>
@@ -703,7 +704,7 @@ function useTweened(v, on) {
   }, [key, on, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
   return on ? shown : v;
 }
-function MiniChart({ type, attrs, values = null, tween = false }) {
+function MiniChart({ type, attrs, values = null, tween = false, zoom = false }) {
   const def = CHARTS[type];
   const moving = useAnimValues(type, attrs);
   const target = def ? { ...chartDefaults(type, attrs), ...moving, ...values } : {};
@@ -711,7 +712,17 @@ function MiniChart({ type, attrs, values = null, tween = false }) {
   if (!def) return null;
   // на Пути деньги — в кронах (src/learn/money.js)
   // под графиком — ключ: что значит каждая линия, простыми словами
-  return <div style={{ maxWidth: 360, margin: '8px auto' }}><ChartSvg scene={sceneInCrowns(def.build(attrs, v))} />{def.legend && <ChartLegend items={def.legend(attrs, v)} />}</div>;
+  const scene = sceneInCrowns(def.build(attrs, v));
+  const legend = def.legend ? <ChartLegend items={def.legend(attrs, v)} /> : null;
+  // картинка карточки: касание — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»)
+  if (zoom) {
+    return (
+      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} view={() => <><ChartSvg scene={scene} />{legend}</>}>
+        <ChartSvg scene={scene} />{legend}
+      </Zoomable>
+    );
+  }
+  return <div style={{ maxWidth: 360, margin: '8px auto' }}><ChartSvg scene={scene} />{legend}</div>;
 }
 const PICS = {
   clock: Clock, scale: Scale, hourglass: Hourglass, ticket: Ticket, 'trending-up': TrendingUp, 'circle-check': CircleCheck, medal: Medal,
