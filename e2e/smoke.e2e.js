@@ -7563,6 +7563,34 @@ test('дюп: лишние монеты списаны, купленная на 
 
 /* Вход для гостя (пункт 1 от 08.11: «нигде нет кнопки войти, только огромная „создать“»): в карточке «Сохраните
    прогресс» — «Создать аккаунт» и «Войти»; из регистрации — «У меня уже есть аккаунт — войти», из входа — «Нет аккаунта?» */
+// пункт владельца 09.11: «пришло уведомление „страховка серии прекращена“, хотя она прекращена давно» — телефон со
+// старым прогрессом (полис ещё «действует», монет нет) не прекращает полис сам до синхронизации: на сервере он давно расторгнут
+test('страховка серии: устройство со старым прогрессом не шлёт «Страховка серии прекращена» — полис давно расторгнут на другом', async ({ page }) => {
+  const DAY = 86400000; const now = Date.now();
+  await page.addInitScript(([now, DAY]) => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const day = (t) => new Date(t).toISOString().slice(0, 10);
+    // монет нет, полис оформлен 30 дней назад, оплачена только первая неделя — по этому прогрессу взноса не хватит
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: now - 2 * DAY, runs: 1, best: 90 } },
+      done: { [day(now - 2 * DAY)]: 1 }, policyAt: now - 30 * DAY, premiums: { [day(now - 30 * DAY)]: 8 } } }));
+  }, [now, DAY]);
+  // сервер: тот же ученик расторг полис на другом устройстве 20 дней назад
+  const api = (req) => {
+    let body = {}; try { body = JSON.parse(req.postData() || '{}'); } catch { /* не JSON */ }
+    if (body.action !== 'progress' || !body.progress) return '{}';
+    // прогресс обучения — в учебном прогрессе профиля (textbook.learn)
+    const p = body.progress; const tb = p.textbook || {}; const learn = tb.learn || {};
+    return JSON.stringify({ profile: { ...p, textbook: { ...tb, learn: { ...learn, policyOff: Math.max(learn.policyOff || 0, now - 20 * DAY) } } } });
+  };
+  const { errors } = await openApp(page, '/', api, { tab: 'path' });
+  await page.waitForTimeout(3000);
+  await expect(page.locator('[data-testid=notify-toast][data-id^="lapse:"]')).toHaveCount(0);
+  const learn = await page.evaluate(() => JSON.parse(localStorage.getItem('ems-textbook-v1')).learn);
+  expect(learn.policyLapse || 0).toBe(0);
+  expect(learn.policyOff).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
 // нет связи с сервером (VPN, сеть) — плашка с советом и «Повторить» (пункт владельца 08.11, вечер)
 test('синхронизация не прошла — плашка «Нет связи с сервером»; «Повторить» после восстановления убирает её', async ({ page }) => {
   let down = true;

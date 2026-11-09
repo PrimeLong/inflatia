@@ -607,12 +607,14 @@ function useLearn() {
       if (f && f.coins > 0 && !AUDIT_TRACKED.size) { AUDIT_TRACKED.add(1); track('coins_clawback'); }
       return { ...p, learn };
     }, { whole: true });
-    syncProfile(playerId).then((pf) => { if (alive && pf) setProgress(loadProgress()); }).catch(() => {}).finally(() => { if (alive) audit(); });
+    /* взносы страховки — только по общему прогрессу (docs/mechanics.md, «Страховка серии»): устройство со старым прогрессом
+       иначе «прекращало» давно расторгнутый на другом устройстве полис — с уведомлением (пункт владельца 09.11) */
+    syncProfile(playerId).then((pf) => { if (alive && pf) { setProgress(loadProgress()); update((s) => chargePremiums(s)); } }).catch(() => {}).finally(() => { if (alive) audit(); });
     // уроки, которые не продолжили за сутки, — брошенные: только они портят долю доведённых
     const expired = takeExpiredResumes();
     if (expired.length) update((s) => expired.reduce((acc, r) => abandonLesson(acc, r.kind || 'choice', r.pos || 0), s));
     // купленные заморозки спасают серию сами — при открытии, если пропуск уже не покрыт недельной
-    update((s) => fixMonth(chargePremiums(applyFreezes(s))));
+    update((s) => fixMonth(applyFreezes(s)));
     return () => { alive = false; if (timer.current) clearTimeout(timer.current); syncProfile(playerId).catch(() => {}); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId]);
