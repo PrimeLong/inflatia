@@ -7108,6 +7108,10 @@ test('«Разбор графика» на алмаз: пропущенное с
   expect(Number(await res.getAttribute('data-coins'))).toBeGreaterThanOrEqual(35);
   await page.getByTestId('graph-finish').click();
   await expect(stop).toHaveAttribute('data-diamond', 'true');
+  // та же гранёная обводка, что у урока на алмазном уровне (пункт владельца 09.11)
+  await expect(stop).toHaveClass(/\bdiamond\b/);
+  const lessonGem = await page.evaluate(() => { const b = document.createElement('button'); b.className = 'ln-token diamond'; document.querySelector('[data-testid=path]').appendChild(b); const c = getComputedStyle(b); const out = [c.backgroundImage, c.borderTopColor]; b.remove(); return out; });
+  expect(await stop.evaluate((el) => [getComputedStyle(el).backgroundImage, getComputedStyle(el).borderTopColor])).toEqual(lessonGem);
   expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.gems['graph-ppf'])).toBe(true);
   expect(errors).toEqual([]);
 });

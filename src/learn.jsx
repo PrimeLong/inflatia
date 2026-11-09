@@ -324,6 +324,9 @@ const CSS = `
   .ln-token.ln-extra.fix::after { content: ''; position: absolute; inset: -9px; border-radius: 26px; border: 3px solid color-mix(in srgb, var(--ds-bad) 55%, transparent); animation: ds-ring 1.8s ease-out infinite; pointer-events: none; }
   .ds-dark .ln-token.ln-extra { color: color-mix(in srgb, var(--x) 55%, #fff); }
   .ln-token.ln-extra.done { background: var(--x); color: #fff; border-color: color-mix(in srgb, var(--x) 80%, #fff); box-shadow: 0 5px 0 color-mix(in srgb, var(--x) 65%, #000); }
+  /* особый урок на алмаз — тот же гранёный камень и обводка, что у урока на алмазном уровне (пункт владельца 09.11) */
+  .ln-token.ln-extra.diamond { background: linear-gradient(135deg, #FFC2D2 0%, #E5527B 45%, #B3123F 62%, #7A0C2B 100%); border-color: #FFD6E1; color: #fff;
+    box-shadow: 0 5px 0 #7A0C2B, 0 6px 14px rgba(179,18,63,.35); }
   .ln-token.ln-extra.locked { border-style: dashed; color: var(--ds-ink3); background: var(--ds-card2); box-shadow: none; }
   .ln-token.ln-extra:not(.locked):hover { transform: translateY(-2px); }
   .ds .nw { white-space: nowrap; }
@@ -2479,7 +2482,7 @@ function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra =
           return (
             <div key={x.id} className="ln-stop" style={{ left: pts[i][0], top: pts[i][1] - 31 }}>
               {isRec && <span className="ln-pin rec" data-testid="path-rec">рекомендуем сейчас</span>}
-              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined} data-diamond={x.gem ? 'true' : undefined}
+              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${x.gem ? 'diamond' : ''} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined} data-diamond={x.gem ? 'true' : undefined}
                 data-nav-target={`extra:${x.id}`} aria-label={`${EXTRA_KIND[x.type]}: ${x.title}${x.done ? ', пройдено' : x.open ? '' : ', закрыто'}`}
                 onClick={() => { Audio.prime(); Audio.play('click'); onExtra(x); }}>
                 {x.open || x.done ? <Icon size={25} /> : <Lock size={22} />}
