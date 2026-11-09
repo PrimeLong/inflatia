@@ -2642,6 +2642,24 @@ describe('оборонительная война, штурм Нордхольм
     expect(tired.newsEntries.some((n) => /ОТСТУПАЕТ/.test(n.headline))).toBe(true);
   });
 
+  // пункт владельца 09.11: «что за война, что продлилась 1 квартал»
+  it('Дешт сам не идёт на перемирие раньше трёх кварталов боёв; в новости — сколько шла война', () => {
+    // самый «удачный» для перемирия бросок: rng = 0 — во втором и третьем квартале войны всё равно воюют
+    [1, 2].forEach((elapsed) => {
+      const r = withRandom(0, () => step(defWar(undefined, { warElapsed: elapsed }), { warOrder: { target: 'agri', stance: 'defend' } }));
+      expect(r.economy.warQuartersLeft, `квартал ${elapsed + 1}`).toBeGreaterThan(0);
+    });
+    const late = withRandom(0, () => step(defWar(undefined, { warElapsed: 3 }), { warOrder: { target: 'agri', stance: 'defend' } }));
+    expect(late.economy.warQuartersLeft).toBe(0);
+    expect(late.newsEntries.find((n) => /ПРЕДЛАГАЕТ ПЕРЕМИРИЕ/.test(n.headline)).body || late.newsEntries.find((n) => /ПРЕДЛАГАЕТ ПЕРЕМИРИЕ/.test(n.headline)).text).toMatch(/Война шла 4 квартала/);
+  });
+  it('бот-президент не просит перемирия в первые два квартала, если не потеряны две области', () => {
+    const early = defWar(undefined, { approval: 20, warElapsed: 1 });
+    expect(botFrontOrder(early, 'populist').stance).not.toBe('talks');
+    expect(botFrontOrder(defWar(undefined, { approval: 20, warElapsed: 2 }), 'populist').stance).toBe('talks');
+    expect(botFrontOrder(defWar({ occupied: ['agri', 'periphery'] }, { warElapsed: 1 }), 'technocrat').stance).toBe('talks');
+  });
+
   it('бот командует обороной по характеру', () => {
     const e = defWar({ occupied: ['agri'], next: 'periphery' });
     expect(botFrontOrder(e, 'strongman')).toMatchObject({ target: 'agri', stance: 'counter' });
