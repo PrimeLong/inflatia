@@ -2598,6 +2598,13 @@ test('игра «Наценка ниже или выше?»: каждое соб
     await expect(chart.getByTestId('game-markup-label')).toBeVisible();
     await expect(chart.getByTestId('game-mr-label')).toBeVisible();
   }
+  // полосы от оси цен нет, отрезок наценки — ровно на пунктире выпуска (владелец 09.11: «полоса не ровная, она слева»)
+  await expect(chart.locator('rect')).toHaveCount(0);
+  // график доезжает до нового состояния плавно — сравниваем в один момент, когда он встал
+  await expect.poll(() => chart.evaluate((svg) => {
+    const bar = svg.querySelector('[data-testid=game-markup-bar]'); const q = svg.querySelector('line[stroke-dasharray="3 3"]');
+    return Math.abs(Number(bar.getAttribute('x1')) - Number(q.getAttribute('x1')));
+  })).toBeLessThan(0.01);
   // подпись MR не на оси Q: её низ выше оси
   const axisY = await chart.evaluate((svg) => { const r = svg.getBoundingClientRect(); const vb = svg.viewBox.baseVal; return r.top + ((200 - 26) / vb.height) * r.height; });
   expect((await chart.getByTestId('game-mr-label').boundingBox()).y + (await chart.getByTestId('game-mr-label').boundingBox()).height).toBeLessThanOrEqual(axisY + 1);
