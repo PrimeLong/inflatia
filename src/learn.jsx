@@ -436,6 +436,9 @@ const CSS = `
   /* перетаскивание: слово под пальцем не прокручивает страницу; копия едет за пальцем; место под ней подсвечено */
   .ln-m2-word, .ln-m2-slot.full { touch-action: none; -webkit-user-select: none; user-select: none; }
   .ln-m2-word.dragging, .ln-m2-slot.full.dragging { opacity: .35; }
+  /* копия — своего размера: у .ds-opt «display: block; width: 100%», и при position: fixed она растягивалась на всё окно
+     (жалоба mw9jj3fg: «плитки, когда их беру, очень длинные» на ПК 1910 px) */
+  .ds-opt.ln-m2-ghost { display: inline-block; width: auto; max-width: min(320px, 86vw); white-space: normal; }
   .ln-m2-ghost { position: fixed; z-index: 60; pointer-events: none; width: auto; margin: 0; padding: 8px 12px; font-size: 14.5px; line-height: 1.25; transform: rotate(-2deg) scale(1.04);
     box-shadow: 0 14px 26px -12px rgba(0,0,0,.45); border-color: var(--u-ink); }
   .ln-m2-row.drop { border-color: var(--u-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--u) 30%, transparent); }

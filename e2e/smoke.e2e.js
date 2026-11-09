@@ -7397,6 +7397,8 @@ test('«Соедините» — как «вставьте слово»: сло�
     await page.mouse.down();
     await page.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2 + 12, { steps: 3 });
     await expect(page.getByTestId('match-ghost')).toBeVisible();
+    // копия — своего размера, а не во всё окно (жалоба mw9jj3fg: на ПК плитка тянулась на 1900 px)
+    expect((await page.getByTestId('match-ghost').boundingBox()).width).toBeLessThanOrEqual(340);
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
     await expect(to).toHaveClass(/\bdrop\b/);
     await page.mouse.up();
