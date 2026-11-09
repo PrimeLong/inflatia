@@ -1170,6 +1170,10 @@ test('учебник: оглавление, формулы KaTeX, график �
   // ошибка: почему вариант неверен, разбор, «Ещё раз»
   await parts.nth(0).locator(`[data-key]:not([data-key="${rightKeys[0]}"])`).first().click();
   await expect(parts.nth(0).getByTestId('tb-recall-why')).toBeVisible();
+  // ответ — с анимацией (пункт владельца 09.11): неверный вздрагивает, верный подпрыгивает
+  const anim = (loc) => loc.evaluate((el) => getComputedStyle(el).animationName);
+  expect(await anim(parts.nth(0).locator('.tb-recall-opt.wrong'))).toBe('tb-rc-shake');
+  expect(await anim(parts.nth(0).locator('.tb-recall-opt.right'))).toBe('tb-rc-pop');
   for (let i = 1; i < rightKeys.length; i += 1) await parts.nth(i).locator(`[data-key="${rightKeys[i]}"]`).click();
   await expect(recall.getByTestId('tb-recall-answer')).toBeVisible();
   await expect(recall.getByTestId('tb-recall-verdict')).toContainText('вернётся на повторение');
@@ -1201,6 +1205,8 @@ test('учебник: оглавление, формулы KaTeX, график �
   await expect(again2.getByTestId('tb-recall-xp')).toHaveCount(0);
   await expect(again2.locator('.tb-recall-opt.right')).toHaveCount(rightKeys2.length);
   await expect(again2.locator('.tb-recall-opt:not([disabled])')).toHaveCount(0);
+  // открытая отвеченной — без анимации
+  expect(await again2.locator('.tb-recall-opt.right').first().evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
   // первый — с ошибкой и верным ответом после неё — тоже отвечен; повторение — через два дня
   await expect(page.getByTestId('chapter').getByTestId('tb-recall').first().getByTestId('tb-recall-verdict')).toContainText('вернётся на повторение');
   await toToc(page);

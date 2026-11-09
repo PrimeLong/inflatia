@@ -129,6 +129,18 @@ export const TEXTBOOK_CSS = `
   /* неверный — сплошная рамка и крестик: пунктир на толстой левой кромке рассыпался на рваные куски (жалоба mvgosm0p) */
   .tb-recall-opt.wrong { border-color: var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 8%, var(--c-panel)); color: var(--c-text); }
   .tb-recall-opt.dim { opacity: .62; }
+  /* ответ — с анимацией (пункт владельца 09.11): только для отвеченного сейчас, а не у карточки, открытой отвеченной */
+  .tb-recall-opt { transition: opacity .3s ease, background-color .3s ease, border-color .3s ease; }
+  .tb-recall-part.fresh .tb-recall-opt.right { animation: tb-rc-pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+  .tb-recall-part.fresh .tb-recall-opt.wrong { animation: tb-rc-shake .42s ease-in-out; }
+  .tb-recall-part.fresh .tb-recall-opt.right > svg, .tb-recall-part.fresh .tb-recall-opt.wrong > svg { animation: tb-rc-mark .35s cubic-bezier(.3, 1.5, .5, 1) .05s backwards; }
+  .tb-recall-part.fresh .tb-recall-why { animation: tb-ask-in .3s ease-out .12s backwards; }
+  .tb-recall-fresh { animation: tb-ask-in .35s ease-out .18s backwards; }
+  .tb-recall-fresh + .tb-recall-fresh { animation-delay: .3s; }
+  @keyframes tb-rc-pop { 0% { transform: scale(1) } 40% { transform: scale(1.035) } 100% { transform: scale(1) } }
+  @keyframes tb-rc-shake { 20%, 60% { transform: translateX(-5px) } 40%, 80% { transform: translateX(5px) } }
+  @keyframes tb-rc-mark { from { opacity: 0; transform: scale(0) rotate(-40deg) } }
+  @media (prefers-reduced-motion: reduce) { .tb-recall-part.fresh .tb-recall-opt, .tb-recall-part.fresh .tb-recall-opt > svg, .tb-recall-part.fresh .tb-recall-why, .tb-recall-fresh { animation: none !important; } .tb-recall-opt { transition: none; } }
   .tb-recall-xp { font: 700 12px/1 var(--ds-sans, sans-serif); color: var(--c-teal, #2E7D5B); padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 12%, transparent); animation: tb-xp-in .4s ease-out both; }
   @keyframes tb-xp-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
   @media (prefers-reduced-motion: reduce) { .tb-recall-xp { animation: none; } }
@@ -555,12 +567,14 @@ function RecallCard({ b, ctx, from }) {
   const mix = () => b.parts.map((p) => shuffled(p.options.length));
   const [order, setOrder] = useState(mix);
   const [picks, setPicks] = useState(() => (kept ? Object.fromEntries(b.parts.map((p, i) => [i, p.options.findIndex((o) => o.correct)])) : {}));
+  // какие вопросы отвечены сейчас — только они анимируются (открытая отвеченной карточка — без анимации)
+  const [fresh, setFresh] = useState({});
   const done = b.parts.every((_, i) => picks[i] != null);
   const ok = done && b.parts.every((p, i) => p.options[picks[i]].correct);
   const pick = (i, k) => {
     if (picks[i] != null) return;
     const next = { ...picks, [i]: k };
-    setPicks(next);
+    setPicks(next); setFresh((f) => ({ ...f, [i]: true }));
     const all = b.parts.every((_, j) => next[j] != null);
     const good = all && b.parts.every((p, j) => p.options[next[j]].correct);
     Audio.play(!b.parts[i].options[k].correct ? 'tick' : all && good ? 'stamp' : 'click');
@@ -580,7 +594,7 @@ function RecallCard({ b, ctx, from }) {
       {b.parts.map((p, i) => {
         const chosen = picks[i];
         return (
-          <div key={i} className="tb-recall-part" data-testid="tb-recall-part" data-part={i}>
+          <div key={i} className={`tb-recall-part${fresh[i] ? ' fresh' : ''}`} data-testid="tb-recall-part" data-part={i}>
             <Blocks blocks={questions[i]} ctx={ctx} />
             <div className="tb-recall-opts" role="group" aria-label={`Варианты ответа${b.parts.length > 1 ? `, вопрос ${i + 1}` : ''}`}>
               {order[i].map((k) => {
@@ -602,15 +616,15 @@ function RecallCard({ b, ctx, from }) {
       })}
       {done && (
         <>
-          <div style={{ borderTop: `1px solid ${COLOR.hairline}`, paddingTop: 8 }} data-testid="tb-recall-answer">
+          <div className={Object.keys(fresh).length ? 'tb-recall-fresh' : undefined} style={{ borderTop: `1px solid ${COLOR.hairline}`, paddingTop: 8 }} data-testid="tb-recall-answer">
             <div style={{ fontSize: 12, color: COLOR.faint, marginBottom: 4 }}>Разбор учебника</div>
             <Blocks blocks={b.answer} ctx={ctx} />
           </div>
-          <div data-testid="tb-recall-verdict" style={{ fontSize: 13, marginBottom: 10, color: ok ? COLOR.teal : COLOR.rust, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className={Object.keys(fresh).length ? 'tb-recall-fresh' : undefined} data-testid="tb-recall-verdict" style={{ fontSize: 13, marginBottom: 10, color: ok ? COLOR.teal : COLOR.rust, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{recallVerdict(ok, after)}</span>
             {ok && after && after.xp > 0 && <span className="tb-recall-xp" data-testid="tb-recall-xp">+{after.xp} опыта</span>}
             {!ok && !ctx.inReview && <button type="button" className="ems-btn" style={{ padding: '6px 12px', fontSize: 12.5 }} data-testid="tb-recall-again"
-              onClick={() => { Audio.play('click'); setOrder(mix()); setPicks({}); setAfter(null); }}>Ещё раз</button>}
+              onClick={() => { Audio.play('click'); setOrder(mix()); setPicks({}); setFresh({}); setAfter(null); }}>Ещё раз</button>}
           </div>
         </>
       )}
