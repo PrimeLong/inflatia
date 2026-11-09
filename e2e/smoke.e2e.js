@@ -8,6 +8,7 @@ import { SCREENS } from '../src/learn/screens.js';
 import { BOOK_BY_ID, bookSpeech, passageAt, passageStart } from '../src/learn/shelf.js';
 import { PEOPLE } from '../src/learn/people.js';
 import { listPeoplePhotos, readPhotoCredits } from '../scripts/voice-files-plugin.js';
+import { TRACKS } from '../src/audio/tracks.js';
 
 /* Общая подготовка каждой страницы: серверные функции подменены, внешние
    запросы и ошибки страницы собираются — тест падает, если сайт полез за
@@ -968,6 +969,42 @@ test('после квартала: «а если бы вы ничего не д�
   // накопленное сравнение: вся партия в мире без ваших решений
   await expect(page.getByTestId('counterfactual-cum')).toContainText('С начала партии');
   await expect(page.getByTestId('counterfactual-cum')).toContainText('Средняя инфляция за партию');
+  expect(errors).toEqual([]);
+});
+
+/* короткая запись для теста: WAV (браузер распознаёт формат по содержимому, а не по имени .mp3), тихий синус */
+function testWav(seconds = 3, rate = 8000) {
+  const n = seconds * rate; const buf = Buffer.alloc(44 + n * 2);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write('WAVE', 8); buf.write('fmt ', 12); buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
+  buf.write('data', 36); buf.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i += 1) buf.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 220 * i) / rate) * 2000), 44 + i * 2);
+  return buf;
+}
+// пункт владельца 09.11: «давай тестово заменим 5 треков на нейро» — пьеса с файлом в public/music играет запись
+test('музыка: у пьесы есть запись в public/music — играет файл, в панели «Саундтрек» пометка «запись»', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript((ids) => { window.__INFLATIA_MUSIC_FILES__ = ids; }, Object.keys(TRACKS));
+  const asked = [];
+  const wav = testWav();
+  await page.route('**/music/*.mp3', (route) => { asked.push(new URL(route.request().url()).pathname); return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: wav }); });
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
+  const bar = page.getByTestId('tb-reader-bar');
+  await bar.getByTestId('music-btn').click();
+  const panel = page.getByTestId('music-panel');
+  await expect(panel).toBeVisible();
+  if ((await panel.getByTestId('music-toggle').textContent()) !== 'вкл') await panel.getByTestId('music-toggle').click();
+  await expect(panel.getByTestId('music-toggle')).toHaveText('вкл');
+  const now = panel.getByTestId('music-now');
+  await expect(now).toHaveAttribute('data-file', 'true', { timeout: 15000 });
+  await expect(now.getByTestId('music-file')).toHaveText('запись');
+  // файл — по id пьесы, из public/music
+  const id = await now.getAttribute('data-track');
+  expect(asked).toContain(`/music/${id}.mp3`);
+  // в списке пьес у записей — «· запись»
+  await expect(panel.getByText('· запись').first()).toBeVisible();
   expect(errors).toEqual([]);
 });
 

@@ -1,7 +1,8 @@
 /* Файлы, которые кладут руками и которые приложение должно узнать при сборке: записанные голоса
    (public/voice/<id>.mp3, src/learn/voice-lines.js), записи книг полки (public/books/<id>.mp3,
-   src/learn/book-player.js) и портреты «Персоналий» (public/people/<id>.jpg|png|webp с подписями из
-   people/credits.csv, src/learn/portraits.js). Положили файл в папку — после сборки он в деле; руками
+   src/learn/book-player.js), портреты «Персоналий» (public/people/<id>.jpg|png|webp с подписями из
+   people/credits.csv, src/learn/portraits.js) и записи пьес саундтрека вместо синтеза (public/music/<id>.mp3,
+   src/audio/engine.js; music/README.md). Положили файл в папку — после сборки он в деле; руками
    ничего не перечислять. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,6 +11,7 @@ const VOICE_DIR = path.resolve(import.meta.dirname, '../public/voice');
 const BOOKS_DIR = path.resolve(import.meta.dirname, '../public/books');
 const PEOPLE_DIR = path.resolve(import.meta.dirname, '../public/people');
 const CREDITS = path.resolve(import.meta.dirname, '../people/credits.csv');
+const MUSIC_DIR = path.resolve(import.meta.dirname, '../public/music');
 
 export function listVoiceFiles(dir = VOICE_DIR) {
   if (!fs.existsSync(dir)) return [];
@@ -51,10 +53,14 @@ export function parseCredits(text) {
 }
 export const readPhotoCredits = (file = CREDITS) => (fs.existsSync(file) ? parseCredits(fs.readFileSync(file, 'utf8')) : {});
 
+// записи пьес: id пьесы (имя файла без .mp3, маленькими буквами) — как в src/audio/tracks.js
+export const listMusicFiles = (dir = MUSIC_DIR) => [...new Set(listVoiceFiles(dir).map((f) => f.trim().toLowerCase()))].sort();
+
 const LISTS = {
   'virtual:voice-files': { watch: [VOICE_DIR], value: () => listVoiceFiles() },
   'virtual:book-audio': { watch: [BOOKS_DIR], value: () => listBookAudio() },
   'virtual:people-files': { watch: [PEOPLE_DIR, CREDITS], value: () => ({ files: listPeoplePhotos(), credits: readPhotoCredits() }) },
+  'virtual:music-files': { watch: [MUSIC_DIR], value: () => listMusicFiles() },
 };
 
 export default function voiceFiles() {
