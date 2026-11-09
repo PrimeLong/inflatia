@@ -1,7 +1,9 @@
-/* ПРИБЛИЖЕНИЕ КАРТИНКИ (docs/mechanics.md, «Картинки на весь экран»): чистый расчёт, без React.
-   Просмотр на весь экран (src/zoom-view.jsx): картинка размером nw × nh (её родной размер) стоит на сцене
-   sw × sh в масштабе s (экранных точек на точку картинки), левый верхний угол — в (tx, ty) от угла сцены;
-   пока картинка меньше сцены, она по центру, больше — её край не отходит от края сцены. */
+/* ПРИБЛИЖЕНИЕ КАРТИНКИ И ГРАФИКА (docs/mechanics.md, «Картинки на весь экран» и «Нарисуй сам»): чистый расчёт,
+   без React. Два вида:
+   - просмотр на весь экран (src/zoom-view.jsx): картинка размером nw × nh (её родной размер) стоит на сцене
+     sw × sh в масштабе s (экранных точек на точку картинки), левый верхний угол — в (tx, ty) от угла сцены;
+     пока картинка меньше сцены, она по центру, больше — её край не отходит от края сцены;
+   - окно графика (viewBox) в «Нарисуй сам»: { x, y, w, h } внутри W × H, во весь график — { 0, 0, W, H }. */
 export const ZOOM_MAX = 4;
 export const FIT_MAX = 2;
 
@@ -46,3 +48,28 @@ export function pinchView(v0, d0, m0, d1, m1, dims, max = ZOOM_MAX) {
 }
 // приближение относительно «вписать»: 1 — картинка целиком
 export const zoomOf = (v, dims) => v.s / fitScale(dims.nw, dims.nh, dims.sw, dims.sh);
+
+/* ---------- окно графика (viewBox) ---------- */
+export const fullVb = (W, H) => ({ x: 0, y: 0, w: W, h: H });
+export function clampVb(v, W, H, max = ZOOM_MAX) {
+  const w = clamp(v.w, W / max, W); const h = (w * H) / W;
+  return { x: clamp(v.x, 0, W - w), y: clamp(v.y, 0, H - h), w, h };
+}
+// приблизить в factor раз вокруг точки графика (px, py) в единицах viewBox
+export function zoomVb(v, factor, px, py, W, H, max = ZOOM_MAX) {
+  const w = clamp(v.w / factor, W / max, W); const k = w / v.w;
+  return clampVb({ w, x: px - (px - v.x) * k, y: py - (py - v.y) * k }, W, H, max);
+}
+// сдвиг на (dx, dy) экранных точек при ширине окна графика на экране bw точек
+export function panVb(v, dx, dy, bw, W, H, max = ZOOM_MAX) {
+  const u = v.w / Math.max(1, bw);
+  return clampVb({ ...v, x: v.x - dx * u, y: v.y - dy * u }, W, H, max);
+}
+// щипок по графику: v0 и середина m0 (в единицах viewBox) в начале, d0 → d1 — расстояние между пальцами,
+// (fx, fy) — где середина пальцев сейчас, в долях окна графика на экране (0…1)
+export function pinchVb(v0, d0, m0, d1, fx, fy, W, H, max = ZOOM_MAX) {
+  const w = clamp(v0.w / (d1 / Math.max(1, d0)), W / max, W); const h = (w * H) / W;
+  return clampVb({ w, x: m0.x - fx * w, y: m0.y - fy * h }, W, H, max);
+}
+export const vbZoom = (v, W) => W / v.w;
+export const vbString = (v) => `${+v.x.toFixed(2)} ${+v.y.toFixed(2)} ${+v.w.toFixed(2)} ${+v.h.toFixed(2)}`;

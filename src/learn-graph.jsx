@@ -140,7 +140,8 @@ function useTweenValues(target, reduced) {
    сейчас (без плавного перехода — линия идёт за пальцем), alsoShow и alsoHide — что видно и что спрятано,
    пока шаг решают (бледная прежняя линия; прежнее равновесие, чтобы оно не подсказало ответ) */
 /* grid — шаг сетки «Нарисуй сам» [по X, по Y]: линии через этот шаг, подписи — только на них */
-export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null, grid = null }) {
+// vb — окно графика, когда его приблизили («Нарисуй сам», src/lib/view-zoom.js); по умолчанию — весь график
+export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null, grid = null, vb = null }) {
   const reduced = useReducedMotion();
   const def = CHARTS[g.chart];
   const view0 = stepView(g, k);
@@ -198,7 +199,7 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
     ...curveLabels.map((c) => ({ id: `c:${c.id}`, text: c.label, size: 14, cands: along(c) })),
   ], { fixed: [...fixedText, ...xTicks.map((t) => t.box), ...yTicks.map((t) => t.box), ...dots], lines, bounds: { x0: M.l + 2, x1: W - 2, y0: 2, y1: H - M.b - 2 } });
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}>
+    <svg viewBox={vb || `0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}>
       <defs><clipPath id={clip}><rect x={M.l} y={M.t - 6} width={W - M.l - M.r + 6} height={H - M.t - M.b + 6} /></clipPath></defs>
       {(grid ? gridLines(x0, x1, grid[0]) : tx).map((t) => <line key={`gx${t}`} x1={sx(t)} x2={sx(t)} y1={M.t} y2={H - M.b} stroke="var(--g-grid)" />)}
       {(grid ? gridLines(y0, y1, grid[1]) : ty).map((t) => <line key={`gy${t}`} x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke="var(--g-grid)" />)}

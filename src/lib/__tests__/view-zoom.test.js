@@ -1,6 +1,6 @@
 // Картинки на весь экран и приближение графика (docs/mechanics.md, «Картинки на весь экран», «Нарисуй сам»)
 import { describe, it, expect } from 'vitest';
-import { fitScale, fitView, clampPan, zoomAround, panBy, pinchView, zoomOf, ZOOM_MAX, FIT_MAX } from '../view-zoom.js';
+import { fitScale, fitView, clampPan, zoomAround, panBy, pinchView, zoomOf, ZOOM_MAX, FIT_MAX, fullVb, clampVb, zoomVb, panVb, pinchVb, vbZoom, vbString } from '../view-zoom.js';
 
 const dims = { nw: 560, nh: 330, sw: 400, sh: 800 }; // график 560 × 330 на телефоне 400 × 800
 
@@ -48,5 +48,41 @@ describe('просмотр на весь экран', () => {
     expect(v1.s).toBeCloseTo(v0.s * 2.5, 6);
     const u = (m0.x - v0.tx) / v0.s;
     expect(v1.tx + u * v1.s).toBeCloseTo(m1.x, 6);
+  });
+});
+
+describe('«Нарисуй сам»: окно графика (viewBox)', () => {
+  const W = 360; const H = 290;
+  it('весь график — окно 0 0 W H, ×1', () => {
+    expect(fullVb(W, H)).toEqual({ x: 0, y: 0, w: W, h: H });
+    expect(vbZoom(fullVb(W, H), W)).toBe(1);
+    expect(vbString(fullVb(W, H))).toBe('0 0 360 290');
+  });
+  it('приближение к точке графика: точка остаётся на том же месте окна, пропорции — как у графика', () => {
+    const v = zoomVb(fullVb(W, H), 2, 90, 145, W, H);
+    expect(vbZoom(v, W)).toBeCloseTo(2, 6);
+    expect(v.h / v.w).toBeCloseTo(H / W, 6);
+    // точка 90 была на четверти ширины — и осталась на четверти
+    expect((90 - v.x) / v.w).toBeCloseTo(90 / W, 6);
+  });
+  it('окно не выходит за график и не меньше четверти', () => {
+    const v = zoomVb(fullVb(W, H), 100, 355, 285, W, H);
+    expect(vbZoom(v, W)).toBeCloseTo(ZOOM_MAX, 6);
+    expect(v.x + v.w).toBeLessThanOrEqual(W + 1e-9);
+    expect(v.y + v.h).toBeLessThanOrEqual(H + 1e-9);
+    expect(clampVb({ x: -50, y: -50, w: W * 2, h: H * 2 }, W, H)).toEqual(fullVb(W, H));
+  });
+  it('сдвиг пальцем: на сколько точек экрана — на столько же в окне', () => {
+    const v = zoomVb(fullVb(W, H), 2, 180, 145, W, H); // окно 180 × 145 посередине
+    const moved = panVb(v, 36, 0, 360, W, H); // окно на экране 360 точек — 1 точка экрана = 0,5 единицы
+    expect(moved.x).toBeCloseTo(v.x - 18, 6);
+    expect(panVb(v, 5000, 5000, 360, W, H)).toMatchObject({ x: 0, y: 0 });
+  });
+  it('щипок: точка между пальцами остаётся между ними', () => {
+    const v0 = fullVb(W, H);
+    const v = pinchVb(v0, 100, { x: 180, y: 145 }, 200, 0.5, 0.5, W, H);
+    expect(vbZoom(v, W)).toBeCloseTo(2, 6);
+    expect(v.x + v.w * 0.5).toBeCloseTo(180, 6);
+    expect(v.y + v.h * 0.5).toBeCloseTo(145, 6);
   });
 });

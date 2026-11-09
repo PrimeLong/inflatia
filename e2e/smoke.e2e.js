@@ -7295,6 +7295,98 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 09.11: «открытие графика на весь экран странно выглядит, а приближать всё так же нельзя»
+test('«Нарисуй сам»: во весь экран график — по своим пропорциям, не раздут; приближается кнопками и щипком, «Двигать» сдвигает, точки — того же размера; Esc сворачивает', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-id="draw-ppf"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  const ink = g.getByTestId('draw-ink');
+  const level = g.getByTestId('draw-zoom-level');
+  await expect(ink).toBeVisible();
+  // и в уроке: «+» приближает, «Вписать» — снова весь график
+  await expect(level).toHaveText('×1,0');
+  await g.getByTestId('draw-zoom-in').click();
+  await expect(level).toHaveText('×1,6');
+  await expect(g.getByTestId('graph-stage')).not.toHaveAttribute('viewBox', '0 0 360 290');
+  await g.getByTestId('draw-zoom-fit').click();
+  await expect(level).toHaveText('×1,0');
+  await expect(g.getByTestId('draw-zoom-fit')).toHaveCount(0);
+
+  await g.getByTestId('draw-full').click();
+  const box = g.getByTestId('draw-box');
+  await expect(box).toHaveAttribute('data-full', 'true');
+  // график — с пропорциями 360 × 290, посередине и не крупнее, чем вдвое; условие — обычного размера
+  const wrap = await g.getByTestId('draw-wrap').boundingBox();
+  const vp = page.viewportSize();
+  expect(Math.abs(wrap.width / wrap.height - 360 / 290)).toBeLessThan(0.02);
+  expect(wrap.width).toBeLessThanOrEqual(720 + 2);
+  expect(Math.abs(wrap.x + wrap.width / 2 - vp.width / 2)).toBeLessThan(3);
+  const fs = await g.getByTestId('draw-full-task').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(fs).toBeGreaterThanOrEqual(13.5);
+  if (vp.width >= 720) expect(fs).toBeGreaterThanOrEqual(16);
+
+  const pts = JSON.parse(await ink.getAttribute('data-answer')).pts;
+  const at = (x, y) => ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x, y]);
+  const placed = ink.locator('g[data-pin^="p"]');
+  const pinBox = () => placed.first().locator('circle').boundingBox();
+  // точка на ×1
+  let [cx, cy] = await at(...pts[1]);
+  await page.mouse.click(cx, cy);
+  await expect(placed).toHaveCount(1);
+  const b1 = await pinBox();
+  // приблизили — точка на экране того же размера, график крупнее
+  await g.getByTestId('draw-zoom-in').click();
+  await expect(level).toHaveText('×1,6');
+  await expect(box).toHaveAttribute('data-zoom', '1.60');
+  const b2 = await pinBox();
+  expect(Math.abs(b2.width - b1.width)).toBeLessThan(1.5);
+  // «Двигать»: мышь сдвигает график, точки не ставятся
+  await g.getByTestId('draw-hand').click();
+  await expect(g.getByTestId('draw-hand')).toHaveAttribute('aria-pressed', 'true');
+  const mid = await ink.boundingBox();
+  const mx = mid.x + mid.width / 2; const my = mid.y + mid.height / 2;
+  await page.mouse.move(mx, my);
+  await page.mouse.down();
+  await page.mouse.move(mx + 20, my, { steps: 2 });
+  await page.mouse.move(mx + 40, my, { steps: 2 });
+  await page.mouse.up();
+  await expect(placed).toHaveCount(1);
+  await expect.poll(async () => (await pinBox()).x).toBeGreaterThan(b2.x + 25);
+  await g.getByTestId('draw-hand').click();
+  await expect(g.getByTestId('draw-hand')).toHaveAttribute('aria-pressed', 'false');
+  // щипок двумя пальцами: приближает к месту между ними, точку первый палец не оставляет
+  await g.getByTestId('draw-zoom-fit').click();
+  await expect(level).toHaveText('×1,0');
+  await ink.evaluate((svg) => {
+    const r = svg.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2;
+    const ev = (type, id, px) => svg.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: id === 11, clientX: px, clientY: y, bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+    ev('pointerdown', 11, x - 20); ev('pointerdown', 12, x + 20);
+    for (let k = 1; k <= 5; k += 1) { ev('pointermove', 11, x - 20 - k * 12); ev('pointermove', 12, x + 20 + k * 12); }
+    ev('pointerup', 11, x - 80); ev('pointerup', 12, x + 80);
+  });
+  await expect(level).toHaveText('×4,0');
+  await expect(placed).toHaveCount(1);
+  // целиком — и дорешать: оставшиеся точки и «Проверить»
+  await g.getByTestId('draw-zoom-fit').click();
+  for (const p of [pts[0], pts[2]]) { [cx, cy] = await at(...p); await page.mouse.click(cx, cy); }
+  await expect(ink).toHaveAttribute('data-ready', 'true');
+  await g.getByTestId('draw-full-check').click();
+  await expect(g.getByTestId('draw-full-feedback')).toHaveText('Верно.');
+  // Esc — сворачивает график, урок открыт
+  await page.keyboard.press('Escape');
+  await expect(box).toHaveAttribute('data-full', 'false');
+  await expect(g).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 // алмаз у всех особых уроков (пункт владельца 08.11, вечер: «все квадратные уроки тоже должны проходиться на алмаз»)
 test('«Разбор графика» на алмаз: пропущенное слово в каждом шаге; с ошибкой — не взят, без ошибок — алмаз и монеты, ромб на дороге', async ({ page }) => {
   await page.addInitScript(() => {
