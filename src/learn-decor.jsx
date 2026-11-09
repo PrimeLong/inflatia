@@ -274,6 +274,10 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       return c && { kind: 'coin', c, x0: p.x };
     };
     let swallow = false;
+    // курсор на подставке: над шариком — рука, тянут — сжатая рука (холст сам курсор не показывает — он прозрачен)
+    const root = document.documentElement;
+    const cursorAt = (v) => { if (!passThrough || m.kind !== 'cradle') return; if (v) { if (root.dataset.cradleCursor !== v) root.dataset.cradleCursor = v; } else if (root.dataset.cradleCursor) delete root.dataset.cradleCursor; };
+    const overBall = (p) => p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H && !!pick(p);
     const down = (e) => {
       if (reduced) return;
       const p = local(e);
@@ -282,7 +286,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       if (!g) return;
       // взяли шарик на подставке: урок под ней этого нажатия не получает (ни нажатия, ни щелчка после)
       if (passThrough) { e.stopPropagation(); swallow = true; }
-      drag = g; el.dataset.drag = 'true';
+      drag = g; el.dataset.drag = 'true'; cursorAt('grabbing');
       if (g.kind === 'pt') g.q.drag = true;
       if (g.kind === 'coin') { g.c.sv += 3.5; g.c.glow = 0.6; }
       // взяли шарик — рука сразу держит его там, где нажали (он больше не качается сам)
@@ -292,7 +296,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
     };
     const eatClick = (e) => { if (swallow) { swallow = false; e.stopPropagation(); e.preventDefault(); } };
     const move = (e) => {
-      if (!drag) return;
+      if (!drag) { if (passThrough && !reduced && e.pointerType !== 'touch') cursorAt(overBall(local(e)) ? 'grab' : null); return; }
       const p = local(e);
       if (drag.kind === 'pt') placePt(drag.q, p.x, p.y + drag.dy, H);
       // шарик тянется к руке (а не встаёт под неё) — куда тянуть, считаем от точки подвеса
@@ -300,8 +304,9 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       if (drag.kind === 'coin') { const c = drag.c; c.a = Math.max(-0.9, Math.min(0.9, (p.x - c.ax) / (c.L + 10))); c.w = 0; }
       wake();
     };
-    const up = () => {
+    const up = (e) => {
       if (!drag) return;
+      cursorAt(e && e.clientX != null && overBall(local(e)) ? 'grab' : null);
       if (drag.kind === 'pt') drag.q.drag = false;
       if (drag.kind === 'ball') releaseCradle(m);
       if (drag.kind === 'coin') drag.c.drag = false;
@@ -324,6 +329,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       if (passThrough) window.removeEventListener('click', eatClick, true);
       window.removeEventListener(ANSWER_EVENT, onAnswer);
       if (ro) ro.disconnect();
+      cursorAt(null);
     };
   }, [id, height, preview, reduced, passThrough]);
   if (!MAKE[id]) return null;
@@ -380,6 +386,10 @@ export const CRADLE_CSS = `
   .ln-cradle-grip { height: ${GRIP}px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; pointer-events: auto; }
   .ln-cradle-grip:active { cursor: grabbing; }
   .ln-cradle-grip i { width: 34px; height: 4px; border-radius: 2px; background: var(--ds-rule2); }
+  /* подставка прозрачна для касаний, и курсор брался у того, что под ней (в черновике — карандаш): над шариком —
+     рука, пока тянут — сжатая рука, поверх любого курсора страницы (docs/mechanics.md, «Украшения урока») */
+  html[data-cradle-cursor="grab"], html[data-cradle-cursor="grab"] * { cursor: grab !important; }
+  html[data-cradle-cursor="grabbing"], html[data-cradle-cursor="grabbing"] * { cursor: grabbing !important; }
   .ln-cradle-base { height: 6px; margin: 0 2px; border-radius: 3px; background: linear-gradient(#9A7650, #6B4F30); }
   /* панель ответа и нижняя панель урока — над подставкой */
   .ln-overlay > .ln-foot { position: relative; z-index: 4; }

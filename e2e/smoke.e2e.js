@@ -5991,6 +5991,52 @@ test('украшения урока: своя витрина с живыми п�
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 09.11: «когда берёшь шарик в режиме рисования, у тебя карандаш вместо мышки»
+test('колыбель в черновике на полях: над шариком — рука, тянут — сжатая рука, мимо шарика — карандаш; шарик не рисует', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'на телефоне колыбели в уроке нет, курсора тоже');
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 } }, owned: { 'desk-cradle': at }, wear: { desk: 'desk-cradle', at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-l1');
+  const decor = page.getByTestId('lesson').getByTestId('lesson-decor');
+  await expect(decor).toHaveAttribute('data-decor', 'desk-cradle');
+  await expect(decor).toHaveAttribute('data-awake', 'false', { timeout: 5000 });
+  await page.getByTestId('sketch-toggle').click();
+  await expect(page.getByTestId('sketch-toggle')).toHaveAttribute('aria-checked', 'true');
+  const cv = await decor.locator('canvas').boundingBox();
+  const m = await decor.evaluate((el) => { const c = el.querySelector('canvas'); return { w: c.clientWidth, h: c.clientHeight }; });
+  const r = Math.max(7, Math.min(13, Math.round(m.h * 0.075))); const top = 14; const L = m.h - top - r - 12;
+  const bx = cv.x + m.w / 2; const by = cv.y + top + L;
+  const offX = cv.x + 6; const offY = cv.y + m.h / 2;
+  const cursorAt = (x, y) => page.evaluate(([px, py]) => getComputedStyle(document.elementFromPoint(px, py)).cursor, [x, y]);
+  const mode = () => page.evaluate(() => document.documentElement.dataset.cradleCursor || null);
+  // мимо шарика — курсор черновика (карандаш)
+  await page.mouse.move(offX, offY);
+  const pencil = await cursorAt(offX, offY);
+  expect(pencil).toContain('url(');
+  // над шариком — рука
+  await page.mouse.move(bx, by, { steps: 3 });
+  await expect.poll(mode).toBe('grab');
+  expect(await cursorAt(bx, by)).toBe('grab');
+  // взяли — сжатая рука; шарик тянется, а на полях ничего не нарисовано
+  await page.mouse.down();
+  await expect(decor).toHaveAttribute('data-drag', 'true');
+  expect(await mode()).toBe('grabbing');
+  expect(await cursorAt(bx, by)).toBe('grabbing');
+  await page.mouse.move(bx - 30, by - 8, { steps: 5 });
+  await page.mouse.up();
+  await expect(decor).toHaveAttribute('data-drag', 'false');
+  await expect(page.getByRole('button', { name: 'Отменить' })).toBeDisabled();
+  // ушли с шарика — снова карандаш
+  await page.mouse.move(offX, offY, { steps: 3 });
+  await expect.poll(mode).toBe(null);
+  expect(await cursorAt(offX, offY)).toBe(pencil);
+  expect(errors).toEqual([]);
+});
+
 test('темы урока: живые превью во вкладке «Для урока»; купленная тема меняет урок — фон, кнопки, отклик на ответ', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {
