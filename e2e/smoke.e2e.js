@@ -196,6 +196,12 @@ test('«Мир»: компас ставки сворачивается в стр
   expect(await page.evaluate(() => localStorage.getItem('ems-compass-collapsed'))).toBe('1');
   await compass.getByTestId('compass-toggle').click();
   await expect(compass).toContainText('Нейтральная r*');
+  // ссылка компаса «Политика: правило Тейлора» тоже закрывается крестиком (пункт владельца 09.11)
+  const taylorLink = compass.locator('.ems-booklink[data-chapter="policy"]');
+  await expect(taylorLink).toBeVisible();
+  await taylorLink.hover();
+  await taylorLink.getByTestId('book-link-close').click();
+  await expect(compass.getByTestId('book-link')).toHaveCount(0);
   // ссылка «IS-LM» под рычагами: крестик — и её нет ни у ставки, ни у госрасходов
   const islm = page.locator('.ems-booklink[data-chapter]', { has: page.getByTestId('book-link').filter({ hasText: 'IS-LM' }) });
   await expect(islm.first()).toBeVisible();
@@ -206,6 +212,7 @@ test('«Мир»: компас ставки сворачивается в стр
   await page.getByRole('button', { name: 'Настройки вида' }).first().click();
   await page.getByTestId('booklinks-restore').click();
   await expect(islm.first()).toBeAttached();
+  await expect(taylorLink).toBeAttached();
   expect(errors).toEqual([]);
 });
 

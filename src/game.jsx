@@ -4326,7 +4326,8 @@ export function RateCompass({ economy, keyRate }) {
       <div style={{ fontSize: 12, color: COLOR.faint, lineHeight: 1.45, marginTop: 4 }}>
         Тейлор: r* + инфляция + 0.5·(инфляция − цель) + 0.5·(разрыв выпуска) = {fmt1(rStar)} + {fmt1(economy.inflation)} + 0.5·({fmtSigned1(economy.inflation - (economy.inflationTarget ?? 4))}) + 0.5·({fmtSigned1(economy.outputGap || 0)}). Ориентир, а не закон: в игре ЦБ может отступать от него — на графике «Ставки» видно, насколько.
       </div>
-      <div style={{ marginTop: 6 }}><BookLink to={COMPASS_BOOK} compact /></div>
+      {/* ссылку компаса тоже можно закрыть крестиком, как ссылки под рычагами (пункт владельца 09.11) */}
+      <div style={{ marginTop: 6 }}><BookLink to={COMPASS_BOOK} compact closable /></div>
       </>}
     </div>
   );
