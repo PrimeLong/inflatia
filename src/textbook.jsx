@@ -840,7 +840,7 @@ export function ChartSvg({ scene }) {
             fill={(CURVE_COLOR[g.tone] || CURVE_COLOR.rust)()} fillOpacity={0.2} stroke={(CURVE_COLOR[g.tone] || CURVE_COLOR.rust)()} strokeOpacity={0.45} />
         ))}
         {scene.curves.map((c) => (
-          <path key={c.id} d={path(c.points)} fill="none" stroke={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()}
+          <path key={c.id} data-curve={c.id} d={path(c.points)} fill="none" stroke={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()}
             strokeWidth={c.ghost ? 1.5 : 2.4} strokeOpacity={c.ghost ? 0.35 : 1} strokeDasharray={c.ghost || c.dashed ? '5 4' : undefined} />
         ))}
         {(scene.segments || []).map((s, i) => {
@@ -920,16 +920,47 @@ export function ChartLegend({ items }) {
   );
 }
 
+/* Плавный график (пункт владельца 09.11): числа ползунков меняются сразу, а сцена — кривые и точки — за треть секунды
+   доезжает до новых значений (кубическое замедление). Новая цель посреди пути — едем к ней от того, где сейчас.
+   Нечисловые значения (переключатели) — сразу; при «уменьшить движение» — всё сразу (docs/mechanics.md). */
+const TWEEN_MS = 320;
+function useTweened(target) {
+  const [shown, setShown] = useState(target);
+  const cur = useRef(target); const raf = useRef(0);
+  const key = JSON.stringify(target);
+  useEffect(() => {
+    const calm = typeof window === 'undefined' || !window.requestAnimationFrame || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const from = cur.current;
+    const moving = Object.keys(target).filter((k) => typeof target[k] === 'number' && typeof from[k] === 'number' && Math.abs(from[k] - target[k]) > 1e-9);
+    if (calm || !moving.length) { cur.current = target; setShown(target); return undefined; }
+    const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / TWEEN_MS); const e = 1 - (1 - k) ** 3;
+      const next = { ...target };
+      moving.forEach((id) => { next[id] = from[id] + (target[id] - from[id]) * e; });
+      cur.current = k >= 1 ? target : next;
+      setShown(cur.current);
+      if (k < 1) raf.current = window.requestAnimationFrame(step);
+    };
+    raf.current = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(raf.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return shown;
+}
+
 /* График с ползунками. Сам хранит положение ползунков, если его не ведёт задача:
    в графической задаче values/onValues приходят снаружи, only — какие ползунки показать. */
 function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = null, only = null, framed = true }) {
   const def = CHARTS[type];
   const [own, setOwn] = useState(() => (def ? chartDefaults(type, attrs) : {}));
+  // сцена — по плавно доезжающим значениям, ползунки и проверка задачи — по настоящим
+  const shown = useTweened(outer || own);
   if (!def) return null;
   const values = outer || own;
   const setValues = (fn) => { const next = typeof fn === 'function' ? fn(values) : fn; if (onValues) onValues(next); else setOwn(next); };
   const controls = def.controls(attrs).filter((c) => !only || only.includes(c.id));
-  const scene = def.build(attrs, values);
+  const scene = def.build(attrs, shown);
   const set = (id, v) => setValues((s) => ({ ...s, [id]: v }));
   return (
     <div className={framed ? 'ems-panel' : undefined} style={{ padding: framed ? 14 : 0, margin: framed ? '16px 0' : '8px 0' }} data-testid="tb-chart" data-chart={type}>

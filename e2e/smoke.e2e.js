@@ -1331,6 +1331,34 @@ test('игра → учебник: «Подробнее в учебнике» о
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 09.11: «нужны плавные анимации, типа изменение технологии — плавное движение графика»
+test('учебник: график с ползунком едет плавно — кривые и точки проходят промежуточные положения и доезжают до нового', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+  const chart = page.getByTestId('chapter').getByTestId('tb-chart').first();
+  await chart.scrollIntoViewIfNeeded();
+  const slider = chart.getByRole('slider').first();
+  const curves = () => chart.evaluate((el) => [...el.querySelectorAll('svg[role=img] path[data-curve], svg[role=img] circle')].map((p) => p.getAttribute('d') || `${p.getAttribute('cx')},${p.getAttribute('cy')}`).join('|'));
+  const before = await curves();
+  // следим за кривой кадр за кадром, пока сдвигаем ползунок до упора
+  await chart.evaluate((el) => {
+    window.__frames = [];
+    const t0 = performance.now();
+    const tick = () => { window.__frames.push([...el.querySelectorAll('svg[role=img] path[data-curve], svg[role=img] circle')].map((p) => p.getAttribute('d') || `${p.getAttribute('cx')},${p.getAttribute('cy')}`).join('|')); if (performance.now() - t0 < 700) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  });
+  const max = await slider.getAttribute('max');
+  await slider.fill(max);
+  await page.waitForTimeout(800);
+  const frames = await page.evaluate(() => window.__frames);
+  const after = await curves();
+  expect(after).not.toBe(before);
+  // между прежним и новым положением — несколько промежуточных
+  expect(new Set(frames.filter((d) => d !== before && d !== after)).size).toBeGreaterThanOrEqual(3);
+  expect(errors).toEqual([]);
+});
+
 // пункт владельца 09.11: «свёрнутый раздел задачи не сохраняется» — раздел уровня помнит, свёрнут он или раскрыт
 test('учебник: свёрнутый «Базовый уровень» и раскрытый «Семинарский» остаются такими после перезагрузки', async ({ page }) => {
   const { errors } = await openApp(page);
