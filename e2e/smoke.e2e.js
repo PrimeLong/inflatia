@@ -1359,6 +1359,33 @@ test('учебник: график с ползунком едет плавно �
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 09.11: «хотелось бы свернуть оглавление, когда читаешь»
+test('учебник: оглавление главы сворачивается — глава шире, выбор помнится после перезагрузки', async ({ page, isMobile }) => {
+  const { errors } = await openApp(page);
+  const openChapter = async () => {
+    await openBook(page);
+    await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+    await expect(page.getByTestId('chapter')).toBeVisible();
+  };
+  await openChapter();
+  const ch = page.getByTestId('chapter');
+  await expect(ch.getByTestId('tb-sections')).toBeVisible();
+  if (!isMobile) await expect(ch.getByTestId('tb-side-toc')).toBeVisible();
+  const mainW = async () => (await ch.locator('.tb-ch-main').boundingBox()).width;
+  const w0 = await mainW();
+  await ch.getByTestId('tb-toc-fold').click();
+  await expect(ch.getByTestId('tb-ch-grid')).toHaveAttribute('data-folded', 'true');
+  await expect(ch.getByTestId('tb-sections')).toHaveCount(0);
+  await expect(ch.getByTestId('tb-side-toc')).toHaveCount(0);
+  if (!isMobile) expect(await mainW()).toBeGreaterThan(w0);
+  await page.reload({ waitUntil: 'networkidle' });
+  await openChapter();
+  await expect(page.getByTestId('chapter').getByTestId('tb-ch-grid')).toHaveAttribute('data-folded', 'true');
+  await page.getByTestId('chapter').getByTestId('tb-toc-unfold').click();
+  await expect(page.getByTestId('chapter').getByTestId('tb-sections')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 // пункт владельца 09.11: «свёрнутый раздел задачи не сохраняется» — раздел уровня помнит, свёрнут он или раскрыт
 test('учебник: свёрнутый «Базовый уровень» и раскрытый «Семинарский» остаются такими после перезагрузки', async ({ page }) => {
   const { errors } = await openApp(page);

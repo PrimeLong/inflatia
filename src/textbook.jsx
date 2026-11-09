@@ -319,6 +319,9 @@ export const TEXTBOOK_CSS = `
   .tbl-ch-bar i { display: block; height: 100%; background: var(--ds-ok); }
   .tbl-more { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   /* оглавление сбоку у главы (ПК): все главы по частям, открытая отмечена, под ним — разделы главы */
+  .tb-toc-fold { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 8px; padding: 4px 9px; font-size: 12px; }
+  .tb-toc-rail { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; width: 40px; padding: 10px 0; border-radius: 10px; font-size: 11px; writing-mode: vertical-rl; }
+  .tb-toc-rail svg { writing-mode: horizontal-tb; }
   .tb-chtoc { border: 1px solid var(--c-border); background: var(--c-panel-alt); padding: 10px 12px 6px; margin: 0 0 12px; }
   .tb-chtoc-part { font-size: 12px; font-weight: 700; color: var(--c-muted); margin: 8px 0 2px; }
   .tb-chtoc-row { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; padding: 5px 2px; background: none; border: none; color: var(--c-text); font: inherit; font-size: 13.5px; line-height: 1.3; text-align: left; cursor: pointer; border-radius: 4px; }
@@ -335,6 +338,9 @@ export const TEXTBOOK_CSS = `
        уходила за низ экрана и «В этой главе» нельзя было докрутить до конца */
     .ln-textbook.wide .tb-ch-aside { position: sticky; top: calc(64px / var(--tb-zoom, 1)); max-height: calc((100vh - 96px) / var(--tb-zoom, 1)); overflow: auto; overscroll-behavior: contain; }
     .ln-textbook.wide .tb-ch-main { max-width: 860px; }
+    /* оглавление свёрнуто — узкая полоска с кнопкой, глава шире (пункт владельца 09.11) */
+    .ln-textbook.wide .tb-ch-grid.folded { grid-template-columns: 44px minmax(0, 1fr); }
+    .ln-textbook.wide .tb-ch-grid.folded .tb-ch-main { max-width: 920px; margin: 0 auto; width: 100%; }
     .ln-textbook.wide .tb-body { font-size: 16px; }
   }
 `;
@@ -1618,8 +1624,12 @@ function ChapterPage({ id, ctx }) {
   if (ctx.chapterOpen && !ctx.chapterOpen(id)) return <LockedChapter id={id} ctx={ctx} />;
   return <ChapterBody id={id} ctx={ctx} />;
 }
+const TOC_FOLD_KEY = 'ems-tb-toc-folded';
 function ChapterBody({ id, ctx }) {
   const wide = useWide();
+  // оглавление и «В этой главе» сворачиваются — выбор помнится на устройстве (пункт владельца 09.11)
+  const [tocFolded, setTocFoldedRaw] = useState(() => readJSON(TOC_FOLD_KEY, false) === true);
+  const setTocFolded = (v) => { Audio.play('click'); setTocFoldedRaw(v); writeJSON(TOC_FOLD_KEY, v); };
   const ch = CHAPTER_BY_ID[id];
   const blocks = CHAPTER_BLOCKS[id];
   // соседние главы — в порядке чтения (как на Пути), только готовые
@@ -1640,10 +1650,20 @@ function ChapterBody({ id, ctx }) {
         <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 14px', fontWeight: 700 }}>{ch.title}</h1>
       </>)}
       {blocks ? (
-        <div className="tb-ch-grid">
+        <div className={`tb-ch-grid${tocFolded ? ' folded' : ''}`} data-testid="tb-ch-grid" data-folded={String(tocFolded)}>
           <aside className="tb-ch-aside">
-            {wide && ctx.embedded && <ChapterToc current={id} ctx={ctx} />}
-            <SectionNav sections={CHAPTER_SECTIONS[id]} ctx={{ ...ctx, chapter: id }} />
+            {tocFolded ? (
+              wide ? <button type="button" className="ems-btn tb-toc-rail" data-testid="tb-toc-unfold" aria-label="Показать оглавление" onClick={() => setTocFolded(false)}><ChevronRight size={14} aria-hidden="true" />Оглавление</button>
+                : <button type="button" className="ems-btn tb-toc-fold" data-testid="tb-toc-unfold" onClick={() => setTocFolded(false)}><ChevronDown size={13} aria-hidden="true" />Разделы главы</button>
+            ) : (<>
+              {(CHAPTER_SECTIONS[id] || []).length >= 3 && (
+                <button type="button" className="ems-btn tb-toc-fold" data-testid="tb-toc-fold" aria-label={wide ? 'Свернуть оглавление' : 'Свернуть разделы главы'} onClick={() => setTocFolded(true)}>
+                  {wide ? <ChevronLeft size={13} aria-hidden="true" /> : <ChevronUp size={13} aria-hidden="true" />}Свернуть
+                </button>
+              )}
+              {wide && ctx.embedded && <ChapterToc current={id} ctx={ctx} />}
+              <SectionNav sections={CHAPTER_SECTIONS[id]} ctx={{ ...ctx, chapter: id }} />
+            </>)}
           </aside>
           <div className="tb-ch-main tb-body"><Blocks blocks={blocks} ctx={{ ...ctx, chapter: id }} top /></div>
         </div>
