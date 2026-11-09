@@ -1492,3 +1492,24 @@ describe('валюта учебника — кроны', () => {
     expect(bad).toEqual([]);
   });
 });
+
+/* Задачи главы — по разделам уровней (docs/mechanics.md, «Учебник: карточка задачи»; пункт владельца 09.11: в
+   «Производственной функции» разделов не было). Каждая задача стоит под подзаголовком своего уровня. */
+describe('задачи глав — по разделам уровней', () => {
+  // у пробы политологии второй раздел — «Средний уровень»
+  const LEVEL_HEAD = { 1: ['базовый уровень'], 2: ['семинарский уровень', 'средний уровень'], 3: ['олимпиадный уровень'] };
+  it('у каждой главы с задачами есть разделы, задача — в разделе своего уровня', () => {
+    Object.entries(CHAPTER_BLOCKS).forEach(([id, blocks]) => {
+      let head = null; let n = 0;
+      blocks.forEach((b) => {
+        if (b.type === 'h2') head = null;
+        if (b.type === 'h3') head = plainText(b.inline).trim().toLowerCase();
+        if (b.type === 'problem') {
+          n += 1;
+          expect(LEVEL_HEAD[b.level], `${id}: ${b.id} без раздела своего уровня (${head})`).toContain(head);
+        }
+      });
+      if (n) expect(blocks.some((b) => b.type === 'h3'), id).toBe(true);
+    });
+  });
+});
