@@ -8093,3 +8093,43 @@ test('вход: гость может войти — «Войти» рядом �
   expect(errors).toEqual([]);
 });
 
+
+// пункт владельца 09.11: «с входного экрана можно попасть в мир без регистрации и играть какое-то время, потом —
+// уведомление, что нужно зарегистрироваться; игра сохранится, а мир закроется, пока человек не дойдёт до него уроками»
+test('вход: «Мир» на пробу — с приветствия в «Мир» без аккаунта; время вышло — «Пробная игра окончена», «Мир» закрыт до регистрации и 10-го урока', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => { window.__INFLATIA_TRIAL_SECONDS__ = 4; localStorage.setItem('ems-unlock-test', '1'); });
+  const { errors } = await openApp(page, '/', '{}', { tab: null });
+  await expect(page.getByTestId('welcome')).toBeVisible();
+  await expect(page.getByTestId('welcome-world-note')).toHaveText('10 минут без регистрации');
+  await page.getByTestId('welcome-world').click();
+  // сразу «Мир»: меню партии, без уроков и аккаунта; в углу — сколько осталось пробы
+  await expect(page.getByTestId('shell')).toHaveAttribute('data-tab', 'world');
+  await expect(page.getByTestId('world-title')).toBeVisible();
+  await expect(page.getByTestId('world-locked')).toHaveCount(0);
+  await expect(page.getByTestId('world-trial-chip')).toContainText('Проба «Мира»');
+  // время вышло — окно поверх: партия сохранена, создать аккаунт, войти или к урокам
+  const end = page.getByTestId('world-trial-end');
+  await expect(end).toBeVisible({ timeout: 15000 });
+  await expect(end).toContainText('Пробная игра окончена');
+  await expect(end).toContainText('Партия сохранена');
+  await expect(end.getByTestId('world-trial-register')).toBeVisible();
+  await expect(end.getByTestId('world-trial-login')).toBeVisible();
+  await expect(page.getByTestId('world-trial-chip')).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ems-world-trial')).ended)).toBeGreaterThan(0);
+  // «К урокам» — на Путь; вкладка «Мир» — под замком, с карточкой сохранённой партии
+  await end.getByTestId('world-trial-lessons').click();
+  await expect(page.getByTestId('shell')).toHaveAttribute('data-tab', 'path');
+  await openTab(page, 'world');
+  await expect(page.getByTestId('world-locked')).toBeVisible();
+  await expect(page.getByTestId('world-trial-saved')).toContainText('Пробная партия сохранена');
+  await expect(page.getByTestId('feature-locked')).toHaveAttribute('data-feature', 'world');
+  // и после перезагрузки «Мир» сам не открывается
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByTestId('world-title')).toHaveCount(0);
+  // «Создать аккаунт» с карточки — регистрация
+  await openTab(page, 'world');
+  await page.getByTestId('world-trial-saved-register').click();
+  await expect(page.getByTestId('welcome-register')).toBeVisible();
+  expect(errors).toEqual([]);
+});

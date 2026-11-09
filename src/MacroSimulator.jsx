@@ -11,6 +11,7 @@ import { Audio } from './audio/lazy.js';
 import { BrandLoader } from './logo.jsx';
 import { useAccount, loadAccount, refreshAccount, NameGate } from './account.jsx';
 import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
+import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './lib/world-trial.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -21,7 +22,7 @@ import {
   loadProgress as loadTextbookProgress, saveProgress as saveTextbookProgress, mergeTextbook, TEXTBOOK_PROGRESS_KEY,
   PROGRESS_EVENT,
 } from './textbook/progress.js';
-import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
+import { featureOpen, FeatureLocked, WorldTrialChip, WorldTrialEnd, WorldTrialSaved } from './learn-unlock.jsx';
 import { BookLinkContext } from './booklink-context.js';
 import { LATEST_NEWS, readNewsSeen, newsForLearner, learnerSince, readFeedSeenAt, friendNewsSince } from './learn/news.js';
 import { friendsState } from './lib/friends-store.js';
@@ -1009,9 +1010,11 @@ export default function MacroSimulator() {
   // в адресе нет приглашения в сетевую комнату: оно важнее того, что было
   // открыто на этой вкладке раньше
   // до ухода со страницы было открыто «Своё дело» — открываем его, а не партию за государство
-  const [resumeTycoon] = useState(() => (!roomCodeFromUrl() && tycoonWasOpen() ? loadTycoonSave() : null));
-  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon ? null : loadAutosave()));
-  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon ? null : (loadAutosave() || {}).setup || null));
+  // «Мир» закрыт (проба с приветствия кончилась, docs/mechanics.md, «„Мир“ на пробу») — сохранённая партия сама не открывается
+  const [worldShut] = useState(() => trialEnded() && !featureOpen(loadTextbookProgress().learn, 'world'));
+  const [resumeTycoon] = useState(() => (!roomCodeFromUrl() && !worldShut && tycoonWasOpen() ? loadTycoonSave() : null));
+  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : loadAutosave()));
+  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : (loadAutosave() || {}).setup || null));
   const [nonce, setNonce] = useState(0);
   // оформление «Мира» — сохранённое на устройстве или по ночной теме из настроек (ds-tokens.js)
   const [theme, setThemeState] = useState(worldThemeId);
@@ -1043,16 +1046,21 @@ export default function MacroSimulator() {
   const [gate, setGate] = useState(() => !loadAccount() && !isGuest());
   const [gateScreen, setGateScreen] = useState('hello');
   const [firstLesson, setFirstLesson] = useState(false);
+  // «Мир» на пробу кончился — окно «Пробная игра окончена» (src/lib/world-trial.js)
+  const [trialOver, setTrialOver] = useState(false);
   React.useEffect(() => {
-    const ready = () => { setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
+    const ready = () => { setTrialOver(false); setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
     const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('path'); setFirstLesson(true); window.scrollTo(0, 0); };
-    const guestSave = () => { setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
-    const guestLogin = () => { setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
+    const guestSave = () => { setTrialOver(false); setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
+    const guestLogin = () => { setTrialOver(false); setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
+    // с приветствия — сразу в «Мир», без аккаунта и уроков
+    const worldTrial = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('world'); window.scrollTo(0, 0); track('world_trial_start'); };
     window.addEventListener('ems-account-ready', ready);
     window.addEventListener(GUEST_START, guestStart);
     window.addEventListener(GUEST_SAVE, guestSave);
     window.addEventListener(GUEST_LOGIN, guestLogin);
-    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); window.removeEventListener(GUEST_LOGIN, guestLogin); };
+    window.addEventListener(WORLD_TRIAL, worldTrial);
+    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); window.removeEventListener(GUEST_LOGIN, guestLogin); window.removeEventListener(WORLD_TRIAL, worldTrial); };
   }, []);
   React.useEffect(() => { if (!account && !guest) { setGateScreen('hello'); setGate(true); } }, [account, guest]);
   // детский режим и имя — с сервера при каждом запуске (профиль мог поменяться на другом устройстве)
@@ -1101,6 +1109,23 @@ export default function MacroSimulator() {
   // и сколько уроков осталось, в оформлении обучения
   const worldLocked = tab === 'world' && !featureOpen(loadTextbookProgress().learn, 'world');
   const learning = showGate || (view === 'menu' && !setup && !network && !tycoon && (tab !== 'world' || worldLocked));
+  /* «Мир» на пробу: время идёт, пока «Мир» на экране и вкладка видна; вышло — партия закрывается (она сохранена),
+     вкладка «Мир» — под замком, поверх — «Пробная игра окончена» */
+  const [trialLeftS, setTrialLeftS] = useState(() => trialLeft());
+  const trialOn = !learning && !showGate && trialActive();
+  React.useEffect(() => {
+    if (!trialOn) return undefined;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      const ended = tickTrial(1);
+      setTrialLeftS(trialLeft());
+      if (ended) {
+        setNetwork(null); setLoaded(null); setSetup(null); setTycoon(null); setView('menu'); setTabRaw('world');
+        setTrialOver(true); window.scrollTo(0, 0); track('world_trial_end');
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [trialOn]);
   // обучение — в своей светлой (или тёмной по выбору) теме; «канцелярия» — только в «Мире»
   applyTheme(learning ? learnThemeId() : theme);
   /* Звук: в обучении музыка по умолчанию выключена (своя настройка в профиле), звуки
@@ -1201,6 +1226,7 @@ export default function MacroSimulator() {
           {tab === 'world' && worldLocked ? (
             <DsRoot theme={dsThemeId()} style={{ minHeight: '100vh' }}>
               <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 120px' }} data-testid="world-locked">
+                {trialEnded() && <WorldTrialSaved hasAccount={!!account} />}
                 <FeatureLocked id="world" learn={loadTextbookProgress().learn} onPath={() => setTab('path')} />
               </div>
             </DsRoot>
@@ -1291,5 +1317,10 @@ export default function MacroSimulator() {
     );
   }
   // ник под запретом: окно «Смените ник» или экран блокировки (src/account.jsx) — поверх любого экрана
-  return <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{wrapped}<NameGate /></ScreenErrorBoundary>;
+  return (
+    <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{wrapped}<NameGate />
+      {trialOn && <WorldTrialChip left={trialLeftS} />}
+      {trialOver && <DsRoot theme={dsThemeId()}><WorldTrialEnd hasAccount={!!account} onLessons={() => { setTrialOver(false); setTab('path'); }} /></DsRoot>}
+    </ScreenErrorBoundary>
+  );
 }
