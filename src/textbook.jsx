@@ -2444,18 +2444,38 @@ function ReaderBar({ scale, setScale, learn = false }) {
 
 /* Стрелка «наверх»: из середины длинной главы — к её началу в одно касание (как «к карте»
    на Пути). Появляется, когда начало страницы ушло далеко за верх экрана. */
+/* «Наверх» — и обратно (пункт владельца 09.11): после «Наверх» на её месте — стрелка вниз, к месту, где читали.
+   Пока страница сама едет наверх, место не теряется; ученик сам пролистал вниз — стрелка вниз пропадает. */
 function ToTop({ withNav = false }) {
   const [show, setShow] = useState(false);
+  const [back, setBack] = useState(null);
+  const jumping = useRef(false); const lastY = useRef(0);
   React.useEffect(() => {
-    const on = () => setShow(window.scrollY > 900);
+    const on = () => {
+      const y = window.scrollY;
+      // доехали наверх — или ученик сам потянул страницу вниз посреди подъёма: дальше это его прокрутка
+      if (jumping.current && (y < 60 || y > lastY.current + 4)) jumping.current = false;
+      lastY.current = y;
+      setShow(y > 900);
+      if (!jumping.current && y > 900) setBack(null);
+    };
     on();
     window.addEventListener('scroll', on, { passive: true });
     return () => window.removeEventListener('scroll', on);
   }, []);
+  const cls = `tb-to-top${withNav ? ' with-nav' : ''}`;
+  if (back != null && !show) {
+    return (
+      <button type="button" className={cls} data-testid="tb-back-down" data-y={Math.round(back)} aria-label="Вернуться, где читали" title="Вернуться, где читали"
+        onClick={() => { Audio.play('paper'); const y = back; setBack(null); window.scrollTo({ top: y, behavior: 'smooth' }); }}>
+        <ArrowDown size={22} aria-hidden="true" />
+      </button>
+    );
+  }
   if (!show) return null;
   return (
-    <button type="button" className={`tb-to-top${withNav ? ' with-nav' : ''}`} data-testid="tb-to-top" aria-label="Наверх, к началу страницы" title="Наверх"
-      onClick={() => { Audio.play('paper'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+    <button type="button" className={cls} data-testid="tb-to-top" aria-label="Наверх, к началу страницы" title="Наверх"
+      onClick={() => { Audio.play('paper'); jumping.current = true; lastY.current = window.scrollY; setBack(window.scrollY); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
       <ArrowUp size={22} aria-hidden="true" />
     </button>
   );

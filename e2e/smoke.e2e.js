@@ -4256,10 +4256,22 @@ test('учебник: калькулятор по полям а → б → в, �
   await page.mouse.wheel(0, 2500);
   await expect(page.getByTestId('tb-topbar')).toBeInViewport();
   await expect(page.getByTestId('tb-to-top')).toBeVisible();
+  const readY = await page.evaluate(() => window.scrollY);
   await page.getByTestId('tb-to-top').click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(5);
   await expect(page.getByTestId('tb-to-top')).toHaveCount(0);
+  // наверху — стрелка вниз: обратно туда, где читали (пункт владельца 09.11)
+  await expect(page.getByTestId('tb-back-down')).toBeVisible();
+  await page.getByTestId('tb-back-down').click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(readY - 40);
+  await expect(page.getByTestId('tb-back-down')).toHaveCount(0);
+  await expect(page.getByTestId('tb-to-top')).toBeVisible();
+  // сами пролистали вниз после «Наверх» — стрелка вниз пропадает
+  await page.getByTestId('tb-to-top').click();
+  await expect(page.getByTestId('tb-back-down')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(5);
   await page.mouse.wheel(0, 2500);
+  await expect(page.getByTestId('tb-back-down')).toHaveCount(0);
   // повторное нажатие на «Учебник» — на главную страницу учебника
   await page.getByTestId('bottom-nav').locator('[data-tab="book"]').click();
   await expect(page.getByTestId('textbook')).toBeVisible();
