@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import {
   ROLES, DIFFICULTIES, GOALS, SCENARIOS, FX_REGIMES, LEVERS, CB_PERSONAS, MOF_PERSONAS, REQUESTS,
-  REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach, regimeInfoText, regimeInfoLabel, POLITICAL_REGIME_INFO,
+  REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, mandateWho, GUIDANCE_OPTIONS, GUIDANCE_LABEL, guidanceBreach, regimeInfoText, regimeInfoLabel, POLITICAL_REGIME_INFO,
   gameChronicle, clamp, fmt1, fmt2, fmtSigned1, pctFmt, fmtSignedPct, fmtMoney, fmtMoneySigned,
   fmtIndex, fmtMln, quarterLabel, defaultDecisions, getCbPersona, personaAfterElection,
   getMofPersona, MAP_REGIONS, botCentralBank, botFinanceMinistry, processRequest, redescribeCbAction,
@@ -3984,16 +3984,18 @@ export function RegionEventStrip({ event, answered, canAnswer, onOpen }) {
   );
 }
 
-export function demandItems({ botAction, botAction2, botRole, economy, president }) {
+export function demandItems({ botAction, botAction2, botRole, economy, president, playerRole = null }) {
   const items = [];
   if (president) items.push({ who: `Президент (${president.persona.name})`, text: president.directive.ask || askText(president.directive.req, 1, 'president', economy.politicalRegime), color: COLOR.gold });
-  // мандат — цель с числами: чего ждут, сколько сейчас, выполняется ли (пункт владельца 08.11, вечер: «а в чём требование?»)
+  /* мандат — требование с числами и с тем, кто отвечает; выполнен — требовать нечего, в «Требованиях» его нет
+     (пункты владельца 08.11, вечер, и 09.11: «а в чём требование?») */
   if (economy.mandate) {
     const m = mandateGoal(economy);
     const label = MANDATE_LABEL[economy.mandate] || economy.mandate;
-    items.push({ who: 'Мандат власти', color: m && m.met ? COLOR.teal : COLOR.gold, testid: 'mandate-demand',
-      text: m ? `${label[0].toUpperCase()}${label.slice(1)}: ${m.goal}. Сейчас ${m.now} — ${m.met ? 'выполняется' : 'пока не выполнено'}. Под эту задачу новая власть назначает министров.`
-        : `Новое правительство пришло с задачей: ${label}.` });
+    if (m && !m.met) {
+      items.push({ who: 'Мандат власти', color: COLOR.gold, testid: 'mandate-demand',
+        text: `Новая власть требует — «${label}»: ${m.goal}. Сейчас ${m.now}. ${mandateWho(m.by, playerRole)}` });
+    } else if (!m) items.push({ who: 'Мандат власти', color: COLOR.gold, text: `Новое правительство пришло с задачей: ${label}.` });
   }
   if (botAction && botAction.demand) items.push({ who: botRole === 'central_bank' ? 'Центральный банк' : 'Минфин', text: botAction.demand, color: COLOR.blue });
   // у президента оба ведомства — боты, и требования к нему идут с обеих сторон
@@ -5344,7 +5346,7 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
 
       <div style={{ margin: '10px 18px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <SummaryBar economy={economy} demands={isPublic ? [] : demandItems({ botAction, botAction2: isPresident ? botAction2 : null,
-          botRole: isPresident ? 'central_bank' : botRole, economy,
+          botRole: isPresident ? 'central_bank' : botRole, economy, playerRole: isPresident ? 'president' : setup.role,
           president: presEnabled && presidentPlan && presidentPlan.directive && presidentPlan.directive.toPlayer ? presidentPlan : null })} />
         <RegimeBanner economy={economy} crisisOnly />
         {economy.regionEvent && view !== 'map' && (

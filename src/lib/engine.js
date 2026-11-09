@@ -231,17 +231,27 @@ function mandateGoal(e) {
   const num = (v) => rf1(Number.isFinite(v) ? v : 0);
   if (e.mandate === 'jobs') {
     const lim = (Number.isFinite(e.nairu) ? e.nairu : 5) + 0.5;
-    return { goal: `безработица — не выше ${num(lim)}% (естественный уровень + 0,5 п.п.)`, now: `${num(e.unemployment)}%`, met: e.unemployment <= lim };
+    return { goal: `безработица — не выше ${num(lim)}% (естественный уровень + 0,5 п.п.)`, now: `${num(e.unemployment)}%`, met: e.unemployment <= lim, by: ['central_bank', 'ministry_finance'] };
   }
   if (e.mandate === 'prices') {
     const lim = (Number.isFinite(e.inflationTarget) ? e.inflationTarget : 4) + 1;
-    return { goal: `инфляция — не выше ${num(lim)}% (цель + 1 п.п.)`, now: `${num(e.inflation)}%`, met: e.inflation <= lim };
+    return { goal: `инфляция — не выше ${num(lim)}% (цель + 1 п.п.)`, now: `${num(e.inflation)}%`, met: e.inflation <= lim, by: ['central_bank'] };
   }
   if (e.mandate === 'budget') {
     const deficit = -(Number.isFinite(e.budgetBalancePctGdp) ? e.budgetBalancePctGdp : 0);
-    return { goal: 'дефицит бюджета — не больше 3% ВВП', now: `${deficit > 0 ? num(deficit) : '0'}% ВВП, долг ${num(e.debtToGdp)}% ВВП`, met: deficit <= 3 };
+    return { goal: 'дефицит бюджета — не больше 3% ВВП', now: `${deficit > 0 ? num(deficit) : '0'}% ВВП`, met: deficit <= 3, by: ['ministry_finance'] };
   }
-  return { goal: 'рост ВВП — не ниже 2% в год', now: `${num(e.gdpGrowth)}%`, met: e.gdpGrowth >= 2 };
+  return { goal: 'рост ВВП — не ниже 2% в год', now: `${num(e.gdpGrowth)}%`, met: e.gdpGrowth >= 2, by: ['central_bank', 'ministry_finance'] };
+}
+// чьё дело мандат — по ведомствам (mandateGoal.by) и роли игрока (пункт владельца 09.11: «в чём требование?»)
+const BRANCH_NAME = { central_bank: 'ЦБ', ministry_finance: 'Минфин' };
+const BRANCH_AREA = { central_bank: 'ставка и цены у ЦБ', ministry_finance: 'бюджет у Минфина' };
+function mandateWho(by, playerRole) {
+  const names = by.map((b) => BRANCH_NAME[b]).join(' и ');
+  if (playerRole === 'president') return `Отвечают ${names} — указания им даёте вы.`;
+  if (playerRole === 'full_control') return 'Это ваша задача — у вас оба ведомства.';
+  if (by.includes(playerRole)) return by.length > 1 ? `Это и ваша задача — отвечают ${names}.` : `Это ваша задача — ${BRANCH_AREA[playerRole]}.`;
+  return `${by.length > 1 ? 'Отвечают' : 'Отвечает'} ${names}.`;
 }
 const getMofPersona = (id) => MOF_PERSONAS.find((p) => p.id === id) || MOF_PERSONAS[0];
 
@@ -2634,7 +2644,7 @@ function leverPreview(id, newVal, s, difficulty) {
 export {
   CONFIG, ROLES, DIFFICULTIES, GOALS, SCENARIOS, FX_REGIMES, LEVERS, UNCERTAINTY,
   CB_PERSONAS, MOF_PERSONAS, REQUESTS, EVENTS, CHANNEL_HEADLINE, TAX_REF,
-  STOCK_NORM, TFP_SCALE, STORY_TEMPLATES, REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, regimeInfoText, regimeInfoLabel,
+  STOCK_NORM, TFP_SCALE, STORY_TEMPLATES, REGIME_INFO, CRISIS_INFO, MANDATE_LABEL, mandateGoal, mandateWho, regimeInfoText, regimeInfoLabel,
   POLITICAL_REGIME_INFO, propagandaEditorial, gameChronicle, MAP_REGIONS, regionStress, regionBlurb, regionVoteShares, REGION_PROJECTS, REGION_EVENTS, projectBlocker, projectSpendPct, warFrontRegion, defaultWarOrder, WAR_OBJECTIVES, WAR_STANCES, warObjectiveOpen, warStrength, botWarOrder, ANNEX_EFFECT, CAMPAIGN_POINTS, CAMPAIGN_COST, POLL_WINDOW, electionForecast, sanitizeCampaignPlan, botCampaignPlan, swingLabel,
   ANNEX_REGIONS, ALL_REGIONS, regionById, activeRegions, votingRegions, annexLoyalty, sanitizeIntegration,
   PARTISAN_BELOW, INTEGRATED_AT, INTEGRATION_COST, INTEGRATION_DONE,
