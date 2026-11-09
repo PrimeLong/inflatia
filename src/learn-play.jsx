@@ -422,6 +422,8 @@ const effectLabel = (chart, eff) => (chart === 'budget' ? BUDGET_LABEL[eff] : ch
 const BUDGET0 = { I: 100, px: 1.25, py: 1.25 };
 const MARKET_STEP = 16;
 // состояние графика после карточки: сдвиги понемногу забываются, чтобы график не уезжал за край
+// границы «Наценки»: спрос никогда не горизонтален (это уже совершенная конкуренция) и не круче монопольного
+const MARKUP_LO = 0.08; const MARKUP_HI = 1;
 function applyEffect(chart, st, eff) {
   // эластичность: крутая или пологая кривая спроса через одну точку
   if (chart === 'elastic') return { e: eff === 'in' ? 0.4 : eff === 'el' ? 2.5 : st.e };
@@ -429,8 +431,10 @@ function applyEffect(chart, st, eff) {
   if (chart === 'costs') return { fc: eff === 'fc' ? 1 : eff ? 0 : st.fc, vc: eff === 'vc' ? 1 : eff ? 0 : st.vc };
   // рыночная власть: спрос на товар фирмы — горизонтальный у ценополучателя, падающий у монополиста
   if (chart === 'power') return { m: eff === 'mp' ? 1 : eff === 'pt' ? 0 : st.m };
-  // наценка при монополистической конкуренции: событие делает спрос на товар фирмы чуть круче или положе — шаг, а не скачок
-  if (chart === 'markup') return { m: clampN(st.m + (eff === 'hi' ? 0.22 : eff === 'lo' ? -0.22 : 0), 0.12, 1) };
+  /* наценка при монополистической конкуренции: событие делает спрос на товар фирмы чуть круче или положе — на треть
+     оставшегося пути к краю. Постоянный шаг ±0,22 после трёх «ниже» упирался в границу, и график переставал двигаться
+     (жалоба mw83dngv «график всё ещё сломан»): теперь каждый ответ его сдвигает */
+  if (chart === 'markup') return { m: eff === 'hi' ? st.m + (MARKUP_HI - st.m) / 3 : eff === 'lo' ? st.m - (st.m - MARKUP_LO) / 3 : st.m };
   if (chart === 'market') {
     const d = { D: st.D * 0.6, S: st.S * 0.6 };
     if (eff) d[eff[0]] = clampN(d[eff[0]] + (eff[1] === '+' ? MARKET_STEP : -MARKET_STEP), -32, 32);
@@ -602,8 +606,10 @@ function PowerGameChart({ st, markup: mk = false }) {
       <text x={sx(1)} y={sy(dem(1)) - 8} className="lp-ax" style={{ fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>спрос</text>
       {/* подписи не на линиях (жалоба mvuaw8zo «что за ужас с графиком»): MR — слева от своей линии над осью,
           наценка — над точкой цены, где нет ни спроса, ни MC */}
-      {m > 0.15 && <text x={sx(mrLabelQ) + 6} y={sy(mr(mrLabelQ)) + 12} className="lp-ax" style={{ opacity: op, ...halo }}>MR</text>}
-      {m > 0.15 && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: op, fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>наценка +{markup}</text>}
+      {/* в «Наценке» подписи — при любой наценке (на малой они пропадали, жалоба mw83dngv); MR — не на оси: у самой оси
+          подпись встаёт над линией */}
+      {(mk || m > 0.15) && <text x={sx(mrLabelQ) + 6} y={sy(mr(mrLabelQ)) + 12 > H - B - 4 ? sy(mr(mrLabelQ)) - 7 : sy(mr(mrLabelQ)) + 12} className="lp-ax" style={{ opacity: op, ...halo }} data-testid="game-mr-label">MR</text>}
+      {(mk || m > 0.15) && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: op, fill: 'var(--u-ink)', fontWeight: 700, ...halo }} data-testid="game-markup-label">наценка +{markup}</text>}
       {/* в «Наценке» подпись — только при явном перевесе: на старте спрос средний, «много заменителей» было неправдой */}
       {(!mk || Math.abs(m - 0.5) > 0.05) && <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: m > 0.5 ? 'var(--u-ink)' : 'var(--ds-ok)', fontWeight: 700, ...halo }}>{mk ? (m > 0.5 ? 'мало заменителей' : 'много заменителей') : m > 0.5 ? 'цена выше MC' : 'цена = MC'}</text>}
     </svg>

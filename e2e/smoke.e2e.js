@@ -2572,6 +2572,38 @@ test('путь: юнит «Ярмарка» (монополистическая 
   expect(errors).toEqual([]);
 });
 
+// жалоба mw83dngv (09.11): «график всё ещё сломан» — в «Наценке» каждый ответ двигает график, подписи видны всегда
+test('игра «Наценка ниже или выше?»: каждое событие сдвигает наценку, подписи «наценка» и MR на месте и не на оси', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const units = ['scarcity', 'labor', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly'];
+    const ids = ['mc-i1', 'mc-l1', 'mc-i2', 'mc-l2', 'mc-w', 'mc-s1', 'mc-radio'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { units: Object.fromEntries(units.map((u) => [u, { tested: at }])),
+      lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'mc-g');
+  const ex = page.getByTestId('ex');
+  await ex.getByTestId('game-start').click();
+  const chart = ex.getByTestId('game-chart');
+  const card = ex.getByTestId('game-card');
+  const states = [JSON.parse(await chart.getAttribute('data-state')).m];
+  for (let i = 0; i < 8; i += 1) {
+    const side = await card.getAttribute('data-answer');
+    await ex.locator(`button[data-side="${side}"]`).click();
+    await expect.poll(async () => JSON.parse(await chart.getAttribute('data-state')).m).not.toBe(states[states.length - 1]);
+    states.push(JSON.parse(await chart.getAttribute('data-state')).m);
+    await expect(chart.getByTestId('game-markup-label')).toBeVisible();
+    await expect(chart.getByTestId('game-mr-label')).toBeVisible();
+  }
+  // подпись MR не на оси Q: её низ выше оси
+  const axisY = await chart.evaluate((svg) => { const r = svg.getBoundingClientRect(); const vb = svg.viewBox.baseVal; return r.top + ((200 - 26) / vb.height) * r.height; });
+  expect((await chart.getByTestId('game-mr-label').boundingBox()).y + (await chart.getByTestId('game-mr-label').boundingBox()).height).toBeLessThanOrEqual(axisY + 1);
+  expect(errors).toEqual([]);
+});
+
 test('путь: юнит «Биржа труда» (рынок труда) — каждый урок проходится, игра — зарплата на графике рынка', async ({ page }) => {
   test.setTimeout(300_000);
   await withTestFlag(page);
