@@ -2402,6 +2402,11 @@ const EXTRA_GEM = {
   graph: 'в каждом шаге пропущено главное слово или число — выберите его',
   draw: 'на каждый шаг — одна попытка, без подсказки',
 };
+// алмазы юнита — уроки и особые уроки вместе (пункт владельца 09.11: «квадратные не считаются»)
+function unitGems(st, learn) {
+  const ex = unitStops(st, learn).filter((x) => x.type !== 'lesson' && x.type !== 'fix');
+  return { ex, n: st.lessons.filter((l) => l.diamond).length + ex.filter((x) => x.gem).length, of: st.lessons.length + ex.length };
+}
 function ExtraSheet({ x, onStart, onClose }) {
   const info = extraInfo(x);
   if (!info) return null;
@@ -2943,8 +2948,8 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
                 <span className="ln-mini-eyebrow">Юнит {no} · пройден</span>
                 <span className="ds-h3 ln-mini-title">{pl.place}</span>
                 <span className="ln-mini-meta">
-                  <span className="ln-mini-strip" aria-hidden="true">{st.lessons.map((l) => <i key={l.id} data-d={l.diamond ? '1' : undefined} />)}</span>
-                  <span data-testid="unit-diamonds"><Gem size={13} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> {st.lessons.filter((l) => l.diamond).length}/{st.lessons.length}</span>
+                  <span className="ln-mini-strip" aria-hidden="true">{st.lessons.map((l) => <i key={l.id} data-d={l.diamond ? '1' : undefined} />)}{unitGems(st, learn).ex.map((x) => <i key={x.id} data-d={x.gem ? '1' : undefined} />)}</span>
+                  <span data-testid="unit-diamonds" data-n={unitGems(st, learn).n} data-of={unitGems(st, learn).of}><Gem size={13} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> {unitGems(st, learn).n}/{unitGems(st, learn).of}</span>
                 </span>
                 <span className="ln-mini-open" aria-hidden="true"><ChevronDown size={18} /></span>
               </button>
@@ -2971,7 +2976,7 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
                 <Button variant="ghost" small icon={ChevronRight} data-testid="unit-fold" aria-expanded={!folded}
                   onClick={() => { Audio.play('paper'); setUnfolded((m) => ({ ...m, [u.id]: !m[u.id] })); }}>{folded ? `Уроки: ${st.lessons.length}` : 'Свернуть'}</Button>
               )}
-              {st.complete && <span className="ds-sub" style={{ fontSize: 13, alignSelf: 'center' }} data-testid="unit-diamonds"><Gem size={14} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> алмазов: {st.lessons.filter((l) => l.diamond).length} из {st.lessons.length}</span>}
+              {st.complete && <span className="ds-sub" style={{ fontSize: 13, alignSelf: 'center' }} data-testid="unit-diamonds" data-n={unitGems(st, learn).n} data-of={unitGems(st, learn).of}><Gem size={14} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> алмазов: {unitGems(st, learn).n} из {unitGems(st, learn).of}</span>}
             </div>
             <Guilloche height={16} opacity={0.45} />
           </Card>

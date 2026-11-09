@@ -84,6 +84,9 @@ export function markGem(s, id, now = Date.now()) {
 }
 // алмаз особого урока взят: у «Чтения» — своя отметка readGem, у остальных — gems
 export const hasGem = (s, id) => !!((s && s.gems) || {})[id] || !!((s && s.readGem) || {})[id];
+// сколько всего алмазов: уроки на алмазном уровне и особые уроки на алмаз (печати «Огранщик», «Ювелир»)
+export const diamondCount = (s) => Object.values((s && s.lessons) || {}).filter((l) => l && l.diamond).length
+  + Object.keys((s && s.gems) || {}).length + Object.keys((s && s.readGem) || {}).length;
 /* «Персоналии» юнита пройдены (met: id подборки → когда) и «Работа над ошибками» юнита пройдена
    (fixed: юнит → когда): обе — один раз, общие для всех устройств, при слиянии — более раннее время. */
 export function markMet(s, id, now = Date.now()) {

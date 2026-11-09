@@ -3,7 +3,7 @@
    платите вы монетами по курсу дня — он колеблется вокруг единицы и тянется к ней обратно.
    Модуль чистый: всё считается из состояния учёбы (learn-state.js); каждая награда выдаётся
    под ключом (claimed) — ни дважды, ни на двух устройствах. Экраны — src/learn.jsx. */
-import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf } from '../textbook/learn-state.js';
+import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf, diamondCount } from '../textbook/learn-state.js';
 import { plural } from '../lib/plural.js';
 import { LESSONS, UNITS } from './course.js';
 import { halloweenOn, WEB_FRAME } from './halloween.js';
@@ -477,10 +477,10 @@ export const ACHIEVEMENTS = [
   { id: 'owl', icon: 'moon', title: 'Сова', text: 'Урок после десяти вечера', how: 'Пройдите урок после десяти вечера — по часам вашего устройства', coins: 10, test: (s) => Object.values(s.daily || {}).some((d) => d.h & 2) },
   { id: 'saver', icon: 'piggy', title: 'Пятьсот монет', text: 'Заработано 500 монет', how: 'Заработайте 500 монет', coins: 30, test: (s) => earned(s) >= 500 },
   { id: 'month', icon: 'calendar', title: 'Испытание месяца', text: 'Выполнено испытание месяца', how: 'Выполните испытание месяца', coins: 150, test: (s) => Object.keys(s.claimed || {}).some((k) => k.startsWith('m:')) },
-  { id: 'diamond', icon: 'diamond', title: 'Огранщик', text: 'Урок взят на алмазном уровне', how: 'Возьмите урок на алмазном уровне', coins: 20, test: (s) => Object.values(s.lessons || {}).some((l) => l.diamond) },
+  { id: 'diamond', icon: 'diamond', title: 'Огранщик', text: 'Урок взят на алмазном уровне', how: 'Возьмите урок на алмазном уровне', coins: 20, test: (s) => diamondCount(s) > 0 },
   // забег с другом (src/learn/friends.js): победа — отметка race:<id>:won
   { id: 'race', icon: 'flag', title: 'Забег', text: 'Выигран забег с другом', how: 'Позовите друга на забег и наберите за три дня больше опыта', coins: 30, test: (s) => Object.keys(s.claimed || {}).some((k) => /^race:[a-z0-9]+:won$/.test(k)) },
-  { id: 'diamond10', icon: 'gem', title: 'Ювелир', text: 'Десять уроков на алмазном уровне', how: 'Возьмите десять уроков на алмазном уровне', coins: 60, test: (s) => Object.values(s.lessons || {}).filter((l) => l.diamond).length >= 10 },
+  { id: 'diamond10', icon: 'gem', title: 'Ювелир', text: 'Десять уроков на алмазном уровне', how: 'Возьмите десять уроков на алмазном уровне', coins: 60, test: (s) => diamondCount(s) >= 10 },
 ];
 export const achievementKey = (id) => `a:${id}`;
 
