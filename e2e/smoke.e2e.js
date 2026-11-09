@@ -1324,6 +1324,28 @@ test('игра → учебник: «Подробнее в учебнике» о
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 09.11: «свёрнутый раздел задачи не сохраняется» — раздел уровня помнит, свёрнут он или раскрыт
+test('учебник: свёрнутый «Базовый уровень» и раскрытый «Семинарский» остаются такими после перезагрузки', async ({ page }) => {
+  const { errors } = await openApp(page);
+  const openChapter = async () => {
+    await openBook(page);
+    await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+    await expect(page.getByTestId('chapter')).toBeVisible();
+  };
+  await openChapter();
+  const lv = (t) => page.getByTestId('chapter').locator(`[data-testid="tb-level-group"][data-level="${t}"]`);
+  await expect(lv('Базовый уровень')).toHaveAttribute('data-open', 'true');
+  await expect(lv('Семинарский уровень')).toHaveAttribute('data-open', 'false');
+  await lv('Базовый уровень').getByRole('button').first().click();
+  await lv('Семинарский уровень').getByRole('button').first().click();
+  await expect(lv('Базовый уровень')).toHaveAttribute('data-open', 'false');
+  await page.reload({ waitUntil: 'networkidle' });
+  await openChapter();
+  await expect(lv('Базовый уровень')).toHaveAttribute('data-open', 'false');
+  await expect(lv('Семинарский уровень')).toHaveAttribute('data-open', 'true');
+  expect(errors).toEqual([]);
+});
+
 test('учебник: кругооборот в «ВВП» и балансы банков по шагам в «Деньгах и банках»', async ({ page }) => {
   const { errors } = await openApp(page);
   await openBook(page);

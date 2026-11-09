@@ -657,13 +657,17 @@ function groupLevels(blocks) {
   });
   return out;
 }
+/* свёрнутый или раскрытый вручную раздел помнится на устройстве (пункт владельца 09.11): ключ — первая задача раздела */
+const LEVELS_KEY = 'ems-tb-levels';
 function LevelGroup({ g, ctx, startNo }) {
   const basic = g.title.toLowerCase().startsWith('базов');
-  const [open, setOpen] = useState(basic);
+  const key = (g.blocks.find((b) => b.type === 'problem') || {}).id || g.title;
+  const [open, setOpenRaw] = useState(() => { const m = readJSON(LEVELS_KEY, {}); return m && typeof m[key] === 'boolean' ? m[key] : basic; });
+  const setOpen = (f) => { const nv = typeof f === 'function' ? f(open) : f; setOpenRaw(nv); const m = readJSON(LEVELS_KEY, {}); writeJSON(LEVELS_KEY, { ...(m && typeof m === 'object' ? m : {}), [key]: nv }); };
   const n = g.blocks.filter((b) => b.type === 'problem').length;
   const solved = g.blocks.filter((b) => b.type === 'problem' && ctx.progress.problems[b.id] && ctx.progress.problems[b.id].ok).length;
   return (
-    <div data-testid="tb-level-group" data-level={g.title}>
+    <div data-testid="tb-level-group" data-level={g.title} data-open={String(open)}>
       <button type="button" className="ems-btn" aria-expanded={open} style={{ width: '100%', textAlign: 'left', padding: '9px 12px', margin: '14px 0 6px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}
         onClick={() => { Audio.play('click'); setOpen((v) => !v); }}>
         <ChevronDown size={14} style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
