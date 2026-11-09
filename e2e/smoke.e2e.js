@@ -4808,6 +4808,53 @@ test('Путь: тест уровня — сдан, и Путь сразу на 
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 09.11: «после каждого уровня — экзамен по всему уровню и прошлым, только не называй его экзамен»
+test('«Большое повторение» в конце уровня: новый уровень ждёт его; 15 заданий, «Уровень подтверждён» и печать; потом — следующий уровень', async ({ page }) => {
+  test.setTimeout(180_000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('ems-level-test', '1');
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const path = page.getByTestId('path');
+  // Путь стоит на «Начальном»: под последним юнитом — «Большое повторение», это следующая остановка
+  await expect(path.getByTestId('level-switch')).toHaveAttribute('data-level', 'start');
+  const stop = path.getByTestId('level-review');
+  await expect(stop).toHaveAttribute('data-level', 'start');
+  await expect(stop).toHaveAttribute('data-state', 'open');
+  await expect(stop).toHaveAttribute('data-cur', 'true');
+  await expect(stop).toContainText('Большое повторение');
+  await expect(stop).not.toContainText(/экзамен/i);
+  // следующий уровень закрыт, пока повторение не пройдено
+  await expect(path.getByTestId('level-next')).toHaveAttribute('data-locked', 'true');
+  await stop.getByTestId('level-review-start').click();
+  const lesson = page.getByTestId('lesson');
+  await expect(lesson).toHaveAttribute('data-mode', 'level');
+  await expect(lesson).toHaveAttribute('aria-label', 'Большое повторение: начальный уровень');
+  await expect(lesson.getByRole('progressbar').first()).toHaveAccessibleName(/из 15$/);
+  await playLesson(page);
+  const res = page.getByTestId('lesson-result');
+  await expect(res.getByTestId('result-title')).toHaveText('Уровень подтверждён');
+  await expect(res).toContainText('Уровень «Базовый» открыт');
+  await expect(res.getByTestId('result-coins')).toContainText('За большое повторение+20');
+  await res.getByRole('button', { name: 'Дальше', exact: true }).click();
+  // Путь — на «Базовом», первый урок открыт
+  await expect(path.getByTestId('level-switch')).toHaveAttribute('data-level', 'basic');
+  await expect(pathNode(page, 'sd-i1')).toHaveAttribute('data-state', 'open');
+  // на «Начальном» — печать «Уровень подтверждён» и «Пройти ещё раз»
+  await path.getByTestId('level-prev').click();
+  await expect(stop).toHaveAttribute('data-state', 'done');
+  await expect(stop).toHaveAttribute('data-ok', 'true');
+  await expect(stop.getByTestId('level-review-seal')).toBeVisible();
+  await expect(stop.getByTestId('level-review-start')).toHaveText('Пройти ещё раз');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.levels.start.best)).toBe(100);
+  expect(errors).toEqual([]);
+});
+
 test('память браузера: уведомление один раз — cookie нет, «Подробнее» ведёт на страницу данных', async ({ page }) => {
   await withTestFlag(page);
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });

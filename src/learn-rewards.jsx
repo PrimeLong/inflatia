@@ -1282,7 +1282,8 @@ export function Achievements({ learn }) {
 }
 
 /* ------------------------------ НАГРАДЫ ЗА УРОК ------------------------------ */
-export function GainsList({ coins, gains }) {
+// label — за что монеты основной строки («За урок»; у большого повторения — «За большое повторение»)
+export function GainsList({ coins, gains, label = 'За урок' }) {
   const total = coins + gains.reduce((a, g) => a + g.coins, 0);
   if (!total) return null;
   return (
@@ -1291,7 +1292,7 @@ export function GainsList({ coins, gains }) {
         <Coins size={20} color="var(--ds-gold)" aria-hidden="true" /><CountUp value={total} prefix="+" /> <span style={{ font: '15px var(--ds-sans)' }}>{coinsWord(total)}</span>
       </div>
       <div style={{ marginTop: 6 }}>
-        {coins > 0 && <div className="ds-row" style={{ fontSize: 13.5 }}><span>За урок</span><b className="ds-num">+{coins}</b></div>}
+        {coins > 0 && <div className="ds-row" style={{ fontSize: 13.5 }}><span>{label}</span><b className="ds-num">+{coins}</b></div>}
         {gains.map((g) => <div key={g.key} className="ds-row" style={{ fontSize: 13.5 }} data-testid="gain" data-kind={g.kind}><span>{g.title}</span><b className="ds-num">+{g.coins}</b></div>)}
       </div>
     </div>

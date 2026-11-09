@@ -54,7 +54,10 @@ export function earn(s, n, key = null, now = Date.now()) {
   };
 }
 // монеты за пройденный урок, практику или проверку; diamond — алмазный уровень, gem — алмаз урока уже был
-export function runCoins({ mode, replay = false, accuracy = 0, pass = null, items = 0, diamond = false, gem = false }) {
+/* «Большое повторение» уровня (mode 'level'): уровень подтверждён (pass, 80%+) — как сданная проверка, иначе — как
+   урок; каждое — один раз (ключи lvok:/lv:), после подтверждения непрошедший заход монет не даёт (confirmed) */
+export function runCoins({ mode, replay = false, accuracy = 0, pass = null, items = 0, diamond = false, gem = false, confirmed = false }) {
+  if (mode === 'level') return pass ? COIN.check : confirmed ? 0 : COIN.lesson;
   if (mode === 'lesson' && diamond) return accuracy < DIAMOND_ACCURACY ? 0 : gem ? COIN.diamondReplay : COIN.diamond + (accuracy >= 100 ? COIN.diamondPerfect : 0);
   if (mode === 'lesson') return replay ? COIN.replay : COIN.lesson + (accuracy >= 100 ? COIN.perfect : 0);
   if (mode === 'practice' || mode === 'fix') return items ? COIN.practice : 0;
@@ -62,7 +65,8 @@ export function runCoins({ mode, replay = false, accuracy = 0, pass = null, item
   return 0;
 }
 // ключ награды: первое прохождение урока и первый алмаз — по разу
-export const runKey = ({ mode, lessonId, replay, diamond, gem }) => (mode !== 'lesson' ? null : diamond ? (gem ? null : `d:${lessonId}`) : replay ? null : `l:${lessonId}`);
+export const runKey = ({ mode, lessonId, replay, diamond, gem, levelId = null, pass = false, confirmed = false }) => (mode === 'level' ? (pass ? `lvok:${levelId}` : confirmed ? null : `lv:${levelId}`)
+  : mode !== 'lesson' ? null : diamond ? (gem ? null : `d:${lessonId}`) : replay ? null : `l:${lessonId}`);
 /* Особые уроки — «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам» (docs/mechanics.md, «Особые уроки юнита»):
    пройден впервые — как урок (10, без ошибок — ещё 5); алмаз взят впервые (won, а gem — уже был) — как алмаз урока
    (25 и ещё 10 «без ошибок»). Повтор — без монет: задания в нём те же самые (обычный урок на повторе собирается

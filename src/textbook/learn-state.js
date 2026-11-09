@@ -46,7 +46,7 @@ const MAX_SOLVED = 200;
    garden / harvest — сад Инфли: посадки { время посадки: 'растение@грядка' } и собранные { время посадки: когда собрали };
    water — поливы { время полива: время посадки }. */
 export const emptyLearn = () => ({
-  lessons: {}, units: {}, goal: 1, goalAt: 0, xp: {}, done: {}, types: {},
+  lessons: {}, units: {}, levels: {}, goal: 1, goalAt: 0, xp: {}, done: {}, types: {},
   runs: { started: 0, finished: 0, abandoned: 0 }, quits: {}, quitAt: {}, mistakes: [], hinted: [], solved: {}, unhint: {},
   profile: { goal: null, minutes: null, knows: false, at: 0 }, placement: { at: 0, opened: [] }, run: { n: 0, at: 0 },
   topics: {}, recent: '', recentAt: 0, daily: {},
@@ -366,6 +366,17 @@ export function passUnit(s, unitId, { ace = false, now = Date.now() } = {}) {
   const prev = (s.units || {})[unitId] || {};
   return upd(s, { units: { ...s.units, [unitId]: { tested: prev.tested || now, ...(ace || prev.ace ? { ace: prev.ace || now } : {}) } } });
 }
+/* «Большое повторение» уровня (docs/mechanics.md, «Большое повторение: в конце каждого уровня»): пройдено —
+   с любым результатом; ok — уровень подтверждён (80% и выше). Тест уровня, сданный досрочно, засчитывает и его. */
+export const LEVEL_REVIEW_OK = 80;
+export const levelReviewDone = (s, levelId) => !!((s.levels || {})[levelId] || {}).at;
+export const levelConfirmed = (s, levelId) => !!((s.levels || {})[levelId] || {}).ok;
+export function finishLevelReview(s, levelId, { accuracy = 0, now = Date.now() } = {}) {
+  const prev = (s.levels || {})[levelId] || {};
+  const acc = Math.max(0, Math.min(100, Math.round(accuracy)));
+  const ok = prev.ok || (acc >= LEVEL_REVIEW_OK ? now : 0);
+  return upd(s, { levels: { ...s.levels, [levelId]: { at: prev.at || now, best: Math.max(prev.best || 0, acc), ...(ok ? { ok } : {}) } } });
+}
 // урок пройден по-настоящему: был хотя бы один доведённый до конца раз (старые записи вступительного теста — runs: 0)
 export const lessonDone = (s, id) => ((s.lessons || {})[id] || {}).runs > 0;
 export const setGoal = (s, goal, now = Date.now()) => (GOALS.includes(goal) ? upd(s, { goal, goalAt: now }) : s);
@@ -559,6 +570,9 @@ export function normalizeLearn(raw) {
   });
   const units = {};
   Object.keys(obj(r.units)).filter(okKey).slice(0, MAX_KEYS).forEach((k) => { const u = obj(r.units[k]); const t = cnt(u.tested, 1e14); const ace = cnt(u.ace, 1e14); if (t) units[k] = { tested: t, ...(ace ? { ace } : {}) }; });
+  // «Большое повторение» уровня: когда пройдено впервые, лучшая точность, когда уровень подтверждён (80%+)
+  const levels = {};
+  Object.keys(obj(r.levels)).filter(okKey).slice(0, 20).forEach((k) => { const v = obj(r.levels[k]); const at = cnt(v.at, 1e14); const ok = cnt(v.ok, 1e14); if (at) levels[k] = { at, best: cnt(v.best, 100), ...(ok ? { ok } : {}) }; });
   const types = {};
   Object.keys(obj(r.types)).filter(okKey).slice(0, 20).forEach((k) => {
     const t = obj(r.types[k]); const n = cnt(t.n);
@@ -571,7 +585,7 @@ export function normalizeLearn(raw) {
   const recentTs = (v) => Object.fromEntries(Object.entries(tsMap(v, 5000)).sort((a, b) => a[1] - b[1]).slice(-MAX_SOLVED));
   const solved = recentTs(r.solved); const unhint = recentTs(r.unhint);
   return {
-    lessons, units, types,
+    lessons, units, levels, types,
     goal: GOALS.includes(r.goal) ? r.goal : e.goal, goalAt: cnt(r.goalAt, 1e14),
     xp: dayMap(r.xp, 1e6), done: dayMap(r.done, 1000),
     runs: { started, finished: Math.min(started || cnt(runs.finished), cnt(runs.finished)), abandoned: cnt(runs.abandoned) },
@@ -741,6 +755,10 @@ export function mergeLearn(a, b) {
   });
   const units = { ...x.units };
   Object.entries(y.units).forEach(([k, u]) => { const c = units[k] || {}; const ace = Math.max(c.ace || 0, u.ace || 0); units[k] = { tested: Math.max(c.tested || 0, u.tested), ...(ace ? { ace } : {}) }; });
+  const levels = { ...x.levels };
+  // большое повторение: первое прохождение — раньшее, точность — лучшая, подтверждение — если было хоть где-то
+  const early = (a, b) => (a && b ? Math.min(a, b) : a || b || 0);
+  Object.entries(y.levels || {}).forEach(([k, v]) => { const c = levels[k]; const ok = c ? early(c.ok, v.ok) : v.ok || 0; levels[k] = c ? { at: early(c.at, v.at), best: Math.max(c.best, v.best), ...(ok ? { ok } : {}) } : v; });
   const types = { ...x.types };
   Object.entries(y.types).forEach(([k, t]) => { const c = types[k] || { n: 0, ok: 0, ms: 0 }; types[k] = { n: Math.max(c.n, t.n), ok: Math.max(c.ok, t.ok), ms: Math.max(c.ms, t.ms) }; });
   const byId = {};
@@ -749,7 +767,7 @@ export function mergeLearn(a, b) {
   [...x.hinted, ...y.hinted].forEach((m) => { hintById[m.id] = Math.max(hintById[m.id] || 0, m.at); });
   const laterGoal = y.goalAt > x.goalAt || (y.goalAt === x.goalAt && y.goal > x.goal);
   return normalizeLearn({
-    lessons, units, types,
+    lessons, units, levels, types,
     goal: laterGoal ? y.goal : x.goal, goalAt: Math.max(x.goalAt, y.goalAt),
     xp: maxMap(x.xp, y.xp), done: maxMap(x.done, y.done),
     runs: { started: Math.max(x.runs.started, y.runs.started), finished: Math.max(x.runs.finished, y.runs.finished), abandoned: Math.max(x.runs.abandoned, y.runs.abandoned) },
