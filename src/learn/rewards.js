@@ -3,7 +3,7 @@
    платите вы монетами по курсу дня — он колеблется вокруг единицы и тянется к ней обратно.
    Модуль чистый: всё считается из состояния учёбы (learn-state.js); каждая награда выдаётся
    под ключом (claimed) — ни дважды, ни на двух устройствах. Экраны — src/learn.jsx. */
-import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf } from '../textbook/learn-state.js';
+import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf, diamondCount } from '../textbook/learn-state.js';
 import { plural } from '../lib/plural.js';
 import { LESSONS, UNITS } from './course.js';
 import { halloweenOn, WEB_FRAME } from './halloween.js';
@@ -54,7 +54,10 @@ export function earn(s, n, key = null, now = Date.now()) {
   };
 }
 // монеты за пройденный урок, практику или проверку; diamond — алмазный уровень, gem — алмаз урока уже был
-export function runCoins({ mode, replay = false, accuracy = 0, pass = null, items = 0, diamond = false, gem = false }) {
+/* «Большое повторение» уровня (mode 'level'): уровень подтверждён (pass, 80%+) — как сданная проверка, иначе — как
+   урок; каждое — один раз (ключи lvok:/lv:), после подтверждения непрошедший заход монет не даёт (confirmed) */
+export function runCoins({ mode, replay = false, accuracy = 0, pass = null, items = 0, diamond = false, gem = false, confirmed = false }) {
+  if (mode === 'level') return pass ? COIN.check : confirmed ? 0 : COIN.lesson;
   if (mode === 'lesson' && diamond) return accuracy < DIAMOND_ACCURACY ? 0 : gem ? COIN.diamondReplay : COIN.diamond + (accuracy >= 100 ? COIN.diamondPerfect : 0);
   if (mode === 'lesson') return replay ? COIN.replay : COIN.lesson + (accuracy >= 100 ? COIN.perfect : 0);
   if (mode === 'practice' || mode === 'fix') return items ? COIN.practice : 0;
@@ -62,7 +65,8 @@ export function runCoins({ mode, replay = false, accuracy = 0, pass = null, item
   return 0;
 }
 // ключ награды: первое прохождение урока и первый алмаз — по разу
-export const runKey = ({ mode, lessonId, replay, diamond, gem }) => (mode !== 'lesson' ? null : diamond ? (gem ? null : `d:${lessonId}`) : replay ? null : `l:${lessonId}`);
+export const runKey = ({ mode, lessonId, replay, diamond, gem, levelId = null, pass = false, confirmed = false }) => (mode === 'level' ? (pass ? `lvok:${levelId}` : confirmed ? null : `lv:${levelId}`)
+  : mode !== 'lesson' ? null : diamond ? (gem ? null : `d:${lessonId}`) : replay ? null : `l:${lessonId}`);
 /* Особые уроки — «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам» (docs/mechanics.md, «Особые уроки юнита»):
    пройден впервые — как урок (10, без ошибок — ещё 5); алмаз взят впервые (won, а gem — уже был) — как алмаз урока
    (25 и ещё 10 «без ошибок»). Повтор — без монет: задания в нём те же самые (обычный урок на повторе собирается
@@ -477,10 +481,10 @@ export const ACHIEVEMENTS = [
   { id: 'owl', icon: 'moon', title: 'Сова', text: 'Урок после десяти вечера', how: 'Пройдите урок после десяти вечера — по часам вашего устройства', coins: 10, test: (s) => Object.values(s.daily || {}).some((d) => d.h & 2) },
   { id: 'saver', icon: 'piggy', title: 'Пятьсот монет', text: 'Заработано 500 монет', how: 'Заработайте 500 монет', coins: 30, test: (s) => earned(s) >= 500 },
   { id: 'month', icon: 'calendar', title: 'Испытание месяца', text: 'Выполнено испытание месяца', how: 'Выполните испытание месяца', coins: 150, test: (s) => Object.keys(s.claimed || {}).some((k) => k.startsWith('m:')) },
-  { id: 'diamond', icon: 'diamond', title: 'Огранщик', text: 'Урок взят на алмазном уровне', how: 'Возьмите урок на алмазном уровне', coins: 20, test: (s) => Object.values(s.lessons || {}).some((l) => l.diamond) },
+  { id: 'diamond', icon: 'diamond', title: 'Огранщик', text: 'Урок взят на алмазном уровне', how: 'Возьмите урок на алмазном уровне', coins: 20, test: (s) => diamondCount(s) > 0 },
   // забег с другом (src/learn/friends.js): победа — отметка race:<id>:won
   { id: 'race', icon: 'flag', title: 'Забег', text: 'Выигран забег с другом', how: 'Позовите друга на забег и наберите за три дня больше опыта', coins: 30, test: (s) => Object.keys(s.claimed || {}).some((k) => /^race:[a-z0-9]+:won$/.test(k)) },
-  { id: 'diamond10', icon: 'gem', title: 'Ювелир', text: 'Десять уроков на алмазном уровне', how: 'Возьмите десять уроков на алмазном уровне', coins: 60, test: (s) => Object.values(s.lessons || {}).filter((l) => l.diamond).length >= 10 },
+  { id: 'diamond10', icon: 'gem', title: 'Ювелир', text: 'Десять уроков на алмазном уровне', how: 'Возьмите десять уроков на алмазном уровне', coins: 60, test: (s) => diamondCount(s) >= 10 },
 ];
 export const achievementKey = (id) => `a:${id}`;
 

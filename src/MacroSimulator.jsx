@@ -11,6 +11,7 @@ import { Audio } from './audio/lazy.js';
 import { BrandLoader } from './logo.jsx';
 import { useAccount, loadAccount, refreshAccount, NameGate } from './account.jsx';
 import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
+import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './lib/world-trial.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -21,7 +22,7 @@ import {
   loadProgress as loadTextbookProgress, saveProgress as saveTextbookProgress, mergeTextbook, TEXTBOOK_PROGRESS_KEY,
   PROGRESS_EVENT,
 } from './textbook/progress.js';
-import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
+import { featureOpen, FeatureLocked, WorldTrialChip, WorldTrialEnd, WorldTrialSaved } from './learn-unlock.jsx';
 import { BookLinkContext } from './booklink-context.js';
 import { LATEST_NEWS, readNewsSeen, newsForLearner, learnerSince, readFeedSeenAt, friendNewsSince } from './learn/news.js';
 import { friendsState } from './lib/friends-store.js';
@@ -498,9 +499,13 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
             <button className="ems-btn" style={{ padding: '3px 5px', lineHeight: 0 }} aria-label="Закрыть"
               onClick={() => { Audio.play('click'); setOpen(false); }}><X size={12} /></button>
           </div>
-          <div style={{ background: COLOR.panelAlt, border: `1px solid ${COLOR.border}`, borderRadius: 3, padding: '9px 10px', marginBottom: 9 }}>
+          <div style={{ background: COLOR.panelAlt, border: `1px solid ${COLOR.border}`, borderRadius: 3, padding: '9px 10px', marginBottom: 9 }}
+            data-testid="music-now" data-track={np.id || ''} data-file={String(!!np.file)}>
             <div className="ems-serif" style={{ fontSize: 13, color: COLOR.text, lineHeight: 1.2 }}>{np.name}</div>
-            <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 2 }}>{np.subtitle}</div>
+            {/* звучит запись из public/music, а не синтез (docs/mechanics.md, «Музыка: записи вместо синтеза») */}
+            <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 2 }}>{np.file
+              ? <><span data-testid="music-file" style={{ display: 'inline-block', padding: '0 6px', marginRight: 6, borderRadius: 999, border: `1px solid ${COLOR.gold}`, color: COLOR.goldSoft, fontSize: 11, lineHeight: '16px' }}>запись</span>{np.subtitle}</>
+              : np.subtitle}</div>
             <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
               <button className="ems-btn" style={{ flex: 1, padding: '4px 0', fontSize: 12 }} onClick={() => { Audio.play('tick'); Audio.skip(false); }}>◀ пред.</button>
               <button className="ems-btn" style={{ flex: 1, padding: '4px 0', fontSize: 12 }} onClick={() => { Audio.play('tick'); Audio.skip(true); }}>след. ▶</button>
@@ -512,7 +517,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
                 <div key={x.id} onClick={() => { Audio.play('tick'); Audio.playTrack(x.id); }}
                   style={{ fontSize: 12, padding: '3px 6px', borderRadius: 2, cursor: 'pointer',
                     color: x.current ? COLOR.goldSoft : COLOR.muted, background: x.current ? COLOR.goldDim : 'transparent' }}>
-                  {x.current ? '♪ ' : '   '}{x.name}
+                  {x.current ? '♪ ' : '   '}{x.name}{x.file ? <span style={{ color: COLOR.faint }}> · запись</span> : null}
                 </div>
               ))}
             </div>
@@ -1005,9 +1010,11 @@ export default function MacroSimulator() {
   // в адресе нет приглашения в сетевую комнату: оно важнее того, что было
   // открыто на этой вкладке раньше
   // до ухода со страницы было открыто «Своё дело» — открываем его, а не партию за государство
-  const [resumeTycoon] = useState(() => (!roomCodeFromUrl() && tycoonWasOpen() ? loadTycoonSave() : null));
-  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon ? null : loadAutosave()));
-  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon ? null : (loadAutosave() || {}).setup || null));
+  // «Мир» закрыт (проба с приветствия кончилась, docs/mechanics.md, «„Мир“ на пробу») — сохранённая партия сама не открывается
+  const [worldShut] = useState(() => trialEnded() && !featureOpen(loadTextbookProgress().learn, 'world'));
+  const [resumeTycoon] = useState(() => (!roomCodeFromUrl() && !worldShut && tycoonWasOpen() ? loadTycoonSave() : null));
+  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : loadAutosave()));
+  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : (loadAutosave() || {}).setup || null));
   const [nonce, setNonce] = useState(0);
   // оформление «Мира» — сохранённое на устройстве или по ночной теме из настроек (ds-tokens.js)
   const [theme, setThemeState] = useState(worldThemeId);
@@ -1039,16 +1046,21 @@ export default function MacroSimulator() {
   const [gate, setGate] = useState(() => !loadAccount() && !isGuest());
   const [gateScreen, setGateScreen] = useState('hello');
   const [firstLesson, setFirstLesson] = useState(false);
+  // «Мир» на пробу кончился — окно «Пробная игра окончена» (src/lib/world-trial.js)
+  const [trialOver, setTrialOver] = useState(false);
   React.useEffect(() => {
-    const ready = () => { setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
+    const ready = () => { setTrialOver(false); setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
     const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('path'); setFirstLesson(true); window.scrollTo(0, 0); };
-    const guestSave = () => { setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
-    const guestLogin = () => { setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
+    const guestSave = () => { setTrialOver(false); setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
+    const guestLogin = () => { setTrialOver(false); setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
+    // с приветствия — сразу в «Мир», без аккаунта и уроков
+    const worldTrial = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('world'); window.scrollTo(0, 0); track('world_trial_start'); };
     window.addEventListener('ems-account-ready', ready);
     window.addEventListener(GUEST_START, guestStart);
     window.addEventListener(GUEST_SAVE, guestSave);
     window.addEventListener(GUEST_LOGIN, guestLogin);
-    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); window.removeEventListener(GUEST_LOGIN, guestLogin); };
+    window.addEventListener(WORLD_TRIAL, worldTrial);
+    return () => { window.removeEventListener('ems-account-ready', ready); window.removeEventListener(GUEST_START, guestStart); window.removeEventListener(GUEST_SAVE, guestSave); window.removeEventListener(GUEST_LOGIN, guestLogin); window.removeEventListener(WORLD_TRIAL, worldTrial); };
   }, []);
   React.useEffect(() => { if (!account && !guest) { setGateScreen('hello'); setGate(true); } }, [account, guest]);
   // детский режим и имя — с сервера при каждом запуске (профиль мог поменяться на другом устройстве)
@@ -1097,6 +1109,23 @@ export default function MacroSimulator() {
   // и сколько уроков осталось, в оформлении обучения
   const worldLocked = tab === 'world' && !featureOpen(loadTextbookProgress().learn, 'world');
   const learning = showGate || (view === 'menu' && !setup && !network && !tycoon && (tab !== 'world' || worldLocked));
+  /* «Мир» на пробу: время идёт, пока «Мир» на экране и вкладка видна; вышло — партия закрывается (она сохранена),
+     вкладка «Мир» — под замком, поверх — «Пробная игра окончена» */
+  const [trialLeftS, setTrialLeftS] = useState(() => trialLeft());
+  const trialOn = !learning && !showGate && trialActive();
+  React.useEffect(() => {
+    if (!trialOn) return undefined;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      const ended = tickTrial(1);
+      setTrialLeftS(trialLeft());
+      if (ended) {
+        setNetwork(null); setLoaded(null); setSetup(null); setTycoon(null); setView('menu'); setTabRaw('world');
+        setTrialOver(true); window.scrollTo(0, 0); track('world_trial_end');
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [trialOn]);
   // обучение — в своей светлой (или тёмной по выбору) теме; «канцелярия» — только в «Мире»
   applyTheme(learning ? learnThemeId() : theme);
   /* Звук: в обучении музыка по умолчанию выключена (своя настройка в профиле), звуки
@@ -1197,6 +1226,7 @@ export default function MacroSimulator() {
           {tab === 'world' && worldLocked ? (
             <DsRoot theme={dsThemeId()} style={{ minHeight: '100vh' }}>
               <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 120px' }} data-testid="world-locked">
+                {trialEnded() && <WorldTrialSaved hasAccount={!!account} />}
                 <FeatureLocked id="world" learn={loadTextbookProgress().learn} onPath={() => setTab('path')} />
               </div>
             </DsRoot>
@@ -1287,5 +1317,10 @@ export default function MacroSimulator() {
     );
   }
   // ник под запретом: окно «Смените ник» или экран блокировки (src/account.jsx) — поверх любого экрана
-  return <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{wrapped}<NameGate /></ScreenErrorBoundary>;
+  return (
+    <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{wrapped}<NameGate />
+      {trialOn && <WorldTrialChip left={trialLeftS} />}
+      {trialOver && <DsRoot theme={dsThemeId()}><WorldTrialEnd hasAccount={!!account} onLessons={() => { setTrialOver(false); setTab('path'); }} /></DsRoot>}
+    </ScreenErrorBoundary>
+  );
 }

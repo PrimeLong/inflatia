@@ -1492,3 +1492,40 @@ describe('валюта учебника — кроны', () => {
     expect(bad).toEqual([]);
   });
 });
+
+/* Задачи главы — по разделам уровней (docs/mechanics.md, «Учебник: карточка задачи»; пункт владельца 09.11: в
+   «Производственной функции» разделов не было). Каждая задача стоит под подзаголовком своего уровня. */
+describe('задачи глав — по разделам уровней', () => {
+  // у пробы политологии второй раздел — «Средний уровень»
+  const LEVEL_HEAD = { 1: ['базовый уровень'], 2: ['семинарский уровень', 'средний уровень'], 3: ['олимпиадный уровень'] };
+  it('у каждой главы с задачами есть разделы, задача — в разделе своего уровня', () => {
+    Object.entries(CHAPTER_BLOCKS).forEach(([id, blocks]) => {
+      let head = null; let n = 0;
+      blocks.forEach((b) => {
+        if (b.type === 'h2') head = null;
+        if (b.type === 'h3') head = plainText(b.inline).trim().toLowerCase();
+        if (b.type === 'problem') {
+          n += 1;
+          expect(LEVEL_HEAD[b.level], `${id}: ${b.id} без раздела своего уровня (${head})`).toContain(head);
+        }
+      });
+      if (n) expect(blocks.some((b) => b.type === 'h3'), id).toBe(true);
+    });
+  });
+});
+
+// жалоба mw83zvnk (09.11): на графике MP и AP ползунок L двигает отметки на обеих кривых, а не только числа под графиком
+describe('график среднего и предельного продукта: отметки ползунка L', () => {
+  it('при L — точка на MP с подписью и точка на AP; ползунок двигает обе', () => {
+    const at = (L) => CHARTS.product.build({ view: 'avg' }, { ...chartDefaults('product', { view: 'avg' }), L });
+    const pts = (sc) => sc.points.filter((p) => p.id === 'L-MP' || p.id === 'L-AP');
+    const a = pts(at(3)); const b = pts(at(6));
+    expect(a).toHaveLength(2);
+    a.forEach((p) => expect(p.x).toBe(3));
+    b.forEach((p) => expect(p.x).toBe(6));
+    expect(a.find((p) => p.id === 'L-MP').label).toBe('L = 3');
+    const m = CHARTS.product.measure({ view: 'avg' }, { L: 3, A: 1 });
+    expect(a.find((p) => p.id === 'L-MP').y).toBeCloseTo(m.MP, 6);
+    expect(a.find((p) => p.id === 'L-AP').y).toBeCloseTo(m.AP, 6);
+  });
+});

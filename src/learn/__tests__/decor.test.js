@@ -114,7 +114,7 @@ describe('физика вещиц', () => {
 
 describe('колыбель: несколько шариков сразу', () => {
   it('взяли второй слева — подняты два; отпустили — справа вылетают два', async () => {
-    const { holdCradle, cradleGroup } = await import('../../learn-decor.jsx');
+    const { holdCradle, cradleGroup, releaseCradle } = await import('../../learn-decor.jsx');
     const H = 48; const m = decorModel('desk-cradle', 400, H);
     expect(cradleGroup(m, 1, -1).group).toHaveLength(2);
     expect(cradleGroup(m, 3, 1).group).toHaveLength(2);
@@ -124,9 +124,11 @@ describe('колыбель: несколько шариков сразу', () =>
     expect(cradleGroup(m, 1, 1).group).toHaveLength(4);
     expect(cradleGroup(m, 4, -1).group).toHaveLength(5);
     expect(holdCradle(m, 1, -m.L * 0.6)).toBe(2);
-    expect(m.balls[0].a).toBeCloseTo(m.balls[1].a);
+    // держим — шарики долетают до руки
+    for (let k = 0; k < 40; k += 1) decorStep(m, 1 / 60, H);
+    expect(m.balls[0].a).toBeCloseTo(m.balls[1].a, 2);
     expect(m.balls[0].a).toBeLessThan(-0.3);
-    m.balls.forEach((b) => { b.drag = false; });
+    releaseCradle(m);
     let out3 = 0; let out4 = 0;
     for (let k = 0; k < 45; k += 1) { decorStep(m, 1 / 60, H); out3 = Math.max(out3, m.balls[3].a); out4 = Math.max(out4, m.balls[4].a); }
     expect(out4).toBeGreaterThan(0.25);
@@ -134,14 +136,55 @@ describe('колыбель: несколько шариков сразу', () =>
   });
 
   it('правый крайний толкнули влево — уходят все пять, отпустили — качаются все вместе', async () => {
-    const { holdCradle } = await import('../../learn-decor.jsx');
+    const { holdCradle, releaseCradle } = await import('../../learn-decor.jsx');
     const H = 48; const m = decorModel('desk-cradle', 400, H);
     expect(holdCradle(m, 4, -m.L * 0.5)).toBe(5);
+    for (let k = 0; k < 40; k += 1) decorStep(m, 1 / 60, H);
     m.balls.forEach((b) => expect(b.a).toBeLessThan(-0.3));
-    m.balls.forEach((b) => { b.drag = false; });
+    releaseCradle(m);
     const seen = m.balls.map(() => 0);
     for (let k = 0; k < 30; k += 1) { decorStep(m, 1 / 60, H); m.balls.forEach((b, i) => { seen[i] = Math.max(seen[i], Math.abs(b.w)); }); }
     seen.forEach((w) => expect(w).toBeGreaterThan(1));
+  });
+});
+
+// пункт владельца 09.11: «чтобы ты тянул шарик и он не моментально оказывался где мышка, а летел к тебе»
+describe('колыбель: шарик летит к руке, а не прыгает под курсор', () => {
+  it('взяли и потянули — шарик разгоняется и догоняет руку без рывка, без заметного перелёта', async () => {
+    const { holdCradle, CRADLE_MAX } = await import('../../learn-decor.jsx');
+    const H = 120; const m = decorModel('desk-cradle', 300, H);
+    settle(m, H);
+    holdCradle(m, 0, -m.L * 0.5);
+    const target = Math.asin(-0.5);
+    // сразу после «взяли» шарик ещё на месте — под руку он не перескочил
+    expect(Math.abs(m.balls[0].a)).toBeLessThan(0.01);
+    const path = [];
+    for (let k = 0; k < 60; k += 1) { decorStep(m, 1 / 60, H); path.push(m.balls[0].a); }
+    // летит: за кадр — понемногу, за первые 50 мс — меньше половины пути, за полсекунды — почти у руки
+    for (let k = 1; k < path.length; k += 1) expect(Math.abs(path[k] - path[k - 1]), `кадр ${k}`).toBeLessThan(0.09);
+    expect(Math.abs(path[2])).toBeLessThan(Math.abs(target) / 2);
+    expect(Math.abs(path[30] - target)).toBeLessThan(0.05);
+    // перелёт за руку — едва заметный, и не дальше предела рамы
+    expect(Math.min(...path)).toBeGreaterThan(target - 0.03);
+    path.forEach((a) => expect(Math.abs(a)).toBeLessThanOrEqual(CRADLE_MAX + 1e-9));
+  });
+  it('отпустили на лету — шарик уходит со своей скоростью; держали неподвижно — просто падает', async () => {
+    const { holdCradle, releaseCradle, CRADLE_PULL } = await import('../../learn-decor.jsx');
+    const H = 120; const m = decorModel('desk-cradle', 300, H);
+    settle(m, H);
+    holdCradle(m, 0, -m.L * 0.6);
+    for (let k = 0; k < 4; k += 1) decorStep(m, 1 / 60, H);
+    const w = m.balls[0].w;
+    expect(w).toBeLessThan(-0.5);
+    releaseCradle(m);
+    expect(m.balls[0].w).toBe(Math.max(-CRADLE_PULL.maxW, w));
+    expect(m.balls[0].drag).toBe(false);
+    const n = decorModel('desk-cradle', 300, H);
+    settle(n, H);
+    holdCradle(n, 0, -n.L * 0.5);
+    for (let k = 0; k < 90; k += 1) decorStep(n, 1 / 60, H);
+    releaseCradle(n);
+    expect(Math.abs(n.balls[0].w)).toBeLessThan(0.2);
   });
 });
 
@@ -163,7 +206,7 @@ describe('колыбель на подставке: плавный подъём 
       holdCradle(m, 0, -500);
       expect(Math.abs(m.balls[0].a)).toBeLessThanOrEqual(CRADLE_MAX + 1e-9);
       // взмах с предельной скоростью руки
-      m.balls.forEach((b) => { if (b.drag) b.w = -7; b.drag = false; });
+      m.balls.forEach((b) => { if (b.drag) b.w = -7; b.drag = false; b.pull = null; });
       for (let k = 0; k < 600; k += 1) {
         decorStep(m, 1 / 60, H);
         m.balls.forEach((b) => {

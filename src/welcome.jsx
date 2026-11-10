@@ -17,6 +17,7 @@ import { dsThemeId } from './ds-tokens.js';
 import { loadProgress, saveProgress } from './textbook/progress.js';
 import { setGoal, setProfile, PROFILE_GOAL_LABEL, LESSONS_FOR_MINUTES } from './textbook/learn-state.js';
 import { startGuest, endGuest } from './lib/guest.js';
+import { startWorldTrial, TRIAL_SECONDS } from './lib/world-trial.js';
 import { track, trackOnce } from './lib/client.js';
 
 // ответы первого запуска: после регистрации они уходят в программу ученика (learn.profile)
@@ -99,6 +100,9 @@ function Hello({ go }) {
       <div className="wl-foot">
         <Button wide onClick={() => { Audio.prime(); Audio.play('click'); trackOnce('welcome_start'); go('goal'); }}>Начать</Button>
         <Button variant="secondary" wide onClick={() => { Audio.prime(); Audio.play('click'); go('login'); }}>У меня уже есть аккаунт</Button>
+        {/* «Мир» на пробу — без регистрации и уроков (docs/mechanics.md, «„Мир“ на пробу — без регистрации») */}
+        <Button variant="ghost" wide icon={Globe2} data-testid="welcome-world" onClick={() => { Audio.prime(); Audio.play('click'); trackOnce('welcome_world_trial'); startWorldTrial(); }}>Сначала сыграть в «Мир»</Button>
+        <div className="ds-faint" style={{ textAlign: 'center', fontSize: 13, marginTop: -6 }} data-testid="welcome-world-note">{Math.round(TRIAL_SECONDS / 60)} минут без регистрации</div>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import { finishLesson, markMet, countAnswers, markGem, hasGem } from './textbook
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
+import { Zoomable } from './zoom-view.jsx';
 
 export const PEOPLE_CSS = `
   .pp-root { position: fixed; inset: 0; z-index: 300; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
@@ -139,14 +140,20 @@ export function usePhoto(p, off = false) {
 }
 /* Портрет: свой файл из public/people (с подписью автора и лицензии), иначе — гравированный медальон: штриховка гравюры,
    двойная рамка и инициалы антиквой. Фото не загрузилось — тоже медальон. */
-export function Portrait({ p, color, hidden = false, eager = false }) {
+export function Portrait({ p, color, hidden = false, eager = false, zoom = false }) {
   const loaded = usePhoto(p, hidden);
   const [broken, setBroken] = useState(false);
   const photo = loaded && !broken ? loaded : null;
   const gid = `pp-h-${p.id}`;
   return (
     <div className="pp-pic" data-testid="people-portrait" data-photo={photo ? 'true' : 'false'}>
-      {photo ? <img src={photo.file} alt={`Портрет: ${p.name}`} loading={eager ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      {photo && zoom ? (
+        // фото — касание открывает его на весь экран, целиком и с приближением (docs/mechanics.md, «Картинки на весь экран»)
+        <Zoomable title={p.name} testid="people-portrait-zoom" width={480} badge="br" style={{ width: '100%', height: '100%', borderRadius: 'inherit' }}
+          view={() => <img src={photo.file} alt={`Портрет: ${p.name}`} referrerPolicy="no-referrer" style={{ filter: 'sepia(.25) contrast(1.04)' }} />}>
+          <img src={photo.file} alt={`Портрет: ${p.name}`} loading={eager ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+        </Zoomable>
+      ) : photo ? <img src={photo.file} alt={`Портрет: ${p.name}`} loading={eager ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
         : (
           <svg viewBox="0 0 120 150" width="100%" height="100%" role="img" aria-label={hidden ? 'Ещё не знакомы' : `${p.name} — медальон с инициалами`} preserveAspectRatio="xMidYMid slice">
             <defs>
@@ -316,7 +323,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
           <div className="pp-col-l">
           <div className="pp-hero">
             <div>
-              <div className="pp-frame"><Portrait p={p} color={g.color} eager /></div>
+              <div className="pp-frame"><Portrait p={p} color={g.color} eager zoom /></div>
               <PhotoCredit p={p} />
             </div>
             <div style={{ minWidth: 0 }}>

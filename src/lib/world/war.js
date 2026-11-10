@@ -490,6 +490,9 @@ export function revancheStep(s, decisions, difficulty, q, blockStart) {
    (давление ниже 60). Выдохшийся противник уходит сам, срок войны — прежний. */
 export const DEF_FRONT = ['agri', 'periphery'];
 export const DEF_ENEMY = 'Республика Дешт';
+// сколько кварталов боёв, прежде чем Дешт сам пойдёт на перемирие (пункт владельца 09.11)
+export const DEF_MIN_QUARTERS = 3;
+const warLasted = (n) => `Война шла ${n} ${n % 10 === 1 && n % 100 !== 11 ? 'квартал' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'квартала' : 'кварталов'}.`;
 export function newDefenseCampaign() {
   return { pressure: { agri: 0, periphery: 0 }, occupied: [], morale: 100, last: null, next: 'agri' };
 }
@@ -508,7 +511,8 @@ export function botFrontOrder(s, personaId) {
   const occ = camp.occupied[0];
   if (personaId === 'strongman') return occ ? { target: occ, stance: 'counter' } : { target: camp.next, stance: 'defend' };
   if (occ && warStrength(s) >= 0.85) return { target: occ, stance: 'counter' };
-  if (personaId === 'populist' && (s.approval || 50) < 30) return { target: camp.next, stance: 'talks' };
+  // в первые два квартала бот-президент перемирия не просит — война «на квартал» выглядит ошибкой (пункт владельца 09.11)
+  if (personaId === 'populist' && (s.approval || 50) < 30 && (s.warElapsed || 0) >= 2) return { target: camp.next, stance: 'talks' };
   if (camp.occupied.length >= 2) return { target: camp.next, stance: 'talks' };
   return { target: camp.next || DEF_FRONT[0], stance: 'defend' };
 }
@@ -530,8 +534,8 @@ export function defenseStep(s, decisions, difficulty, q, starting) {
     out.impulses.push(makeImpulse('approvalPush', -2 - 3 * lost, 'Перемирие с Дештом', 'fast', difficulty, 'other'),
       makeImpulse('businessConfidence', 4, 'Бои прекращены', 'default', difficulty, 'other'));
     out.news.push(['gov', `ПЕРЕМИРИЕ: ${DEF_ENEMY.toUpperCase()} ОСТАНАВЛИВАЕТ НАСТУПЛЕНИЕ`, lost
-      ? `Стрельба прекращена. Занятые районы ${camp.occupied.map((id) => nameOf(id).gen).join(' и ')} возвращаются по соглашению — ценой уступок, которые оппозиция назовёт капитуляцией.`
-      : 'Стрельба прекращена, фронт удержан. Мир дороже войны, но его цену ещё будут вспоминать.', 9]);
+      ? `Стрельба прекращена. Занятые районы ${camp.occupied.map((id) => nameOf(id).gen).join(' и ')} возвращаются по соглашению — ценой уступок, которые оппозиция назовёт капитуляцией. ${warLasted((s.warElapsed || 1) + 1)}`
+      : `Стрельба прекращена, фронт удержан. Мир дороже войны, но его цену ещё будут вспоминать. ${warLasted((s.warElapsed || 1) + 1)}`, 9]);
     camp.last = { target, stance: 'talks', hit: null, gain: 0, pushed: 0 };
     out.campaign = camp;
     return out;
@@ -586,15 +590,16 @@ export function defenseStep(s, decisions, difficulty, q, starting) {
        перемирие — тем вероятнее, чем дольше война и чем ниже боевой дух его армии;
        занятое он при этом возвращает не даром — это перемирие, а не победа. */
     const elapsed = (s.warElapsed || 1);
-    const pStop = clamp(0.04 + 0.035 * elapsed + (100 - camp.morale) / 350, 0, 0.55);
+    // сам Дешт идёт на перемирие только после трёх кварталов боёв (пункт владельца 09.11: «война на 1 квартал»)
+    const pStop = elapsed < DEF_MIN_QUARTERS ? 0 : clamp(0.04 + 0.035 * elapsed + (100 - camp.morale) / 350, 0, 0.55);
     if (rng() < pStop) {
       out.endWar = true;
       const lost = camp.occupied.length;
       out.impulses.push(makeImpulse('approvalPush', lost ? 1 : 3, `${DEF_ENEMY} согласилась на перемирие`, 'fast', difficulty, 'other'),
         makeImpulse('businessConfidence', 4, 'Бои прекращены', 'default', difficulty, 'other'));
       out.news.push(['gov', `${DEF_ENEMY.toUpperCase()} ПРЕДЛАГАЕТ ПЕРЕМИРИЕ`, lost
-        ? `Армия противника устала: Ашкала соглашается остановить бои и вывести войска из ${camp.occupied.map((id) => nameOf(id).gen).join(' и ')} в обмен на прекращение огня.`
-        : 'Армия противника устала: Ашкала соглашается остановить бои по линии границы.', 10]);
+        ? `Армия противника устала: Ашкала соглашается остановить бои и вывести войска из ${camp.occupied.map((id) => nameOf(id).gen).join(' и ')} в обмен на прекращение огня. ${warLasted(elapsed + 1)}`
+        : `Армия противника устала: Ашкала соглашается остановить бои по линии границы. ${warLasted(elapsed + 1)}`, 10]);
     }
   }
   camp.last = { target, stance: stance.id, hit, gain: Math.round(gain), pushed: Math.round(pushed), feint };

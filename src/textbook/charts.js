@@ -1514,6 +1514,10 @@ const productChart = {
         points: [
           { x: f.apMaxL, y: f.ap(f.apMaxL), label: 'max AP', guide: true },
           { x: f.mpMaxL, y: f.mp(f.mpMaxL), label: 'max MP', small: true },
+          /* ползунок L — отметки на обеих кривых: сколько прибавит последний нанятый (MP) и сколько в среднем на
+             человека (AP). Раньше ползунок менял только числа под графиком (жалоба mw83zvnk: «зачем ползунок работников») */
+          { x: L, y: f.mp(L), label: `L = ${r1(L)}`, color: 'blue', guide: true, id: 'L-MP' },
+          { x: L, y: f.ap(L), label: '', color: 'rust', id: 'L-AP' },
         ],
         readout,
       };

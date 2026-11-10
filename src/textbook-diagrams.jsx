@@ -14,7 +14,8 @@ const MODES = [
   { id: 'value', label: 'По добавленной стоимости' },
   { id: 'income', label: 'По доходам' },
 ];
-export function CircularFlow({ total = 1000 }) {
+// frame(svg) — во что обернуть рисунок (учебник: касание — на весь экран, src/zoom-view.jsx)
+export function CircularFlow({ total = 1000, frame = null }) {
   const f = circularFlow(total);
   const [mode, setMode] = useState('spend');
   const uid = useId().replace(/:/g, '');
@@ -33,8 +34,7 @@ export function CircularFlow({ total = 1000 }) {
     value: <>Считаем в фирмах: выручка минус покупки у других фирм — {f.valueAdded.map(([w, v]) => `${w} ${v}`).join(', ')}: {vaSum} = <b>{total}</b>.</>,
     income: <>Считаем у получателей денег: {f.incomes.map(([w, v]) => `${w} ${v}`).join(', ')} — вместе <b>{total}</b>.</>,
   }[mode];
-  return (
-    <div data-testid="tb-diagram" data-diagram="circular">
+  const pic = (
       <svg viewBox="0 0 340 250" width="100%" style={{ maxWidth: 460, display: 'block', margin: '0 auto' }} role="img"
         aria-label={`Кругооборот: расходы ${total} идут к фирмам, доходы ${total} — к домохозяйствам`}>
         <defs>
@@ -65,6 +65,10 @@ export function CircularFlow({ total = 1000 }) {
         <text x={170} y={128} textAnchor="middle" fontSize={12} fill={COLOR.faint}>деньги — сплошные,</text>
         <text x={170} y={142} textAnchor="middle" fontSize={12} fill={COLOR.faint}>товары и труд — пунктир</text>
       </svg>
+  );
+  return (
+    <div data-testid="tb-diagram" data-diagram="circular">
+      {frame ? frame(pic) : pic}
       <div className="ems-seg" role="group" aria-label="Способ счёта ВВП" style={{ display: 'flex', margin: '8px 0 6px' }}>
         {MODES.map((m) => (
           <button key={m.id} type="button" aria-pressed={on(m.id)} style={{ flex: '1 1 0', whiteSpace: 'normal', lineHeight: 1.25, fontSize: 12 }}

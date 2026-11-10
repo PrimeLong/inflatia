@@ -833,6 +833,41 @@ export function buildLevelCheck(levelId, rand = Math.random, { seen = {} } = {})
   return { level: LEVEL_BY_ID[levelId], units: units.map((u) => u.id), items, passMistakes: Math.max(1, Math.floor(items.length / 6)) };
 }
 
+/* «Большое повторение» в конце уровня (docs/mechanics.md, «Большое повторение: в конце каждого уровня»): 15 заданий,
+   две трети — из юнитов этого уровня поровну, треть — из прошлых уровней (на первом — только он сам). В каждом юните
+   сначала — его ошибки (похожей задачей или с новыми числами), потом реже виденное; расчёты — с новыми числами. */
+export const LEVEL_REVIEW_SIZE = 15;
+export const levelBefore = (levelId) => LEVELS.slice(0, Math.max(0, LEVELS.findIndex((l) => l.id === levelId))).map((l) => l.id);
+export function buildLevelReview(levelId, learn = {}, rand = Math.random) {
+  const seen = learn.seen || {};
+  const mistakes = new Set((learn.mistakes || []).map((m) => m.id));
+  const units = levelUnits(levelId);
+  const past = levelBefore(levelId).flatMap((id) => levelUnits(id));
+  const nPast = past.length ? Math.round(LEVEL_REVIEW_SIZE / 3) : 0;
+  const nOwn = LEVEL_REVIEW_SIZE - nPast;
+  const used = new Set();
+  // n заданий из юнитов поровну: по кругу, из каждого — следующее из его очереди (ошибки — первыми)
+  const take = (list, n) => {
+    const queues = list.map((u) => {
+      const wrong = u.lessons.flatMap((l) => l.exercises.map((e) => EXERCISES[e.id])).filter((e) => mistakes.has(e.id) && basic(e))
+        .map((e) => freshCopy(e, rand, { check: true, review: true }, { sibling: true }));
+      return [...shuffle(wrong, rand), ...unitTest(u, Infinity, rand, seen)];
+    });
+    const out = [];
+    for (let round = 0; out.length < n && queues.some((q) => q.length); round += 1) {
+      for (const q of shuffle(queues.filter((x) => x.length), rand)) {
+        if (out.length >= n) break;
+        while (q.length) { const it = q.shift(); const key = it.of || it.id; if (used.has(key)) continue; used.add(key); out.push(it); break; }
+      }
+    }
+    return out;
+  };
+  const own = take(units, nOwn);
+  const old = take(past, nPast + Math.max(0, nOwn - own.length));
+  const items = shuffle([...own, ...old], rand).slice(0, LEVEL_REVIEW_SIZE).map((it) => ({ ...it, levelReview: levelId }));
+  return { level: LEVEL_BY_ID[levelId], items, seconds: estimate(items) };
+}
+
 /* ------------------------------ АЛМАЗНЫЙ УРОВЕНЬ ------------------------------
    Пройденный урок можно пройти ещё раз — усложнённым. Что меняется по видам:
    «Знакомство», «История», «Слушай» — добавляются алмазные шаги урока (теория глубже: формулы
@@ -989,6 +1024,11 @@ export function buildFix(learn, unitId, rand = null) {
   return buildPractice(ids, rand || seeded(strHash(`${unitId}|${ids.join(',')}`)));
 }
 
+/* в автотестах замок уровня выключен (как замок особых уроков, src/learn/stops.js): длинные сценарии ставят пройденный
+   уровень и идут дальше; тест большого повторения включает его сам (ems-level-test) */
+const levelGateOff = () => {
+  try { return typeof navigator !== 'undefined' && !!navigator.webdriver && localStorage.getItem('ems-level-test') !== '1'; } catch { return false; }
+};
 export function pathState(learn) {
   // Путь сквозной: первый урок юнита открывается, когда пройден последний урок прошлого юнита
   // или прошлый юнит сдан проверкой
@@ -997,7 +1037,26 @@ export function pathState(learn) {
      { id, title, extra }); если он стоит после последнего урока, его ждёт первый урок следующего юнита */
   let pending = null;
   const out = [];
+  /* «Большое повторение» в конце уровня: первый урок нового уровня ждёт его, если уровень ещё не начат
+     (ни урока, ни сданного юнита); начатый раньше — не останавливаем задним числом */
+  let prevLevel = null; let gate = null;
+  const levelStarted = (levelId) => pilotUnits().some((x) => x.level === levelId
+    && (!!(learn.units || {})[x.id] || x.lessons.some((l) => ((learn.lessons || {})[l.id] || {}).runs > 0)));
   pilotUnits().forEach((u) => {
+    if (prevLevel && u.level !== prevLevel) {
+      const last = out[out.length - 1];
+      // весь уровень сдан тестами (тест уровня, вступительный тест) — повторение засчитано: знания уже проверены
+      const allTested = pilotUnits().filter((x) => x.level === prevLevel).every((x) => !!(learn.units || {})[x.id]);
+      const review = { levelId: prevLevel, title: `Большое повторение: ${LEVEL_BY_ID[prevLevel].title.toLowerCase()} уровень`, done: !!((learn.levels || {})[prevLevel] || {}).at || allTested };
+      if (last) last.levelReview = review;
+      if (prevDone && !review.done && !levelGateOff() && !levelStarted(u.level)) {
+        prevDone = false;
+        const w = { id: `level:${prevLevel}`, title: review.title, extra: 'level-review', levelId: prevLevel };
+        if (last && !last.current) last.current = w;
+        gate = w;
+      }
+    }
+    prevLevel = u.level;
     const tested = !!(learn.units || {})[u.id];
     const lessons = [];
     // особые уроки дороги (Персоналии, Чтение, Разбор графика) — такие же уроки: следующий ждёт их
@@ -1012,6 +1071,9 @@ export function pathState(learn) {
         if (pending.st) { pending.st.waiting = w; if (!pending.st.current) pending.st.current = w; } else lessons.waiting = w;
         pending = null;
       }
+      // первый урок уровня ждёт большого повторения прошлого
+      const levelWait = i === 0 && gate && !open ? gate.levelId : null;
+      if (i === 0) gate = null;
       // первый непройденный урок Пути: не набралось ли ошибок — в этом юните или в только что пройденном прошлом
       if (open && !done && !tested && !frontier) {
         frontier = true;
@@ -1030,12 +1092,15 @@ export function pathState(learn) {
       prevDone = (done || tested || skipped) && !fixLock && (tested || !waits.length);
       pending = (done || skipped) && !tested && waits.length ? { e: waits[0], st: null } : null;
       lessons.push({ id: l.id, no: l.no, title: l.title, done, open, diamond: !!(done && entry.diamond), ...(skipped ? { skipped: true } : {}), ...(fixLock ? { fixLock: true } : {}),
-        ...(waits.length && !tested ? { waits: waits.map((e) => e.type) } : {}) });
+        ...(waits.length && !tested ? { waits: waits.map((e) => e.type) } : {}), ...(levelWait ? { levelWait } : {}) });
     });
     const current = lessons.find((l) => l.open && !l.done && !l.skipped) || lessons.waiting || lessons.find((l) => l.open && !l.done) || null;
     out.push({ course: u, lessons: [...lessons], current, complete: lessons.every((l) => l.done), tested, fix: lessons.fix || null, waiting: lessons.waiting || null });
     if (pending) pending.st = out[out.length - 1];
   });
+  // последний уровень с уроками: его большое повторение — после последнего юнита
+  const last = out[out.length - 1];
+  if (last && prevLevel) last.levelReview = { levelId: prevLevel, title: `Большое повторение: ${LEVEL_BY_ID[prevLevel].title.toLowerCase()} уровень`, done: !!((learn.levels || {})[prevLevel] || {}).at };
   return out;
 }
 export const unitTitle = (id) => (CHAPTER_BY_ID[id] || {}).title || id;

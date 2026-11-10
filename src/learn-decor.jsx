@@ -97,14 +97,22 @@ export function cradleGroup(m, idx, dir) {
   const left = dir < 0;
   return { left, group: left ? m.balls.slice(0, idx + 1) : m.balls.slice(idx) };
 }
-// держать шарик idx, оттянутый на dx по горизонтали: группа до края висит на одном угле
+/* держать шарик idx, оттянутый на dx по горизонтали: рука тянет группу до края к одному углу — шарики не
+   прыгают под палец, а летят к нему как на упругой нити (pull — куда тянут, шаг расчёта — CRADLE_PULL);
+   docs/mechanics.md, «Украшения урока» */
+export const CRADLE_PULL = { k: 110, zeta: 0.8, maxW: 7 };
 export function holdCradle(m, idx, dx) {
   const L = m.L; const lim = L * Math.sin(CRADLE_MAX); const d = Math.max(-lim, Math.min(lim, dx));
   m.lift = null;
   const { group } = cradleGroup(m, idx, d);
   const a = Math.asin(d / L);
-  m.balls.forEach((b) => { b.drag = group.includes(b); if (b.drag) { b.a = a; b.w = 0; } });
+  m.balls.forEach((b) => { const held = group.includes(b); b.drag = held; b.pull = held ? a : null; });
   return group.length;
+}
+// отпустили: шарики уходят с той скоростью, с какой летели к руке (не больше предела)
+export function releaseCradle(m) {
+  const lim = CRADLE_PULL.maxW;
+  m.balls.forEach((b) => { if (b.drag && b.pull != null) b.w = Math.max(-lim, Math.min(lim, b.w)); b.drag = false; b.pull = null; });
 }
 /* затухание колыбели — в секунду, а не за шаг расчёта: прежние 0,2% за подшаг гасили размах вдвое
    за полторы секунды. Теперь размах уменьшается вдвое примерно за 4–5 секунд: заметно качается
@@ -121,9 +129,16 @@ function stepCradle(m, dt) {
     b.a = m.lift.from + (CRADLE_LIFT.to - m.lift.from) * easeOut(k); b.w = 0; b.drag = k < 1;
     if (k >= 1) { b.drag = false; m.lift = null; }
   }
+  const k = CRADLE_PULL.k; const c = 2 * CRADLE_PULL.zeta * Math.sqrt(k);
   for (let s = 0; s < sub; s += 1) {
     m.balls.forEach((b) => {
-      if (b.drag) return;
+      // в руке: тянется к руке пружиной с затуханием — догоняет без рывка и почти без перелёта
+      if (b.drag) {
+        if (b.pull == null) return;
+        b.w += (k * (b.pull - b.a) - c * b.w) * h; b.a += b.w * h;
+        if (Math.abs(b.a) > CRADLE_MAX) { b.a = Math.sign(b.a) * CRADLE_MAX; b.w = 0; }
+        return;
+      }
       b.w += (-(980 / m.L) * Math.sin(b.a)) * h; b.w *= keep; b.a += b.w * h;
       // нить упёрлась в раму: дальше предела шарик не идёт, отскакивает мягко
       if (Math.abs(b.a) > CRADLE_MAX) { b.a = Math.sign(b.a) * CRADLE_MAX; b.w = -b.w * 0.25; }
@@ -133,6 +148,8 @@ function stepCradle(m, dt) {
       const p = m.balls[i]; const q = m.balls[i + 1];
       const pp = ballPos(m, p); const qq = ballPos(m, q);
       if (qq.x - pp.x < m.r * 2 && p.w > q.w) {
+        // два шарика в руке летят вместе — между собой не ударяются
+        if (p.drag && q.drag && p.pull != null && q.pull != null) continue;
         const t = p.w; p.w = q.w; q.w = t;
         if (Math.abs(t) > 1.2) hit += 1;
         const over = m.r * 2 - (qq.x - pp.x);
@@ -257,6 +274,10 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       return c && { kind: 'coin', c, x0: p.x };
     };
     let swallow = false;
+    // курсор на подставке: над шариком — рука, тянут — сжатая рука (холст сам курсор не показывает — он прозрачен)
+    const root = document.documentElement;
+    const cursorAt = (v) => { if (!passThrough || m.kind !== 'cradle') return; if (v) { if (root.dataset.cradleCursor !== v) root.dataset.cradleCursor = v; } else if (root.dataset.cradleCursor) delete root.dataset.cradleCursor; };
+    const overBall = (p) => p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H && !!pick(p);
     const down = (e) => {
       if (reduced) return;
       const p = local(e);
@@ -265,33 +286,29 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       if (!g) return;
       // взяли шарик на подставке: урок под ней этого нажатия не получает (ни нажатия, ни щелчка после)
       if (passThrough) { e.stopPropagation(); swallow = true; }
-      drag = g; el.dataset.drag = 'true';
+      drag = g; el.dataset.drag = 'true'; cursorAt('grabbing');
       if (g.kind === 'pt') g.q.drag = true;
       if (g.kind === 'coin') { g.c.sv += 3.5; g.c.glow = 0.6; }
+      // взяли шарик — рука сразу держит его там, где нажали (он больше не качается сам)
+      if (g.kind === 'ball') holdCradle(m, g.idx, p.x - m.balls[g.idx].ax);
       if (!passThrough) { try { cv.setPointerCapture(e.pointerId); } catch { /* указатель уже отпущен */ } }
       e.preventDefault(); wake();
     };
     const eatClick = (e) => { if (swallow) { swallow = false; e.stopPropagation(); e.preventDefault(); } };
     const move = (e) => {
-      if (!drag) return;
+      if (!drag) { if (passThrough && !reduced && e.pointerType !== 'touch') cursorAt(overBall(local(e)) ? 'grab' : null); return; }
       const p = local(e);
       if (drag.kind === 'pt') placePt(drag.q, p.x, p.y + drag.dy, H);
-      if (drag.kind === 'ball') {
-        holdCradle(m, drag.idx, p.x - m.balls[drag.idx].ax);
-        // последние положения руки — чтобы взмах при отпускании передал шарикам скорость
-        const now = performance.now(); drag.hist = (drag.hist || []).filter((h) => now - h.t < 90).concat({ t: now, a: m.balls[drag.idx].a });
-      }
+      // шарик тянется к руке (а не встаёт под неё) — куда тянуть, считаем от точки подвеса
+      if (drag.kind === 'ball') holdCradle(m, drag.idx, p.x - m.balls[drag.idx].ax);
       if (drag.kind === 'coin') { const c = drag.c; c.a = Math.max(-0.9, Math.min(0.9, (p.x - c.ax) / (c.L + 10))); c.w = 0; }
       wake();
     };
-    const up = () => {
+    const up = (e) => {
       if (!drag) return;
+      cursorAt(e && e.clientX != null && overBall(local(e)) ? 'grab' : null);
       if (drag.kind === 'pt') drag.q.drag = false;
-      if (drag.kind === 'ball') {
-        const h = drag.hist || []; const span = h.length > 1 ? (h[h.length - 1].t - h[0].t) / 1000 : 0;
-        const w = span > 0.008 ? Math.max(-7, Math.min(7, (h[h.length - 1].a - h[0].a) / span)) : 0;
-        m.balls.forEach((b) => { if (b.drag) b.w = w; b.drag = false; });
-      }
+      if (drag.kind === 'ball') releaseCradle(m);
       if (drag.kind === 'coin') drag.c.drag = false;
       drag = null; el.dataset.drag = 'false'; wake();
     };
@@ -312,6 +329,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       if (passThrough) window.removeEventListener('click', eatClick, true);
       window.removeEventListener(ANSWER_EVENT, onAnswer);
       if (ro) ro.disconnect();
+      cursorAt(null);
     };
   }, [id, height, preview, reduced, passThrough]);
   if (!MAKE[id]) return null;
@@ -368,6 +386,10 @@ export const CRADLE_CSS = `
   .ln-cradle-grip { height: ${GRIP}px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; pointer-events: auto; }
   .ln-cradle-grip:active { cursor: grabbing; }
   .ln-cradle-grip i { width: 34px; height: 4px; border-radius: 2px; background: var(--ds-rule2); }
+  /* подставка прозрачна для касаний, и курсор брался у того, что под ней (в черновике — карандаш): над шариком —
+     рука, пока тянут — сжатая рука, поверх любого курсора страницы (docs/mechanics.md, «Украшения урока») */
+  html[data-cradle-cursor="grab"], html[data-cradle-cursor="grab"] * { cursor: grab !important; }
+  html[data-cradle-cursor="grabbing"], html[data-cradle-cursor="grabbing"] * { cursor: grabbing !important; }
   .ln-cradle-base { height: 6px; margin: 0 2px; border-radius: 3px; background: linear-gradient(#9A7650, #6B4F30); }
   /* панель ответа и нижняя панель урока — над подставкой */
   .ln-overlay > .ln-foot { position: relative; z-index: 4; }

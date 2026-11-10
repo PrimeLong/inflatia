@@ -32,8 +32,9 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api')) return;
   // записи голосов и книг (/voice/*.mp3, /books/*.mp3) браузер просит кусками (Range, ответ 206) — их отдаёт сеть и HTTP-кэш:
-  // целый файл из кэша вместо куска Safari не проигрывает, а ответ 206 в Cache API не кладётся
-  if (url.pathname.startsWith('/voice/') || url.pathname.startsWith('/books/')) return;
+  // целый файл из кэша вместо куска Safari не проигрывает, а ответ 206 в Cache API не кладётся; записи пьес (/music/*.mp3) —
+  // мегабайты, в кэше приложения они заново качались бы в фоне при каждом запуске
+  if (url.pathname.startsWith('/voice/') || url.pathname.startsWith('/books/') || url.pathname.startsWith('/music/')) return;
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).then((res) => put('/', res)).catch(() => caches.match('/').then((r) => r || Response.error())));
     return;

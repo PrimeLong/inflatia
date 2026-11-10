@@ -17,7 +17,7 @@ import {
   X, ArrowLeft, Flame, Zap, Coins, Target, Lock, Check, Gem, ChevronLeft, Calculator, BookOpenText, BookOpen, Trophy, Timer, Delete, ChevronRight, RotateCcw, Sparkles, Dumbbell,
   Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link, Utensils, Boxes, Users,
   Snowflake, ArrowDownToLine, ArrowUpToLine, Languages, MessageCircle, Headphones, Gamepad2, Repeat, Flag, Croissant, Landmark, Radio, MapPin, ArrowUp, ChevronDown, SkipForward,
-  Wrench, Feather, ChartSpline, PenLine, Factory, Bike, WifiOff,
+  Wrench, Feather, ChartSpline, PenLine, Factory, Bike, WifiOff, Award, ArrowRight,
 } from 'lucide-react';
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
@@ -39,12 +39,12 @@ import { afterPathAnswer, dropFromReview } from './textbook/review-sync.js';
 import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
   UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, levelUnits, LESSON_BY_ID, KIND_LABEL, SHIFT_CURVES, LESSON_KIND, GAME_KINDS, SELF_CHECK, OPEN_MIN, buildLesson, buildUnitCheck, buildLevelCheck, buildPractice, practiceIds, canPractice, PRACTICE_MAX, check, ready, answerText, unitFor, pathState,
-  buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix, EXAM_LETTERS,
+  buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix, EXAM_LETTERS, buildLevelReview, LEVEL_REVIEW_SIZE,
 } from './learn/course.js';
 import {
   startLesson, recordAttempt, abandonLesson, addMistake, resolveMistake, skipLesson, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak,
   goalToday, missedYesterday, XP, applyFreezes, setPlacement, dayOf, recordSeen, recordBest, DIAMOND_ACCURACY, streakBonus, gameXp, maxLessonXp, syncStreak, streakNow,
-  markShown, shownWith, markFixed,
+  markShown, shownWith, markFixed, finishLevelReview, levelConfirmed, LEVEL_REVIEW_OK,
 } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
 import { runCoins, runKey, earn, settle, indexed, COIN, chestKey, hasClaim, outfitOf, deskOf, themeOf, boostActive, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
@@ -90,6 +90,7 @@ import { antistressUnlocked } from './learn/antistress.js';
 import { useFriends, pushCard, friendsState } from './lib/friends-store.js';
 import { buildCard, raceOffer } from './learn/friends.js';
 import { plural } from './lib/plural.js';
+import { Zoomable } from './zoom-view.jsx';
 
 export { SCREENS } from './learn/screens.js';
 
@@ -324,6 +325,9 @@ const CSS = `
   .ln-token.ln-extra.fix::after { content: ''; position: absolute; inset: -9px; border-radius: 26px; border: 3px solid color-mix(in srgb, var(--ds-bad) 55%, transparent); animation: ds-ring 1.8s ease-out infinite; pointer-events: none; }
   .ds-dark .ln-token.ln-extra { color: color-mix(in srgb, var(--x) 55%, #fff); }
   .ln-token.ln-extra.done { background: var(--x); color: #fff; border-color: color-mix(in srgb, var(--x) 80%, #fff); box-shadow: 0 5px 0 color-mix(in srgb, var(--x) 65%, #000); }
+  /* особый урок на алмаз — тот же гранёный камень и обводка, что у урока на алмазном уровне (пункт владельца 09.11) */
+  .ln-token.ln-extra.diamond { background: linear-gradient(135deg, #FFC2D2 0%, #E5527B 45%, #B3123F 62%, #7A0C2B 100%); border-color: #FFD6E1; color: #fff;
+    box-shadow: 0 5px 0 #7A0C2B, 0 6px 14px rgba(179,18,63,.35); }
   .ln-token.ln-extra.locked { border-style: dashed; color: var(--ds-ink3); background: var(--ds-card2); box-shadow: none; }
   .ln-token.ln-extra:not(.locked):hover { transform: translateY(-2px); }
   .ds .nw { white-space: nowrap; }
@@ -433,6 +437,9 @@ const CSS = `
   /* перетаскивание: слово под пальцем не прокручивает страницу; копия едет за пальцем; место под ней подсвечено */
   .ln-m2-word, .ln-m2-slot.full { touch-action: none; -webkit-user-select: none; user-select: none; }
   .ln-m2-word.dragging, .ln-m2-slot.full.dragging { opacity: .35; }
+  /* копия — своего размера: у .ds-opt «display: block; width: 100%», и при position: fixed она растягивалась на всё окно
+     (жалоба mw9jj3fg: «плитки, когда их беру, очень длинные» на ПК 1910 px) */
+  .ds-opt.ln-m2-ghost { display: inline-block; width: auto; max-width: min(320px, 86vw); white-space: normal; }
   .ln-m2-ghost { position: fixed; z-index: 60; pointer-events: none; width: auto; margin: 0; padding: 8px 12px; font-size: 14.5px; line-height: 1.25; transform: rotate(-2deg) scale(1.04);
     box-shadow: 0 14px 26px -12px rgba(0,0,0,.45); border-color: var(--u-ink); }
   .ln-m2-row.drop { border-color: var(--u-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--u) 30%, transparent); }
@@ -519,6 +526,17 @@ const CSS = `
   .ln-textbook .ems-btn[aria-pressed="true"] { background: var(--ds-sel); color: var(--ds-sel-ink); border-color: var(--ds-sel-rule); }
   .ln-theory { border: 2px solid var(--ds-rule); border-left: 5px solid var(--u); border-radius: 6px 16px 16px 6px; background: var(--ds-card2); padding: 12px 14px; }
   .ln-level-text { font-size: 13.5px; line-height: 1.35; margin: -2px 2px 4px; }
+  /* «Большое повторение» под последним юнитом уровня: карточка-остановка; следующая остановка — золотое кольцо */
+  .ln-lvrev { margin: 6px 0 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; border: 1.5px dashed color-mix(in srgb, var(--u) 55%, var(--ds-rule2)); }
+  .ln-lvrev[data-state="done"] { border-style: solid; }
+  /* закрытая — серым значком с замком, без полупрозрачности: текст должен читаться (контраст 4,5:1) */
+  .ln-lvrev.cur { border: 2px solid var(--ds-gold); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ds-gold) 22%, transparent); animation: ln-lvrev-glow 2.4s ease-in-out infinite; }
+  @keyframes ln-lvrev-glow { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ds-gold) 12%, transparent); } }
+  .ln-lvrev-in { display: flex; align-items: center; gap: 12px; }
+  .ln-lvrev-icon { width: 48px; height: 48px; flex: none; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--u); box-shadow: 0 3px 0 var(--u-ink); }
+  .ln-lvrev[data-state="locked"] .ln-lvrev-icon { background: var(--ds-card2); color: var(--ds-ink3); box-shadow: none; }
+  .ln-lvrev-seal { width: 30px; height: 30px; flex: none; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--ds-ok); transform: rotate(-8deg); }
+  @media (prefers-reduced-motion: reduce) { .ln-lvrev.cur { animation: none; } }
   .ln-soon-head { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; color: inherit; font: inherit; padding: 12px 14px; cursor: pointer; text-align: left; }
 `;
 
@@ -604,12 +622,14 @@ function useLearn() {
       if (f && f.coins > 0 && !AUDIT_TRACKED.size) { AUDIT_TRACKED.add(1); track('coins_clawback'); }
       return { ...p, learn };
     }, { whole: true });
-    syncProfile(playerId).then((pf) => { if (alive && pf) setProgress(loadProgress()); }).catch(() => {}).finally(() => { if (alive) audit(); });
+    /* взносы страховки — только по общему прогрессу (docs/mechanics.md, «Страховка серии»): устройство со старым прогрессом
+       иначе «прекращало» давно расторгнутый на другом устройстве полис — с уведомлением (пункт владельца 09.11) */
+    syncProfile(playerId).then((pf) => { if (alive && pf) { setProgress(loadProgress()); update((s) => chargePremiums(s)); } }).catch(() => {}).finally(() => { if (alive) audit(); });
     // уроки, которые не продолжили за сутки, — брошенные: только они портят долю доведённых
     const expired = takeExpiredResumes();
     if (expired.length) update((s) => expired.reduce((acc, r) => abandonLesson(acc, r.kind || 'choice', r.pos || 0), s));
     // купленные заморозки спасают серию сами — при открытии, если пропуск уже не покрыт недельной
-    update((s) => fixMonth(chargePremiums(applyFreezes(s))));
+    update((s) => fixMonth(applyFreezes(s)));
     return () => { alive = false; if (timer.current) clearTimeout(timer.current); syncProfile(playerId).catch(() => {}); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId]);
@@ -658,7 +678,7 @@ function CardPicture({ c }) {
   const tour = GRAPH_BY_CHART[c.chart];
   return (
     <>
-      <MiniChart type={c.chart} attrs={c.attrs} />
+      <MiniChart type={c.chart} attrs={c.attrs} zoom />
       {tour && (
         <div style={{ textAlign: 'center', margin: '-2px 0 10px' }}>
           <button type="button" className="ln-graph-btn" data-testid="graph-open" data-graph={tour.id} onClick={() => { Audio.play('paper'); openGraph(tour.id); }}>
@@ -695,7 +715,7 @@ function useTweened(v, on) {
   }, [key, on, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
   return on ? shown : v;
 }
-function MiniChart({ type, attrs, values = null, tween = false }) {
+function MiniChart({ type, attrs, values = null, tween = false, zoom = false }) {
   const def = CHARTS[type];
   const moving = useAnimValues(type, attrs);
   const target = def ? { ...chartDefaults(type, attrs), ...moving, ...values } : {};
@@ -703,7 +723,17 @@ function MiniChart({ type, attrs, values = null, tween = false }) {
   if (!def) return null;
   // на Пути деньги — в кронах (src/learn/money.js)
   // под графиком — ключ: что значит каждая линия, простыми словами
-  return <div style={{ maxWidth: 360, margin: '8px auto' }}><ChartSvg scene={sceneInCrowns(def.build(attrs, v))} />{def.legend && <ChartLegend items={def.legend(attrs, v)} />}</div>;
+  const scene = sceneInCrowns(def.build(attrs, v));
+  const legend = def.legend ? <ChartLegend items={def.legend(attrs, v)} /> : null;
+  // картинка карточки: касание — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»)
+  if (zoom) {
+    return (
+      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} view={() => <><ChartSvg scene={scene} />{legend}</>}>
+        <ChartSvg scene={scene} />{legend}
+      </Zoomable>
+    );
+  }
+  return <div style={{ maxWidth: 360, margin: '8px auto' }}><ChartSvg scene={scene} />{legend}</div>;
 }
 const PICS = {
   clock: Clock, scale: Scale, hourglass: Hourglass, ticket: Ticket, 'trending-up': TrendingUp, 'circle-check': CircleCheck, medal: Medal,
@@ -1184,6 +1214,8 @@ function newPlan(run, learn) {
   // проверка юнита или тест уровня (levelId): сдан — юнит или все юниты уровня сданы
   if (run.mode === 'check') { const p = run.levelId ? buildLevelCheck(run.levelId, Math.random, { seen: learn.seen || {} }) : buildUnitCheck(run.unitId, Math.random, { seen: learn.seen || {} }); return { items: p.items, cards: {}, passMistakes: p.passMistakes }; }
   if (run.mode === 'placement') return { items: buildPlacement().items, cards: {} };
+  // «Большое повторение» уровня: этот уровень и прошлые (docs/mechanics.md, «Большое повторение: в конце каждого уровня»)
+  if (run.mode === 'level') { const p = buildLevelReview(run.levelId, learn); return { items: p.items, cards: {}, seconds: p.seconds }; }
   // «Работа над ошибками» юнита — его нерешённые ошибки (src/learn/course.js, buildFix)
   if (run.mode === 'fix') return { items: buildFix(learn, run.unitId).items, cards: {} };
   return { items: buildPractice(practiceIds(learn), Math.random, { weak: weakLessons(learn).map((w) => w.id) }).items, cards: {} };
@@ -1395,7 +1427,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       setRun3(0);
       Audio.play(answerSound(skin, false)); vibrate([30, 40, 30]);
       // в «Повторить ошибки» — только то, что там можно решить: мини-игра и открытый вопрос — не задача на повтор
-      if (run.mode === 'lesson' && canPractice(cur.of || cur.id)) update((s) => addMistake(s, cur.of || cur.id));
+      if ((run.mode === 'lesson' || run.mode === 'level') && canPractice(cur.of || cur.id)) update((s) => addMistake(s, cur.of || cur.id));
       // повтор в конце урока — не та же задача: новые числа или похожий вопрос на ту же мысль;
       // возвращается ОДИН раз, а не до победного: новичок, отвечая наугад, видел одно задание
       // по пять раз. Не вышло и во второй — урок идёт дальше, задача ждёт в «Повторить ошибки»
@@ -1438,7 +1470,13 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       pass = mistakes <= plan.passMistakes;
       xp = firstOk * XP.correct + a.bonus;
       const ids = run.levelId ? levelUnits(run.levelId).map((u) => u.id) : [run.unitId];
-      apply = (s) => { const t = finishLesson(s, null, { xp, ...done }); return pass ? ids.reduce((x, id) => passUnit(x, id, { ace: mistakes === 0, now }), t) : t; };
+      // сданный тест уровня засчитывает и его большое повторение
+      apply = (s) => { const t = finishLesson(s, null, { xp, ...done }); if (!pass) return t; const u = ids.reduce((x, id) => passUnit(x, id, { ace: mistakes === 0, now }), t); return run.levelId ? finishLevelReview(u, run.levelId, { accuracy, now }) : u; };
+    } else if (run.mode === 'level') {
+      // большое повторение: пройдено с любым результатом, 80%+ — уровень подтверждён
+      pass = accuracy >= LEVEL_REVIEW_OK;
+      xp = firstOk * XP.correct + a.bonus;
+      apply = (s) => finishLevelReview(finishLesson(s, null, { xp, ...done }), run.levelId, { accuracy, now });
     } else if (run.mode === 'placement') {
       // открытые тестом юниты — как сданные проверкой; тест не засчитывается уроком дня
       opened = placementOpened(plan.items, a.first);
@@ -1459,8 +1497,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     if (boosted) xp *= 2;
     // монеты за урок и всё, что он выполнил: цель дня, задания, серия, печати
     // с индексацией месяца (docs/mechanics.md, «Индексация наград»)
-    const coins = indexed(runCoins({ mode: run.mode, replay, accuracy, pass, items: total, diamond, gem }), now);
-    const key = runKey({ mode: run.mode, lessonId: run.lessonId, replay, diamond, gem });
+    const confirmed = run.mode === 'level' && levelConfirmed(learn, run.levelId);
+    const coins = indexed(runCoins({ mode: run.mode, replay, accuracy, pass, items: total, diamond, gem, confirmed }), now);
+    const key = runKey({ mode: run.mode, lessonId: run.lessonId, replay, diamond, gem, levelId: run.levelId, pass, confirmed });
     const full = (s) => { const t = earn(apply(s), coins, key, now); return settle(t, courseCtx(t), now); };
     const preview = full(learn);
     // первый урок дня продлил серию — огонёк загорается на итогах крупно
@@ -1540,7 +1579,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const marked = useMemo(() => (cur ? { ...cur, prompt: markTerms(cur.prompt) } : null), [cur]);
   respRef.current = resp;
   const inst = marked ? { ...marked, _sel: sel, _setSel: setSel, _resp: respRef, _calc: calcOpen, _setCalc: setCalcOpen, _best: (learn.best || {})[marked.id] || 0 } : null;
-  const title = run.mode === 'lesson' ? `${diamond ? 'Алмазный уровень: ' : ''}${lesson.title}` : run.mode === 'check' ? (run.levelId ? `Тест уровня «${LEVEL_BY_ID[run.levelId].title}»` : 'Проверка юнита') : run.mode === 'placement' ? 'Вступительный тест' : run.mode === 'fix' ? 'Работа над ошибками' : 'Практика';
+  const title = run.mode === 'lesson' ? `${diamond ? 'Алмазный уровень: ' : ''}${lesson.title}` : run.mode === 'level' ? `Большое повторение: ${LEVEL_BY_ID[run.levelId].title.toLowerCase()} уровень` : run.mode === 'check' ? (run.levelId ? `Тест уровня «${LEVEL_BY_ID[run.levelId].title}»` : 'Проверка юнита') : run.mode === 'placement' ? 'Вступительный тест' : run.mode === 'fix' ? 'Работа над ошибками' : 'Практика';
 
   const kindName = cur ? KIND_LABEL[cur.kind] : '';
   // плашка ответа в нижней панели — одна на все виды уроков: её видно без прокрутки
@@ -1856,7 +1895,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
               <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 4px' }}>
                 <Rosette size={128} opacity={0.5}><Mascot mood={run.mode === 'check' && !result.pass ? 'cheer' : result.accuracy >= 60 ? 'party' : 'cheer'} size={70} /></Rosette>
               </div>
-              <h2 className="ds-h1">{run.mode === 'check' ? (result.pass ? 'Проверка сдана' : 'Проверка пока не сдана') : run.mode === 'practice' ? 'Практика окончена' : run.mode === 'fix' ? 'Ошибки разобраны — Путь открыт' : run.mode === 'placement' ? 'Тест пройден' : 'Урок пройден'}</h2>
+              <h2 className="ds-h1" data-testid="result-title">{run.mode === 'level' ? (result.pass ? 'Уровень подтверждён' : 'Уровень пройден') : run.mode === 'check' ? (result.pass ? 'Проверка сдана' : 'Проверка пока не сдана') : run.mode === 'practice' ? 'Практика окончена' : run.mode === 'fix' ? 'Ошибки разобраны — Путь открыт' : run.mode === 'placement' ? 'Тест пройден' : 'Урок пройден'}</h2>
               {run.mode !== 'placement' && (
                 <div className="ds-h3" style={{ color: 'var(--u-ink)', marginTop: 4 }} data-testid="result-say">
                   {pickPhrase(endKind({ mistakes: result.mistakes, accuracy: result.accuracy, failedCheck: run.mode === 'check' && !result.pass }), new Set())}
@@ -1866,6 +1905,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
                 {run.mode === 'placement' ? (result.opened.length
                   ? `Открыто сразу: ${result.opened.map((u) => `«${placeOf(u).place}»`).join(', ')}. ${result.opened.length >= UNITS.filter((u) => u.lessons.length).length ? 'Пройденные уроки можно взять на алмазном уровне.' : 'Путь продолжится со следующего места.'}`
                   : 'Начнём с самого начала — так надёжнее. Первые уроки короткие.')
+                  : run.mode === 'level' ? (result.pass ? `Верно ${Math.round((result.accuracy * total) / 100)} из ${total} — уровень «${LEVEL_BY_ID[run.levelId].title}» подтверждён. ${nextLevelText(run.levelId)}`
+                    : `Верно ${Math.round((result.accuracy * total) / 100)} из ${total}. Для подтверждения — от ${LEVEL_REVIEW_OK}%: ошибки ждут в «Повторить ошибки», а повторение можно пройти снова. ${nextLevelText(run.levelId)}`)
                   : run.mode === 'check' && run.levelId ? (result.pass ? `${nextLevelText(run.levelId)} Уроки пройденного уровня тоже открыты.` : `Ошибок с первой попытки: ${result.mistakes}. Для зачёта — не больше ${plan.passMistakes}. Уроки уровня никуда не делись.`)
                   : run.mode === 'check' && run.review ? (result.pass ? 'Юнит не забыт: знания на месте.' : `Ошибок с первой попытки: ${result.mistakes}, для зачёта — не больше ${plan.passMistakes}. Стоит повторить уроки юнита — они открыты.`)
                   : run.mode === 'check' ? (result.pass ? 'Уроки юнита открыты — можно идти дальше.' : `Ошибок с первой попытки: ${result.mistakes}. Для зачёта — не больше ${plan.passMistakes}. Уроки юнита никуда не делись.`)
@@ -1885,7 +1926,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
               </div>
               {/* пояснение к молнии — под плитками, а не в плитке: на узком телефоне оно растягивало все три */}
               {result.bonus > 0 && <div className="ln-xp-note" data-testid="result-xp-note"><Zap size={15} strokeWidth={2.4} aria-hidden="true" />+{result.bonus} опыта — {result.game ? 'за игру и верные ответы подряд' : 'за верные ответы подряд'}</div>}
-              <GainsList coins={result.coins} gains={result.gains} />
+              <GainsList coins={result.coins} gains={result.gains} label={run.mode === 'level' ? 'За большое повторение' : 'За урок'} />
               {lesson && run.mode === 'lesson' && !replay && partsOfLesson(lesson.id).length > 0 && (
                 <div className="ds-sub" style={{ fontSize: 14.5, marginTop: 10 }} data-testid="result-model">
                   В модель рынка добавлено: {partsOfLesson(lesson.id).map((p) => `«${p.title}»`).join(', ')}. Покрутить её можно на Пути, под юнитом.
@@ -2047,7 +2088,7 @@ function LessonSheet({ l, learn, weak = false, onStart, onClose, onOpenBook, onS
         {l.skipped && <div className="ds-sub" style={{ fontSize: 14, textAlign: 'center', marginBottom: 10 }} data-testid="lesson-skipped-note">Урок пропущен: следующие уже открыты. Вернитесь, когда сможете слушать, — или пройдите текстом: «Не могу слушать» внутри урока.</div>}
         {!l.open ? (
           <div className="ds-sub" style={{ fontSize: 15, textAlign: 'center' }} data-testid="lesson-sheet-locked">
-            <Lock size={15} style={{ verticalAlign: -2, marginRight: 4 }} aria-hidden="true" />{l.fixLock ? 'Сначала — «Работа над ошибками» перед этим уроком: она откроет Путь дальше.' : 'Откроется после предыдущего урока — или сдайте проверку юнита.'}
+            <Lock size={15} style={{ verticalAlign: -2, marginRight: 4 }} aria-hidden="true" />{l.fixLock ? 'Сначала — «Работа над ошибками» перед этим уроком: она откроет Путь дальше.' : l.levelWait ? `Сначала — «Большое повторение» уровня «${LEVEL_BY_ID[l.levelWait].title}»: оно откроет новый уровень.` : 'Откроется после предыдущего урока — или сдайте проверку юнита.'}
           </div>
         ) : theory ? (
           <div className="ln-theory" data-testid="theory-notice">
@@ -2399,6 +2440,11 @@ const EXTRA_GEM = {
   graph: 'в каждом шаге пропущено главное слово или число — выберите его',
   draw: 'на каждый шаг — одна попытка, без подсказки',
 };
+// алмазы юнита — уроки и особые уроки вместе (пункт владельца 09.11: «квадратные не считаются»)
+function unitGems(st, learn) {
+  const ex = unitStops(st, learn).filter((x) => x.type !== 'lesson' && x.type !== 'fix');
+  return { ex, n: st.lessons.filter((l) => l.diamond).length + ex.filter((x) => x.gem).length, of: st.lessons.length + ex.length };
+}
 function ExtraSheet({ x, onStart, onClose }) {
   const info = extraInfo(x);
   if (!info) return null;
@@ -2479,7 +2525,7 @@ function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra =
           return (
             <div key={x.id} className="ln-stop" style={{ left: pts[i][0], top: pts[i][1] - 31 }}>
               {isRec && <span className="ln-pin rec" data-testid="path-rec">рекомендуем сейчас</span>}
-              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined} data-diamond={x.gem ? 'true' : undefined}
+              <button type="button" className={`ln-token ln-extra ${x.type} ${state === 'open' ? '' : state} ${x.gem ? 'diamond' : ''} ${isRec ? 'cur' : ''}`} data-testid="path-extra" data-extra={x.type} data-id={x.id} data-state={state} data-rec={isRec ? 'true' : undefined} data-diamond={x.gem ? 'true' : undefined}
                 data-nav-target={`extra:${x.id}`} aria-label={`${EXTRA_KIND[x.type]}: ${x.title}${x.done ? ', пройдено' : x.open ? '' : ', закрыто'}`}
                 onClick={() => { Audio.prime(); Audio.play('click'); onExtra(x); }}>
                 {x.open || x.done ? <Icon size={25} /> : <Lock size={22} />}
@@ -2635,7 +2681,8 @@ const focusLesson = (root, unitId = null) => {
   if (!root) return null;
   const scope = unitId ? root.querySelector(`[data-testid="path-unit"][data-unit="${unitId}"]`) : root;
   if (!scope) return null;
-  return scope.querySelector('[data-testid="path-lesson"][data-rec="true"]') || scope.querySelector('.ln-token.cur') || scope.querySelector('[data-testid="path-lesson"][data-state="open"]');
+  return scope.querySelector('[data-testid="path-lesson"][data-rec="true"]') || scope.querySelector('.ln-token.cur') || (unitId ? null : scope.querySelector('[data-testid="level-review"][data-cur="true"]'))
+    || scope.querySelector('[data-testid="path-lesson"][data-state="open"]');
 };
 
 /* Юниты Пути: номер, место, уровень; reach — в юните есть открытый урок. */
@@ -2663,6 +2710,35 @@ function levelStatus(row, levels) {
   if (row.test) return `тест по уровню «${LEVEL_BY_ID[row.test].title}»: сдадите — этот уровень откроется`;
   const before = levels.slice(0, row.lv.no - 1).reverse().find((x) => !x.soon && !x.open);
   return `закрыт · сначала откройте уровень «${(before || row).lv.title}»`;
+}
+
+/* «Большое повторение» — остановка под последним юнитом уровня (docs/mechanics.md, «Большое повторение: в конце
+   каждого уровня»): закрыта, пока не пройдены все юниты уровня; открыта — «Начать»; пройдена — лучший результат и
+   печать «Уровень подтверждён» (80%+), можно пройти ещё раз. cur — это следующая остановка Пути. */
+function LevelReviewStop({ review, learn, color, locked, cur, onStart }) {
+  const rec = (learn.levels || {})[review.levelId] || {};
+  const ok = levelConfirmed(learn, review.levelId);
+  const done = review.done;
+  const lv = LEVEL_BY_ID[review.levelId];
+  const state = locked ? 'locked' : done ? 'done' : 'open';
+  return (
+    <Card className={`ln-lvrev${cur ? ' cur' : ''}`} style={{ '--u': color }} data-testid="level-review" data-level={review.levelId} data-state={state} data-ok={String(ok)} data-cur={String(!!cur)}>
+      <div className="ln-lvrev-in">
+        <span className="ln-lvrev-icon" aria-hidden="true">{locked ? <Lock size={22} /> : ok ? <Award size={24} /> : <Flag size={22} />}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="ds-eyebrow">Большое повторение{cur ? ' · следующая остановка' : ''}</div>
+          <div className="ds-h3" style={{ color: 'var(--u-ink)' }}>{lv.title} уровень</div>
+          <div className="ds-sub" style={{ fontSize: 14, lineHeight: 1.4 }} data-testid="level-review-text">
+            {locked ? `Откроется, когда пройдены все юниты уровня: ${LEVEL_REVIEW_SIZE} заданий по нему и прошлым уровням.`
+              : done ? (ok ? `Уровень подтверждён · лучший результат ${rec.best || 0}%` : `Пройдено · лучший результат ${rec.best || 0}%. Подтвердить уровень — от ${LEVEL_REVIEW_OK}% верных`)
+                : `${LEVEL_REVIEW_SIZE} заданий по этому уровню и прошлым, минут на шесть. Это повторение: результат Путь не закроет.`}
+          </div>
+        </div>
+        {ok && <span className="ln-lvrev-seal" data-testid="level-review-seal" aria-label="Уровень подтверждён"><Check size={16} strokeWidth={3} /></span>}
+      </div>
+      {!locked && <Button wide={!done} variant={done ? 'ghost' : 'primary'} small={done} icon={done ? RotateCcw : ArrowRight} data-testid="level-review-start" onClick={onStart}>{done ? 'Пройти ещё раз' : 'Начать'}</Button>}
+    </Card>
+  );
 }
 
 /* Плашка уровня наверху Пути: номер, название, «из скольких» и сколько юнитов пройдено.
@@ -2940,8 +3016,8 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
                 <span className="ln-mini-eyebrow">Юнит {no} · пройден</span>
                 <span className="ds-h3 ln-mini-title">{pl.place}</span>
                 <span className="ln-mini-meta">
-                  <span className="ln-mini-strip" aria-hidden="true">{st.lessons.map((l) => <i key={l.id} data-d={l.diamond ? '1' : undefined} />)}</span>
-                  <span data-testid="unit-diamonds"><Gem size={13} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> {st.lessons.filter((l) => l.diamond).length}/{st.lessons.length}</span>
+                  <span className="ln-mini-strip" aria-hidden="true">{st.lessons.map((l) => <i key={l.id} data-d={l.diamond ? '1' : undefined} />)}{unitGems(st, learn).ex.map((x) => <i key={x.id} data-d={x.gem ? '1' : undefined} />)}</span>
+                  <span data-testid="unit-diamonds" data-n={unitGems(st, learn).n} data-of={unitGems(st, learn).of}><Gem size={13} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> {unitGems(st, learn).n}/{unitGems(st, learn).of}</span>
                 </span>
                 <span className="ln-mini-open" aria-hidden="true"><ChevronDown size={18} /></span>
               </button>
@@ -2968,7 +3044,7 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
                 <Button variant="ghost" small icon={ChevronRight} data-testid="unit-fold" aria-expanded={!folded}
                   onClick={() => { Audio.play('paper'); setUnfolded((m) => ({ ...m, [u.id]: !m[u.id] })); }}>{folded ? `Уроки: ${st.lessons.length}` : 'Свернуть'}</Button>
               )}
-              {st.complete && <span className="ds-sub" style={{ fontSize: 13, alignSelf: 'center' }} data-testid="unit-diamonds"><Gem size={14} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> алмазов: {st.lessons.filter((l) => l.diamond).length} из {st.lessons.length}</span>}
+              {st.complete && <span className="ds-sub" style={{ fontSize: 13, alignSelf: 'center' }} data-testid="unit-diamonds" data-n={unitGems(st, learn).n} data-of={unitGems(st, learn).of}><Gem size={14} style={{ verticalAlign: -2, color: DIAMOND_COLOR }} aria-hidden="true" /> алмазов: {unitGems(st, learn).n} из {unitGems(st, learn).of}</span>}
             </div>
             <Guilloche height={16} opacity={0.45} />
           </Card>
@@ -2985,6 +3061,12 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
         </section>
         );
       })}
+      {selRow && shown.length > 0 && shown[shown.length - 1].st.levelReview && (
+        <LevelReviewStop review={shown[shown.length - 1].st.levelReview} learn={learn} color={shown[shown.length - 1].pl.color}
+          locked={!shown.every((x) => x.st.complete || x.st.tested)}
+          cur={!!(first && first.current && first.current.extra === 'level-review' && first.current.levelId === sel)}
+          onStart={() => { Audio.prime(); Audio.play('click'); onStart({ mode: 'level', levelId: sel, unitId: shown[shown.length - 1].u.id }); }} />
+      )}
       {soon.length > 0 && (
         <Card flat style={{ padding: 0, marginTop: 8 }} data-testid="path-soon">
           <button type="button" className="ln-soon-head" aria-expanded={soonOpen} onClick={() => { Audio.play('paper'); setSoonOpen((v) => !v); }}>

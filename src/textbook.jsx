@@ -10,6 +10,7 @@ import { COLOR, Audio, AudioControls, getPlayerId, syncProfile } from './MacroSi
 import { TrainerPage } from './trainer.jsx';
 import { TopBar, IconButton } from './ds.jsx';
 import { useWide, Engraving, Guilloche } from './ds-art.jsx';
+import { Zoomable } from './zoom-view.jsx';
 import { placeOf } from './ds-tokens.js';
 import { LEVERS, SCENARIOS } from './lib/engine.js';
 import { LAB_LEVERS } from './lib/lab.js';
@@ -129,6 +130,18 @@ export const TEXTBOOK_CSS = `
   /* неверный — сплошная рамка и крестик: пунктир на толстой левой кромке рассыпался на рваные куски (жалоба mvgosm0p) */
   .tb-recall-opt.wrong { border-color: var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 8%, var(--c-panel)); color: var(--c-text); }
   .tb-recall-opt.dim { opacity: .62; }
+  /* ответ — с анимацией (пункт владельца 09.11): только для отвеченного сейчас, а не у карточки, открытой отвеченной */
+  .tb-recall-opt { transition: opacity .3s ease, background-color .3s ease, border-color .3s ease; }
+  .tb-recall-part.fresh .tb-recall-opt.right { animation: tb-rc-pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+  .tb-recall-part.fresh .tb-recall-opt.wrong { animation: tb-rc-shake .42s ease-in-out; }
+  .tb-recall-part.fresh .tb-recall-opt.right > svg, .tb-recall-part.fresh .tb-recall-opt.wrong > svg { animation: tb-rc-mark .35s cubic-bezier(.3, 1.5, .5, 1) .05s backwards; }
+  .tb-recall-part.fresh .tb-recall-why { animation: tb-ask-in .3s ease-out .12s backwards; }
+  .tb-recall-fresh { animation: tb-ask-in .35s ease-out .18s backwards; }
+  .tb-recall-fresh + .tb-recall-fresh { animation-delay: .3s; }
+  @keyframes tb-rc-pop { 0% { transform: scale(1) } 40% { transform: scale(1.035) } 100% { transform: scale(1) } }
+  @keyframes tb-rc-shake { 20%, 60% { transform: translateX(-5px) } 40%, 80% { transform: translateX(5px) } }
+  @keyframes tb-rc-mark { from { opacity: 0; transform: scale(0) rotate(-40deg) } }
+  @media (prefers-reduced-motion: reduce) { .tb-recall-part.fresh .tb-recall-opt, .tb-recall-part.fresh .tb-recall-opt > svg, .tb-recall-part.fresh .tb-recall-why, .tb-recall-fresh { animation: none !important; } .tb-recall-opt { transition: none; } }
   .tb-recall-xp { font: 700 12px/1 var(--ds-sans, sans-serif); color: var(--c-teal, #2E7D5B); padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 12%, transparent); animation: tb-xp-in .4s ease-out both; }
   @keyframes tb-xp-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
   @media (prefers-reduced-motion: reduce) { .tb-recall-xp { animation: none; } }
@@ -319,6 +332,9 @@ export const TEXTBOOK_CSS = `
   .tbl-ch-bar i { display: block; height: 100%; background: var(--ds-ok); }
   .tbl-more { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   /* оглавление сбоку у главы (ПК): все главы по частям, открытая отмечена, под ним — разделы главы */
+  .tb-toc-fold { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 8px; padding: 4px 9px; font-size: 12px; }
+  .tb-toc-rail { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; width: 40px; padding: 10px 0; border-radius: 10px; font-size: 11px; writing-mode: vertical-rl; }
+  .tb-toc-rail svg { writing-mode: horizontal-tb; }
   .tb-chtoc { border: 1px solid var(--c-border); background: var(--c-panel-alt); padding: 10px 12px 6px; margin: 0 0 12px; }
   .tb-chtoc-part { font-size: 12px; font-weight: 700; color: var(--c-muted); margin: 8px 0 2px; }
   .tb-chtoc-row { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; padding: 5px 2px; background: none; border: none; color: var(--c-text); font: inherit; font-size: 13.5px; line-height: 1.3; text-align: left; cursor: pointer; border-radius: 4px; }
@@ -335,6 +351,9 @@ export const TEXTBOOK_CSS = `
        уходила за низ экрана и «В этой главе» нельзя было докрутить до конца */
     .ln-textbook.wide .tb-ch-aside { position: sticky; top: calc(64px / var(--tb-zoom, 1)); max-height: calc((100vh - 96px) / var(--tb-zoom, 1)); overflow: auto; overscroll-behavior: contain; }
     .ln-textbook.wide .tb-ch-main { max-width: 860px; }
+    /* оглавление свёрнуто — узкая полоска с кнопкой, глава шире (пункт владельца 09.11) */
+    .ln-textbook.wide .tb-ch-grid.folded { grid-template-columns: 44px minmax(0, 1fr); }
+    .ln-textbook.wide .tb-ch-grid.folded .tb-ch-main { max-width: 920px; margin: 0 auto; width: 100%; }
     .ln-textbook.wide .tb-body { font-size: 16px; }
   }
 `;
@@ -343,9 +362,14 @@ export const TEXTBOOK_CSS = `
 // кругооборот и балансы банков (src/textbook-diagrams.jsx); подпись — как у графика
 function DiagramBox({ b, ctx }) {
   const n = (k, d) => (b.attrs[k] != null && Number.isFinite(Number(b.attrs[k])) ? Number(b.attrs[k]) : d);
+  // касание рисунка кругооборота — на весь экран, с приближением, в том виде, что выбран переключателем
+  // (docs/mechanics.md, «Картинки на весь экран»); балансы банков — таблицы, их не увеличиваем
+  const frame = (svg) => (
+    <Zoomable title="Кругооборот доходов и расходов" testid="tb-diagram-zoom" width={460} caption={b.caption ? <Inline nodes={b.caption} ctx={ctx} /> : null} view={() => svg}>{svg}</Zoomable>
+  );
   return (
     <div className="ems-panel" style={{ padding: 14, margin: '16px 0' }}>
-      {b.diagram === 'circular' && <CircularFlow total={n('total', 1000)} />}
+      {b.diagram === 'circular' && <CircularFlow total={n('total', 1000)} frame={frame} />}
       {b.diagram === 'balance' && <BalanceSheets base={n('base', 1000)} rr={n('rr', 0.1)} />}
       {b.caption && <div style={{ fontSize: 12.5, color: COLOR.muted, lineHeight: 1.55, marginTop: 8 }} data-testid="tb-caption"><Inline nodes={b.caption} ctx={ctx} /></div>}
     </div>
@@ -549,12 +573,14 @@ function RecallCard({ b, ctx, from }) {
   const mix = () => b.parts.map((p) => shuffled(p.options.length));
   const [order, setOrder] = useState(mix);
   const [picks, setPicks] = useState(() => (kept ? Object.fromEntries(b.parts.map((p, i) => [i, p.options.findIndex((o) => o.correct)])) : {}));
+  // какие вопросы отвечены сейчас — только они анимируются (открытая отвеченной карточка — без анимации)
+  const [fresh, setFresh] = useState({});
   const done = b.parts.every((_, i) => picks[i] != null);
   const ok = done && b.parts.every((p, i) => p.options[picks[i]].correct);
   const pick = (i, k) => {
     if (picks[i] != null) return;
     const next = { ...picks, [i]: k };
-    setPicks(next);
+    setPicks(next); setFresh((f) => ({ ...f, [i]: true }));
     const all = b.parts.every((_, j) => next[j] != null);
     const good = all && b.parts.every((p, j) => p.options[next[j]].correct);
     Audio.play(!b.parts[i].options[k].correct ? 'tick' : all && good ? 'stamp' : 'click');
@@ -574,7 +600,7 @@ function RecallCard({ b, ctx, from }) {
       {b.parts.map((p, i) => {
         const chosen = picks[i];
         return (
-          <div key={i} className="tb-recall-part" data-testid="tb-recall-part" data-part={i}>
+          <div key={i} className={`tb-recall-part${fresh[i] ? ' fresh' : ''}`} data-testid="tb-recall-part" data-part={i}>
             <Blocks blocks={questions[i]} ctx={ctx} />
             <div className="tb-recall-opts" role="group" aria-label={`Варианты ответа${b.parts.length > 1 ? `, вопрос ${i + 1}` : ''}`}>
               {order[i].map((k) => {
@@ -596,15 +622,15 @@ function RecallCard({ b, ctx, from }) {
       })}
       {done && (
         <>
-          <div style={{ borderTop: `1px solid ${COLOR.hairline}`, paddingTop: 8 }} data-testid="tb-recall-answer">
+          <div className={Object.keys(fresh).length ? 'tb-recall-fresh' : undefined} style={{ borderTop: `1px solid ${COLOR.hairline}`, paddingTop: 8 }} data-testid="tb-recall-answer">
             <div style={{ fontSize: 12, color: COLOR.faint, marginBottom: 4 }}>Разбор учебника</div>
             <Blocks blocks={b.answer} ctx={ctx} />
           </div>
-          <div data-testid="tb-recall-verdict" style={{ fontSize: 13, marginBottom: 10, color: ok ? COLOR.teal : COLOR.rust, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className={Object.keys(fresh).length ? 'tb-recall-fresh' : undefined} data-testid="tb-recall-verdict" style={{ fontSize: 13, marginBottom: 10, color: ok ? COLOR.teal : COLOR.rust, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{recallVerdict(ok, after)}</span>
             {ok && after && after.xp > 0 && <span className="tb-recall-xp" data-testid="tb-recall-xp">+{after.xp} опыта</span>}
             {!ok && !ctx.inReview && <button type="button" className="ems-btn" style={{ padding: '6px 12px', fontSize: 12.5 }} data-testid="tb-recall-again"
-              onClick={() => { Audio.play('click'); setOrder(mix()); setPicks({}); setAfter(null); }}>Ещё раз</button>}
+              onClick={() => { Audio.play('click'); setOrder(mix()); setPicks({}); setFresh({}); setAfter(null); }}>Ещё раз</button>}
           </div>
         </>
       )}
@@ -657,13 +683,17 @@ function groupLevels(blocks) {
   });
   return out;
 }
+/* свёрнутый или раскрытый вручную раздел помнится на устройстве (пункт владельца 09.11): ключ — первая задача раздела */
+const LEVELS_KEY = 'ems-tb-levels';
 function LevelGroup({ g, ctx, startNo }) {
   const basic = g.title.toLowerCase().startsWith('базов');
-  const [open, setOpen] = useState(basic);
+  const key = (g.blocks.find((b) => b.type === 'problem') || {}).id || g.title;
+  const [open, setOpenRaw] = useState(() => { const m = readJSON(LEVELS_KEY, {}); return m && typeof m[key] === 'boolean' ? m[key] : basic; });
+  const setOpen = (f) => { const nv = typeof f === 'function' ? f(open) : f; setOpenRaw(nv); const m = readJSON(LEVELS_KEY, {}); writeJSON(LEVELS_KEY, { ...(m && typeof m === 'object' ? m : {}), [key]: nv }); };
   const n = g.blocks.filter((b) => b.type === 'problem').length;
   const solved = g.blocks.filter((b) => b.type === 'problem' && ctx.progress.problems[b.id] && ctx.progress.problems[b.id].ok).length;
   return (
-    <div data-testid="tb-level-group" data-level={g.title}>
+    <div data-testid="tb-level-group" data-level={g.title} data-open={String(open)}>
       <button type="button" className="ems-btn" aria-expanded={open} style={{ width: '100%', textAlign: 'left', padding: '9px 12px', margin: '14px 0 6px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}
         onClick={() => { Audio.play('click'); setOpen((v) => !v); }}>
         <ChevronDown size={14} style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
@@ -836,7 +866,7 @@ export function ChartSvg({ scene }) {
             fill={(CURVE_COLOR[g.tone] || CURVE_COLOR.rust)()} fillOpacity={0.2} stroke={(CURVE_COLOR[g.tone] || CURVE_COLOR.rust)()} strokeOpacity={0.45} />
         ))}
         {scene.curves.map((c) => (
-          <path key={c.id} d={path(c.points)} fill="none" stroke={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()}
+          <path key={c.id} data-curve={c.id} d={path(c.points)} fill="none" stroke={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()}
             strokeWidth={c.ghost ? 1.5 : 2.4} strokeOpacity={c.ghost ? 0.35 : 1} strokeDasharray={c.ghost || c.dashed ? '5 4' : undefined} />
         ))}
         {(scene.segments || []).map((s, i) => {
@@ -916,16 +946,47 @@ export function ChartLegend({ items }) {
   );
 }
 
+/* Плавный график (пункт владельца 09.11): числа ползунков меняются сразу, а сцена — кривые и точки — за треть секунды
+   доезжает до новых значений (кубическое замедление). Новая цель посреди пути — едем к ней от того, где сейчас.
+   Нечисловые значения (переключатели) — сразу; при «уменьшить движение» — всё сразу (docs/mechanics.md). */
+const TWEEN_MS = 320;
+function useTweened(target) {
+  const [shown, setShown] = useState(target);
+  const cur = useRef(target); const raf = useRef(0);
+  const key = JSON.stringify(target);
+  useEffect(() => {
+    const calm = typeof window === 'undefined' || !window.requestAnimationFrame || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const from = cur.current;
+    const moving = Object.keys(target).filter((k) => typeof target[k] === 'number' && typeof from[k] === 'number' && Math.abs(from[k] - target[k]) > 1e-9);
+    if (calm || !moving.length) { cur.current = target; setShown(target); return undefined; }
+    const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / TWEEN_MS); const e = 1 - (1 - k) ** 3;
+      const next = { ...target };
+      moving.forEach((id) => { next[id] = from[id] + (target[id] - from[id]) * e; });
+      cur.current = k >= 1 ? target : next;
+      setShown(cur.current);
+      if (k < 1) raf.current = window.requestAnimationFrame(step);
+    };
+    raf.current = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(raf.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return shown;
+}
+
 /* График с ползунками. Сам хранит положение ползунков, если его не ведёт задача:
    в графической задаче values/onValues приходят снаружи, only — какие ползунки показать. */
 function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = null, only = null, framed = true }) {
   const def = CHARTS[type];
   const [own, setOwn] = useState(() => (def ? chartDefaults(type, attrs) : {}));
+  // сцена — по плавно доезжающим значениям, ползунки и проверка задачи — по настоящим
+  const shown = useTweened(outer || own);
   if (!def) return null;
   const values = outer || own;
   const setValues = (fn) => { const next = typeof fn === 'function' ? fn(values) : fn; if (onValues) onValues(next); else setOwn(next); };
   const controls = def.controls(attrs).filter((c) => !only || only.includes(c.id));
-  const scene = def.build(attrs, values);
+  const scene = def.build(attrs, shown);
   const set = (id, v) => setValues((s) => ({ ...s, [id]: v }));
   return (
     <div className={framed ? 'ems-panel' : undefined} style={{ padding: framed ? 14 : 0, margin: framed ? '16px 0' : '8px 0' }} data-testid="tb-chart" data-chart={type}>
@@ -935,7 +996,11 @@ function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = 
           <RotateCcw size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Сбросить
         </button>
       </div>
-      <ChartSvg scene={scene} />
+      {/* касание графика — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»); там — как выставлено ползунками */}
+      <Zoomable title={def.title} testid="tb-chart-zoom" caption={caption ? <Inline nodes={fillVars(caption, captionVars(type, attrs, values))} ctx={ctx} /> : null}
+        view={() => <><ChartSvg scene={scene} />{def.legend && <ChartLegend items={def.legend(attrs, values)} />}</>}>
+        <ChartSvg scene={scene} />
+      </Zoomable>
       {def.legend && <ChartLegend items={def.legend(attrs, values)} />}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '8px 16px', marginTop: 8 }}>
         {controls.map((c) => {
@@ -1583,8 +1648,12 @@ function ChapterPage({ id, ctx }) {
   if (ctx.chapterOpen && !ctx.chapterOpen(id)) return <LockedChapter id={id} ctx={ctx} />;
   return <ChapterBody id={id} ctx={ctx} />;
 }
+const TOC_FOLD_KEY = 'ems-tb-toc-folded';
 function ChapterBody({ id, ctx }) {
   const wide = useWide();
+  // оглавление и «В этой главе» сворачиваются — выбор помнится на устройстве (пункт владельца 09.11)
+  const [tocFolded, setTocFoldedRaw] = useState(() => readJSON(TOC_FOLD_KEY, false) === true);
+  const setTocFolded = (v) => { Audio.play('click'); setTocFoldedRaw(v); writeJSON(TOC_FOLD_KEY, v); };
   const ch = CHAPTER_BY_ID[id];
   const blocks = CHAPTER_BLOCKS[id];
   // соседние главы — в порядке чтения (как на Пути), только готовые
@@ -1605,10 +1674,20 @@ function ChapterBody({ id, ctx }) {
         <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 14px', fontWeight: 700 }}>{ch.title}</h1>
       </>)}
       {blocks ? (
-        <div className="tb-ch-grid">
+        <div className={`tb-ch-grid${tocFolded ? ' folded' : ''}`} data-testid="tb-ch-grid" data-folded={String(tocFolded)}>
           <aside className="tb-ch-aside">
-            {wide && ctx.embedded && <ChapterToc current={id} ctx={ctx} />}
-            <SectionNav sections={CHAPTER_SECTIONS[id]} ctx={{ ...ctx, chapter: id }} />
+            {tocFolded ? (
+              wide ? <button type="button" className="ems-btn tb-toc-rail" data-testid="tb-toc-unfold" aria-label="Показать оглавление" onClick={() => setTocFolded(false)}><ChevronRight size={14} aria-hidden="true" />Оглавление</button>
+                : <button type="button" className="ems-btn tb-toc-fold" data-testid="tb-toc-unfold" onClick={() => setTocFolded(false)}><ChevronDown size={13} aria-hidden="true" />Разделы главы</button>
+            ) : (<>
+              {(CHAPTER_SECTIONS[id] || []).length >= 3 && (
+                <button type="button" className="ems-btn tb-toc-fold" data-testid="tb-toc-fold" aria-label={wide ? 'Свернуть оглавление' : 'Свернуть разделы главы'} onClick={() => setTocFolded(true)}>
+                  {wide ? <ChevronLeft size={13} aria-hidden="true" /> : <ChevronUp size={13} aria-hidden="true" />}Свернуть
+                </button>
+              )}
+              {wide && ctx.embedded && <ChapterToc current={id} ctx={ctx} />}
+              <SectionNav sections={CHAPTER_SECTIONS[id]} ctx={{ ...ctx, chapter: id }} />
+            </>)}
           </aside>
           <div className="tb-ch-main tb-body"><Blocks blocks={blocks} ctx={{ ...ctx, chapter: id }} top /></div>
         </div>
@@ -2375,18 +2454,38 @@ function ReaderBar({ scale, setScale, learn = false }) {
 
 /* Стрелка «наверх»: из середины длинной главы — к её началу в одно касание (как «к карте»
    на Пути). Появляется, когда начало страницы ушло далеко за верх экрана. */
+/* «Наверх» — и обратно (пункт владельца 09.11): после «Наверх» на её месте — стрелка вниз, к месту, где читали.
+   Пока страница сама едет наверх, место не теряется; ученик сам пролистал вниз — стрелка вниз пропадает. */
 function ToTop({ withNav = false }) {
   const [show, setShow] = useState(false);
+  const [back, setBack] = useState(null);
+  const jumping = useRef(false); const lastY = useRef(0);
   React.useEffect(() => {
-    const on = () => setShow(window.scrollY > 900);
+    const on = () => {
+      const y = window.scrollY;
+      // доехали наверх — или ученик сам потянул страницу вниз посреди подъёма: дальше это его прокрутка
+      if (jumping.current && (y < 60 || y > lastY.current + 4)) jumping.current = false;
+      lastY.current = y;
+      setShow(y > 900);
+      if (!jumping.current && y > 900) setBack(null);
+    };
     on();
     window.addEventListener('scroll', on, { passive: true });
     return () => window.removeEventListener('scroll', on);
   }, []);
+  const cls = `tb-to-top${withNav ? ' with-nav' : ''}`;
+  if (back != null && !show) {
+    return (
+      <button type="button" className={cls} data-testid="tb-back-down" data-y={Math.round(back)} aria-label="Вернуться, где читали" title="Вернуться, где читали"
+        onClick={() => { Audio.play('paper'); const y = back; setBack(null); window.scrollTo({ top: y, behavior: 'smooth' }); }}>
+        <ArrowDown size={22} aria-hidden="true" />
+      </button>
+    );
+  }
   if (!show) return null;
   return (
-    <button type="button" className={`tb-to-top${withNav ? ' with-nav' : ''}`} data-testid="tb-to-top" aria-label="Наверх, к началу страницы" title="Наверх"
-      onClick={() => { Audio.play('paper'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+    <button type="button" className={cls} data-testid="tb-to-top" aria-label="Наверх, к началу страницы" title="Наверх"
+      onClick={() => { Audio.play('paper'); jumping.current = true; lastY.current = window.scrollY; setBack(window.scrollY); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
       <ArrowUp size={22} aria-hidden="true" />
     </button>
   );

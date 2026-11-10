@@ -1,6 +1,8 @@
 /* =========================================================================================
    ЗВУКОВОЙ ДВИЖОК: интерфейсные эффекты и генеративный саундтрек, реагирующий на состояние
-   экономики. Всё синтезируется через Web Audio прямо в браузере — внешних файлов нет.
+   экономики. Всё синтезируется через Web Audio прямо в браузере; исключение — пьесы, для которых
+   положена запись public/music/<id>.mp3 (docs/mechanics.md, «Музыка: записи вместо синтеза»):
+   они играют файл, а секвенсор на это время молчит.
 
    Движок — фабрика, а не единственный объект: игра пользуется одним экземпляром (Audio),
    а для измерений создаётся второй поверх OfflineAudioContext (см. renderTrackOffline) —
@@ -9,6 +11,7 @@
 import { clamp } from '../lib/catalog.js';
 import { hz, LH, BASS_LINES, TRACKS, MOOD_PLAYLISTS, ROLE_PLAYLISTS, MOOD_LABEL, REGIME_MOOD, STINGERS } from './tracks.js';
 import { TRACK_GAIN_DB, STINGER_GAIN_DB, SFX_GAIN_DB } from './loudness.js';
+import MUSIC_FILES from 'virtual:music-files';
 
 /* Настроение саундтрека по состоянию страны. Порядок — от самого властного к фону:
    тоталитаризм и война перекрывают всё; программа стабилизации, которой начали
@@ -66,6 +69,15 @@ export function createAudioEngine(options = {}) {
   let timer = null; let nextTime = 0; let stepIdx = 0; let running = false;
 
   const now = () => (ctx ? ctx.currentTime : 0);
+  /* ЗАПИСИ ВМЕСТО СИНТЕЗА: пьеса с файлом public/music/<id>.mp3 играет запись; файл не загрузился — синтез.
+     Офлайн-замеры громкости (options.context) — всегда синтез. В тесте список можно подменить
+     (window.__INFLATIA_MUSIC_FILES__ при window.__INFLATIA_TEST__). */
+  const testFiles = typeof window !== 'undefined' && window.__INFLATIA_TEST__ && Array.isArray(window.__INFLATIA_MUSIC_FILES__) ? window.__INFLATIA_MUSIC_FILES__ : [];
+  const musicFiles = new Set(options.musicFiles || (options.context ? [] : [...MUSIC_FILES, ...testFiles]));
+  const fetchMusic = options.fetchMusic || ((url) => fetch(url).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); }));
+  const fileBufs = {}; const fileBroken = {};
+  let fileSrc = null; let fileEnd = 0; let fileFor = null; let fileToken = 0;
+  const fileTrack = (id) => musicFiles.has(id) && !fileBroken[id];
   // уровень пьесы: поправка из замера громкости (scripts/loudness.mjs)
   const songLevel = (t) => (options.trackGain === false ? 1 : Math.pow(10, (TRACK_GAIN_DB[t.id] || 0) / 20));
   const resume = () => { if (ctx && ctx.state === 'suspended') ctx.resume(); };
@@ -844,9 +856,73 @@ export function createAudioEngine(options = {}) {
     src.start(t); src.stop(t + dur + 0.25);
   };
   const barSeconds = () => stepDur() * 16;
+  /* запись пьесы: грузится один раз (fetch + decodeAudioData), играет через шину пьесы — громкость,
+     затухания на переходах и заставки действуют на неё так же, как на синтез */
+  const loadFile = (id) => {
+    if (!fileBufs[id]) {
+      fileBufs[id] = fetchMusic(`/music/${id}.mp3`).then((ab) => new Promise((res, rej) => {
+        // старый Safari умеет decodeAudioData только с колбэками
+        try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); } catch (err) { rej(err); }
+      }));
+    }
+    return fileBufs[id];
+  };
+  const stopFile = (at) => {
+    fileToken += 1;
+    if (fileSrc) { const src = fileSrc; try { src.stop(Math.max(now(), at || 0)); } catch { /* уже остановлена */ } }
+    fileSrc = null; fileFor = null; fileEnd = 0;
+  };
+  const startFile = (id, t) => {
+    stopFile(t);
+    const token = fileToken; fileFor = id; fileEnd = Infinity;
+    loadFile(id).then((buf) => {
+      if (token !== fileToken || !running || !ctx || track.id !== id) return;
+      const src = ctx.createBufferSource(); src.buffer = buf; src.connect(songBus);
+      const at = Math.max(now() + 0.05, t);
+      src.start(at); fileSrc = src; fileEnd = at + buf.duration; notify();
+    }).catch(() => {
+      // файл не загрузился — та же пьеса синтезом, с начала такта
+      fileBroken[id] = true; delete fileBufs[id];
+      if (token !== fileToken) return;
+      fileFor = null; fileEnd = 0;
+      if (track.id === id && running) { nextTime = now() + 0.1; stepIdx = 0; }
+      notify();
+    });
+  };
+  /* такт планировщика, пока звучит запись: смена пьесы — затухание (смена настроения — 1,5 с, «следующая» —
+     быстро) и вход новой; запись доиграла — следующая в плейлисте. true — секвенсор молчит */
+  const fileTick = () => {
+    const t = now();
+    nextTime = t + 0.06; stepIdx = 0;
+    if (pending === track.id) {
+      pending = null;
+      if (songBus) { songBus.gain.cancelScheduledValues(t); songBus.gain.setTargetAtTime(songLevel(track), t, 0.4); }
+    }
+    if (pending) {
+      const id = pending; const outro = pendingKind === 'outro'; pending = null;
+      const fade = outro ? 1.5 : 0.25;
+      if (songBus) { songBus.gain.cancelScheduledValues(t); songBus.gain.setValueAtTime(Math.max(0.0001, songBus.gain.value), t); songBus.gain.linearRampToValueAtTime(0.0001, t + fade); }
+      const at = t + fade + 0.05;
+      nextTime = at;
+      enterTrack(id, at, outro);
+      return fileTrack(track.id);
+    }
+    // запись этой пьесы ещё не идёт (музыку только включили, пьесу выбрали заново) — с начала
+    if (fileFor !== track.id) { startFile(track.id, t + 0.06); return true; }
+    if (fileSrc && t > fileEnd - 0.3) {
+      const end = fileEnd;
+      advancePlaylist(true);
+      const id = pending; pending = null;
+      nextTime = Math.max(t + 0.06, end);
+      if (id) enterTrack(id, nextTime, true);
+      return fileTrack(track.id);
+    }
+    return true;
+  };
   // поставить новую пьесу: громкость пьесы — с нуля до её уровня, первый такт — с удара
   const enterTrack = (id, t, soft) => {
     setTrack(id);
+    if (fileTrack(track.id)) startFile(track.id, t); else stopFile(t);
     if (!songBus) return;
     const lvl = songLevel(track);
     songBus.gain.cancelScheduledValues(t);
@@ -909,12 +985,15 @@ export function createAudioEngine(options = {}) {
         songBus.gain.setValueAtTime(lvl * 0.6, nextTime); songBus.gain.linearRampToValueAtTime(lvl, nextTime + 0.8);
       }
     }
+    if (fileTrack(track.id) && fileTick()) return;
     if (nextTime < now() - 0.4) nextTime = now() + 0.06;
     let guard = 0;
     /* Ноты расставляются на секунду вперёд: пока главный поток занят (квартал,
        перерисовка карты), звук уже лежит в очереди и не прерывается. При запасе в
        0,22 с любая заминка дольше этого давала пропуск нот — «музыка лагает». */
     while (nextTime < now() + MUSIC_AHEAD && guard++ < 64) {
+      // в этом такте вошла пьеса-запись — дальше её ведёт fileTick
+      if (fileTrack(track.id)) break;
       const totalSteps = formBars * 16;
       if (stepIdx % 16 === 0) {
         // темп подтягивается к целевому потактово, а не скачком посреди фразы
@@ -953,6 +1032,8 @@ export function createAudioEngine(options = {}) {
           }
         }
       }
+      // на этой доле вошла пьеса-запись: ни одной ноты синтеза поверх неё
+      if (fileTrack(track.id)) break;
       const sd = stepDur();
       /* Свинг по характеру пьесы, а не один на всех: синтвейву и маршу нужна ровная
          механическая сетка, а джазу и лаунжу — та самая неровность восьмых, без
@@ -1084,9 +1165,11 @@ export function createAudioEngine(options = {}) {
     // для замера громкости (scripts/loudness.mjs): звук в офлайн-контексте, без resume
     sfxOffline(name) { if (ensure()) playSfx(name); },
     trackName: () => track.name,
+    // file — сейчас звучит запись (а не синтез): в панели у пьесы пометка «запись»
     nowPlaying: () => ({ id: track.id, name: track.name, subtitle: track.subtitle, mood: track.mood,
-      moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood }),
-    playlist: () => listOf(lockedMood || mood).map((id) => ({ id, name: TRACKS[id].name, current: id === track.id })),
+      moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood,
+      file: !!(fileSrc && fileFor === track.id) }),
+    playlist: () => listOf(lockedMood || mood).map((id) => ({ id, name: TRACKS[id].name, current: id === track.id, file: fileTrack(id) })),
     setRole(id) {
       if (roleId === id) return;
       roleId = id || null;
@@ -1122,6 +1205,7 @@ export function createAudioEngine(options = {}) {
       if (running || !opts.music) return;
       running = true; stepIdx = 0; nextTime = now() + 0.2;
       if (musicBus) musicBus.gain.setTargetAtTime(0.55, now(), 1.5);
+      // пьеса-запись после паузы играет с начала: её запускает первый же такт планировщика (fileTick)
       timer = setInterval(() => {
         try { scheduler(); } catch (err) { if (import.meta.env && import.meta.env.DEV) console.error(err); /* музыка не ломает игру */ }
       }, 120);
@@ -1131,6 +1215,7 @@ export function createAudioEngine(options = {}) {
       running = false;
       if (timer !== null) { clearInterval(timer); timer = null; }
       if (musicBus) musicBus.gain.setTargetAtTime(0.0001, now(), 0.3);
+      stopFile(now() + 0.4);
       notify();
     },
     setMusic(on) {
