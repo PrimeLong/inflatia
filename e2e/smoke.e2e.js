@@ -1603,7 +1603,8 @@ test('нижняя панель: «Мир» без учебных карточе
   await expect(exam.getByTestId('exam-problem')).toHaveCount(22);
   await expect(exam.getByRole('button', { name: /^Подсказка/ })).toHaveCount(0);
   await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(0);
-  await exam.getByRole('textbox', { name: 'Проверка, ответ к задаче 1' }).or(exam.getByRole('textbox', { name: 'Проверка, задача 1, шаг а)' })).first().fill('1');
+  // заведомо неверный ответ: «1» бывал верным (задача «Рынка труда» с ответом 1 — «Верно 1 из 22»)
+  await exam.getByRole('textbox', { name: 'Проверка, ответ к задаче 1' }).or(exam.getByRole('textbox', { name: 'Проверка, задача 1, шаг а)' })).first().fill('98765');
   await exam.getByRole('button', { name: 'Завершить проверку' }).click();
   await expect(exam.getByTestId('exam-result')).toContainText('Верно 0 из 22');
   await expect(exam.getByTestId('exam-weak')).toContainText('Слабое место');
@@ -7911,6 +7912,8 @@ test('уведомления: «Ранее» — последние три пр�
     const n = (id, h, title) => ({ id, kind: 'league', icon: 'trophy', tone: '#9A7413', title, text: 'Загляните во вкладку «Лиги».', at: Date.now() - h * 3600000, go: 'league' });
     localStorage.setItem('ems-notify-history', JSON.stringify([n('lg-pass:e2e', 1, 'Вас обогнали в лиге'), n('lg-old:e2e1', 50, 'Старое 1'), n('lg-old:e2e2', 60, 'Старое 2'), n('lg-old:e2e3', 70, 'Старое 3')]));
     localStorage.setItem('ems-notify-seen', JSON.stringify({ 'lg-pass:e2e': Date.now() - 3000000 }));
+    // утренний экран серии сегодня уже был: в иные дни заморозки держат серию из одного урока, и экран закрывал колокольчик
+    localStorage.setItem('ems-learn-morning', new Date().toISOString().slice(0, 10));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   await page.getByTestId('bell').first().click();
