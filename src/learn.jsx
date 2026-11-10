@@ -529,7 +529,7 @@ const CSS = `
   /* «Большое повторение» под последним юнитом уровня: карточка-остановка; следующая остановка — золотое кольцо */
   .ln-lvrev { margin: 6px 0 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; border: 1.5px dashed color-mix(in srgb, var(--u) 55%, var(--ds-rule2)); }
   .ln-lvrev[data-state="done"] { border-style: solid; }
-  .ln-lvrev[data-state="locked"] { opacity: .78; }
+  /* закрытая — серым значком с замком, без полупрозрачности: текст должен читаться (контраст 4,5:1) */
   .ln-lvrev.cur { border: 2px solid var(--ds-gold); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ds-gold) 22%, transparent); animation: ln-lvrev-glow 2.4s ease-in-out infinite; }
   @keyframes ln-lvrev-glow { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ds-gold) 12%, transparent); } }
   .ln-lvrev-in { display: flex; align-items: center; gap: 12px; }
