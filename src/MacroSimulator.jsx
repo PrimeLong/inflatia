@@ -132,7 +132,7 @@ export const GlobalStyle = () => (
   <style>{`
     .ems-root { ${themeVars()} }
     ${UTILITY_CSS}
-    .ems-root { color-scheme:${COLOR.isDark ? 'dark' : 'light'}; background:${COLOR.bg} radial-gradient(ellipse 1100px 620px at 50% -8%, ${COLOR.bgVignette} 0%, ${COLOR.bg} 70%); color:${COLOR.text}; font-family:${FONT.sans}; min-height:100vh; }
+    .ems-root { color-scheme:${COLOR.isDark ? 'dark' : 'light'}; background:${COLOR.bg} radial-gradient(ellipse 1100px 620px at 50% -8%, ${COLOR.bgVignette} 0%, ${COLOR.bg} 70%); color:${COLOR.text}; font-family:${FONT.sans}; min-height:calc(100vh - var(--ems-notice-h, 0px)); }
     .ems-root * { box-sizing: border-box; }
     .ems-root :focus-visible { outline: 2px solid ${COLOR.goldSoft}; outline-offset: 2px; }
     /* заголовки — PT Sans (класс остался с прежним именем); засечки — только у газеты */

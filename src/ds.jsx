@@ -19,7 +19,8 @@ export const DS_CSS = `
   .ds *, .ds *::before, .ds *::after { box-sizing: border-box; }
   /* фон страницы — ровная бумага: подсветка сверху растягивалась на всю высоту длинной страницы
      (глава учебника) и гасла к низу видимыми полосами */
-  .ds-page { min-height: 100vh; background-color: var(--ds-paper); }
+  /* высота — экран без полосы уведомления о памяти браузера, если она стоит в потоке над страницей (src/privacy.jsx) */
+  .ds-page { min-height: calc(100vh - var(--ems-notice-h, 0px)); background-color: var(--ds-paper); }
   .ds :focus-visible { outline: 3px solid var(--ds-sel-rule); outline-offset: 2px; }
 
   /* типографика */

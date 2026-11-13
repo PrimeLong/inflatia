@@ -1,4 +1,4 @@
-/* ВИЗУАЛЬНЫЕ ЭТАЛОНЫ десяти ключевых экранов (toHaveScreenshot): приветствие, Путь, задания,
+/* ВИЗУАЛЬНЫЕ ЭТАЛОНЫ ключевых экранов (toHaveScreenshot): приветствие (и первый визит с уведомлением о памяти браузера), Путь, задания,
    карточка урока, первый шаг урока, лавка, профиль, оглавление учебника, глава, «Мир».
    Снимаются на телефоне (проект phone) с замороженными часами, детерминированным Math.random
    и выключенными анимациями — разница с эталоном больше 2% пикселей валит тест.
@@ -20,21 +20,22 @@ const ACCOUNT = { token: 't', login: 'tester', name: 'Тест', emblem: 'star',
 const NOW = new Date('2026-10-05T10:00:00');
 const SHOT = { animations: 'disabled', caret: 'hide', maxDiffPixelRatio: 0.02 };
 
-async function prepare(page, { account = true } = {}) {
+async function prepare(page, { account = true, notice = true } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.clock.setFixedTime(NOW);
   await page.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
-  await page.addInitScript(({ acc, a }) => {
+  await page.addInitScript(({ acc, a, seen }) => {
     let x = 42; Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
     try {
       window.__INFLATIA_TEST__ = true;
-      localStorage.setItem('ems-storage-notice', '1');
+      // уведомление о памяти браузера уже прочитано — кроме снимка первого визита
+      if (seen) localStorage.setItem('ems-storage-notice', '1');
       if (acc) localStorage.setItem('ems-account', JSON.stringify(a));
       // утренний экран серии уже показан сегодня
       localStorage.setItem('ems-learn-morning', '2026-10-05');
     } catch { /* нет хранилища */ }
-  }, { acc: account, a: ACCOUNT });
+  }, { acc: account, a: ACCOUNT, seen: notice });
   return errors;
 }
 /* Снимок не совпал — в ошибке сказано, где: полосы строк с отличиями и элементы под ними. На CI
@@ -110,6 +111,16 @@ test.describe('визуальные эталоны', () => {
     await page.goto('/', { waitUntil: 'networkidle' });
     await expect(page.getByTestId('welcome')).toBeVisible();
     await match(page, '01-welcome.png');
+    expect(errors).toEqual([]);
+  });
+
+  // первый визит: ключа ems-storage-notice нет — полоса о памяти браузера в потоке над приветствием, кнопки не закрыты
+  test('приветствие: первый визит, уведомление о памяти браузера', async ({ page }) => {
+    const errors = await prepare(page, { account: false, notice: false });
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await expect(page.getByTestId('welcome')).toBeVisible();
+    await expect(page.getByTestId('storage-notice')).toBeVisible();
+    await match(page, '01a-welcome-first-visit.png');
     expect(errors).toEqual([]);
   });
 

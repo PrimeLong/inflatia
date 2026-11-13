@@ -36,7 +36,8 @@ export const GOALS = Object.entries(PROFILE_GOAL_LABEL).map(([id, label]) => ({ 
 export const MINUTES = [5, 10, 15, 20];
 
 const CSS = `
-  .wl { max-width: 460px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; }
+  /* высота — экран без полосы уведомления о памяти браузера (src/privacy.jsx): она стоит в потоке над приветствием */
+  .wl { max-width: 460px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); min-height: calc(100vh - var(--ems-notice-h, 0px)); min-height: calc(100dvh - var(--ems-notice-h, 0px)); display: flex; flex-direction: column; box-sizing: border-box; }
   .wl-top { display: flex; align-items: center; min-height: 44px; }
   .wl-body { flex: 1; display: flex; flex-direction: column; }
   .wl-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
@@ -60,6 +61,17 @@ const CSS = `
   @media (prefers-reduced-motion: reduce) { .wl-hello *, .wl-hello { animation: none !important; } }
   /* ПК (docs/mechanics.md, «Приветствие и загрузка»): та же колонка посередине экрана, по высоте — по центру; без
      деления на две части (пункт владельца 08.11, вечер). Уведомление о памяти браузера — в левом нижнем углу */
+  /* низкий телефон (docs/mechanics.md, «Приветствие и загрузка»): розетка меньше, гильоши убраны — «Начать» и
+     «У меня уже есть аккаунт» видны на первом экране и с полосой уведомления о памяти браузера наверху */
+  @media (max-height: 700px) and (max-width: 1023px) {
+    .wl-hello { padding-top: calc(10px + env(safe-area-inset-top)); }
+    .wl-hello .wl-g1, .wl-hello .wl-g2 { display: none; }
+    .wl-hello .wl-hero { zoom: .6; margin: 6px 0 2px; }
+    .wl-hello .wl-brand { font-size: 28px !important; }
+    .wl-hello .wl-values { margin: 10px 0 0; gap: 7px; }
+    .wl-hello .wl-values li { font-size: 14px; line-height: 1.32; }
+    .wl-hello .wl-foot { margin-top: 12px; gap: 8px; }
+  }
   @media (min-width: 1024px) {
     .wl.wl-hello { justify-content: center; }
     .wl-hello > .wl-body { flex: none; }

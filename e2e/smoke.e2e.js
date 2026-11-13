@@ -4856,6 +4856,57 @@ test('«Большое повторение» в конце уровня: нов
   expect(errors).toEqual([]);
 });
 
+/* Первый визит на телефоне (docs/mechanics.md, «Приветствие и загрузка»; пункт владельца 13.11): уведомление о памяти
+   браузера стоит в потоке страницы и ничего не перекрывает — «Начать» и «У меня уже есть аккаунт» целиком на первом
+   экране и нажимаются. Раньше плашка висела поверх низа экрана и на 360×640 лежала на кнопках. */
+for (const [w, h] of [[360, 640], [390, 844]]) {
+  test(`вход: первый визит на телефоне ${w}×${h} — плашка о памяти браузера в потоке страницы, «Начать» и «У меня уже есть аккаунт» целиком видны и нажимаются`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    // первый визит: ключа ems-storage-notice нет (скрипт страницы идёт после скрипта контекста)
+    await page.addInitScript(() => { if (!sessionStorage.getItem('t-keep')) localStorage.removeItem('ems-storage-notice'); });
+    const { errors } = await openApp(page, '/', '{}', { tab: null });
+    const notice = page.getByTestId('storage-notice');
+    const start = page.getByRole('button', { name: 'Начать', exact: true });
+    const login = page.getByRole('button', { name: 'У меня уже есть аккаунт', exact: true });
+    await expect(notice).toBeVisible();
+    await page.waitForTimeout(1500); // приветствие проявляется по шагам
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    const n = await notice.boundingBox();
+    for (const btn of [start, login]) {
+      await expect(btn).toBeInViewport({ ratio: 1 });
+      const b = await btn.boundingBox();
+      // целиком на первом экране и не под плашкой
+      expect(b.y).toBeGreaterThanOrEqual(0); expect(b.y + b.height).toBeLessThanOrEqual(h);
+      const apart = b.y >= n.y + n.height - 0.5 || b.y + b.height <= n.y + 0.5 || b.x >= n.x + n.width || b.x + b.width <= n.x;
+      expect(apart, 'кнопка под плашкой о памяти браузера').toBe(true);
+      // по краям и в середине кнопки — сама кнопка, а не то, что лежит сверху (углы скруглены — точки чуть внутри)
+      const own = await btn.evaluate((el) => {
+        const r = el.getBoundingClientRect(); const cx = r.left + r.width / 2; const cy = r.top + r.height / 2;
+        return [[r.left + 16, cy], [r.right - 16, cy], [cx, r.top + 5], [cx, r.bottom - 5], [cx, cy]]
+          .every(([x, y]) => { const hit = document.elementFromPoint(x, y); return !!hit && el.contains(hit); });
+      });
+      expect(own, 'кнопка чем-то закрыта').toBe(true);
+    }
+    // плашка — в потоке: над приветствием, страница под неё подвинулась
+    expect(await notice.evaluate((el) => getComputedStyle(el).position)).not.toBe('fixed');
+    const brand = await page.getByTestId('brand').boundingBox();
+    expect(n.y + n.height).toBeLessThanOrEqual(brand.y);
+    await expectNoSidewaysScroll(page);
+    // обе кнопки нажимаются, пока плашка ещё на экране
+    await login.click();
+    await expect(page.getByTestId('auth-to-register')).toBeVisible();
+    await expect(notice).toBeVisible();
+    await page.locator('[data-nav="back"]').filter({ visible: true }).click();
+    await start.click();
+    await expect(page.getByTestId('welcome-goal')).toBeVisible();
+    // «Понятно» — полоса уходит, приветствие снова во весь экран
+    await notice.getByTestId('storage-notice-ok').click();
+    await expect(notice).toHaveCount(0);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ems-notice-h'))).toBe('');
+    expect(errors).toEqual([]);
+  });
+}
+
 test('память браузера: уведомление один раз — cookie нет, «Подробнее» ведёт на страницу данных', async ({ page }) => {
   await withTestFlag(page);
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
