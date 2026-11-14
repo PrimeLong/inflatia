@@ -7,6 +7,7 @@
 
    COLOR/Audio — тот же самый общий объект/синглтон, что и в MacroSimulator.jsx
    (экспортирован оттуда), а не копия: смена темы и звук работают как раньше. */
+import { ruNum } from './lib/num.js';
 import React, { useState, useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Area, ReferenceLine, ReferenceArea,
@@ -99,12 +100,12 @@ const CHART_GROUPS = [
 const PERIODS = [{ id: '1y', label: '1 год', q: 4 }, { id: '5y', label: '5 лет', q: 20 }, { id: '10y', label: '10 лет', q: 40 }, { id: 'all', label: 'Всё время', q: 1e9 }];
 /* На узком диапазоне (например разрыв выпуска от -1.2 до 0) округление до целых
    даёт подряд «0% 0% -1% -1%» — десятая доля появляется только когда она нужна. */
-const pctTick = (v) => `${Math.abs(v) < 10 ? Number(v.toFixed(1)) : Math.round(v)}%`;
+const pctTick = (v) => `${Math.abs(v) < 10 ? String(Number(v.toFixed(1))).replace('.', ',') : Math.round(v)}%`;
 // idx3 — индекс с тремя знаками (коэффициент Джини от 0 до 1)
 const axisTick = (fmtType) => (fmtType === 'money' ? (v) => Math.round(v).toLocaleString('ru-RU') : fmtType === 'idx' ? (v) => Math.round(v)
-  : fmtType === 'idx3' ? (v) => v.toFixed(2) : pctTick);
+  : fmtType === 'idx3' ? (v) => ruNum(v, 2) : pctTick);
 const tooltipVal = (fmtType) => (fmtType === 'money' ? (v) => fmtMoney(v) : fmtType === 'idx' ? (v) => fmt1(v)
-  : fmtType === 'idx3' ? (v) => v.toFixed(3) : (v) => `${fmt1(v)}%`);
+  : fmtType === 'idx3' ? (v) => ruNum(v, 3) : (v) => `${fmt1(v)}%`);
 
 const FORECAST_ANCHORS = {
   inflation: (e) => e.inflationTarget, coreInflation: (e) => e.inflationTarget,
@@ -160,7 +161,7 @@ function CompareBadge({ compare, onReset }) {
             {r.delta === null ? <span style={{ color: COLOR.faint }}>нет данных</span> : (
               <span className="ems-mono">
                 {r.fmt(r.a)} → {r.fmt(r.b)} <b style={{ color: r.delta > 0 ? COLOR.teal : r.delta < 0 ? COLOR.rust : COLOR.muted }}>
-                  ({r.delta >= 0 ? '+' : ''}{r.deltaPct != null ? `${r.deltaPct.toFixed(1)}%` : r.fmt(r.delta)})</b>
+                  ({r.delta >= 0 ? '+' : ''}{r.deltaPct != null ? `${ruNum(r.deltaPct, 1)}%` : r.fmt(r.delta)})</b>
               </span>
             )}
           </div>

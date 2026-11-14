@@ -2,6 +2,7 @@
    достижений. Вынесены из MacroSimulator.jsx в ленивый модуль: на приветствии, Пути и в учебнике они не
    нужны, а весили около сотни килобайт стартового JS (docs/mechanics.md, «Приветствие и загрузка»).
    Грузится, когда открыта вкладка «Мир» или экран новой партии. */
+import { ruNum } from './lib/num.js';
 import React, { useState, useEffect } from 'react';
 import {
   fetchRoom, fetchSoloSlots, fetchSoloSlot, deleteSoloSlot, fetchDailyBoard, fetchTycoonSlots, fetchTycoonSlot, deleteTycoonSlot,
@@ -132,7 +133,7 @@ export function DailyBoard({ day, data: given = null, limit = 10 }) {
         {r.defeated ? `поражение, кв. ${r.quarters}` : dailyRoleShort(r.role)}
       </span>
       <span className="ems-mono" style={{ color: r.you ? COLOR.gold : COLOR.text, fontWeight: 600, minWidth: 34, textAlign: 'right' }}>
-        {r.score.toFixed(1).replace('.', ',')}
+        {ruNum(r.score, 1)}
       </span>
     </div>
   );
@@ -171,7 +172,7 @@ function DailyCard({ onStart }) {
           <div className="ds-h3">{dailyDateLabel(ch.day)}</div>
           <div className="ds-sub" style={{ fontSize: 13.5, marginTop: 2 }}>
             {roleTitle} · {scenario.id === 'sandbox' ? 'спокойный старт' : scenario.title.toLowerCase()} · {diff.title.toLowerCase()} · {ch.quarters} кв.
-            {best ? <> · ваш лучший <b className="ds-num" style={{ color: 'var(--u-ink)' }}>{best.score.toFixed(1).replace('.', ',')}</b></> : null}
+            {best ? <> · ваш лучший <b className="ds-num" style={{ color: 'var(--u-ink)' }}>{ruNum(best.score, 1)}</b></> : null}
           </div>
         </div>
       </div>
@@ -236,7 +237,7 @@ function MenuTicker() {
     return (
       <span key={r.id} className="menu-tick-cell">
         <span style={{ color: COLOR.muted }}>{r.label}</span>{' '}
-        <span className="ems-mono" style={{ color: COLOR.text }}>{r.v.toFixed(r.dec).replace('.', ',')}{r.unit}</span>{' '}
+        <span className="ems-mono" style={{ color: COLOR.text }}>{ruNum(r.v, r.dec)}{r.unit}</span>{' '}
         <span style={{ color: tone, fontSize: 12 }}>{up ? '▲' : down ? '▼' : '•'}</span>
       </span>
     );
@@ -362,7 +363,7 @@ export function MainMenu({ theme, setTheme, onNewGame, onNetwork, onTutorial, on
     catch (e) { setSlotError(e.message); setTycoonBusy(null); }
   };
   const roleShort = (id) => (ROLES.find((r) => r.id === id) || {}).short || id;
-  const moneyShort = (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)} млрд` : v >= 1 ? `${v.toFixed(1)} млн` : `${Math.round(v * 1000)} тыс`);
+  const moneyShort = (v) => (v >= 1000 ? `${ruNum(v / 1000, 1)} млрд` : v >= 1 ? `${ruNum(v, 1)} млн` : `${Math.round(v * 1000)} тыс`);
 
   /* «Продолжить» — одна главная кнопка вместо трёх карточек с сохранениями подряд:
      самое свежее из одиночной партии и «Своего дела»; второе — строкой под ней. */

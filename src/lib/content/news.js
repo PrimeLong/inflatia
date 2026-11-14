@@ -1,4 +1,5 @@
 /* Выделено из engine.js: content/news.js. Точка входа по-прежнему engine.js — он всё реэкспортирует. */
+import { ruNum } from '../num.js';
 import { CONFIG } from '../catalog.js';
 import { REGIME_INFO, fmt1, fmt2, fmtMoney, fmtMoneySigned, fmtSigned1, regimeInfoText } from '../engine.js';
 import { makeImpulse } from './events.js';
@@ -13,7 +14,7 @@ export const rf1 = (v) => ru(fmt1(v));
 export const rf2 = (v) => ru(fmt2(v));
 export const rfs = (v) => ru(fmtSigned1(v));
 // шаг ставки ходит по сетке 0,25 — округление до десятых превращало его в «+0,3»
-export const rfs2 = (v) => ru(Number.isFinite(v) ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—');
+export const rfs2 = (v) => ru(Number.isFinite(v) ? (v >= 0 ? '+' : '') + ruNum(v, 2) : '—');
 export let __newsId = 1;
 // счётчик живёт в модуле новостей, а поднимать его может и главный цикл квартала
 export function bumpNewsId(min) { __newsId = Math.max(__newsId, min); }
@@ -740,25 +741,25 @@ export function buildDecisionImpulses(dec, s, difficulty) {
   const out = [];
   const dVat = dec.vatRate - s.vatRate;
   if (Math.abs(dVat) > 1e-6) {
-    out.push(makeImpulse('vatPrices', dVat * CONFIG.coef.vatPass, `Изменение НДС до ${dec.vatRate.toFixed(1)}% напрямую переносится в розничные цены`, 'fast', difficulty, 'inflation'));
-    out.push(makeImpulse('consumption', -dVat * 0.35, `Изменение НДС до ${dec.vatRate.toFixed(1)}% меняет реальные доходы домохозяйств`, 'default', difficulty));
+    out.push(makeImpulse('vatPrices', dVat * CONFIG.coef.vatPass, `Изменение НДС до ${ruNum(dec.vatRate, 1)}% напрямую переносится в розничные цены`, 'fast', difficulty, 'inflation'));
+    out.push(makeImpulse('consumption', -dVat * 0.35, `Изменение НДС до ${ruNum(dec.vatRate, 1)}% меняет реальные доходы домохозяйств`, 'default', difficulty));
   }
   const dExcise = dec.exciseRate - s.exciseRate;
   if (Math.abs(dExcise) > 1e-6) {
-    out.push(makeImpulse('vatPrices', dExcise * 0.12, `Изменение акцизов до ${dec.exciseRate.toFixed(1)}%`, 'fast', difficulty, 'inflation'));
-    out.push(makeImpulse('consumption', -dExcise * 0.14, `Изменение акцизов до ${dec.exciseRate.toFixed(1)}%`, 'default', difficulty));
+    out.push(makeImpulse('vatPrices', dExcise * 0.12, `Изменение акцизов до ${ruNum(dec.exciseRate, 1)}%`, 'fast', difficulty, 'inflation'));
+    out.push(makeImpulse('consumption', -dExcise * 0.14, `Изменение акцизов до ${ruNum(dec.exciseRate, 1)}%`, 'default', difficulty));
   }
   const dIncome = dec.incomeTaxRate - s.incomeTaxRate;
-  if (Math.abs(dIncome) > 1e-6) out.push(makeImpulse('consumption', -dIncome * 0.30, `${dIncome > 0 ? 'Повышение' : 'Снижение'} подоходного налога до ${dec.incomeTaxRate.toFixed(1)}% меняет располагаемый доход`, 'default', difficulty));
+  if (Math.abs(dIncome) > 1e-6) out.push(makeImpulse('consumption', -dIncome * 0.30, `${dIncome > 0 ? 'Повышение' : 'Снижение'} подоходного налога до ${ruNum(dec.incomeTaxRate, 1)}% меняет располагаемый доход`, 'default', difficulty));
   const dSocial = dec.socialContribRate - s.socialContribRate;
   if (Math.abs(dSocial) > 1e-6) {
-    out.push(makeImpulse('unemployment', dSocial * 0.045, `Изменение социальных взносов до ${dec.socialContribRate.toFixed(1)}% меняет стоимость труда для работодателя`, 'default', difficulty));
-    out.push(makeImpulse('investment', -dSocial * 0.20, `Изменение социальных взносов до ${dec.socialContribRate.toFixed(1)}%`, 'default', difficulty));
+    out.push(makeImpulse('unemployment', dSocial * 0.045, `Изменение социальных взносов до ${ruNum(dec.socialContribRate, 1)}% меняет стоимость труда для работодателя`, 'default', difficulty));
+    out.push(makeImpulse('investment', -dSocial * 0.20, `Изменение социальных взносов до ${ruNum(dec.socialContribRate, 1)}%`, 'default', difficulty));
   }
   const dProfit = dec.profitTaxRate - s.profitTaxRate;
-  if (Math.abs(dProfit) > 1e-6) out.push(makeImpulse('businessConfidence', -dProfit * 0.8, `${dProfit > 0 ? 'Повышение' : 'Снижение'} налога на прибыль до ${dec.profitTaxRate.toFixed(1)}%`, 'default', difficulty, 'other'));
+  if (Math.abs(dProfit) > 1e-6) out.push(makeImpulse('businessConfidence', -dProfit * 0.8, `${dProfit > 0 ? 'Повышение' : 'Снижение'} налога на прибыль до ${ruNum(dec.profitTaxRate, 1)}%`, 'default', difficulty, 'other'));
   const dCapital = dec.capitalTaxRate - s.capitalTaxRate;
-  if (Math.abs(dCapital) > 1e-6) out.push(makeImpulse('capitalFlow', -dCapital * 6, `Изменение налога на капитал до ${dec.capitalTaxRate.toFixed(1)}% влияет на приток капитала`, 'default', difficulty));
+  if (Math.abs(dCapital) > 1e-6) out.push(makeImpulse('capitalFlow', -dCapital * 6, `Изменение налога на капитал до ${ruNum(dec.capitalTaxRate, 1)}% влияет на приток капитала`, 'default', difficulty));
   if (Math.abs(dec.moneySupplyOp || 0) > 1e-6) {
     out.push(makeImpulse('inflationSupply', dec.moneySupplyOp * 0.14, `${dec.moneySupplyOp > 0 ? 'Расширение' : 'Сжатие'} денежной массы на ${fmtSigned1(dec.moneySupplyOp)}%`, 'slow', difficulty, 'inflation'));
     out.push(makeImpulse('investment', dec.moneySupplyOp * 0.35, `Операции с денежной массой (${fmtSigned1(dec.moneySupplyOp)}%)`, 'default', difficulty));
@@ -769,7 +770,7 @@ export function buildDecisionImpulses(dec, s, difficulty) {
     out.push(makeImpulse('govTrust', -2.5, 'Экстренная поддержка банков за счёт бюджета и эмиссии', 'fast', difficulty, 'other'));
   }
   const dReserve = dec.reserveReq - s.reserveReq;
-  if (Math.abs(dReserve) > 1e-6) out.push(makeImpulse('creditDemand', -dReserve * 0.5, `Изменение нормы резервирования до ${dec.reserveReq.toFixed(1)}%`, 'default', difficulty, 'banking'));
+  if (Math.abs(dReserve) > 1e-6) out.push(makeImpulse('creditDemand', -dReserve * 0.5, `Изменение нормы резервирования до ${ruNum(dec.reserveReq, 1)}%`, 'default', difficulty, 'banking'));
   const bondIssuance = Math.max(0, dec.bondIssuance || 0);
   if (bondIssuance > 0.01) {
     // рынок читает размещение сверх необходимого как сигнал: раз занимают, не

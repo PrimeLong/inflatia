@@ -1,3 +1,4 @@
+import { ruNum } from '../num.js';
 import { describe, it, expect, vi } from 'vitest';
 import {
   makeInitialEconomy, defaultDecisions, simulateQuarter,
@@ -131,8 +132,8 @@ describe('redescribeCbAction (новость после межведомстве
     expect(result.status).toBe('accepted');
     expect(result.decisions.keyRate).not.toBe(cbAction.decisions.keyRate); // запрос реально что-то изменил
     const redescribed = redescribeCbAction(s, 'pragmatic', result.decisions);
-    expect(redescribed.note).toContain(result.decisions.keyRate.toFixed(2));
-    expect(redescribed.note).not.toContain(cbAction.decisions.keyRate.toFixed(2));
+    expect(redescribed.note).toContain(ruNum(result.decisions.keyRate, 2));
+    expect(redescribed.note).not.toContain(ruNum(cbAction.decisions.keyRate, 2));
   });
 });
 
@@ -483,17 +484,18 @@ describe('дефолт по государственному долгу (реш�
 
 describe('деньги инвестора в миллионах (fmtMln)', () => {
   it('scales the unit with the amount instead of printing "6118.42 млн"', () => {
-    expect(fmtMln(6.5)).toBe('6.50 млн');
-    expect(fmtMln(6118.42)).toBe('6.12 млрд');
-    expect(fmtMln(2_500_000)).toBe('2.50 трлн');
-    expect(fmtMln(-6118.42)).toBe('-6.12 млрд');
+    // по-русски: запятая и неразрывный пробел перед единицей (src/lib/num.js)
+    expect(fmtMln(6.5)).toBe('6,50\u00a0млн');
+    expect(fmtMln(6118.42)).toBe('6,12\u00a0млрд');
+    expect(fmtMln(2_500_000)).toBe('2,50\u00a0трлн');
+    expect(fmtMln(-6118.42)).toBe('-6,12\u00a0млрд');
     expect(fmtMln(NaN)).toBe('—');
   });
 
   it('keeps the sign explicit for results and splits value from unit for styled output', () => {
-    expect(fmtMlnSigned(3.2)).toBe('+3.20 млн');
-    expect(fmtMlnSigned(-1200)).toBe('-1.20 млрд');
-    expect(mlnScale(1500)).toEqual({ v: '1.50', unit: 'млрд' });
+    expect(fmtMlnSigned(3.2)).toBe('+3,20\u00a0млн');
+    expect(fmtMlnSigned(-1200)).toBe('-1,20\u00a0млрд');
+    expect(mlnScale(1500)).toEqual({ v: '1,50', unit: 'млрд' });
   });
 });
 
@@ -1594,9 +1596,9 @@ describe('жалобы игрока: рынок, бот и сюжеты', () => 
 
   it('крупные суммы и индексы не превращаются в нечитаемую ленту цифр', () => {
     expect(fmtMoney(6512258680)).toMatch(/квинтлн|квадрлн|секстлн/);
-    expect(fmtMoney(1500)).toBe('1.50 трлн');
-    expect(fmtIndex(8374980.7)).toBe('8.37 млн');
-    expect(fmtIndex(1234.5)).toBe('1234.5');
+    expect(fmtMoney(1500)).toBe('1,50\u00a0трлн');
+    expect(fmtIndex(8374980.7)).toBe('8,37\u00a0млн');
+    expect(fmtIndex(1234.5)).toBe('1234,5');
   });
 
   it('досрочные выборы нельзя назначить там, где выборов не бывает', () => {

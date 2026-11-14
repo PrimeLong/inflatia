@@ -2,6 +2,7 @@
    социальных групп (см. SOCIAL_GROUPS в движке); здесь видно, кто в коалиции,
    кто колеблется, кого уже потеряли, что каждую группу двигает сейчас и какие
    решения она помнит. Грузится лениво, как и карта. */
+import { ruNum } from './lib/num.js';
 import { AlertTriangle, Briefcase, HardHat, Heart, MapPin, Megaphone, Shield, Stethoscope, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { SOCIAL_GROUPS, groupStatus, coalitionOf, fmt1, fmtMoney, QUINTILES, FIRMS, FIRM_MODE_LABEL } from './lib/engine.js';
 import { Audio, COLOR } from './MacroSimulator.jsx';
@@ -204,7 +205,7 @@ function IncomePanel({ economy }) {
     <div className="ems-panel" style={{ padding: 16 }} aria-label="Доходы по слоям">
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         <span className="ems-serif" style={{ fontSize: 16, color: COLOR.goldSoft }}>Доходы по слоям</span>
-        <span style={{ fontSize: 12, color: COLOR.muted }}>неравенство (Джини) <b className="ems-mono" style={{ color: giniTone }}>{d.gini.toFixed(3).replace('.', ',')}</b></span>
+        <span style={{ fontSize: 12, color: COLOR.muted }}>неравенство (Джини) <b className="ems-mono" style={{ color: giniTone }}>{ruNum(d.gini, 3)}</b></span>
       </div>
       {/* две бедности рядом: они отвечают на разные вопросы и расходятся — это и есть урок */}
       <div data-testid="poverty" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, margin: '4px 0 8px' }}>

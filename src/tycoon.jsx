@@ -3,6 +3,7 @@
    строит производственные цепочки по областям карты. Модель — src/lib/tycoon.js,
    финансы и связь с макроэкономикой — src/lib/business.js, карта — BusinessMap
    в countrymap.jsx, ползунки и строки отчёта — src/business.jsx. */
+import { ruNum } from './lib/num.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Wheat, Trees, Pickaxe, Mountain, Factory, Store, Building2, Anchor, Warehouse, FlaskConical, Pause, Play,
@@ -34,8 +35,8 @@ const money = (v) => {
   return fmtMln(v);
 };
 const moneySigned = (v) => `${v >= 0 ? '+' : '−'}${money(Math.abs(v))}`;
-const perMin = (v) => (v * 60 < 10 ? (v * 60).toFixed(1) : Math.round(v * 60).toString());
-const units = (v) => (v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('ru-RU'));
+const perMin = (v) => (v * 60 < 10 ? ruNum(v * 60, 1) : Math.round(v * 60).toString());
+const units = (v) => (v < 10 ? ruNum(v, 1) : Math.round(v).toLocaleString('ru-RU'));
 
 const TY_CSS = `
   .ty-work { position: relative; height: 4px; border-radius: 2px; background: ${'var(--ty-track)'}; overflow: hidden; }
@@ -607,7 +608,7 @@ function RegionPanel({ st, region, act, setHoverType }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Icon size={15} color={COLOR[CAT_COLOR[d.cat]]} />
                 <span style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0 }}>{d.name}</span>
-                {bonus !== 1 && <span className="ems-mono" style={{ fontSize: 12, color: bonus > 1 ? COLOR.teal : COLOR.rust }}>×{bonus.toFixed(2)}</span>}
+                {bonus !== 1 && <span className="ems-mono" style={{ fontSize: 12, color: bonus > 1 ? COLOR.teal : COLOR.rust }}>×{ruNum(bonus, 2)}</span>}
               </div>
               <div style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.4, flex: 1 }}>{recipeText(d)}</div>
               <button className="ems-btn" disabled={!!err} title={err || ''} style={{ padding: '5px 8px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
@@ -1483,7 +1484,7 @@ function CountryTab({ st }) {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div className="ems-mono" style={{ fontSize: 13, fontWeight: 600 }}>{v}</div>
-              {Math.abs(dv) > 0.05 && <div className="ems-mono" style={{ fontSize: 12, color: COLOR.faint }}>{dv > 0 ? '+' : ''}{dv.toFixed(1)}</div>}
+              {Math.abs(dv) > 0.05 && <div className="ems-mono" style={{ fontSize: 12, color: COLOR.faint }}>{dv > 0 ? '+' : ''}{ruNum(dv, 1)}</div>}
             </div>
           </div>
         ))}

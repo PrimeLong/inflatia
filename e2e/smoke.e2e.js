@@ -934,7 +934,7 @@ test('лаборатория: один рычаг, четыре графика �
   // темп расходов: по умолчанию разовый сдвиг, уровень расходов — около +0,5%, а не +2%
   await page.getByRole('button', { name: 'Госзакупки и содержание государства', exact: true }).click();
   await expect(page.getByRole('button', { name: 'расходы разово выше навсегда' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('lab-level')).toContainText('через квартал +0.5%');
+  await expect(page.getByTestId('lab-level')).toContainText('через квартал +0,5%');
   // фон: без шумов или на фоне шумов с полосой
   await page.getByRole('button', { name: /на фоне шумов/ }).click();
   await expect(page.getByTestId('lab-cb-note').locator('..')).toContainText('медиана');
@@ -3855,7 +3855,8 @@ test('вход: программа — вступительный тест, су
     localStorage.setItem('ems-textbook-v1', JSON.stringify(p));
     localStorage.setItem('ems-learn-morning', y);
   });
-  await page.reload({ waitUntil: 'networkidle' });
+  // утренний экран — на Пути; перезагрузка осталась бы на профиле (docs/mechanics.md, «Адреса и история»)
+  await page.goto('/', { waitUntil: 'networkidle' });
   const morning = page.getByTestId('morning');
   await expect(morning).toBeVisible();
   await expect(morning.getByTestId('morning-days')).toHaveAttribute('data-value', '1');
@@ -4994,6 +4995,52 @@ test('адреса: из партии «Назад» выходит в меню 
   expect(await page.evaluate(() => !!localStorage.getItem('ems-autosave-v1'))).toBe(true);
   await page.reload({ waitUntil: 'networkidle' });
   await expect(page.getByTestId('world')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/* ЧИСЛА В «МИРЕ» ПО-РУССКИ (docs/mechanics.md, «Числа в „Мире“»; пункт владельца 13.11): запятая, а не точка — на экране
+   партии и в газете; в рубриках газеты — значки, а не эмодзи. Раньше ставка стояла как «5.50%», шаг ползунка — «0.25». */
+const dottedNumbers = (page) => page.evaluate(() => {
+  const re = /(?<![\d.,])\d+\.\d+(?![\d.])/;
+  const out = new Set();
+  const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  while (w.nextNode()) {
+    const el = w.currentNode.parentElement;
+    if (!el || el.closest('script, style')) continue;
+    const t = w.currentNode.textContent;
+    if (re.test(t)) out.add(`«${t.trim().slice(0, 70)}» <${el.tagName.toLowerCase()}>`);
+  }
+  document.querySelectorAll('[aria-label], [title]').forEach((el) => ['aria-label', 'title'].forEach((a) => { const t = el.getAttribute(a) || ''; if (re.test(t)) out.add(`${a}: ${t.slice(0, 90)}`); }));
+  return [...out];
+});
+test('«Мир»: числа по-русски — на экране партии и в газете нет чисел вида «4.1»; рубрики газеты — со значками, без эмодзи', async ({ page }) => {
+  test.setTimeout(120_000);
+  const { errors } = await openApp(page);
+  await startSoloGame(page);
+  await page.waitForTimeout(600);
+  expect(await dottedNumbers(page), 'экран партии до первого квартала').toEqual([]);
+  // ставка с дробью — и на рычаге, и в подписи для чтения с экрана — через запятую
+  const rate = page.locator('input[type=range][aria-label^="Ключевая ставка, текущее"]');
+  if (await rate.count()) await expect(rate.first()).toHaveAttribute('aria-label', /текущее значение \d+(,\d+)?%.*шаг 0,25/);
+  for (let q = 1; q <= 3; q += 1) {
+    await page.getByRole('button', { name: 'Завершить квартал и применить решения' }).click();
+    const close = page.getByRole('button', { name: 'Закрыть газету' });
+    // газета открывается сама после квартала или по кнопке
+    await page.waitForTimeout(700);
+    if (!(await close.isVisible().catch(() => false))) await page.getByRole('button', { name: /Газета/ }).first().click();
+    await expect(close).toBeVisible();
+    await page.waitForTimeout(400);
+    expect(await dottedNumbers(page), `газета, квартал ${q}`).toEqual([]);
+    // в газете есть дробные числа — и они с запятой
+    if (q === 1) expect(await page.evaluate(() => /\d,\d/.test(document.body.innerText))).toBe(true);
+    await close.click();
+    await expect(close).toHaveCount(0);
+    await page.waitForTimeout(400);
+    expect(await dottedNumbers(page), `экран партии после квартала ${q}`).toEqual([]);
+  }
+  // лента новостей на экране партии: в фильтрах рубрик — значок, не эмодзи
+  const emoji = await page.evaluate(() => [...document.querySelectorAll('.ems-tab')].map((b) => b.textContent).filter((t) => /\p{Extended_Pictographic}/u.test(t)));
+  expect(emoji, 'эмодзи в кнопках-фильтрах').toEqual([]);
   expect(errors).toEqual([]);
 });
 

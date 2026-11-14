@@ -2,6 +2,7 @@
    • Лаборатория — импульсный отклик одного рычага (src/lib/lab.js);
    • Задачи на 10 минут — список задач (сама партия идёт в обычном экране игры).
    Отдельный ленивый чанк: в меню и в партии этот код не нужен. */
+import { ruNum } from './lib/num.js';
 import React, { useMemo, useState } from 'react';
 import { ComposedChart, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { FlaskConical, Target } from 'lucide-react';
@@ -67,7 +68,7 @@ const LAB_NOTES = {
 };
 
 // мелкие отклики (сотые доли пункта) не должны превращаться в «+0.0»
-const signedSmall = (v) => (Math.abs(v) < 0.095 && v !== 0 ? `${v > 0 ? '+' : ''}${v.toFixed(2)}` : fmtSigned1(v));
+const signedSmall = (v) => (Math.abs(v) < 0.095 && v !== 0 ? `${v > 0 ? '+' : ''}${ruNum(v, 2)}` : fmtSigned1(v));
 
 function DiffChart({ data, metric, color }) {
   const pk = peakOf(data, metric.key);
@@ -88,7 +89,7 @@ function DiffChart({ data, metric, color }) {
             <CartesianGrid stroke={COLOR.hairline} strokeDasharray="2 4" vertical={false} />
             <XAxis dataKey="q" tick={{ fill: COLOR.faint, fontSize: 12 }} stroke={COLOR.border} />
             {/* ноль на шкале всегда: отклик читается как отклонение от базы, а не как плавающий масштаб */}
-            <YAxis tick={{ fill: COLOR.faint, fontSize: 12 }} stroke={COLOR.border} width={46} tickFormatter={(v) => v.toFixed(axis.digits)}
+            <YAxis tick={{ fill: COLOR.faint, fontSize: 12 }} stroke={COLOR.border} width={46} tickFormatter={(v) => ruNum(v, axis.digits)}
               domain={axis.domain} ticks={axis.ticks} interval={0} />
             <ReferenceLine y={0} stroke={COLOR.faint} />
             <Tooltip contentStyle={{ background: COLOR.panelRaised, border: `1px solid ${COLOR.border}`, fontSize: 12 }}
@@ -263,7 +264,7 @@ export function LabScreen({ onBack, initialLever = 'keyRate', initial = null }) 
    график показывает, как их средний результат на ставку прижимается к матожиданию. Таблица —
    точный расчёт: сколько в среднем оставляют казино и какая доля гостей ещё в плюсе. */
 const GUEST_COLORS = () => [COLOR.teal, COLOR.blue, COLOR.gold, COLOR.rust, COLOR.goldSoft];
-const pct = (v, d = 1) => `${v.toFixed(d).replace('.', ',')}%`;
+const pct = (v, d = 1) => `${ruNum(v, d)}%`;
 export function CasinoOdds() {
   const [gameId, setGameId] = useState('roulette');
   const [n, setN] = useState(1000);
@@ -323,7 +324,7 @@ export function CasinoOdds() {
           {rows.map((r) => (
             <tr key={r.n} style={{ borderTop: `1px solid ${COLOR.hairline}`, color: COLOR.text }}>
               <td className="ems-mono" style={{ padding: '4px 6px' }}>{r.n}</td>
-              <td className="ems-mono" style={{ padding: '4px 6px' }}>{r.house.toFixed(r.n < 100 ? 2 : 1).replace('.', ',')} кр.</td>
+              <td className="ems-mono" style={{ padding: '4px 6px' }}>{ruNum(r.house, r.n < 100 ? 2 : 1)} кр.</td>
               <td className="ems-mono" style={{ padding: '4px 6px' }}>{pct(r.ahead * 100, 0)}</td>
             </tr>
           ))}
