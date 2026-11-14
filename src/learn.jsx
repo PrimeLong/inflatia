@@ -3255,7 +3255,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     let acc = null;
     try { acc = JSON.parse(localStorage.getItem('ems-account') || 'null'); } catch { /* повреждённая запись */ }
     if (!acc || !acc.token) return;
-    reportsMe(acc.token).then((r) => { if (r && r.owner === false) { rememberTeam(acc.login, false); window.location.reload(); } }).catch(() => {});
+    reportsMe(acc.token).then((r) => { if (r && r.owner === false) { rememberTeam(acc.login, false); window.location.assign('/'); } }).catch(() => {});
   }, []);
   const [run, setRun] = useState(null);
   // «Чтение» юнита — подборка цитат поверх Пути (src/learn-reading.jsx)

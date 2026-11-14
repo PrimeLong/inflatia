@@ -25,7 +25,7 @@ import {
 } from './textbook/progress.js';
 import { featureOpen, FeatureLocked, WorldTrialChip, WorldTrialEnd, WorldTrialSaved } from './learn-unlock.jsx';
 import { BookLinkContext } from './booklink-context.js';
-import { LATEST_NEWS, readNewsSeen, newsForLearner, learnerSince, readFeedSeenAt, friendNewsSince } from './learn/news.js';
+import { LATEST_NEWS_HEAD as LATEST_NEWS, readNewsSeen, newsForLearner, learnerSince, readFeedSeenAt, friendNewsSince } from './learn/news-head.js';
 import { friendsState } from './lib/friends-store.js';
 // профиль игрока живёт в src/account.jsx; сетевой экран и партия берут его отсюда
 export { AuthModal, useAccount, emblemIcon, forgetAccount, loadAccount, accountKidsMode, EMBLEMS } from './account.jsx';

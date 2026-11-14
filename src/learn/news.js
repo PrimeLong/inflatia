@@ -6,6 +6,10 @@
    В ленте выпуск короткий: заголовок, одна строка вступления и названия пунктов; тексты пунктов —
    по кнопке «Подробнее». */
 import { dayOf } from '../textbook/learn-state.js';
+import { SEEN_KEY, FEED_SEEN_KEY, NEWS_SEEN_PREFIX, newsForLearner, readNewsSeen } from './news-head.js';
+
+// лёгкая часть (первый день ученика, прочитанные выпуски, новое от друзей) — в news-head.js: её зовёт нижняя панель
+export { LATEST_NEWS_HEAD, learnerSince, newsForLearner, NEWS_SEEN_PREFIX, readNewsSeen, readFeedSeenAt, friendNewsSince } from './news-head.js';
 
 export const NEWS = [
   {
@@ -340,29 +344,6 @@ export function newsDate(day, today = null) {
   return `${d} ${MONTHS_GEN[m - 1]}${sameYear ? '' : ` ${y}`}`;
 }
 
-/* Первый день ученика: регистрация или самое раннее занятие; ещё ничего нет — сегодня (он только
-   пришёл). Выпуск — новость для ученика, только если вышел ПОСЛЕ этого дня: тому, кто только зашёл,
-   прошлое обновление не новость — для него новое всё. */
-export function learnerSince(learn, now = Date.now()) {
-  const l = learn || {};
-  const days = [...Object.keys(l.done || {}), ...Object.keys(l.xp || {})].sort();
-  const reg = l.profile && l.profile.at ? dayOf(l.profile.at) : null;
-  return [days[0], reg].filter(Boolean).sort()[0] || dayOf(now);
-}
-export const newsForLearner = (n, since) => !since || n.date > since;
-
-/* Прочитанные выпуски — на устройстве (ems-news-seen: id → когда открыли) и в прогрессе ученика
-   (learn.shown, ключ w:<id>), общем для всех его устройств: открыл ленту на ПК — на телефоне выпуск уже
-   не «новый» (жалоба). Новый ученик не видит прошлых выпусков как «новых»: всё, что вышло до его первого
-   дня включительно, — не новость. */
-const SEEN_KEY = 'ems-news-seen';
-export const NEWS_SEEN_PREFIX = 'w:';
-export function readNewsSeen(learn = null) {
-  let local = {};
-  try { const v = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); local = v && typeof v === 'object' ? v : {}; } catch { /* приватный режим */ }
-  const synced = Object.fromEntries(Object.entries((learn && learn.shown) || {}).filter(([k]) => k.startsWith(NEWS_SEEN_PREFIX)).map(([k, v]) => [k.slice(NEWS_SEEN_PREFIX.length), v]));
-  return { ...synced, ...local };
-}
 // ключи прогресса для прочитанных выпусков: сам выпуск и его уведомление (центр уведомлений — n:news:<id>)
 export const newsShownKeys = (ids) => ids.flatMap((id) => [`${NEWS_SEEN_PREFIX}${id}`, `n:news:${id}`]);
 export function markNewsSeen(ids, now = Date.now()) {
@@ -395,14 +376,5 @@ export function feedDays(news, events = []) {
   }));
 }
 
-/* Новое от друзей — красная точка на «⋯» и «новое» у «Новостей», как у выпусков: события друзей после
-   последнего открытия ленты на этом устройстве (ems-feed-seen-at). Устройство, где ленту ещё не открывали,
-   считает новым только последние двое суток. */
-const FEED_SEEN_KEY = 'ems-feed-seen-at';
-export function readFeedSeenAt(now = Date.now()) {
-  try { const v = Number(localStorage.getItem(FEED_SEEN_KEY)); return v > 0 ? v : now - 2 * 86400000; } catch { return now - 2 * 86400000; }
-}
 export function markFeedSeen(now = Date.now()) { try { localStorage.setItem(FEED_SEEN_KEY, String(now)); } catch { /* приватный режим */ } }
 export const freshFriendEvents = (events = [], seenAt = 0) => events.filter((e) => e.at > seenAt);
-// то же прямо по списку друзей с сервера — для точки на «⋯» (без модуля друзей в главном чанке)
-export const friendNewsSince = (friends = [], seenAt = 0) => friends.some((f) => ((f && f.card && f.card.events) || []).some((e) => e && e.at > seenAt));
