@@ -1,3 +1,4 @@
+import { ruNum, ruDots } from './lib/num.js';
 import React, { useState, useMemo, useCallback, useRef, Suspense } from 'react';
 import { fetchSoloSlots, fetchSoloSlot, saveSoloSlot, renameSoloSlot, deleteSoloSlot, submitDailyResult } from './lib/client.js';
 import { withSeededRandom, hashSeed, dailyScore, DAILY_SCORE_KEYS, rng } from './lib/catalog.js';
@@ -9,7 +10,7 @@ import {
   Landmark, Coins, Globe2, TrendingUp, Users, Activity, Newspaper, Factory, Scale, Banknote,
   ShieldAlert, ChevronDown, ChevronUp, Info, RotateCcw, ArrowUpRight, ArrowDownRight, X, Check,
   AlertTriangle, Bot, Gauge as GaugeIcon, Target, Zap, Save, Copy, Star, Flag, Megaphone, Sliders,
-  Trophy, Share2, Download, Crown, Gavel, Hammer, BookOpen, Map as MapIcon, Plus, GraduationCap,
+  Trophy, Share2, Download, Crown, Gavel, Hammer, BookOpen, Map as MapIcon, Plus, GraduationCap, Building2, BarChart3, MessageCircle,
 } from 'lucide-react';
 import {
   ROLES, DIFFICULTIES, GOALS, SCENARIOS, FX_REGIMES, LEVERS, CB_PERSONAS, MOF_PERSONAS, REQUESTS,
@@ -310,7 +311,7 @@ export function LeverSlider({ lever, currentDisplay, value, onChange, preview, o
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 13 }}>{lever.label}</span>
         {lever.type === 'level' && (
-          <span className="ems-mono fs-12 t-muted">{currentDisplay.toFixed(2)}{lever.suffix}</span>
+          <span className="ems-mono fs-12 t-muted">{ruNum(currentDisplay, 2)}{lever.suffix}</span>
         )}
         {lever.type === 'flow' && !lever.persistent && (
           <span className="ems-mono fs-12 t-muted">тек. 0{lever.suffix}</span>
@@ -320,10 +321,10 @@ export function LeverSlider({ lever, currentDisplay, value, onChange, preview, o
       {books.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>{books.map((to) => <BookLink key={to.chapter} to={to} compact closable />)}</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
         <input type="range" className="ems-slider" style={trackStyle} min={lever.min} max={lever.max} step={lever.step}
-          aria-label={`${lever.label}, текущее значение ${value}${lever.suffix}, допустимо от ${lever.min} до ${lever.max}, шаг ${lever.step}`}
+          aria-label={`${lever.label}, текущее значение ${ruDots(value)}${lever.suffix}, допустимо от ${ruDots(lever.min)} до ${ruDots(lever.max)}, шаг ${ruDots(lever.step)}`}
           value={value} onChange={(e) => { Audio.play('tick'); onChange(parseFloat(e.target.value)); }} />
         <span className="ems-mono" style={{ fontSize: 13, width: 62, textAlign: 'right', color: COLOR.goldSoft, fontWeight: 600 }}>
-          {lever.type === 'level' ? `${value.toFixed(2)}${lever.suffix}` : `${value >= 0 ? '+' : ''}${value.toFixed(1)}${lever.suffix}`}
+          {lever.type === 'level' ? `${ruNum(value, 2)}${lever.suffix}` : `${value >= 0 ? '+' : ''}${ruNum(value, 1)}${lever.suffix}`}
         </span>
       </div>
       {/* границы рычага нигде не были написаны: упереться в предел можно было
@@ -331,14 +332,14 @@ export function LeverSlider({ lever, currentDisplay, value, onChange, preview, o
           решениями бота — вообще никак */}
       <div className="ems-mono" style={{ fontSize: 12, color: COLOR.faint, marginTop: 3, display: 'flex', justifyContent: 'space-between' }}>
         <span>{lever.type === 'level' ? '' : 'за квартал: '}от {lever.min}{lever.suffix} до {lever.max}{lever.suffix}</span>
-        <span>шаг {lever.step}{lever.suffix}</span>
+        <span>шаг {ruDots(lever.step)}{lever.suffix}</span>
       </div>
       {groupFx.length > 0 && (
         <div style={{ fontSize: 12, marginTop: 4, color: COLOR.muted }}>
           Группы при этом значении:{' '}
           {groupFx.map(([g, v], i) => (
             <span key={g}>{i ? ', ' : ''}<span style={{ color: v > 0 ? COLOR.teal : COLOR.rust }}>
-              {(SOCIAL_GROUPS.find((x) => x.id === g) || {}).name.toLowerCase()} {v > 0 ? '+' : '−'}{Math.abs(v).toFixed(1)}</span></span>
+              {(SOCIAL_GROUPS.find((x) => x.id === g) || {}).name.toLowerCase()} {v > 0 ? '+' : '−'}{ruNum(Math.abs(v), 1)}</span></span>
           ))}
         </div>
       )}
@@ -453,17 +454,21 @@ export function HeaderOverflowMenu({ items }) {
 }
 
 /* ============================ НОВОСТНАЯ ПОДСИСТЕМА ============================ */
+/* значок рубрики — из lucide, как у остального интерфейса (пункт владельца 13.11): эмодзи рисуются по-разному на
+   каждом устройстве и не слушаются цвета темы */
 export const NEWS_CATEGORIES = [
-  { id: 'cb', label: 'Центральный банк', short: 'ЦБ', icon: '🏦', color: COLOR.blue },
-  { id: 'gov', label: 'Правительство', short: 'Правительство', icon: '🏛', color: COLOR.gold },
-  { id: 'markets', label: 'Рынки', short: 'Рынки', icon: '📊', color: COLOR.teal },
-  { id: 'business', label: 'Бизнес', short: 'Бизнес', icon: '🏭', color: '#8E7CC3' },
-  { id: 'households', label: 'Население', short: 'Население', icon: '👥', color: COLOR.goldSoft },
-  { id: 'world', label: 'Мир', short: 'Мир', icon: '🌍', color: '#6FA8A0' },
-  { id: 'opinion', label: 'Мнения', short: 'Мнения', icon: '💬', color: '#C08A6B' },
-  { id: 'crisis', label: 'Кризис', short: 'Кризис', icon: '⚠️', color: COLOR.rust },
-  { id: 'editorial', label: 'Сводка', short: 'Сводка', icon: '📰', color: COLOR.muted },
+  { id: 'cb', label: 'Центральный банк', short: 'ЦБ', Icon: Landmark, color: COLOR.blue },
+  { id: 'gov', label: 'Правительство', short: 'Правительство', Icon: Building2, color: COLOR.gold },
+  { id: 'markets', label: 'Рынки', short: 'Рынки', Icon: BarChart3, color: COLOR.teal },
+  { id: 'business', label: 'Бизнес', short: 'Бизнес', Icon: Factory, color: '#8E7CC3' },
+  { id: 'households', label: 'Население', short: 'Население', Icon: Users, color: COLOR.goldSoft },
+  { id: 'world', label: 'Мир', short: 'Мир', Icon: Globe2, color: '#6FA8A0' },
+  { id: 'opinion', label: 'Мнения', short: 'Мнения', Icon: MessageCircle, color: '#C08A6B' },
+  { id: 'crisis', label: 'Кризис', short: 'Кризис', Icon: AlertTriangle, color: COLOR.rust },
+  { id: 'editorial', label: 'Сводка', short: 'Сводка', Icon: Newspaper, color: COLOR.muted },
 ];
+// значок рубрики в строке текста
+export const CatIcon = ({ cat, size = 12, color, style }) => { const I = (typeof cat === 'string' ? catOf(cat) : cat).Icon; return <I size={size} color={color} aria-hidden="true" style={{ verticalAlign: -2, flexShrink: 0, ...style }} />; };
 
 const CATMAP = {};
 
@@ -498,7 +503,7 @@ function NewsItem({ item, showQuarter }) {
   return (
     <div style={{ borderLeft: `2px solid ${c.color}`, paddingLeft: 10, paddingBottom: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span className="fs-12">{c.icon}</span>
+        <CatIcon cat={c} color={c.color} />
         <span style={{ fontSize: 12, color: c.color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{c.short}</span>
         {showQuarter && item.qLabel && <span className="ems-mono fs-12 t-faint">{item.qLabel}</span>}
         {item.storyTitle && (
@@ -561,7 +566,7 @@ export function NewsTerminal({ items, onOpenPaper }) {
           <button type="button" className={`ems-tab ${filter === 'all' ? 'active' : ''}`} aria-pressed={filter === 'all'} style={{ padding: '4px 9px', fontSize: 12 }} onClick={() => { Audio.play('tab'); setFilter('all'); }}>Всё</button>
           {present.map((c) => (
             <button type="button" key={c.id} className={`ems-tab ${filter === c.id ? 'active' : ''}`} aria-pressed={filter === c.id} style={{ padding: '4px 9px', fontSize: 12 }} onClick={() => { Audio.play('tab'); setFilter(c.id); }}>
-              {c.icon} {c.short}
+              <CatIcon cat={c} style={{ marginRight: 4 }} />{c.short}
             </button>
           ))}
         </div>
@@ -773,9 +778,9 @@ function LiveTicker({ economy, prev }) {
         {items.map(([label, val, ch, dec]) => (
           <span key={label} className="ems-mono" style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'baseline' }}>
             <span className="t-faint">{label}</span>
-            <span className="t-text">{Number.isFinite(val) ? val.toFixed(dec) : '—'}</span>
+            <span className="t-text">{Number.isFinite(val) ? ruNum(val, dec) : '—'}</span>
             <span style={{ color: ch > 0.01 ? COLOR.teal : ch < -0.01 ? COLOR.rust : COLOR.faint, fontSize: 12 }}>
-              {ch > 0.01 ? '▲' : ch < -0.01 ? '▼' : '·'}{Math.abs(ch) > 0.01 ? `${Math.abs(ch).toFixed(1)}%` : ''}
+              {ch > 0.01 ? '▲' : ch < -0.01 ? '▼' : '·'}{Math.abs(ch) > 0.01 ? `${ruNum(Math.abs(ch), 1)}%` : ''}
             </span>
           </span>
         ))}
@@ -881,7 +886,7 @@ function MarketScreen({ economy, prev, history, book, onTrade }) {
 
         <Panel title="Облигации и риск-премии" icon={Landmark}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <Quote label="Индекс облигаций" value={Number.isFinite(q('bondIndex')) ? q('bondIndex').toFixed(1) : '—'} change={chg('bondIndex')} />
+            <Quote label="Индекс облигаций" value={Number.isFinite(q('bondIndex')) ? ruNum(q('bondIndex'), 1) : '—'} change={chg('bondIndex')} />
             <Quote label="Доходность 10 лет" value={fmt2(economy.yield10y)} unit="%" />
             <Quote label="Ставка нового долга" value={fmt2(economy.effectiveDebtRate)} unit="%" />
           </div>
@@ -932,12 +937,12 @@ function MarketScreen({ economy, prev, history, book, onTrade }) {
 
         <Panel title="Валютный рынок" icon={Globe2}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Quote label="Курс (выше — слабее)" value={Number.isFinite(q('exchangeRate')) ? q('exchangeRate').toFixed(2) : '—'} change={chg('exchangeRate')} big />
+            <Quote label="Курс (выше — слабее)" value={Number.isFinite(q('exchangeRate')) ? ruNum(q('exchangeRate'), 2) : '—'} change={chg('exchangeRate')} big />
             <Quote label="Реальный курс" value={fmt1(economy.realExchangeRate)} />
           </div>
           <div style={{ margin: '6px 0' }}>
             <Suspense fallback={<ChartFallback height={54} />}>
-              <MemoChart data={ser('exchangeRate')} color={COLOR.rust} height={54} label="Курс" fmt={(v) => v.toFixed(2)} />
+              <MemoChart data={ser('exchangeRate')} color={COLOR.rust} height={54} label="Курс" fmt={(v) => ruNum(v, 2)} />
             </Suspense>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 14px', fontSize: 12 }}>
@@ -1110,7 +1115,7 @@ export function LeverReadout({ ids, levers, economy, accent }) {
         const value = known ? levers[id] : (lever.type === 'level' ? lever.min : 0);
         const pct = clamp(((value - lever.min) / (lever.max - lever.min)) * 100, 0, 100);
         const digits = lever.step < 0.5 ? 2 : lever.step < 1 ? 1 : 0;
-        const shown = lever.type === 'level' ? `${value.toFixed(digits)}${lever.suffix}` : `${value >= 0 ? '+' : ''}${value.toFixed(digits)}${lever.suffix}`;
+        const shown = lever.type === 'level' ? `${ruNum(value, digits)}${lever.suffix}` : `${value >= 0 ? '+' : ''}${ruNum(value, digits)}${lever.suffix}`;
         return (
           <div key={id} style={{ padding: '5px 0', borderBottom: `1px solid ${COLOR.hairline}` }}
             title={`${lever.type === 'level' ? '' : 'за квартал: '}от ${lever.min}${lever.suffix} до ${lever.max}${lever.suffix}`}>
@@ -1124,7 +1129,7 @@ export function LeverReadout({ ids, levers, economy, accent }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
               <span className="ems-mono" style={{ fontSize: 12, color: COLOR.faint, minWidth: 22 }}>{lever.min}</span>
               <input type="range" className="ems-slider" tabIndex={-1} aria-readonly="true"
-                aria-label={`${lever.label}: ${known ? `${value}${lever.suffix}` : 'решения ещё не было'}, допустимо от ${lever.min} до ${lever.max}`}
+                aria-label={`${lever.label}: ${known ? `${ruDots(value)}${lever.suffix}` : 'решения ещё не было'}, допустимо от ${ruDots(lever.min)} до ${ruDots(lever.max)}`}
                 min={lever.min} max={lever.max} step={lever.step} value={value} onChange={() => {}}
                 style={{ pointerEvents: 'none', flex: 1, opacity: known ? 1 : 0.45,
                   background: `linear-gradient(90deg, ${color} 0%, ${color} ${pct}%, ${COLOR.border} ${pct}%, ${COLOR.border} 100%)` }} />
@@ -2279,7 +2284,7 @@ function runSeeded(daily, salt, fn) {
 }
 
 const dailyPlayed = (daily, quarterIndex) => Math.max(0, Math.min(daily.quarters, quarterIndex - 1));
-const dailyScoreFmt = (v) => v.toFixed(1).replace('.', ',');
+const dailyScoreFmt = (v) => ruNum(v, 1);
 
 function DailyResultModal({ daily, goalId, economy, defeat, quarterIndex, role, board, setBoard, onClose, onMenu }) {
   useEscapeClose(onClose);
@@ -2431,7 +2436,7 @@ export function buildResultCard({ role, quarterIndex, economy, startEconomy, por
   return {
     roleLabel, emoji: RESULT_CARD_EMOJI[role] || '🏛️',
     quarterIndex, quarterWord: ruPlural(quarterIndex, 'квартал', 'квартала', 'кварталов'),
-    years: (quarterIndex / 4).toFixed(1),
+    years: ruNum(quarterIndex / 4, 1),
     outcome: defeat ? defeat.title : 'Партия продолжается',
     isDefeat: !!defeat, stats, unlockedCount: countUnlockedAchievements(),
     regime: economy.politicalRegime || 'democracy',
@@ -3803,7 +3808,7 @@ export const INDICATOR_TABS = [
     { key: 'wageGrowth', label: 'Рост зарплат', fmt: fmtSignedPct },
     { key: 'employment', label: 'Занятость', fmt: pctFmt },
     // распределение доходов (см. model/distribution.js и «Общество» → «Доходы по слоям»)
-    { key: 'gini', label: 'Неравенство (Джини)', fmt: (v) => v.toFixed(3), invert: true,
+    { key: 'gini', label: 'Неравенство (Джини)', fmt: (v) => ruNum(v, 3), invert: true,
       hint: 'От 0 (все получают поровну) до 1 (всё у одного). Растёт, когда доходы низа отстают: инфляция в еде, безработица, урезанные трансферты.' },
     { key: 'povertyRate', label: 'Бедность относительная (ниже 60% медианы)', fmt: pctFmt, invert: true,
       hint: 'Доля ниже 60% сегодняшней медианы располагаемого дохода, как в ЕС. Меряет отставание низа от середины: общий рост или общее обеднение её почти не двигают.' },
@@ -4266,7 +4271,7 @@ export function CounterfactualCard({ cf, cum }) {
           <div style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.5, marginBottom: 6 }}>
             <b style={{ color: COLOR.text }}>Только {cf.label}.</b>{' '}
             {cf.changed.length
-              ? <>Вы изменили: {cf.changed.map((c) => `${c.label.toLowerCase()} ${c.from.toFixed(c.digits || 1)} → ${c.to.toFixed(c.digits || 1)}${c.suffix}`).join('; ')}. </>
+              ? <>Вы изменили: {cf.changed.map((c) => `${c.label.toLowerCase()} ${ruNum(c.from, c.digits || 1)} → ${ruNum(c.to, c.digits || 1)}${c.suffix}`).join('; ')}. </>
               : <>В этом квартале вы не трогали рычаги. </>}
             Тот же квартал посчитан второй раз — с теми же шоками и решениями соседей, но с вашими рычагами на прежних местах.
           </div>
@@ -4326,7 +4331,7 @@ export function RateCompass({ economy, keyRate }) {
       {Number.isFinite(taylor) && row('Правило Тейлора', `${fmt1(taylor)}%`, Math.abs(vsTaylor) < 0.25 ? 'ставка по правилу'
         : `${union ? 'ставка ЕЦБ' : 'ваша ставка'} ${vsTaylor > 0 ? 'выше' : 'ниже'} на ${pp(vsTaylor)}`)}
       <div style={{ fontSize: 12, color: COLOR.faint, lineHeight: 1.45, marginTop: 4 }}>
-        Тейлор: r* + инфляция + 0.5·(инфляция − цель) + 0.5·(разрыв выпуска) = {fmt1(rStar)} + {fmt1(economy.inflation)} + 0.5·({fmtSigned1(economy.inflation - (economy.inflationTarget ?? 4))}) + 0.5·({fmtSigned1(economy.outputGap || 0)}). Ориентир, а не закон: в игре ЦБ может отступать от него — на графике «Ставки» видно, насколько.
+        Тейлор: r* + инфляция + 0,5·(инфляция − цель) + 0,5·(разрыв выпуска) = {fmt1(rStar)} + {fmt1(economy.inflation)} + 0,5·({fmtSigned1(economy.inflation - (economy.inflationTarget ?? 4))}) + 0,5·({fmtSigned1(economy.outputGap || 0)}). Ориентир, а не закон: в игре ЦБ может отступать от него — на графике «Ставки» видно, насколько.
       </div>
       {/* ссылку компаса тоже можно закрыть крестиком, как ссылки под рычагами (пункт владельца 09.11) */}
       <div style={{ marginTop: 6 }}><BookLink to={COMPASS_BOOK} compact closable /></div>
@@ -5210,7 +5215,7 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
                 название приложения, а не игры: игроку это ни о чём не говорит
                 на экране, где он уже внутри партии. Пост и его контекст —
                 единственное, что имеет смысл заявлять здесь. */}
-            <div className="ems-serif" style={{ fontSize: 18 }}>{roleDef.title}</div>
+            <h1 className="ems-serif" style={{ fontSize: 18, fontWeight: 'inherit', margin: 0 }}>{roleDef.title}</h1>
             <div style={{ fontSize: 12, color: COLOR.muted, marginTop: 2 }}>
               сложность: {(DIFFICULTIES.find((x) => x.id === difficulty) || {}).title}
               {setup.scenario && setup.scenario !== 'sandbox' ? ` · сценарий: ${(SCENARIOS.find((sc) => sc.id === setup.scenario) || {}).title}` : ''}

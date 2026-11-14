@@ -11,7 +11,7 @@ import { X } from 'lucide-react';
 import { clamp, pctFmt, fmt1, fmtIndex, fmtSignedPct, fmtSigned1, quarterLabel, REGIME_INFO, regimeInfoText, POLITICAL_REGIME_INFO } from './lib/engine.js';
 import { COLOR, Audio, useEscapeClose } from './MacroSimulator.jsx';
 import { StateSeal } from './state-seal.jsx';
-import { NEWS_CATEGORIES, catOf, ChainTrail } from './game.jsx';
+import { NEWS_CATEGORIES, catOf, ChainTrail, CatIcon } from './game.jsx';
 
 /* Политический режим красит газету: чем дальше от демократии, тем холоднее и темнее
    бумага — это должно читаться раньше, чем игрок разберёт хоть одно слово текста. */
@@ -268,7 +268,7 @@ export function NewspaperModal({ news, history, quarterIndex, onClose, economy }
               {lead && (
                 <div style={{ borderBottom: `1px solid ${pp.paperRule}`, paddingBottom: 14, marginBottom: 14, borderLeft: `4px solid ${pp.paperText}`, paddingLeft: 14 }}>
                   <div className="ems-mono" style={{ fontSize: 12, color: pp.paperMuted, letterSpacing: '0.1em', marginBottom: 6 }}>
-                    {catOf(lead.cat).icon} {catOf(lead.cat).label.toUpperCase()} · ГЛАВНАЯ ТЕМА
+                    <CatIcon cat={lead.cat} style={{ marginRight: 5 }} />{catOf(lead.cat).label.toUpperCase()} · ГЛАВНАЯ ТЕМА
                   </div>
                   <div className="ems-serif" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, marginBottom: 8 }}>{lead.headline}</div>
                   <div className="ems-serif" style={{ fontSize: 14, lineHeight: 1.6 }}>
@@ -331,7 +331,7 @@ export function NewspaperModal({ news, history, quarterIndex, onClose, economy }
 
               {opinionItem && (
                 <div style={{ borderTop: `1px solid ${pp.paperRule}`, borderBottom: `1px solid ${pp.paperRule}`, padding: '12px 4px', marginBottom: 14 }}>
-                  <div className="ems-mono" style={{ fontSize: 12, color: pp.paperMuted, letterSpacing: '0.1em', marginBottom: 6 }}>{catOf('opinion').icon} КОЛОНКА МНЕНИЙ</div>
+                  <div className="ems-mono" style={{ fontSize: 12, color: pp.paperMuted, letterSpacing: '0.1em', marginBottom: 6 }}><CatIcon cat="opinion" style={{ marginRight: 5 }} />КОЛОНКА МНЕНИЙ</div>
                   <div className="ems-serif" style={{ fontSize: 17, fontStyle: 'italic', fontWeight: 700, lineHeight: 1.35, marginBottom: 6 }}>{opinionItem.headline}</div>
                   <div className="ems-serif" style={{ fontSize: 12, color: pp.paperMuted, lineHeight: 1.5 }}>{opinionItem.text}</div>
                 </div>
@@ -361,7 +361,7 @@ export function NewspaperModal({ news, history, quarterIndex, onClose, economy }
                     {chronicleCats.map((c) => (
                       <span key={c.id} onClick={() => { setChronicleFilter(c.id); setChronicleShown(8); }} className="ems-mono"
                         style={{ cursor: 'pointer', fontSize: 12, padding: '3px 8px', border: `1px solid ${pp.paperRule}`, fontWeight: chronicleFilter === c.id ? 700 : 400,
-                          background: chronicleFilter === c.id ? pp.paperRule : 'transparent', color: pp.paperText }}>{c.icon} {c.short.toUpperCase()}</span>
+                          background: chronicleFilter === c.id ? pp.paperRule : 'transparent', color: pp.paperText }}><CatIcon cat={c} style={{ marginRight: 4 }} />{c.short.toUpperCase()}</span>
                     ))}
                   </div>
                 </div>
@@ -386,7 +386,7 @@ export function NewspaperModal({ news, history, quarterIndex, onClose, economy }
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {top.map((n) => (
                           <div key={n.id}>
-                            <span style={{ fontSize: 12 }}>{catOf(n.cat).icon} </span>
+                            <CatIcon cat={n.cat} style={{ marginRight: 5 }} />
                             <span className="ems-serif" style={{ fontSize: 13, fontWeight: 700 }}>{n.headline}</span>
                             <div className="ems-serif" style={{ fontSize: 12, color: pp.paperMuted, lineHeight: 1.45 }}>{n.text}</div>
                           </div>

@@ -751,6 +751,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
   const hw = today.season.length > 0 ? halloween(learn, now) : null;
   return (
     <div className="ln-wrap" data-testid="shop" data-view={view} data-tab={view === 'shop' ? tab : undefined}>
+      <h1 className="ds-sr">{view === 'garden' ? 'Сад Инфли' : 'Лавка'}</h1>
       <div>
         <ShopSwitch view={view} onView={(v) => { Audio.play('paper'); setView(v); setMsg(null); }} learn={learn} gardenLocked={!featureOpen(learn, 'garden')} />
         {/* сад и копилка открываются не сразу (src/learn/unlocks.js): до того — карточка «откроется после N-го урока» */}

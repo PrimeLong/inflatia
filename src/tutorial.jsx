@@ -6,6 +6,7 @@
 
    COLOR/Audio/COURSE_PROGRESS_KEY/... — те же самые общие объекты/функции,
    что и в MacroSimulator.jsx (экспортированы оттуда), а не копия. */
+import { ruNum } from './lib/num.js';
 import React, { useState, useMemo, useCallback, Suspense } from 'react';
 import {
   Landmark, Coins, Globe2, TrendingUp, Newspaper, Scale, ShieldAlert, RotateCcw, ChevronDown,
@@ -2488,7 +2489,7 @@ function TutorialModuleScreen({ module, isLastModule, onExit, onComplete, onGoNe
                 <div key={id} style={{ marginBottom: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9 }}>
                     <span className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft }}>{lv.label}</span>
-                    <span className="ems-mono" style={{ fontSize: 13 }}>{decisions[id].toFixed(2)}{lv.suffix}</span>
+                    <span className="ems-mono" style={{ fontSize: 13 }}>{ruNum(decisions[id], 2)}{lv.suffix}</span>
                   </div>
                   <input type="range" className="ems-slider" min={lv.min} max={lv.max} step={lv.step} value={decisions[id]}
                     disabled={practicePassed}
@@ -2822,7 +2823,7 @@ export function TutorialHub({ onBack, onStartRealGame }) {
 
         <div className="ems-fade-in" style={{ textAlign: 'center', marginBottom: 30 }}>
           <div className="ems-hero-eyebrow">{course ? 'Программа курса' : 'Как играть'}</div>
-          <div className="ems-hero-title small">{course ? course.title : 'Четыре курса'}</div>
+          <h1 className="ems-hero-title small">{course ? course.title : 'Четыре курса'}</h1>
           <div className="ems-hero-rule" />
           <span className="ems-hero-badge">
             <GraduationCap size={11} color={COLOR.gold} />

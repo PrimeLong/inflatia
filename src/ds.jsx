@@ -11,6 +11,7 @@
 import React from 'react';
 import { DS_THEMES, tokenVars, worldTokens } from './ds-tokens.js';
 import { typo } from './lib/typo.js';
+import { useHistoryLayer } from './lib/route.js';
 
 export const DS_CSS = `
   .ds { background: var(--ds-paper); color: var(--ds-ink); font-family: var(--ds-sans); font-size: 16px; line-height: 1.5; -webkit-tap-highlight-color: transparent; --u-ink: color-mix(in srgb, var(--u) 80%, #000); }
@@ -19,7 +20,8 @@ export const DS_CSS = `
   .ds *, .ds *::before, .ds *::after { box-sizing: border-box; }
   /* фон страницы — ровная бумага: подсветка сверху растягивалась на всю высоту длинной страницы
      (глава учебника) и гасла к низу видимыми полосами */
-  .ds-page { min-height: 100vh; background-color: var(--ds-paper); }
+  /* высота — экран без полосы уведомления о памяти браузера, если она стоит в потоке над страницей (src/privacy.jsx) */
+  .ds-page { min-height: calc(100vh - var(--ems-notice-h, 0px)); background-color: var(--ds-paper); }
   .ds :focus-visible { outline: 3px solid var(--ds-sel-rule); outline-offset: 2px; }
 
   /* типографика */
@@ -152,7 +154,8 @@ export const DS_CSS = `
   .ds-sheet { width: 100%; max-width: 560px; background: var(--ds-card); border-radius: 24px 24px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
     box-shadow: 0 -10px 30px rgba(60,30,0,.18); }
   .ds-topbar { display: flex; align-items: center; gap: 8px; min-height: 52px; }
-  .ds-topbar-title { font: 700 17px/1.2 var(--ds-head); flex: 1; min-width: 0; }
+  .ds-topbar-title { font: 700 17px/1.2 var(--ds-head); flex: 1; min-width: 0; margin: 0; }
+  .ds-sheet:focus { outline: none; }
   .ds-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 120; background: var(--ds-card); border-top: 2px solid var(--ds-rule);
     padding-bottom: env(safe-area-inset-bottom); }
   .ds-nav-in { display: flex; max-width: 560px; margin: 0 auto; }
@@ -304,13 +307,14 @@ export function MenuCard({ icon: Icon, tone, title, text, right = null, classNam
 }
 export const Panel = ({ className, children, ...rest }) => <div className={cx('ds-panel', className)} {...rest}>{children}</div>;
 // заголовок экрана: подпись капителью, заголовок, пояснение
-export function Heading({ eyebrow, title, sub, level = 1, children, className, ...rest }) {
+// look — как заголовок выглядит (1–3), если вид не совпадает с уровнем: главный заголовок экрана (h1) может быть набран как h2
+export function Heading({ eyebrow, title, sub, level = 1, look = level, children, className, ...rest }) {
   const Tag = `h${level}`;
   return (
     <div className={className} {...rest}>
       {eyebrow && <div className="ds-eyebrow" style={{ marginBottom: 4 }}>{eyebrow}</div>}
       {/* неразрывные пробелы после коротких предлогов и перед тире (src/lib/typo.js) */}
-      <Tag className={level === 1 ? 'ds-h1' : level === 2 ? 'ds-h2' : 'ds-h3'}>{typo(title)}</Tag>
+      <Tag className={look === 1 ? 'ds-h1' : look === 2 ? 'ds-h2' : 'ds-h3'}>{typo(title)}</Tag>
       {sub && <div className="ds-sub" style={{ fontSize: 15, marginTop: 4 }}>{typo(sub)}</div>}
       {children}
     </div>
@@ -338,15 +342,45 @@ export function AnswerBar({ ok, stamp, say = null, plain = false, children, clas
     </div>
   );
 }
-export function Sheet({ label, onClose, children, testid, ...rest }) {
+/* Шторка — модальное окно (docs/mechanics.md, «Доступность»): фокус уходит внутрь, Tab ходит по кругу внутри, Esc закрывает,
+   после закрытия фокус возвращается туда, откуда шторку открыли (returnTo — если это место надо назвать явно:
+   в Safari кнопка от нажатия фокус не получает). Шторка — запись истории: «Назад» браузера закрывает её (src/lib/route.js). */
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+export function Sheet({ label, onClose, children, testid, returnTo = null, ...rest }) {
+  useHistoryLayer(true, onClose);
+  const box = React.useRef(null);
+  const close = React.useRef(onClose); close.current = onClose;
+  const back = React.useRef(returnTo); back.current = returnTo;
+  React.useEffect(() => {
+    const el = box.current; const prev = document.activeElement;
+    // фокус — внутрь: кнопка с autoFocus его уже взяла, иначе — сама шторка
+    if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true });
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); close.current(); return; }
+      if (e.key !== 'Tab') return;
+      const items = [...el.querySelectorAll(FOCUSABLE)].filter((x) => x.getClientRects().length);
+      if (!items.length) { e.preventDefault(); return; }
+      const first = items[0]; const last = items[items.length - 1]; const at = document.activeElement;
+      if (e.shiftKey && (at === first || at === el)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+    };
+    el.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('keydown', onKey);
+      const to = (back.current && back.current()) || prev;
+      if (to && to.isConnected && to.focus && to !== document.body) to.focus({ preventScroll: true });
+    };
+  }, []);
   return (
     <div className="ds-sheet-back" onClick={onClose} data-testid={testid ? `${testid}-back` : undefined}>
-      <div className="ds-sheet ds-rise" role="dialog" aria-label={label} data-testid={testid} onClick={(e) => e.stopPropagation()} {...rest}>{children}</div>
+      <div className="ds-sheet ds-rise" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} ref={box} data-testid={testid} onClick={(e) => e.stopPropagation()} {...rest}>{children}</div>
     </div>
   );
 }
-export function TopBar({ back = null, title, right = null }) {
-  return <div className="ds-topbar">{back}{title && <div className="ds-topbar-title">{title}</div>}{right}</div>;
+// main — заголовок страницы: единственный h1 экрана (страницы поверх вкладки остаются с обычной подписью)
+export function TopBar({ back = null, title, right = null, main = false }) {
+  const Tag = main ? 'h1' : 'div';
+  return <div className="ds-topbar">{back}{title && <Tag className="ds-topbar-title">{title}</Tag>}{right}</div>;
 }
 // нижняя панель вкладок: открытая вкладка — не кнопка перехода
 // onReselect — нажатие на уже открытую вкладку (например, «Учебник» — вернуться на его главную)

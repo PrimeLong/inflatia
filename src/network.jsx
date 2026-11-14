@@ -194,7 +194,7 @@ function NetworkLobby({ onEnter }) {
       // убираем ?room= из адресной строки, чтобы обновление страницы не пыталось
       // «войти по ссылке» повторно поверх уже сохранённой сессии
       if (typeof window !== 'undefined' && window.history && window.location.search) {
-        window.history.replaceState(null, '', window.location.pathname);
+        window.history.replaceState(window.history.state, '', window.location.pathname);
       }
       onEnter(net);
     } catch (e) {
@@ -522,7 +522,7 @@ export function NetworkEntryScreen({ onEnter, onBack }) {
         </button>
         <div className="ems-fade-in" style={{ textAlign: 'center', marginBottom: 28 }}>
           <div className="ems-hero-eyebrow">Мультиплеер</div>
-          <div className="ems-hero-title small">Сетевая партия</div>
+          <h1 className="ems-hero-title small">Сетевая партия</h1>
           <div className="ems-hero-rule" />
         </div>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -939,7 +939,7 @@ export function NetworkGameScreen({ network, theme, setTheme, onExit }) {
             <RoleIcon size={18} color={COLOR.gold} />
           </div>
           <div>
-            <div className="ems-serif" style={{ fontSize: 18 }}>Сетевая партия · комната {room.id}</div>
+            <h1 className="ems-serif" style={{ fontSize: 18, fontWeight: 'inherit', margin: 0 }}>Сетевая партия · комната {room.id}</h1>
             <div style={{ fontSize: 12, color: COLOR.muted, marginTop: 2 }}>
               вы — {roleDef.title} · {otherSeats.map((sx) => {
                 const rd = seatRole(sx);

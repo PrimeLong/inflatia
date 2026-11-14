@@ -934,7 +934,7 @@ test('лаборатория: один рычаг, четыре графика �
   // темп расходов: по умолчанию разовый сдвиг, уровень расходов — около +0,5%, а не +2%
   await page.getByRole('button', { name: 'Госзакупки и содержание государства', exact: true }).click();
   await expect(page.getByRole('button', { name: 'расходы разово выше навсегда' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('lab-level')).toContainText('через квартал +0.5%');
+  await expect(page.getByTestId('lab-level')).toContainText('через квартал +0,5%');
   // фон: без шумов или на фоне шумов с полосой
   await page.getByRole('button', { name: /на фоне шумов/ }).click();
   await expect(page.getByTestId('lab-cb-note').locator('..')).toContainText('медиана');
@@ -3855,7 +3855,8 @@ test('вход: программа — вступительный тест, су
     localStorage.setItem('ems-textbook-v1', JSON.stringify(p));
     localStorage.setItem('ems-learn-morning', y);
   });
-  await page.reload({ waitUntil: 'networkidle' });
+  // утренний экран — на Пути; перезагрузка осталась бы на профиле (docs/mechanics.md, «Адреса и история»)
+  await page.goto('/', { waitUntil: 'networkidle' });
   const morning = page.getByTestId('morning');
   await expect(morning).toBeVisible();
   await expect(morning.getByTestId('morning-days')).toHaveAttribute('data-value', '1');
@@ -4855,6 +4856,383 @@ test('«Большое повторение» в конце уровня: нов
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.levels.start.best)).toBe(100);
   expect(errors).toEqual([]);
 });
+
+/* АДРЕСА И ИСТОРИЯ (docs/mechanics.md, «Адреса и история»; пункт владельца 13.11): у экранов свои адреса, слои — записи
+   истории. Раньше адрес был один — «/»: «Назад» браузера уводил с сайта, перезагрузка в главе возвращала на Путь,
+   на главу нельзя было дать ссылку. */
+const pathOf = (page) => new URL(page.url()).pathname;
+test('адреса: «назад» из главы ведёт в оглавление, перезагрузка в главе — та же глава', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await openTab(page, 'book');
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  expect(pathOf(page)).toBe('/book');
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  expect(pathOf(page)).toBe('/book/supply-demand');
+  // перезагрузка — та же глава по тому же адресу
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  await expect(page.getByTestId('tb-topbar')).toContainText('Спрос и предложение');
+  expect(pathOf(page)).toBe('/book/supply-demand');
+  // «Назад» браузера — оглавление, не уход с сайта
+  await page.goBack();
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  await expect(page.getByTestId('chapter')).toHaveCount(0);
+  expect(pathOf(page)).toBe('/book');
+  // ещё раз — Путь; «Вперёд» дважды — снова глава
+  await page.goBack();
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  await page.goForward(); await page.goForward();
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  expect(pathOf(page)).toBe('/book/supply-demand');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: прямая ссылка на главу открывает главу; «назад» в ней — в оглавление; у каждой вкладки свой адрес', async ({ page }) => {
+  const { errors } = await openApp(page, '/book/elasticity', '{}', { tab: null });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  await expect(page.getByTestId('tb-topbar')).toContainText('Эластичность');
+  await expect(page.getByTestId('bottom-nav').locator('[data-tab="book"]')).toHaveAttribute('aria-current', 'page');
+  await bookBack(page);
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  expect(pathOf(page)).toBe('/book');
+  // вкладки: адрес меняется вместе с вкладкой, прямая ссылка открывает её
+  for (const [tab, path, testid] of [['league', '/league', 'league'], ['shop', '/shop', 'shop'], ['profile', '/profile', 'learn-profile'], ['news', '/news', 'news'], ['world', '/world', 'world'], ['path', '/', 'path']]) {
+    await openTab(page, tab);
+    await expect(page.getByTestId(testid)).toBeVisible();
+    expect(pathOf(page), tab).toBe(path);
+  }
+  for (const [path, testid] of [['/shop', 'shop'], ['/league', 'league'], ['/profile', 'learn-profile'], ['/news', 'news'], ['/world', 'world'], ['/book', 'textbook']]) {
+    await page.goto(path, { waitUntil: 'networkidle' });
+    await expect(page.getByTestId(testid), path).toBeVisible();
+    expect(pathOf(page)).toBe(path);
+  }
+  // главы нет — оглавление; адреса нет — Путь
+  await page.goto('/book/net-takoy-glavy', { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  expect(pathOf(page)).toBe('/book');
+  await page.goto('/chto-to', { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: карточка урока, урок и шторки — записи истории; «Назад» закрывает верхний слой и не уводит с сайта', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  // карточка урока: «Назад» закрывает её, Путь на месте
+  await showUnit(page, 'scarcity');
+  await pathNode(page, 'sc-i1').click();
+  await expect(page.getByTestId('lesson-sheet')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByTestId('lesson-sheet')).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  // урок: до первого ответа «Назад» закрывает его сразу
+  await startLesson(page, 'sc-i1');
+  await page.goBack();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  // задания поверх Пути и шторка списка уровней — тоже слои
+  await page.getByTestId('tasks-card').click();
+  await expect(page.getByTestId('tasks')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByTestId('tasks')).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  // слой закрыли кнопкой — его записи в истории нет: «Назад» с вкладки ведёт на прошлую вкладку, а не в закрытую шторку
+  await openTab(page, 'shop');
+  await expect(page.getByTestId('shop')).toBeVisible();
+  await openTab(page, 'path');
+  await pathNode(page, 'sc-i1').click();
+  await expect(page.getByTestId('lesson-sheet')).toBeVisible();
+  await page.getByTestId('lesson-sheet-back').click({ position: { x: 5, y: 5 } });
+  await expect(page.getByTestId('lesson-sheet')).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByTestId('shop')).toBeVisible();
+  expect(pathOf(page)).toBe('/shop');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: посреди урока «Назад» спрашивает «Выйти из урока?», а не закрывает молча', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const lessons = Object.fromEntries(['sd-i1', 'sd-l1', 'sd-w', 'sd-i2'].map((id) => [id, { at, runs: 1, best: 90 }]));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'supply-demand');
+  await startLesson(page, 'sd-l3');
+  const lesson = page.getByTestId('lesson');
+  // первый ответ дан — урок начат
+  await answerExercise(page);
+  await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toBeVisible();
+  await expect(lesson).toBeVisible();
+  // «Продолжить урок» — урок на месте; «Назад» снова спрашивает
+  await page.getByRole('button', { name: 'Продолжить урок' }).click();
+  await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+  await expect(lesson).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: из партии «Назад» выходит в меню «Мира»; партия ждёт в автосохранении и сама после перезагрузки не открывается', async ({ page }) => {
+  const { errors } = await openApp(page);
+  expect(pathOf(page)).toBe('/world');
+  await startSoloGame(page);
+  await page.goBack();
+  await expect(page.getByTestId('world')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Завершить квартал и применить решения' })).toHaveCount(0);
+  expect(pathOf(page)).toBe('/world');
+  expect(await page.evaluate(() => !!localStorage.getItem('ems-autosave-v1'))).toBe(true);
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByTestId('world')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/* ЧИСЛА В «МИРЕ» ПО-РУССКИ (docs/mechanics.md, «Числа в „Мире“»; пункт владельца 13.11): запятая, а не точка — на экране
+   партии и в газете; в рубриках газеты — значки, а не эмодзи. Раньше ставка стояла как «5.50%», шаг ползунка — «0.25». */
+const dottedNumbers = (page) => page.evaluate(() => {
+  const re = /(?<![\d.,])\d+\.\d+(?![\d.])/;
+  const out = new Set();
+  const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  while (w.nextNode()) {
+    const el = w.currentNode.parentElement;
+    if (!el || el.closest('script, style')) continue;
+    const t = w.currentNode.textContent;
+    if (re.test(t)) out.add(`«${t.trim().slice(0, 70)}» <${el.tagName.toLowerCase()}>`);
+  }
+  document.querySelectorAll('[aria-label], [title]').forEach((el) => ['aria-label', 'title'].forEach((a) => { const t = el.getAttribute(a) || ''; if (re.test(t)) out.add(`${a}: ${t.slice(0, 90)}`); }));
+  return [...out];
+});
+test('«Мир»: числа по-русски — на экране партии и в газете нет чисел вида «4.1»; рубрики газеты — со значками, без эмодзи', async ({ page }) => {
+  test.setTimeout(120_000);
+  const { errors } = await openApp(page);
+  await startSoloGame(page);
+  await page.waitForTimeout(600);
+  expect(await dottedNumbers(page), 'экран партии до первого квартала').toEqual([]);
+  // ставка с дробью — и на рычаге, и в подписи для чтения с экрана — через запятую
+  const rate = page.locator('input[type=range][aria-label^="Ключевая ставка, текущее"]');
+  if (await rate.count()) await expect(rate.first()).toHaveAttribute('aria-label', /текущее значение \d+(,\d+)?%.*шаг 0,25/);
+  for (let q = 1; q <= 3; q += 1) {
+    await page.getByRole('button', { name: 'Завершить квартал и применить решения' }).click();
+    const close = page.getByRole('button', { name: 'Закрыть газету' });
+    // газета открывается сама после квартала или по кнопке
+    await page.waitForTimeout(700);
+    if (!(await close.isVisible().catch(() => false))) await page.getByRole('button', { name: /Газета/ }).first().click();
+    await expect(close).toBeVisible();
+    await page.waitForTimeout(400);
+    expect(await dottedNumbers(page), `газета, квартал ${q}`).toEqual([]);
+    // в газете есть дробные числа — и они с запятой
+    if (q === 1) expect(await page.evaluate(() => /\d,\d/.test(document.body.innerText))).toBe(true);
+    await close.click();
+    await expect(close).toHaveCount(0);
+    await page.waitForTimeout(400);
+    expect(await dottedNumbers(page), `экран партии после квартала ${q}`).toEqual([]);
+  }
+  // лента новостей на экране партии: в фильтрах рубрик — значок, не эмодзи
+  const emoji = await page.evaluate(() => [...document.querySelectorAll('.ems-tab')].map((b) => b.textContent).filter((t) => /\p{Extended_Pictographic}/u.test(t)));
+  expect(emoji, 'эмодзи в кнопках-фильтрах').toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+/* КЛАВИАТУРА И ДОСТУПНОСТЬ (docs/mechanics.md, «Доступность»; пункт владельца 13.11). */
+// видимые (или только для чтения с экрана) h1 и области main, которые сейчас доступны: не под уроком и не под страницей поверх
+const landmarks = (page) => page.evaluate(() => {
+  const live = (el) => !el.closest('[inert]') && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+  return { h1: [...document.querySelectorAll('h1')].filter(live).map((h) => h.textContent.trim().slice(0, 40)), main: [...document.querySelectorAll('main')].filter(live).length };
+});
+test('доступность: на каждом экране один h1, одна область main и первая ссылка «К содержимому»', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const check = async (name) => {
+    await page.waitForTimeout(250);
+    const l = await landmarks(page);
+    expect(l.h1.length, `${name}: h1 — ${JSON.stringify(l.h1)}`).toBe(1);
+    expect(l.main, `${name}: main`).toBe(1);
+  };
+  for (const [path, testid] of [['/', 'path'], ['/book', 'textbook'], ['/book/supply-demand', 'chapter'], ['/league', 'league'], ['/shop', 'shop'], ['/profile', 'learn-profile'], ['/news', 'news'], ['/world', 'world']]) {
+    await page.goto(path, { waitUntil: 'networkidle' });
+    await expect(page.getByTestId(testid)).toBeVisible();
+    await check(path);
+  }
+  // ссылка «К содержимому» — первая остановка Tab; Enter ставит фокус в main
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  // Путь прокручен к текущему уроку — первое нажатие Tab всё равно ведёт на ссылку наверху
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('skip-link')).toBeFocused();
+  await expect(page.getByTestId('skip-link')).toBeInViewport();
+  await page.keyboard.press('Enter');
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).toBe('MAIN');
+  expect(pathOf(page)).toBe('/');
+  // задания поверх Пути, урок, анкета партии и партия
+  await page.getByTestId('tasks-card').click();
+  await expect(page.getByTestId('tasks')).toBeVisible();
+  await check('задания');
+  await page.goBack();
+  await startLesson(page, 'sc-i1');
+  await check('урок');
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  await openTab(page, 'world');
+  await page.getByText('Партия у руля страны', { exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Вступление в должность' })).toBeVisible();
+  await check('анкета');
+  // карточки поста сообщают выбранный (aria-pressed) и выбираются с клавиатуры
+  const cb = page.locator('[data-role="central_bank"]'); const fin = page.locator('[data-role="ministry_finance"]');
+  await fin.focus(); await page.keyboard.press('Enter');
+  await expect(fin).toHaveAttribute('aria-pressed', 'true');
+  await expect(cb).toHaveAttribute('aria-pressed', 'false');
+  await cb.focus(); await page.keyboard.press('Space');
+  await expect(cb).toHaveAttribute('aria-pressed', 'true');
+  await expect(fin).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('checkbox', { name: /Обучение по экрану/ }).uncheck();
+  await page.getByRole('button', { name: 'Принять полномочия' }).click();
+  await expect(page.getByRole('button', { name: 'Завершить квартал и применить решения' })).toBeVisible();
+  await check('партия');
+  expect(errors).toEqual([]);
+});
+
+test('вход: доступность — на приветствии, выборе цели и форме входа один h1 и область main', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: null });
+  await expect(page.getByTestId('welcome')).toBeVisible();
+  for (const step of ['приветствие', 'цель', 'вход']) {
+    if (step === 'цель') await page.getByRole('button', { name: 'Начать', exact: true }).click();
+    if (step === 'вход') { await page.goBack(); await page.getByRole('button', { name: 'У меня уже есть аккаунт', exact: true }).click(); }
+    await page.waitForTimeout(250);
+    const l = await landmarks(page);
+    expect(l.h1.length, `${step}: h1 — ${JSON.stringify(l.h1)}`).toBe(1);
+    expect(l.main, `${step}: main`).toBe(1);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('доступность: карточка урока — фокус внутри, Tab не уходит наружу, Esc закрывает, фокус возвращается на урок Пути', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'клавиатура');
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'scarcity');
+  const node = pathNode(page, 'sc-i1');
+  await node.focus();
+  await page.keyboard.press('Enter');
+  const sheet = page.getByTestId('lesson-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute('aria-modal', 'true');
+  const inside = () => page.evaluate(() => { const s = document.querySelector('[data-testid=lesson-sheet]'); return !!s && s.contains(document.activeElement); });
+  expect(await inside(), 'фокус не в карточке').toBe(true);
+  // Tab и Shift+Tab ходят по кругу внутри карточки
+  for (let k = 0; k < 12; k += 1) { await page.keyboard.press('Tab'); expect(await inside(), `Tab ${k + 1}: фокус ушёл из карточки`).toBe(true); }
+  for (let k = 0; k < 4; k += 1) { await page.keyboard.press('Shift+Tab'); expect(await inside()).toBe(true); }
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(node).toBeFocused();
+  // закрытие «Назад» браузера возвращает фокус туда же
+  await page.keyboard.press('Enter');
+  await expect(sheet).toBeVisible();
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(node).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
+test('доступность: во время урока нижняя панель недоступна с клавиатуры', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'клавиатура');
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-i1');
+  const nav = page.getByTestId('bottom-nav');
+  expect(await nav.evaluate((el) => !!el.closest('[inert]'))).toBe(true);
+  // сорок нажатий Tab: фокус ни разу не на вкладке нижней панели
+  for (let k = 0; k < 40; k += 1) {
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!(document.activeElement && document.activeElement.closest('[data-testid=bottom-nav]'))), `Tab ${k + 1}`).toBe(false);
+  }
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  expect(await nav.evaluate((el) => !!el.closest('[inert]'))).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('доступность: цели касания не меньше 44×44 — флажок жалобы, размер шрифта, музыка и звуки', async ({ page }) => {
+  const { errors } = await openApp(page, '/book/supply-demand', '{}', { tab: null });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  const big = async (loc, name) => {
+    const b = await loc.boundingBox();
+    expect(b, `${name}: не на экране`).toBeTruthy();
+    expect(b.width, `${name}: ширина`).toBeGreaterThanOrEqual(44);
+    expect(b.height, `${name}: высота`).toBeGreaterThanOrEqual(44);
+  };
+  await big(page.getByRole('button', { name: 'Мельче текст' }), 'мельче текст');
+  await big(page.getByRole('button', { name: 'Крупнее текст' }), 'крупнее текст');
+  await big(page.getByTestId('tb-reader-bar').getByTestId('music-btn'), 'музыка в учебнике');
+  await big(page.getByTestId('tb-topbar').getByTestId('report-flag'), 'флажок страницы учебника');
+  // флажок в уроке
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await startLesson(page, 'sc-i1');
+  await big(page.getByTestId('lesson').getByTestId('report-flag').first(), 'флажок в уроке');
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  // музыка и звуки в «Мире»
+  await openTab(page, 'world');
+  await expect(page.getByTestId('world')).toBeVisible();
+  await big(page.getByTestId('music-btn').first(), 'музыка в «Мире»');
+  expect(errors).toEqual([]);
+});
+
+/* Первый визит на телефоне (docs/mechanics.md, «Приветствие и загрузка»; пункт владельца 13.11): уведомление о памяти
+   браузера стоит в потоке страницы и ничего не перекрывает — «Начать» и «У меня уже есть аккаунт» целиком на первом
+   экране и нажимаются. Раньше плашка висела поверх низа экрана и на 360×640 лежала на кнопках. */
+for (const [w, h] of [[360, 640], [390, 844]]) {
+  test(`вход: первый визит на телефоне ${w}×${h} — плашка о памяти браузера в потоке страницы, «Начать» и «У меня уже есть аккаунт» целиком видны и нажимаются`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    // первый визит: ключа ems-storage-notice нет (скрипт страницы идёт после скрипта контекста)
+    await page.addInitScript(() => { if (!sessionStorage.getItem('t-keep')) localStorage.removeItem('ems-storage-notice'); });
+    const { errors } = await openApp(page, '/', '{}', { tab: null });
+    const notice = page.getByTestId('storage-notice');
+    const start = page.getByRole('button', { name: 'Начать', exact: true });
+    const login = page.getByRole('button', { name: 'У меня уже есть аккаунт', exact: true });
+    await expect(notice).toBeVisible();
+    await page.waitForTimeout(1500); // приветствие проявляется по шагам
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    const n = await notice.boundingBox();
+    for (const btn of [start, login]) {
+      await expect(btn).toBeInViewport({ ratio: 1 });
+      const b = await btn.boundingBox();
+      // целиком на первом экране и не под плашкой
+      expect(b.y).toBeGreaterThanOrEqual(0); expect(b.y + b.height).toBeLessThanOrEqual(h);
+      const apart = b.y >= n.y + n.height - 0.5 || b.y + b.height <= n.y + 0.5 || b.x >= n.x + n.width || b.x + b.width <= n.x;
+      expect(apart, 'кнопка под плашкой о памяти браузера').toBe(true);
+      // по краям и в середине кнопки — сама кнопка, а не то, что лежит сверху (углы скруглены — точки чуть внутри)
+      const own = await btn.evaluate((el) => {
+        const r = el.getBoundingClientRect(); const cx = r.left + r.width / 2; const cy = r.top + r.height / 2;
+        return [[r.left + 16, cy], [r.right - 16, cy], [cx, r.top + 5], [cx, r.bottom - 5], [cx, cy]]
+          .every(([x, y]) => { const hit = document.elementFromPoint(x, y); return !!hit && el.contains(hit); });
+      });
+      expect(own, 'кнопка чем-то закрыта').toBe(true);
+    }
+    // плашка — в потоке: над приветствием, страница под неё подвинулась
+    expect(await notice.evaluate((el) => getComputedStyle(el).position)).not.toBe('fixed');
+    const brand = await page.getByTestId('brand').boundingBox();
+    expect(n.y + n.height).toBeLessThanOrEqual(brand.y);
+    await expectNoSidewaysScroll(page);
+    // обе кнопки нажимаются, пока плашка ещё на экране
+    await login.click();
+    await expect(page.getByTestId('auth-to-register')).toBeVisible();
+    await expect(notice).toBeVisible();
+    await page.locator('[data-nav="back"]').filter({ visible: true }).click();
+    await start.click();
+    await expect(page.getByTestId('welcome-goal')).toBeVisible();
+    // «Понятно» — полоса уходит, приветствие снова во весь экран
+    await notice.getByTestId('storage-notice-ok').click();
+    await expect(notice).toHaveCount(0);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ems-notice-h'))).toBe('');
+    expect(errors).toEqual([]);
+  });
+}
 
 test('память браузера: уведомление один раз — cookie нет, «Подробнее» ведёт на страницу данных', async ({ page }) => {
   await withTestFlag(page);

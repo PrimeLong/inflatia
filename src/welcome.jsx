@@ -12,6 +12,7 @@ import { RUDE_NAME } from './lib/moderation.js';
 import { Mascot } from './mascot.jsx';
 import { InflatiaMark } from './logo.jsx';
 import { DsRoot, Button, IconButton, Heading } from './ds.jsx';
+import { useHistoryLayer } from './lib/route.js';
 import { ArtStyle, Guilloche, Rosette } from './ds-art-core.jsx';
 import { dsThemeId } from './ds-tokens.js';
 import { loadProgress, saveProgress } from './textbook/progress.js';
@@ -36,7 +37,8 @@ export const GOALS = Object.entries(PROFILE_GOAL_LABEL).map(([id, label]) => ({ 
 export const MINUTES = [5, 10, 15, 20];
 
 const CSS = `
-  .wl { max-width: 460px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; }
+  /* высота — экран без полосы уведомления о памяти браузера (src/privacy.jsx): она стоит в потоке над приветствием */
+  .wl { max-width: 460px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); min-height: calc(100vh - var(--ems-notice-h, 0px)); min-height: calc(100dvh - var(--ems-notice-h, 0px)); display: flex; flex-direction: column; box-sizing: border-box; }
   .wl-top { display: flex; align-items: center; min-height: 44px; }
   .wl-body { flex: 1; display: flex; flex-direction: column; }
   .wl-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
@@ -60,6 +62,17 @@ const CSS = `
   @media (prefers-reduced-motion: reduce) { .wl-hello *, .wl-hello { animation: none !important; } }
   /* ПК (docs/mechanics.md, «Приветствие и загрузка»): та же колонка посередине экрана, по высоте — по центру; без
      деления на две части (пункт владельца 08.11, вечер). Уведомление о памяти браузера — в левом нижнем углу */
+  /* низкий телефон (docs/mechanics.md, «Приветствие и загрузка»): розетка меньше, гильоши убраны — «Начать» и
+     «У меня уже есть аккаунт» видны на первом экране и с полосой уведомления о памяти браузера наверху */
+  @media (max-height: 700px) and (max-width: 1023px) {
+    .wl-hello { padding-top: calc(10px + env(safe-area-inset-top)); }
+    .wl-hello .wl-g1, .wl-hello .wl-g2 { display: none; }
+    .wl-hello .wl-hero { zoom: .6; margin: 6px 0 2px; }
+    .wl-hello .wl-brand { font-size: 28px !important; }
+    .wl-hello .wl-values { margin: 10px 0 0; gap: 7px; }
+    .wl-hello .wl-values li { font-size: 14px; line-height: 1.32; }
+    .wl-hello .wl-foot { margin-top: 12px; gap: 8px; }
+  }
   @media (min-width: 1024px) {
     .wl.wl-hello { justify-content: center; }
     .wl-hello > .wl-body { flex: none; }
@@ -117,7 +130,7 @@ function Goal({ go, plan, setPlan }) {
       <div className="wl-body">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <Mascot mood="hello" size={56} />
-          <Heading level={2} eyebrow="Шаг 1 из 2" title="Зачем вам экономика?" />
+          <Heading level={1} look={2} eyebrow="Шаг 1 из 2" title="Зачем вам экономика?" />
         </div>
         <div className="wl-opts" role="group" aria-label="Цель">
           {GOALS.map((g) => <button key={g.id} type="button" className="ds-opt" aria-pressed={plan.goal === g.id} onClick={() => pick({ goal: g.id })}>{g.label}</button>)}
@@ -235,6 +248,8 @@ export function Welcome({ initialScreen = 'hello', onCancel = null }) {
   const [screen, setScreen] = useState(initialScreen);
   const [plan, setPlan] = useState(() => loadOnboarding() || { goal: null, minutes: null, knows: false });
   const go = (s) => { setScreen(s); window.scrollTo(0, 0); };
+  // шаги после приветствия (цель, вход, регистрация) — запись истории: «Назад» браузера возвращает на первый экран
+  useHistoryLayer(screen !== initialScreen, () => go(initialScreen));
   return (
     <DsRoot theme={dsThemeId()} page accent="#C2490B">
       <ArtStyle />

@@ -1,3 +1,4 @@
+import { ruNum, ruSigned, ruUnit, withUnit } from './num.js';
 import { clamp, ROLES, quarterLabel, CONFIG, romanQ, POLITICAL_REGIME_INFO, GOALS, DIFFICULTIES, SCENARIOS, PRESIDENT_PERSONAS, MOF_PERSONAS, CB_PERSONAS, rng } from './catalog.js';
 import { gameChronicle } from './content/chronicle.js';
 import { CHANNEL_HEADLINE, EVENTS, buildEventImpulses, headlineFor, makeImpulse, pickEvent, spreadOf, sustainedImpulse, tickImpulses } from './content/events.js';
@@ -34,9 +35,10 @@ const ema = (prev, next, w) => prev * (1 - w) + next * w;
    но не бесконечно (недовольство ценами, напряжение). */
 const saturating = (x, slope, scale) => slope * scale * (1 - Math.exp(-Math.max(0, x) / scale));
 
-const fmt1 = (v) => (Number.isFinite(v) ? v.toFixed(1) : '—');
-const fmt2 = (v) => (Number.isFinite(v) ? v.toFixed(2) : '—');
-const fmtSigned1 = (v) => (Number.isFinite(v) ? (v >= 0 ? '+' : '') + v.toFixed(1) : '—');
+/* Все числа «Мира» — через один форматтер (src/lib/num.js): запятая и неразрывный пробел перед единицей. */
+const fmt1 = (v) => ruNum(v, 1);
+const fmt2 = (v) => ruNum(v, 2);
+const fmtSigned1 = (v) => ruSigned(v, 1);
 const pctFmt = (v) => `${fmt1(v)}%`;
 const fmtSignedPct = (v) => `${fmtSigned1(v)}%`;
 /* Единица растёт вместе с суммой. Раньше шкала обрывалась на триллионах, и
@@ -48,10 +50,10 @@ const MONEY_UNITS = [
 const fmtMoney = (bn) => {
   if (!Number.isFinite(bn)) return '—';
   const abs = Math.abs(bn);
-  if (abs < 1000) return `${bn.toFixed(0)} млрд`;
+  if (abs < 1000) return ruUnit(bn, 0, 'млрд');
   const trn = bn / 1000;
   const unit = MONEY_UNITS.find(([min]) => Math.abs(trn) >= min) || MONEY_UNITS[MONEY_UNITS.length - 1];
-  return `${(trn / unit[0]).toFixed(2)} ${unit[1]}`;
+  return ruUnit(trn / unit[0], 2, unit[1]);
 };
 const fmtMoneySigned = (bn) => (bn >= 0 ? '+' : '') + fmtMoney(bn);
 /* Биржевой индекс номинальный: он растёт вместе с номинальным ВВП и за долгую
@@ -61,9 +63,9 @@ const fmtMoneySigned = (bn) => (bn >= 0 ? '+' : '') + fmtMoney(bn);
 const fmtIndex = (v) => {
   if (!Number.isFinite(v)) return '—';
   const abs = Math.abs(v);
-  if (abs >= 1e6) return `${(v / 1e6).toFixed(2)} млн`;
-  if (abs >= 1e4) return `${(v / 1e3).toFixed(1)} тыс.`;
-  return v.toFixed(1);
+  if (abs >= 1e6) return ruUnit(v / 1e6, 2, 'млн');
+  if (abs >= 1e4) return ruUnit(v / 1e3, 1, 'тыс.');
+  return ruNum(v, 1);
 };
 /* Деньги трейдера считаются в миллионах — но показывать «6118.42 млн» вместо
    «6.12 млрд» нельзя: единица должна расти вместе с капиталом. mlnScale отдаёт
@@ -71,11 +73,11 @@ const fmtIndex = (v) => {
 const mlnScale = (mln) => {
   if (!Number.isFinite(mln)) return { v: '—', unit: '' };
   const abs = Math.abs(mln);
-  if (abs >= 1e6) return { v: (mln / 1e6).toFixed(2), unit: 'трлн' };
-  if (abs >= 1000) return { v: (mln / 1000).toFixed(2), unit: 'млрд' };
-  return { v: mln.toFixed(2), unit: 'млн' };
+  if (abs >= 1e6) return { v: ruNum(mln / 1e6, 2), unit: 'трлн' };
+  if (abs >= 1000) return { v: ruNum(mln / 1000, 2), unit: 'млрд' };
+  return { v: ruNum(mln, 2), unit: 'млн' };
 };
-const fmtMln = (mln) => { const s = mlnScale(mln); return s.unit ? `${s.v} ${s.unit}` : s.v; };
+const fmtMln = (mln) => { const s = mlnScale(mln); return withUnit(s.v, s.unit); };
 const fmtMlnSigned = (mln) => ((Number.isFinite(mln) && mln >= 0 ? '+' : '') + fmtMln(mln));
 
 const FX_REGIMES = [
@@ -368,12 +370,12 @@ function buildCbResult(s, P, vals) {
   const { keyRate, reserveReq, capitalRequirement, moneySupplyOp, fxIntervention, liquidity, fxRegime,
     emergency, cbTarget, fxTargetCur, stabMode } = vals;
   const parts = [];
-  if (Math.abs(keyRate - s.keyRate) > 0.05) parts.push(`${keyRate > s.keyRate ? 'повысил' : 'снизил'} ключевую ставку до ${keyRate.toFixed(2)}%`);
-  else parts.push(`сохранил ключевую ставку на уровне ${keyRate.toFixed(2)}%`);
-  if (Math.abs(reserveReq - s.reserveReq) > 0.05) parts.push(`изменил норму резервирования до ${reserveReq.toFixed(1)}%`);
+  if (Math.abs(keyRate - s.keyRate) > 0.05) parts.push(`${keyRate > s.keyRate ? 'повысил' : 'снизил'} ключевую ставку до ${ruNum(keyRate, 2)}%`);
+  else parts.push(`сохранил ключевую ставку на уровне ${ruNum(keyRate, 2)}%`);
+  if (Math.abs(reserveReq - s.reserveReq) > 0.05) parts.push(`изменил норму резервирования до ${ruNum(reserveReq, 1)}%`);
   if (liquidity > 0) parts.push(`предоставил банкам ликвидность (${liquidity} млрд)`);
   if (emergency) parts.push('запустил экстренную поддержку банков');
-  if (Math.abs(capitalRequirement - s.capitalRequirement) > 0.05) parts.push(`изменил норматив капитала до ${capitalRequirement.toFixed(1)}%`);
+  if (Math.abs(capitalRequirement - s.capitalRequirement) > 0.05) parts.push(`изменил норматив капитала до ${ruNum(capitalRequirement, 1)}%`);
   if (fxIntervention < 0) parts.push('вышел на валютный рынок в поддержку курса');
   if (moneySupplyOp !== 0) parts.push(moneySupplyOp > 0 ? 'начал выкуп активов' : 'начал изъятие ликвидности');
 
@@ -435,9 +437,9 @@ function buildCbResult(s, P, vals) {
       fxTarget: fxTargetCur,
     },
     detail: [
-      `ставка ${keyRate.toFixed(2)}% (реальная ${fmtSigned1(keyRate - s.inflationExpectations)}% при нейтральной ${fmt1(s.rStar)}%)`,
-      `цель по инфляции ${cbTarget.toFixed(2)}%, фактическая ${fmt1(s.inflation)}%`,
-      `норма резервирования ${reserveReq.toFixed(1)}%, норматив капитала ${capitalRequirement.toFixed(1)}%`,
+      `ставка ${ruNum(keyRate, 2)}% (реальная ${fmtSigned1(keyRate - s.inflationExpectations)}% при нейтральной ${fmt1(s.rStar)}%)`,
+      `цель по инфляции ${ruNum(cbTarget, 2)}%, фактическая ${fmt1(s.inflation)}%`,
+      `норма резервирования ${ruNum(reserveReq, 1)}%, норматив капитала ${ruNum(capitalRequirement, 1)}%`,
       `ликвидность банкам ${liquidity ? `+${liquidity} млрд` : 'не предоставлялась'}, режим курса ${fxRegime === 'free' ? 'плавающий' : fxRegime === 'managed' ? 'управляемый' : fxRegime === 'union' ? 'валютный союз' : 'фиксированный'}`,
     ],
     // note идёт в панель ведомства, где характер бота — полезная информация;
@@ -446,9 +448,9 @@ function buildCbResult(s, P, vals) {
     note: `Центральный банк (${P.name}) ${parts.join(', ')}.`,
     newsNote: `Центральный банк ${parts.join(', ')}.`, demand, stance, institution: 'cb',
     headline: keyRate > s.keyRate + 0.05 ? 'ужесточение' : keyRate < s.keyRate - 0.05 ? 'смягчение' : 'без изменений',
-    newsHeadline: `ЦБ ${keyRate > s.keyRate + 0.05 ? 'УЖЕСТОЧАЕТ ПОЛИТИКУ' : keyRate < s.keyRate - 0.05 ? 'СМЯГЧАЕТ ПОЛИТИКУ' : 'СОХРАНЯЕТ КУРС'}: СТАВКА ${ru(keyRate.toFixed(2))}%`,
-    publicHeadline: `РЕШЕНИЕ ЦБ: КЛЮЧЕВАЯ СТАВКА ${ru(keyRate.toFixed(2))}%`,
-    publicNote: `Ставка ${ru(keyRate.toFixed(2))}%, норма резервирования ${ru(reserveReq.toFixed(1))}%, норматив капитала ${ru(capitalRequirement.toFixed(1))}%, цель по инфляции ${ru(cbTarget.toFixed(2))}%.`,
+    newsHeadline: `ЦБ ${keyRate > s.keyRate + 0.05 ? 'УЖЕСТОЧАЕТ ПОЛИТИКУ' : keyRate < s.keyRate - 0.05 ? 'СМЯГЧАЕТ ПОЛИТИКУ' : 'СОХРАНЯЕТ КУРС'}: СТАВКА ${ruNum(keyRate, 2)}%`,
+    publicHeadline: `РЕШЕНИЕ ЦБ: КЛЮЧЕВАЯ СТАВКА ${ruNum(keyRate, 2)}%`,
+    publicNote: `Ставка ${ruNum(keyRate, 2)}%, норма резервирования ${ruNum(reserveReq, 1)}%, норматив капитала ${ruNum(capitalRequirement, 1)}%, цель по инфляции ${ruNum(cbTarget, 2)}%.`,
   };
 }
 
@@ -597,9 +599,9 @@ function buildMofResult(s, P, targetDeficit, vals) {
   if (Math.abs(govSpending) > 0.15) parts.push(`${govSpending > 0 ? 'нарастил' : 'сократил'} госзакупки (${fmtSigned1(govSpending)}%)`);
   if (Math.abs(transfers) > 0.15) parts.push(`${transfers > 0 ? 'повысил' : 'урезал'} социальные выплаты (${fmtSigned1(transfers)}%)`);
   if (Math.abs(govInvestment) > 0.15) parts.push(`${govInvestment > 0 ? 'увеличил' : 'сократил'} госинвестиции (${fmtSigned1(govInvestment)}%)`);
-  if (Math.abs(vatRate - s.vatRate) > 0.05) parts.push(`изменил НДС до ${vatRate.toFixed(1)}%`);
-  if (Math.abs(profitTaxRate - s.profitTaxRate) > 0.05) parts.push(`изменил налог на прибыль до ${profitTaxRate.toFixed(1)}%`);
-  if (Math.abs(incomeTaxRate - s.incomeTaxRate) > 0.05) parts.push(`изменил подоходный налог до ${incomeTaxRate.toFixed(1)}%`);
+  if (Math.abs(vatRate - s.vatRate) > 0.05) parts.push(`изменил НДС до ${ruNum(vatRate, 1)}%`);
+  if (Math.abs(profitTaxRate - s.profitTaxRate) > 0.05) parts.push(`изменил налог на прибыль до ${ruNum(profitTaxRate, 1)}%`);
+  if (Math.abs(incomeTaxRate - s.incomeTaxRate) > 0.05) parts.push(`изменил подоходный налог до ${ruNum(incomeTaxRate, 1)}%`);
   if (startProject && PROJECT_BY_ID[startProject]) parts.push(`начал стройку «${PROJECT_BY_ID[startProject].name}»`);
   if (!parts.length) parts.push('оставил бюджетные параметры без изменений');
 
@@ -632,13 +634,13 @@ function buildMofResult(s, P, targetDeficit, vals) {
     newsNote: `Минфин ${parts.join(', ')}.`, demand, stance, institution: 'gov',
     detail: [
       `госзакупки ${fmtSigned1(govSpending)}% к тренду, выплаты ${fmtSigned1(transfers)}%, инвестиции ${fmtSigned1(govInvestment)}%`,
-      `НДС ${vatRate.toFixed(1)}%, прибыль ${profitTaxRate.toFixed(1)}%, подоходный ${incomeTaxRate.toFixed(1)}%`,
+      `НДС ${ruNum(vatRate, 1)}%, прибыль ${ruNum(profitTaxRate, 1)}%, подоходный ${ruNum(incomeTaxRate, 1)}%`,
       `цель по балансу ${fmt1(targetDeficit)}% ВВП при текущем ${fmt1(s.budgetBalancePctGdp)}%`,
-      `приоритеты: здравоохранение ${shareHealth.toFixed(0)}%, образование ${shareEducation.toFixed(0)}%, наука ${shareScience.toFixed(0)}%`,
+      `приоритеты: здравоохранение ${ruNum(shareHealth, 0)}%, образование ${ruNum(shareEducation, 0)}%, наука ${ruNum(shareScience, 0)}%`,
     ],
     headline: stance > 0.15 ? 'стимулирование' : stance < -0.15 ? 'консолидация' : 'нейтрально',
     newsHeadline: `МИНФИН: ${stance > 0.15 ? 'КУРС НА СТИМУЛИРОВАНИЕ ЭКОНОМИКИ' : stance < -0.15 ? 'КУРС НА БЮДЖЕТНУЮ КОНСОЛИДАЦИЮ' : 'БЮДЖЕТНАЯ ПОЛИТИКА БЕЗ ИЗМЕНЕНИЙ'}`,
-    publicHeadline: `БЮДЖЕТ: НДС ${ru(vatRate.toFixed(1))}%, НАЛОГ НА ПРИБЫЛЬ ${ru(profitTaxRate.toFixed(1))}%`,
+    publicHeadline: `БЮДЖЕТ: НДС ${ruNum(vatRate, 1)}%, НАЛОГ НА ПРИБЫЛЬ ${ruNum(profitTaxRate, 1)}%`,
     publicNote: `Госзакупки ${fmtSigned1(govSpending)}% к тренду, выплаты ${fmtSigned1(transfers)}%, инвестиции ${fmtSigned1(govInvestment)}%. Баланс бюджета ${fmtSigned1(s.budgetBalancePctGdp)}% ВВП, долг ${fmt1(s.debtToGdp)}% ВВП.`,
   };
 }

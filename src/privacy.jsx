@@ -2,7 +2,7 @@
    открывается из регистрации (согласие — галочкой), из профиля и из окна аккаунта. Там же —
    права: скачать свои данные (JSON) и удалить аккаунт со всеми данными. Среди учеников есть
    школьники, поэтому текст — простыми словами, без мелкого шрифта. */
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { OperatorBlock, AgeRating } from './legal-block.jsx';
 
@@ -87,29 +87,57 @@ export function PrivacyPage({ onClose }) {
 
 /* Уведомление о памяти браузера: один раз, при первом открытии. Cookie приложение не ставит,
    но вход и прогресс лежат в localStorage — об этом говорим прямо и даём ссылку на страницу
-   данных. Нужно ли что-то сверх уведомления — вопрос юристу (docs/legal-todo.md, № 9). */
+   данных. Нужно ли что-то сверх уведомления — вопрос юристу (docs/legal-todo.md, № 9).
+   Где стоит (docs/mechanics.md, «Приветствие и загрузка»): у́же 1024 px — в потоке страницы, полосой
+   наверху, и ничего не перекрывает; его высота — в переменной --ems-notice-h на <html>, чтобы приветствие
+   заняло оставшуюся высоту экрана. От 1024 px — карточкой в левом нижнем углу. */
 export const STORAGE_NOTICE_KEY = 'ems-storage-notice';
+const NOTICE_CSS = `
+  .ems-storage-notice { position: relative; z-index: 2; box-sizing: border-box; width: 100%; background: #FFFDF6; color: #2A2420; border-bottom: 1px solid #CDBFA3;
+    padding: calc(8px + env(safe-area-inset-top)) 14px 8px; font: 13px/1.35 "PT Sans", system-ui, sans-serif; }
+  .ems-storage-notice-in { max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .ems-storage-notice-text { flex: 1; min-width: 0; }
+  .ems-storage-notice button { font: inherit; cursor: pointer; }
+  /* «Подробнее» — ссылка в строке текста */
+  .ems-storage-notice .ems-sn-more { background: none; border: 0; padding: 0; color: #9A3A08; text-decoration: underline; text-underline-offset: 2px; }
+  .ems-storage-notice .ems-sn-ok { flex: none; min-height: 44px; background: #C2490B; border: 1px solid #C2490B; border-radius: 10px; padding: 7px 16px; font-weight: 700; font-size: 14px; color: #fff; }
+  @media (min-width: 1024px) {
+    .ems-storage-notice { position: fixed; left: 24px; bottom: 24px; z-index: 300; width: auto; max-width: 380px; border: 1px solid #CDBFA3; border-radius: 8px;
+      box-shadow: 0 6px 22px rgba(40,30,15,.22); padding: 12px 14px; font-size: 14px; line-height: 1.45; }
+    .ems-storage-notice-in { flex-direction: column; align-items: flex-end; gap: 10px; }
+    .ems-storage-notice .ems-sn-ok { min-height: 0; }
+  }
+`;
 export function StorageNotice() {
   const [hidden, setHidden] = useState(() => { try { return !!localStorage.getItem(STORAGE_NOTICE_KEY); } catch { return true; } });
   const [more, setMore] = useState(false);
+  const box = useRef(null);
+  // высота полосы — странице: приветствие занимает остаток экрана (на ПК полоса не в потоке — ноль)
+  useLayoutEffect(() => {
+    const root = document.documentElement; const el = box.current;
+    const set = () => {
+      const inFlow = el && getComputedStyle(el).position !== 'fixed';
+      root.style.setProperty('--ems-notice-h', `${inFlow ? Math.ceil(el.getBoundingClientRect().height) : 0}px`);
+    };
+    if (!el) { root.style.removeProperty('--ems-notice-h'); return undefined; }
+    set();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null;
+    if (ro) ro.observe(el);
+    window.addEventListener('resize', set);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', set); root.style.removeProperty('--ems-notice-h'); };
+  }, [hidden]);
   if (hidden) return null;
   const ok = () => { try { localStorage.setItem(STORAGE_NOTICE_KEY, String(Date.now())); } catch { /* приватный режим */ } setHidden(true); };
   return (
     <>
-      {/* на ПК — узкой карточкой в левом нижнем углу: не ложится на демо-урок приветствия и на «Начать» */}
-      <style>{'@media (min-width: 1024px) { .ems-storage-notice { right: auto !important; left: 24px !important; max-width: 380px !important; margin: 0 !important; } }'}</style>
-      <div role="region" aria-label="Память браузера" data-testid="storage-notice" className="ems-storage-notice"
-        style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(82px + env(safe-area-inset-bottom))', zIndex: 300, maxWidth: 520, margin: '0 auto',
-          background: '#FFFDF6', color: '#2A2420', border: '1px solid #CDBFA3', borderRadius: 8, boxShadow: '0 6px 22px rgba(40,30,15,.22)', padding: '12px 14px',
-          font: '14px/1.45 "PT Sans", system-ui, sans-serif' }}>
-        <div style={{ marginBottom: 10 }}>
-          <b>Cookie мы не используем.</b> Вход и прогресс хранятся в памяти браузера на этом устройстве — без рекламы и слежки.
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <button type="button" data-testid="storage-notice-more" onClick={() => setMore(true)}
-            style={{ background: 'none', border: '1px solid #CDBFA3', borderRadius: 4, padding: '7px 12px', font: 'inherit', color: 'inherit', cursor: 'pointer' }}>Подробнее</button>
-          <button type="button" data-testid="storage-notice-ok" onClick={ok}
-            style={{ background: '#C2490B', border: '1px solid #C2490B', borderRadius: 10, padding: '7px 16px', font: '700 14px "PT Sans", system-ui, sans-serif', color: '#fff', cursor: 'pointer' }}>Понятно</button>
+      <style>{NOTICE_CSS}</style>
+      <div ref={box} role="region" aria-label="Память браузера" data-testid="storage-notice" className="ems-storage-notice">
+        <div className="ems-storage-notice-in">
+          <div className="ems-storage-notice-text">
+            <b>Cookie мы не используем.</b> Вход и прогресс хранятся в памяти браузера на этом устройстве — без рекламы и слежки.{' '}
+            <button type="button" className="ems-sn-more" data-testid="storage-notice-more" onClick={() => setMore(true)}>Подробнее</button>
+          </div>
+          <button type="button" className="ems-sn-ok" data-testid="storage-notice-ok" onClick={ok}>Понятно</button>
         </div>
       </div>
       {more && <PrivacyPage onClose={() => setMore(false)} />}

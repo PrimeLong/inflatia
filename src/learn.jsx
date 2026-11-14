@@ -74,6 +74,7 @@ import { symbolsOf } from './textbook/symbols.js';
 import { inCrowns, sceneInCrowns } from './learn/money.js';
 import { ReportFlag, QuoteReport, ReportsView, REPORT_CSS, THEORY_REASONS, exerciseContext, flatText } from './learn-report.jsx';
 import { DsRoot, Button, IconButton, Card, MenuCard, Heading, AnswerBar, Sheet, TopBar } from './ds.jsx';
+import { useHistoryLayer } from './lib/route.js';
 import { ArtStyle, Guilloche, Rosette, Chest, Engraving, EngravingG, ProgressChart, InflaMeter, CoinShower, CountUp, useReducedMotion, useWide, useMedia } from './ds-art.jsx';
 import { placeOf, unitColor, DIAMOND_COLOR, dsThemeId } from './ds-tokens.js';
 import { countryPath, RIVER, curveTo } from './lib/mapgeo.js';
@@ -512,7 +513,7 @@ const CSS = `
   .ln-how { background: none; border: none; padding: 4px 0; margin-top: 6px; font: 700 14px var(--ds-sans); color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
   /* «Ошибка в разборе?» — тихая ссылка под разбором в плашке ответа */
   .ln-explain-flag { margin-top: 8px; display: flex; }
-  .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; }
+  .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; margin: 0; }
   .ln-explain-flag .ln-flag:hover, .ln-explain-flag .ln-flag:focus-visible { opacity: 1; background: none; color: var(--ds-bad); }
   .ln-book { min-height: 100vh; margin: -12px -16px 0; }
   .ln-track { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; padding: 7px 12px; border-radius: 10px; font: 600 13px/1.3 var(--ds-sans); color: #7A1F31; background: color-mix(in srgb, #8C2337 10%, var(--ds-card)); border: 1px dashed color-mix(in srgb, #8C2337 45%, transparent); }
@@ -1575,6 +1576,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   }, [stage, cur, result]);
   // до первого ответа выход ничего не стоит и не спрашивает
   const exit = () => { if (stage === 'done' || !started) onClose(); else setAsking(true); };
+  /* урок — запись истории (src/lib/route.js): «Назад» браузера — как крестик: посреди урока спрашивает «Выйти из урока?»
+     (урок остаётся открытым, поэтому false — запись возвращается в историю), на итогах — закрывает */
+  useHistoryLayer(true, () => { if (stage === 'done' || !started) { onClose(); return undefined; } setAsking(true); return false; });
   // термины условия — с подсказками; варианты ответа не размечаем: нажатие по ним — это выбор
   const marked = useMemo(() => (cur ? { ...cur, prompt: markTerms(cur.prompt) } : null), [cur]);
   respRef.current = resp;
@@ -1637,6 +1641,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       data-peek={peek && prevShot && stage !== 'done' ? 'true' : undefined} data-skin={skin ? skin.key : undefined} style={{ ...(skin ? skinVars(skin) : null), display: hidden ? 'none' : undefined }}>
       <ArtStyle /><style>{CSS + PLAY_CSS + FEED_CSS + REPORT_CSS + MODEL_CSS + DOMINO_CSS + (sketch ? SKETCH_CSS : '') + (skin ? SKIN_CSS : '')}</style>
       {skin && <LessonSkin id={skin.id} />}
+      <h1 className="ds-sr">{title}</h1>
       <div className="ln-head" ref={headRef}>
         {stage !== 'done' && <IconButton label="Выйти из урока" icon={X} data-nav="back" onClick={exit} />}
         {/* на одну карточку назад — касанием отрезка перед текущим на полосе прогресса; идущую мини-игру не прерываем */}
@@ -2062,7 +2067,8 @@ function LessonSheet({ l, learn, weak = false, onStart, onClose, onOpenBook, onS
   const Icon = KIND_ICON[lesson.kind] || Dumbbell;
   const pl = placeOf(lesson.unitId);
   return (
-    <Sheet label={`Урок: ${l.title}`} onClose={onClose} testid="lesson-sheet" data-lesson={l.id} style={{ '--u': pl.color }}>
+    <Sheet label={`Урок: ${l.title}`} onClose={onClose} testid="lesson-sheet" data-lesson={l.id} style={{ '--u': pl.color }}
+      returnTo={() => document.querySelector(`[data-testid="path-lesson"][data-lesson="${l.id}"]`)}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginRight: -8 }}><IconButton label="Закрыть" icon={X} data-nav="back" onClick={onClose} size={22} /></div>
       <div className="ln-ticket">
         <div className="ln-ticket-main">
@@ -2972,6 +2978,8 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
   const sideModel = wide ? ((shown.find((x) => hasModel(x.u.id)) || { u: {} }).u.id || null) : null;
   return (
     <div ref={rootRef} className={`ln-wrap${wide ? ' ln-path-wide' : ''}`} data-testid="path" data-layout={wide ? 'columns' : 'column'}>
+      {/* у каждого экрана один h1 (docs/mechanics.md, «Доступность»); на Пути он не виден — экран начинается с плашки уровня */}
+      <h1 className="ds-sr">Путь</h1>
       <div className="ln-path-main">
       <TopStats learn={learn} bell={bell} />
       {TRACK === 'politics' && <div className="ln-track" data-testid="track-badge"><Landmark size={15} aria-hidden="true" />Курс «Политология» — проба для команды</div>}
@@ -3113,7 +3121,7 @@ function TasksView({ learn, onStart, onOpenBook, onBack }) {
   const arrow = <ChevronRight size={20} color="var(--ds-ink3)" aria-hidden="true" />;
   return (
     <div className="ln-wrap" data-testid="tasks">
-      <TopBar back={<IconButton label="Назад, на Путь" icon={ArrowLeft} data-nav="back" onClick={onBack} />} title="Задания" />
+      <TopBar back={<IconButton label="Назад, на Путь" icon={ArrowLeft} data-nav="back" onClick={onBack} />} title="Задания" main />
       <div className="ds-sub" style={{ fontSize: 14, margin: '6px 0 12px' }}>На сегодня, на неделю и на месяц. Задания дня обновляются в полночь и начинаются с нуля.</div>
       <QuestsCard learn={learn} />
       <MonthCard learn={learn} />
@@ -3239,7 +3247,7 @@ function GuestSave({ learn, afterLesson = false }) {
   );
 }
 
-export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {
+export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, onBusy = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {
   const [learn, update, gains, gainsDone] = useLearn();
   // курс политологии (проба для команды, src/learn/track.js): сервер больше не считает вошедшего командой — обратно к экономике
   useEffect(() => {
@@ -3247,7 +3255,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     let acc = null;
     try { acc = JSON.parse(localStorage.getItem('ems-account') || 'null'); } catch { /* повреждённая запись */ }
     if (!acc || !acc.token) return;
-    reportsMe(acc.token).then((r) => { if (r && r.owner === false) { rememberTeam(acc.login, false); window.location.reload(); } }).catch(() => {});
+    reportsMe(acc.token).then((r) => { if (r && r.owner === false) { rememberTeam(acc.login, false); window.location.assign('/'); } }).catch(() => {});
   }, []);
   const [run, setRun] = useState(null);
   // «Чтение» юнита — подборка цитат поверх Пути (src/learn-reading.jsx)
@@ -3333,6 +3341,18 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   useEffect(() => { if (reopenBook) { openBook(null, true); onBookReopened(); } // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reopenBook]);
   const start = (r) => { setSheet(null); setRun(r); };
+  /* Всё, что открыто поверх вкладки, — записи истории (src/lib/route.js; docs/mechanics.md, «Адреса и история»): «Назад»
+     браузера закрывает верхний слой — урок, страницу настроек, уведомления, учебник поверх вкладки. Шторки (карточка
+     урока, сундук, список уровней) — тоже записи: это делает сам компонент Sheet; урок — сам Runner. */
+  useHistoryLayer(!!book, () => setBook(null));
+  useHistoryLayer(tasks, () => setTasks(false));
+  useHistoryLayer(settings, () => setSettings(false));
+  useHistoryLayer(bell, () => setBell(false));
+  useHistoryLayer(friendsPage, () => setFriendsPage(false));
+  useHistoryLayer(!!friendLogin, () => setFriendLogin(null));
+  useHistoryLayer(reports, () => setReports(false));
+  useHistoryLayer(analytics, () => setAnalytics(false));
+  useHistoryLayer(!!reading, () => setReading(null));
   /* особые уроки дороги (src/learn/stops.js): «Чтение», «Персоналии», «Работа над ошибками»;
      закрытый — подсказка, когда откроется */
   const [people, setPeople] = useState(null);
@@ -3347,6 +3367,13 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   // «Нарисуй сам» — только с дороги юнита
   const [draw, setDraw] = useState(null);
   const [extraLocked, setExtraLocked] = useState(null);
+  // урок и особые уроки во весь экран — нижняя панель (она вне этой вкладки) на это время недоступна с клавиатуры
+  const fullOver = !!run || !!reading || !!people || !!graph || !!draw || !!dockBook || morning;
+  useEffect(() => { onBusy(fullOver); return () => onBusy(false); }, [fullOver]); // eslint-disable-line react-hooks/exhaustive-deps
+  useHistoryLayer(!!people, () => setPeople(null));
+  useHistoryLayer(!!graph, () => setGraph(null));
+  useHistoryLayer(!!draw, () => setDraw(null));
+  useHistoryLayer(!!dockBook, () => setDockBook(null));
   // «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам» — сначала карточка урока, «Начать» — сам урок
   const [extraSheet, setExtraSheet] = useState(null);
   const onExtra = (x) => {
