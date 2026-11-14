@@ -476,7 +476,7 @@ function TyHeader({ st, setSt, savedAt, onExit, onSaves, onRecords }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <div className="ems-card-icon" style={{ width: 38, height: 38 }}><Factory size={18} color={COLOR.gold} /></div>
         <div style={{ minWidth: 0 }}>
-          <div className="ems-serif" style={{ fontSize: 16 }}>Своё дело{st.legacy ? <span style={{ fontSize: 12, color: COLOR.gold, marginLeft: 6 }}>репутация {st.legacy}</span> : null}</div>
+          <h1 className="ems-serif" style={{ fontSize: 16, fontWeight: 'inherit', margin: 0 }}>Своё дело{st.legacy ? <span style={{ fontSize: 12, color: COLOR.gold, marginLeft: 6 }}>репутация {st.legacy}</span> : null}</h1>
           <div style={{ fontSize: 12, color: COLOR.muted }}>{quarterLabel(st.country.quarterIndex)} · {regime.label}</div>
         </div>
       </div>

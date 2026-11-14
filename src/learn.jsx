@@ -513,7 +513,7 @@ const CSS = `
   .ln-how { background: none; border: none; padding: 4px 0; margin-top: 6px; font: 700 14px var(--ds-sans); color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
   /* «Ошибка в разборе?» — тихая ссылка под разбором в плашке ответа */
   .ln-explain-flag { margin-top: 8px; display: flex; }
-  .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; }
+  .ln-explain-flag .ln-flag { color: inherit; opacity: .72; padding: 4px 8px 4px 0; margin: 0; }
   .ln-explain-flag .ln-flag:hover, .ln-explain-flag .ln-flag:focus-visible { opacity: 1; background: none; color: var(--ds-bad); }
   .ln-book { min-height: 100vh; margin: -12px -16px 0; }
   .ln-track { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; padding: 7px 12px; border-radius: 10px; font: 600 13px/1.3 var(--ds-sans); color: #7A1F31; background: color-mix(in srgb, #8C2337 10%, var(--ds-card)); border: 1px dashed color-mix(in srgb, #8C2337 45%, transparent); }
@@ -1641,6 +1641,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       data-peek={peek && prevShot && stage !== 'done' ? 'true' : undefined} data-skin={skin ? skin.key : undefined} style={{ ...(skin ? skinVars(skin) : null), display: hidden ? 'none' : undefined }}>
       <ArtStyle /><style>{CSS + PLAY_CSS + FEED_CSS + REPORT_CSS + MODEL_CSS + DOMINO_CSS + (sketch ? SKETCH_CSS : '') + (skin ? SKIN_CSS : '')}</style>
       {skin && <LessonSkin id={skin.id} />}
+      <h1 className="ds-sr">{title}</h1>
       <div className="ln-head" ref={headRef}>
         {stage !== 'done' && <IconButton label="Выйти из урока" icon={X} data-nav="back" onClick={exit} />}
         {/* на одну карточку назад — касанием отрезка перед текущим на полосе прогресса; идущую мини-игру не прерываем */}
@@ -2066,7 +2067,8 @@ function LessonSheet({ l, learn, weak = false, onStart, onClose, onOpenBook, onS
   const Icon = KIND_ICON[lesson.kind] || Dumbbell;
   const pl = placeOf(lesson.unitId);
   return (
-    <Sheet label={`Урок: ${l.title}`} onClose={onClose} testid="lesson-sheet" data-lesson={l.id} style={{ '--u': pl.color }}>
+    <Sheet label={`Урок: ${l.title}`} onClose={onClose} testid="lesson-sheet" data-lesson={l.id} style={{ '--u': pl.color }}
+      returnTo={() => document.querySelector(`[data-testid="path-lesson"][data-lesson="${l.id}"]`)}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginRight: -8 }}><IconButton label="Закрыть" icon={X} data-nav="back" onClick={onClose} size={22} /></div>
       <div className="ln-ticket">
         <div className="ln-ticket-main">
@@ -2976,6 +2978,8 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
   const sideModel = wide ? ((shown.find((x) => hasModel(x.u.id)) || { u: {} }).u.id || null) : null;
   return (
     <div ref={rootRef} className={`ln-wrap${wide ? ' ln-path-wide' : ''}`} data-testid="path" data-layout={wide ? 'columns' : 'column'}>
+      {/* у каждого экрана один h1 (docs/mechanics.md, «Доступность»); на Пути он не виден — экран начинается с плашки уровня */}
+      <h1 className="ds-sr">Путь</h1>
       <div className="ln-path-main">
       <TopStats learn={learn} bell={bell} />
       {TRACK === 'politics' && <div className="ln-track" data-testid="track-badge"><Landmark size={15} aria-hidden="true" />Курс «Политология» — проба для команды</div>}
@@ -3117,7 +3121,7 @@ function TasksView({ learn, onStart, onOpenBook, onBack }) {
   const arrow = <ChevronRight size={20} color="var(--ds-ink3)" aria-hidden="true" />;
   return (
     <div className="ln-wrap" data-testid="tasks">
-      <TopBar back={<IconButton label="Назад, на Путь" icon={ArrowLeft} data-nav="back" onClick={onBack} />} title="Задания" />
+      <TopBar back={<IconButton label="Назад, на Путь" icon={ArrowLeft} data-nav="back" onClick={onBack} />} title="Задания" main />
       <div className="ds-sub" style={{ fontSize: 14, margin: '6px 0 12px' }}>На сегодня, на неделю и на месяц. Задания дня обновляются в полночь и начинаются с нуля.</div>
       <QuestsCard learn={learn} />
       <MonthCard learn={learn} />
@@ -3243,7 +3247,7 @@ function GuestSave({ learn, afterLesson = false }) {
   );
 }
 
-export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {
+export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, onBusy = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {
   const [learn, update, gains, gainsDone] = useLearn();
   // курс политологии (проба для команды, src/learn/track.js): сервер больше не считает вошедшего командой — обратно к экономике
   useEffect(() => {
@@ -3363,6 +3367,9 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   // «Нарисуй сам» — только с дороги юнита
   const [draw, setDraw] = useState(null);
   const [extraLocked, setExtraLocked] = useState(null);
+  // урок и особые уроки во весь экран — нижняя панель (она вне этой вкладки) на это время недоступна с клавиатуры
+  const fullOver = !!run || !!reading || !!people || !!graph || !!draw || !!dockBook || morning;
+  useEffect(() => { onBusy(fullOver); return () => onBusy(false); }, [fullOver]); // eslint-disable-line react-hooks/exhaustive-deps
   useHistoryLayer(!!people, () => setPeople(null));
   useHistoryLayer(!!graph, () => setGraph(null));
   useHistoryLayer(!!draw, () => setDraw(null));

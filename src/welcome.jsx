@@ -130,7 +130,7 @@ function Goal({ go, plan, setPlan }) {
       <div className="wl-body">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <Mascot mood="hello" size={56} />
-          <Heading level={2} eyebrow="Шаг 1 из 2" title="Зачем вам экономика?" />
+          <Heading level={1} look={2} eyebrow="Шаг 1 из 2" title="Зачем вам экономика?" />
         </div>
         <div className="wl-opts" role="group" aria-label="Цель">
           {GOALS.map((g) => <button key={g.id} type="button" className="ds-opt" aria-pressed={plan.goal === g.id} onClick={() => pick({ goal: g.id })}>{g.label}</button>)}

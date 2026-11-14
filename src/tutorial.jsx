@@ -2822,7 +2822,7 @@ export function TutorialHub({ onBack, onStartRealGame }) {
 
         <div className="ems-fade-in" style={{ textAlign: 'center', marginBottom: 30 }}>
           <div className="ems-hero-eyebrow">{course ? 'Программа курса' : 'Как играть'}</div>
-          <div className="ems-hero-title small">{course ? course.title : 'Четыре курса'}</div>
+          <h1 className="ems-hero-title small">{course ? course.title : 'Четыре курса'}</h1>
           <div className="ems-hero-rule" />
           <span className="ems-hero-badge">
             <GraduationCap size={11} color={COLOR.gold} />

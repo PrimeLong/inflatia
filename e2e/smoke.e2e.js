@@ -4997,6 +4997,145 @@ test('адреса: из партии «Назад» выходит в меню 
   expect(errors).toEqual([]);
 });
 
+/* КЛАВИАТУРА И ДОСТУПНОСТЬ (docs/mechanics.md, «Доступность»; пункт владельца 13.11). */
+// видимые (или только для чтения с экрана) h1 и области main, которые сейчас доступны: не под уроком и не под страницей поверх
+const landmarks = (page) => page.evaluate(() => {
+  const live = (el) => !el.closest('[inert]') && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+  return { h1: [...document.querySelectorAll('h1')].filter(live).map((h) => h.textContent.trim().slice(0, 40)), main: [...document.querySelectorAll('main')].filter(live).length };
+});
+test('доступность: на каждом экране один h1, одна область main и первая ссылка «К содержимому»', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const check = async (name) => {
+    await page.waitForTimeout(250);
+    const l = await landmarks(page);
+    expect(l.h1.length, `${name}: h1 — ${JSON.stringify(l.h1)}`).toBe(1);
+    expect(l.main, `${name}: main`).toBe(1);
+  };
+  for (const [path, testid] of [['/', 'path'], ['/book', 'textbook'], ['/book/supply-demand', 'chapter'], ['/league', 'league'], ['/shop', 'shop'], ['/profile', 'learn-profile'], ['/news', 'news'], ['/world', 'world']]) {
+    await page.goto(path, { waitUntil: 'networkidle' });
+    await expect(page.getByTestId(testid)).toBeVisible();
+    await check(path);
+  }
+  // ссылка «К содержимому» — первая остановка Tab; Enter ставит фокус в main
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  // Путь прокручен к текущему уроку — первое нажатие Tab всё равно ведёт на ссылку наверху
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('skip-link')).toBeFocused();
+  await expect(page.getByTestId('skip-link')).toBeInViewport();
+  await page.keyboard.press('Enter');
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).toBe('MAIN');
+  expect(pathOf(page)).toBe('/');
+  // задания поверх Пути, урок, анкета партии и партия
+  await page.getByTestId('tasks-card').click();
+  await expect(page.getByTestId('tasks')).toBeVisible();
+  await check('задания');
+  await page.goBack();
+  await startLesson(page, 'sc-i1');
+  await check('урок');
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  await openTab(page, 'world');
+  await page.getByText('Партия у руля страны', { exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Вступление в должность' })).toBeVisible();
+  await check('анкета');
+  // карточки поста сообщают выбранный (aria-pressed) и выбираются с клавиатуры
+  const cb = page.locator('[data-role="central_bank"]'); const fin = page.locator('[data-role="ministry_finance"]');
+  await fin.focus(); await page.keyboard.press('Enter');
+  await expect(fin).toHaveAttribute('aria-pressed', 'true');
+  await expect(cb).toHaveAttribute('aria-pressed', 'false');
+  await cb.focus(); await page.keyboard.press('Space');
+  await expect(cb).toHaveAttribute('aria-pressed', 'true');
+  await expect(fin).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('checkbox', { name: /Обучение по экрану/ }).uncheck();
+  await page.getByRole('button', { name: 'Принять полномочия' }).click();
+  await expect(page.getByRole('button', { name: 'Завершить квартал и применить решения' })).toBeVisible();
+  await check('партия');
+  expect(errors).toEqual([]);
+});
+
+test('вход: доступность — на приветствии, выборе цели и форме входа один h1 и область main', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: null });
+  await expect(page.getByTestId('welcome')).toBeVisible();
+  for (const step of ['приветствие', 'цель', 'вход']) {
+    if (step === 'цель') await page.getByRole('button', { name: 'Начать', exact: true }).click();
+    if (step === 'вход') { await page.goBack(); await page.getByRole('button', { name: 'У меня уже есть аккаунт', exact: true }).click(); }
+    await page.waitForTimeout(250);
+    const l = await landmarks(page);
+    expect(l.h1.length, `${step}: h1 — ${JSON.stringify(l.h1)}`).toBe(1);
+    expect(l.main, `${step}: main`).toBe(1);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('доступность: карточка урока — фокус внутри, Tab не уходит наружу, Esc закрывает, фокус возвращается на урок Пути', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'клавиатура');
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'scarcity');
+  const node = pathNode(page, 'sc-i1');
+  await node.focus();
+  await page.keyboard.press('Enter');
+  const sheet = page.getByTestId('lesson-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute('aria-modal', 'true');
+  const inside = () => page.evaluate(() => { const s = document.querySelector('[data-testid=lesson-sheet]'); return !!s && s.contains(document.activeElement); });
+  expect(await inside(), 'фокус не в карточке').toBe(true);
+  // Tab и Shift+Tab ходят по кругу внутри карточки
+  for (let k = 0; k < 12; k += 1) { await page.keyboard.press('Tab'); expect(await inside(), `Tab ${k + 1}: фокус ушёл из карточки`).toBe(true); }
+  for (let k = 0; k < 4; k += 1) { await page.keyboard.press('Shift+Tab'); expect(await inside()).toBe(true); }
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(node).toBeFocused();
+  // закрытие «Назад» браузера возвращает фокус туда же
+  await page.keyboard.press('Enter');
+  await expect(sheet).toBeVisible();
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(node).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
+test('доступность: во время урока нижняя панель недоступна с клавиатуры', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'клавиатура');
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-i1');
+  const nav = page.getByTestId('bottom-nav');
+  expect(await nav.evaluate((el) => !!el.closest('[inert]'))).toBe(true);
+  // сорок нажатий Tab: фокус ни разу не на вкладке нижней панели
+  for (let k = 0; k < 40; k += 1) {
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!(document.activeElement && document.activeElement.closest('[data-testid=bottom-nav]'))), `Tab ${k + 1}`).toBe(false);
+  }
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  expect(await nav.evaluate((el) => !!el.closest('[inert]'))).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('доступность: цели касания не меньше 44×44 — флажок жалобы, размер шрифта, музыка и звуки', async ({ page }) => {
+  const { errors } = await openApp(page, '/book/supply-demand', '{}', { tab: null });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  const big = async (loc, name) => {
+    const b = await loc.boundingBox();
+    expect(b, `${name}: не на экране`).toBeTruthy();
+    expect(b.width, `${name}: ширина`).toBeGreaterThanOrEqual(44);
+    expect(b.height, `${name}: высота`).toBeGreaterThanOrEqual(44);
+  };
+  await big(page.getByRole('button', { name: 'Мельче текст' }), 'мельче текст');
+  await big(page.getByRole('button', { name: 'Крупнее текст' }), 'крупнее текст');
+  await big(page.getByTestId('tb-reader-bar').getByTestId('music-btn'), 'музыка в учебнике');
+  await big(page.getByTestId('tb-topbar').getByTestId('report-flag'), 'флажок страницы учебника');
+  // флажок в уроке
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await startLesson(page, 'sc-i1');
+  await big(page.getByTestId('lesson').getByTestId('report-flag').first(), 'флажок в уроке');
+  await page.getByRole('button', { name: 'Выйти из урока' }).click();
+  // музыка и звуки в «Мире»
+  await openTab(page, 'world');
+  await expect(page.getByTestId('world')).toBeVisible();
+  await big(page.getByTestId('music-btn').first(), 'музыка в «Мире»');
+  expect(errors).toEqual([]);
+});
+
 /* Первый визит на телефоне (docs/mechanics.md, «Приветствие и загрузка»; пункт владельца 13.11): уведомление о памяти
    браузера стоит в потоке страницы и ничего не перекрывает — «Начать» и «У меня уже есть аккаунт» целиком на первом
    экране и нажимаются. Раньше плашка висела поверх низа экрана и на 360×640 лежала на кнопках. */

@@ -5210,7 +5210,7 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
                 название приложения, а не игры: игроку это ни о чём не говорит
                 на экране, где он уже внутри партии. Пост и его контекст —
                 единственное, что имеет смысл заявлять здесь. */}
-            <div className="ems-serif" style={{ fontSize: 18 }}>{roleDef.title}</div>
+            <h1 className="ems-serif" style={{ fontSize: 18, fontWeight: 'inherit', margin: 0 }}>{roleDef.title}</h1>
             <div style={{ fontSize: 12, color: COLOR.muted, marginTop: 2 }}>
               сложность: {(DIFFICULTIES.find((x) => x.id === difficulty) || {}).title}
               {setup.scenario && setup.scenario !== 'sandbox' ? ` · сценарий: ${(SCENARIOS.find((sc) => sc.id === setup.scenario) || {}).title}` : ''}

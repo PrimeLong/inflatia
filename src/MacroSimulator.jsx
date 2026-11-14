@@ -486,7 +486,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
     ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
   return (
     <div style={{ position: 'relative' }}>
-      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
+      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px', minWidth: 44, minHeight: 44, display: 'inline-grid', placeItems: 'center', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
         onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
         {anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
@@ -1087,6 +1087,8 @@ export default function MacroSimulator() {
   const [reopenBook, setReopenBook] = useState(false);
   // учебник открыт поверх вкладки обучения: внизу подсвечен «Учебник»; closeTick закрывает его
   const [bookOver, setBookOver] = useState(false);
+  // идёт урок (или особый урок во весь экран) — нижняя панель под ним недоступна с клавиатуры и для чтения с экрана
+  const [navOff, setNavOff] = useState(false);
   const [closeTick, setCloseTick] = useState(0);
   // повторное нажатие на «Учебник», когда он уже открыт, — на главную страницу учебника
   const [bookHome, setBookHome] = useState(0);
@@ -1252,6 +1254,7 @@ export default function MacroSimulator() {
       const startDrill = (x) => { setFromBook(false); setGameFromBook(true); clearAutosave(); setLoaded(null); setSetup(x); };
       return (
         <div data-testid="shell" data-tab={tab}>
+          <main id="main" tabIndex={-1}>
           {tab === 'world' && worldLocked ? (
             <DsRoot theme={dsThemeId()} style={{ minHeight: '100vh' }}>
               <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 120px' }} data-testid="world-locked">
@@ -1278,7 +1281,7 @@ export default function MacroSimulator() {
               <GlobalStyle />
               <Suspense fallback={<GameFallback />}>
                 <LearnTab tab={tab} onTab={setTab} reopenBook={reopenBook} onBookReopened={() => setReopenBook(false)} onThemeChange={() => setLearnTick((k) => k + 1)}
-                  onBookOver={setBookOver} closeTick={closeTick} bookHome={bookHome} pathHome={pathHome} guest={guest} firstLesson={firstLesson} onFirstLesson={() => setFirstLesson(false)}
+                  onBookOver={setBookOver} onBusy={setNavOff} closeTick={closeTick} bookHome={bookHome} pathHome={pathHome} guest={guest} firstLesson={firstLesson} onFirstLesson={() => setFirstLesson(false)}
                   bookHandlers={{
                     onOpenLab: (init) => { setFromBook(true); setLabInit(init); setLabLever(init.lever); setView('lab'); },
                     onStartDrill: startDrill,
@@ -1295,8 +1298,10 @@ export default function MacroSimulator() {
               </Suspense>
             </div>
           )}
+          </main>
           {/* учебник поверх вкладки (например, «Открыть теорию» из карточки урока) — внизу отмечен «Учебник»;
               нажатие на вкладку закрывает его */}
+          <div inert={navOff && tab !== 'world'} data-testid="bottom-nav-wrap">
           <BottomNav tab={bookOver && tab !== 'world' ? 'book' : tab} onTab={(t) => { if (bookOver) { setBookOver(false); setCloseTick((k) => k + 1); } setTab(t); }}
             onReselect={(t) => {
               /* повторное касание вкладки — как «назад» к её началу: учебник — в оглавление,
@@ -1310,6 +1315,7 @@ export default function MacroSimulator() {
               // профиль: повторное касание закрывает и страницы поверх него — настройки, уведомления
               if (t === 'profile') setCloseTick((k) => k + 1);
             }} />
+          </div>
         </div>
       );
     }
@@ -1339,15 +1345,19 @@ export default function MacroSimulator() {
   if (showcase) return <Suspense fallback={<GameFallback />}><DsShowcase /></Suspense>;
   if (showGate) {
     return (
-      <div className="ems-root" data-testid="gate">
+      <main id="main" tabIndex={-1} className="ems-root" data-testid="gate">
         <GlobalStyle />
         <Suspense fallback={<GameFallback />}><Welcome key={gateScreen} initialScreen={gateScreen} onCancel={guest ? () => setGate(false) : null} /></Suspense>
-      </div>
+      </main>
     );
   }
+  /* область main — на каждом экране одна (docs/mechanics.md, «Доступность»): в оболочке с нижней панелью она вокруг
+     содержимого вкладки (панель — рядом, своей областью nav), у остальных экранов — вокруг всего экрана */
+  const inShell = !tycoon && !network && !setup && view === 'menu';
+  const body = inShell ? wrapped : <main id="main" tabIndex={-1}>{wrapped}</main>;
   // ник под запретом: окно «Смените ник» или экран блокировки (src/account.jsx) — поверх любого экрана
   return (
-    <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{wrapped}<NameGate />
+    <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{body}<NameGate />
       {trialOn && <WorldTrialChip left={trialLeftS} />}
       {trialOver && <DsRoot theme={dsThemeId()}><WorldTrialEnd hasAccount={!!account} onLessons={() => { setTrialOver(false); setTab('path'); }} /></DsRoot>}
     </ScreenErrorBoundary>

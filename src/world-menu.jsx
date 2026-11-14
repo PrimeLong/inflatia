@@ -662,7 +662,7 @@ export function SetupScreen({ onStart, onBack, initialRole = null, initialScenar
         </button>
         <div className="ems-fade-in" style={{ textAlign: 'center', marginBottom: 34 }}>
           <div className="ems-hero-eyebrow">Новая партия</div>
-          <div className="ems-hero-title small">Вступление в должность</div>
+          <h1 className="ems-hero-title small">Вступление в должность</h1>
           <div className="ems-hero-rule" />
           <span className="ems-hero-badge"><Clock size={11} color={COLOR.gold} />{romanQ(1)} кв. {CONFIG.startYear}</span>
           <div className="ems-hero-lede">
@@ -684,8 +684,9 @@ export function SetupScreen({ onStart, onBack, initialRole = null, initialScenar
               <div key={r.id} onClick={() => { Audio.prime(); Audio.play('click'); setRole(r.id); }} className="ems-card-btn"
                 style={{ padding: 16, flexDirection: 'column', alignItems: 'flex-start', gap: 0,
                   borderColor: active ? COLOR.gold : COLOR.border, background: active ? COLOR.panelRaised : COLOR.panel }}
-                role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setRole(r.id); }}>
-                {active && <Check size={13} color={COLOR.gold} style={{ position: 'absolute', top: 14, right: 14 }} />}
+                role="button" tabIndex={0} aria-pressed={active} data-role={r.id}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRole(r.id); } }}>
+                {active && <Check size={13} color={COLOR.gold} style={{ position: 'absolute', top: 14, right: 14 }} aria-hidden="true" />}
                 {/* иконка — рядом с названием, а не отдельной строкой над ним: на телефоне
                     пять карточек растягивались на два экрана */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 7, paddingRight: 18 }}>

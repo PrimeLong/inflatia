@@ -13,7 +13,9 @@ import { GAME_CARDS } from './textbook/appendix.js';
 import { GAMES, SCALES, expectedValue, convergence, scaleRow } from './lib/casino-odds.js';
 
 /* Общая рамка страницы тренажёра: кнопка назад, заголовок, вводный абзац. */
-export function TrainerPage({ eyebrow, title, lede, onBack, children, icon: Icon = FlaskConical, wide = false, backLabel = '← Назад в меню' }) {
+// h1 — заголовок страницы и есть главный заголовок экрана; false — когда h1 стоит внутри страницы (глава учебника)
+export function TrainerPage({ eyebrow, title, lede, onBack, children, icon: Icon = FlaskConical, wide = false, backLabel = '← Назад в меню', h1 = true }) {
+  const Title = h1 ? 'h1' : 'div';
   return (
     <div className="ems-root ems-hero-bg" style={{ display: 'flex', justifyContent: 'center', padding: '44px 16px' }}>
       <GlobalStyle />
@@ -22,7 +24,7 @@ export function TrainerPage({ eyebrow, title, lede, onBack, children, icon: Icon
           onClick={() => { Audio.play('click'); onBack(); }}>{backLabel}</button>
         <div className="ems-fade-in" style={{ textAlign: 'center', marginBottom: 28 }}>
           <div className="ems-hero-eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon size={12} />{eyebrow}</div>
-          <div className="ems-hero-title small">{title}</div>
+          <Title className="ems-hero-title small">{title}</Title>
           <div className="ems-hero-rule" />
           {lede && <div className="ems-hero-lede">{lede}</div>}
         </div>

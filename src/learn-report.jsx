@@ -188,7 +188,9 @@ export function QuoteReport({ context, scope = '.ln-textbook' }) {
   );
 }
 export const REPORT_CSS = `
-  .ln-flag { background: none; border: none; padding: 6px; margin: -6px; color: var(--ds-ink3); cursor: pointer; border-radius: 50%; line-height: 0; }
+  /* цель касания — 44×44 (docs/mechanics.md, «Доступность»): флажок маленький, а площадка под палец — нет; отрицательное
+     поле оставляет под значок в строке прежние 16 px, чтобы строка с флажком не выросла и не сдвинулась */
+  .ln-flag { background: none; border: none; padding: 0; margin: -14px; min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; box-sizing: border-box; color: var(--ds-ink3); cursor: pointer; border-radius: 50%; line-height: 0; }
   .ln-flag:hover, .ln-flag:focus-visible { color: var(--ds-bad); background: var(--ds-card2); }
   .ln-flag:has(.ln-flag-text) { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 6px 10px; margin: 0; line-height: 1; }
   .ln-flag-text { font: 600 12.5px/1 var(--ds-sans); }

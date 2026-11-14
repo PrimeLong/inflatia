@@ -1972,7 +1972,7 @@ function ReviewPage({ ctx }) {
   return (
     <div data-testid="review-page">
       <PageNav ctx={ctx} />
-      {!ctx.embedded && <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 12px', fontWeight: 700 }}>Повторение</h1>}
+      {ctx.embedded ? <h1 className="ds-sr">Повторение</h1> : <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 12px', fontWeight: 700 }}>Повторение</h1>}
       <ReviewPanel ctx={ctx} due={due} />
     </div>
   );
@@ -2262,6 +2262,7 @@ function LearnToc({ ctx }) {
   let n = 0;
   return (
     <div data-testid="textbook" className="tbl">
+      <h1 className="ds-sr">Учебник: оглавление</h1>
       {last && (
         <button type="button" className="tbl-continue" data-testid="tb-continue" aria-label={`Продолжить чтение главы ${chapterNo(last.id)}`} onClick={() => { Audio.play('click'); ctx.go({ kind: 'chapter', id: last.id }); }}>
           <BookOpen size={26} aria-hidden="true" />
@@ -2433,14 +2434,15 @@ const lockedPage = (pg, learn) => {
 
 /* размер текста и музыка — одной строкой справа: «A» (мельче), процент, «A» (крупнее) — в одной закруглённой рамке,
    рядом круглая кнопка музыки той же высоты (раньше «A−» и «A+» отдельными кнопками — «выглядят уродливо», 08.11) */
-const TB_FS_H = 36;
-const tbFsBtn = (big, off) => ({ width: 40, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
+// высота и ширина кнопок — 44 px: цель касания не меньше 44×44 (docs/mechanics.md, «Доступность»)
+const TB_FS_H = 44;
+const tbFsBtn = (big, off) => ({ width: 44, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
   fontFamily: "var(--ds-news, 'PT Serif', Georgia, serif)", fontWeight: 700, fontSize: big ? 19 : 13, lineHeight: 1, color: off ? COLOR.faint : COLOR.text });
 function ReaderBar({ scale, setScale, learn = false }) {
   const i = SCALES.indexOf(scale);
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
-      <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_H, borderRadius: 999, overflow: 'hidden',
+      <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_H, boxSizing: 'content-box', borderRadius: 999, overflow: 'hidden',
         border: `1.5px solid ${COLOR.border}`, background: COLOR.panel }}>
         <button type="button" style={tbFsBtn(false, i <= 0)} aria-label="Мельче текст" disabled={i <= 0}
           onClick={() => { Audio.play('tick'); setScale(SCALES[Math.max(0, i - 1)]); }}>A</button>
@@ -2729,7 +2731,7 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
     );
   }
   return (
-    <TrainerPage eyebrow="Учебник" title={cur.kind === 'toc' ? 'Учебник экономики' : 'Учебник'} icon={BookOpenText}
+    <TrainerPage eyebrow="Учебник" title={cur.kind === 'toc' ? 'Учебник экономики' : 'Учебник'} icon={BookOpenText} h1={cur.kind === 'toc'}
       onBack={onBack} backLabel={backLabel}
       lede={cur.kind === 'toc' ? 'Первый год экономического факультета: микро, потом макро. В каждой главе — теория с формулами и графиком, разбор на числах, задачи с решениями и «проверьте в игре»: где эту модель видно в Лаборатории, задачах на 10 минут или в «Своём деле». Учебная модель и то, как это устроено в игре, всегда разведены: в игре коэффициенты подобраны вручную, в учебнике — стандартные модели.' : null}>
       {pages}
