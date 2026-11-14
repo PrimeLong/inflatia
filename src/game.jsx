@@ -155,7 +155,7 @@ export function KpiTile({ label, value, delta, invert, icon: Icon, series, hero 
           return (
             <span className={hero ? 'ems-numeral ems-serif ems-kpi-hero-val' : 'ems-mono ems-serif ems-kpi-val'}
               style={{ fontSize: hero ? SIZE.hero : SIZE.xl - 3, fontWeight: 600, letterSpacing: '-0.02em', whiteSpace: 'nowrap', lineHeight: 1.05 }}>
-              {unit ? <>{unit[1]}<span style={{ fontSize: '0.42em', marginLeft: '0.22em', letterSpacing: 0 }}>{unit[2]}</span></> : value}
+              {unit ? <>{unit[1]}<span className="ems-kpi-unit" style={{ fontSize: '0.42em', marginLeft: '0.22em', letterSpacing: 0 }}>{unit[2]}</span></> : value}
             </span>
           );
         })()}
@@ -5149,7 +5149,7 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
 
   return (
     <AdvancedContext.Provider value={advanced}>
-    <div className={`ems-root${shake ? ' ems-shake' : ''}${dense ? ' ems-dense' : ''}`} lang="ru">
+    <div className={`ems-root ems-game${shake ? ' ems-shake' : ''}${dense ? ' ems-dense' : ''}`} lang="ru" data-testid="game">
       <GlobalStyle />
       {irf && (
         <Suspense fallback={(

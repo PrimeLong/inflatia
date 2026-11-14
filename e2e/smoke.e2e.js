@@ -1497,7 +1497,7 @@ test('картинка на весь экран: фото в «Персонал�
 });
 
 // пункт владельца 09.11: «хотелось бы свернуть оглавление, когда читаешь»
-test('учебник: оглавление главы сворачивается — глава шире, выбор помнится после перезагрузки', async ({ page, isMobile }) => {
+test('учебник: оглавление главы сворачивается — глава посередине освободившегося места, выбор помнится после перезагрузки', async ({ page, isMobile }) => {
   const { errors } = await openApp(page);
   const openChapter = async () => {
     await openBook(page);
@@ -1508,13 +1508,21 @@ test('учебник: оглавление главы сворачивается
   const ch = page.getByTestId('chapter');
   await expect(ch.getByTestId('tb-sections')).toBeVisible();
   if (!isMobile) await expect(ch.getByTestId('tb-side-toc')).toBeVisible();
-  const mainW = async () => (await ch.locator('.tb-ch-main').boundingBox()).width;
-  const w0 = await mainW();
+  // колонка текста: ширина и середина (строка главы — не длиннее 75 знаков, поэтому шире колонка не становится)
+  const mainBox = async () => { const b = await ch.locator('.tb-ch-main').boundingBox(); return { w: b.width, mid: b.x + b.width / 2 }; };
+  const b0 = await mainBox();
   await ch.getByTestId('tb-toc-fold').click();
   await expect(ch.getByTestId('tb-ch-grid')).toHaveAttribute('data-folded', 'true');
   await expect(ch.getByTestId('tb-sections')).toHaveCount(0);
   await expect(ch.getByTestId('tb-side-toc')).toHaveCount(0);
-  if (!isMobile) expect(await mainW()).toBeGreaterThan(w0);
+  if (!isMobile) {
+    // оглавление ушло — колонка не сузилась и стоит посередине освободившегося места (справа от полоски «Оглавление»)
+    await page.waitForTimeout(600);
+    const b1 = await mainBox();
+    expect(b1.w).toBeGreaterThanOrEqual(b0.w - 1);
+    const cell = await ch.getByTestId('tb-ch-grid').evaluate((g) => { const r = g.getBoundingClientRect(); return { left: r.left + 44, right: r.right }; });
+    expect(Math.abs(b1.mid - (cell.left + cell.right) / 2)).toBeLessThan(40);
+  }
   await page.reload({ waitUntil: 'networkidle' });
   await openChapter();
   await expect(page.getByTestId('chapter').getByTestId('tb-ch-grid')).toHaveAttribute('data-folded', 'true');
@@ -4995,6 +5003,53 @@ test('адреса: из партии «Назад» выходит в меню 
   expect(await page.evaluate(() => !!localStorage.getItem('ems-autosave-v1'))).toBe(true);
   await page.reload({ waitUntil: 'networkidle' });
   await expect(page.getByTestId('world')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/* ЧИТАЕМОСТЬ (docs/mechanics.md, «Учебник: чтение главы»; пункт владельца 13.11): на компьютере строка главы — не шире
+   75 знаков. Считаются настоящие строки абзацев и пунктов списков (без формул); раньше в строке было 110–119 знаков. */
+test('учебник на ПК: строка главы не шире 75 знаков — и при свёрнутом оглавлении, и при крупном тексте', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'раскладка ПК');
+  const { errors } = await openApp(page, '/book/supply-demand', '{}', { tab: null });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  const lineLengths = () => page.evaluate(() => {
+    const lens = [];
+    document.querySelectorAll('[data-testid=chapter] .tb-ch-main p, [data-testid=chapter] .tb-ch-main li').forEach((el) => {
+      if (el.querySelector('.katex')) return;
+      const rows = new Map(); const range = document.createRange();
+      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      while (w.nextNode()) {
+        const n = w.currentNode;
+        for (let i = 0; i < n.length; i += 1) {
+          range.setStart(n, i); range.setEnd(n, i + 1);
+          const rc = range.getClientRects()[0];
+          if (rc) { const k = Math.round(rc.top / 4); rows.set(k, (rows.get(k) || 0) + 1); }
+        }
+      }
+      const v = [...rows.values()];
+      if (v.length >= 3) lens.push(...v.slice(0, -1)); // последняя строка абзаца короткая — не в счёт
+    });
+    lens.sort((a, b) => a - b);
+    return { n: lens.length, median: lens[Math.floor(lens.length / 2)], max: lens[lens.length - 1] };
+  });
+  const check = async (name) => {
+    await page.waitForTimeout(600);
+    const l = await lineLengths();
+    expect(l.n, `${name}: строк`).toBeGreaterThan(15);
+    expect(l.max, `${name}: самая длинная строка`).toBeLessThanOrEqual(75);
+    // и не узкая газетная колонка: в средней строке не меньше 50 знаков
+    expect(l.median, `${name}: средняя строка`).toBeGreaterThanOrEqual(50);
+  };
+  await check('глава');
+  // текст крупнее — знаков в строке столько же
+  await page.getByRole('button', { name: 'Крупнее текст' }).click();
+  await check('крупный текст');
+  await page.getByRole('button', { name: 'Мельче текст' }).click();
+  // оглавление свёрнуто — колонка текста не расползается
+  await page.getByTestId('tb-ch-grid').getByRole('button', { name: /Свернуть/ }).first().click();
+  await expect(page.getByTestId('tb-ch-grid')).toHaveAttribute('data-folded', 'true');
+  await check('оглавление свёрнуто');
+  await expectNoSidewaysScroll(page);
   expect(errors).toEqual([]);
 });
 

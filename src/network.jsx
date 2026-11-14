@@ -907,7 +907,7 @@ export function NetworkGameScreen({ network, theme, setTheme, onExit }) {
   }
 
   return (
-    <div className="ems-root">
+    <div className="ems-root ems-game" data-testid="game">
       <GlobalStyle />
       <Atmosphere regime={economy.regime}
         intensity={clamp((economy.inflationRisk * 0.25 + economy.bankingRisk * 0.3 + economy.debtRisk * 0.2 + economy.recessionRisk * 0.25) / 100, 0, 1)} />

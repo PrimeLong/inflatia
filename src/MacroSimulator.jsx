@@ -280,6 +280,16 @@ export const GlobalStyle = () => (
     @media (max-width: 860px) { .ems-grid { grid-template-columns: minmax(0,1fr); padding: 12px !important; gap: 10px; } }
     @media (max-width: 860px) { .ems-hide-narrow { display: none !important; } }
     @media (max-width: 640px) { .ems-pad { padding-left: 10px !important; padding-right: 10px !important; } }
+    /* ТЕЛЕФОН: текст партии — не мельче 14 px (docs/mechanics.md, «Доступность»; пункт владельца 13.11). Экран партии
+       набран под ПК: почти весь текст — 12–13 px, заданные прямо в разметке; на телефоне всё, что мельче, поднимается
+       до 14 px. Подписи внутри графиков (SVG) — часть рисунка и масштабируются с ним. */
+    @media (max-width: 640px) {
+      .ems-game :not(svg *)[style*="font-size: 11px"], .ems-game :not(svg *)[style*="font-size: 12px"], .ems-game :not(svg *)[style*="font-size: 13px"],
+      .ems-game .fs-12, .ems-game .fs-13, .ems-game .note, .ems-game .ems-btn, .ems-game .ems-tab, .ems-game .ems-seg > button, .ems-game .ems-eyebrow,
+      .ems-game .ems-kpi-label, .ems-game .ems-kpi-ctl button, .ems-game .ems-fold-close, .ems-game .ems-kpi-unit, .ems-game .ems-hero-eyebrow, .ems-game .ems-hero-badge, .ems-game .ems-pill,
+      .ems-game .recharts-legend-item-text, .ems-game .recharts-tooltip-wrapper, .ems-game .recharts-tooltip-wrapper * { font-size: 14px !important; }
+      .ems-game .ems-eyebrow, .ems-game .ems-hero-eyebrow { letter-spacing: 0.06em; }
+    }
     .ems-col-hidden { display: none !important; }
     .ems-dense .ems-visual { display: none !important; }
     .ems-dense .ems-panel { padding-top: 9px !important; padding-bottom: 9px !important; }

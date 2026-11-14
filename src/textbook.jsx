@@ -351,11 +351,15 @@ export const TEXTBOOK_CSS = `
     /* учебник с увеличенным текстом масштабируется (zoom): высоту панели делим на масштаб, иначе она
        уходила за низ экрана и «В этой главе» нельзя было докрутить до конца */
     .ln-textbook.wide .tb-ch-aside { position: sticky; top: calc(64px / var(--tb-zoom, 1)); max-height: calc((100vh - 96px) / var(--tb-zoom, 1)); overflow: auto; overscroll-behavior: contain; }
-    .ln-textbook.wide .tb-ch-main { max-width: 860px; }
+    /* строка главы — не шире 75 знаков (docs/mechanics.md, «Учебник: чтение главы»; пункт владельца 13.11): колонка
+       текста 33em при шрифте 18 px — в среднем 67 знаков, самая длинная строка — до 75. Раньше колонка была 860 px
+       при 16 px — в среднем 109 знаков в строке, глаз терял начало следующей. Ширина в em: с размером текста (A− / A+) число знаков в строке не меняется */
+    .ln-textbook.wide .tb-ch-main { max-width: 33em; }
     /* оглавление свёрнуто — узкая полоска с кнопкой, глава шире (пункт владельца 09.11) */
     .ln-textbook.wide .tb-ch-grid.folded { grid-template-columns: 44px minmax(0, 1fr); }
-    .ln-textbook.wide .tb-ch-grid.folded .tb-ch-main { max-width: 920px; margin: 0 auto; width: 100%; }
+    .ln-textbook.wide .tb-ch-grid.folded .tb-ch-main { max-width: 33em; margin: 0 auto; width: 100%; }
     .ln-textbook.wide .tb-body { font-size: 16px; }
+    .ln-textbook.wide .tb-ch-main.tb-body { font-size: 18px; }
   }
 `;
 
@@ -2436,13 +2440,15 @@ const lockedPage = (pg, learn) => {
    рядом круглая кнопка музыки той же высоты (раньше «A−» и «A+» отдельными кнопками — «выглядят уродливо», 08.11) */
 // высота и ширина кнопок — 44 px: цель касания не меньше 44×44 (docs/mechanics.md, «Доступность»)
 const TB_FS_H = 44;
+// высота всей группы и кнопки музыки рядом: кнопки 44 px плюс рамка группы (1,5 px сверху и снизу)
+const TB_FS_OUT = TB_FS_H + 3;
 const tbFsBtn = (big, off) => ({ width: 44, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
   fontFamily: "var(--ds-news, 'PT Serif', Georgia, serif)", fontWeight: 700, fontSize: big ? 19 : 13, lineHeight: 1, color: off ? COLOR.faint : COLOR.text });
 function ReaderBar({ scale, setScale, learn = false }) {
   const i = SCALES.indexOf(scale);
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
-      <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_H, boxSizing: 'content-box', borderRadius: 999, overflow: 'hidden',
+      <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_OUT, boxSizing: 'border-box', borderRadius: 999, overflow: 'hidden',
         border: `1.5px solid ${COLOR.border}`, background: COLOR.panel }}>
         <button type="button" style={tbFsBtn(false, i <= 0)} aria-label="Мельче текст" disabled={i <= 0}
           onClick={() => { Audio.play('tick'); setScale(SCALES[Math.max(0, i - 1)]); }}>A</button>
@@ -2450,7 +2456,7 @@ function ReaderBar({ scale, setScale, learn = false }) {
         <button type="button" style={tbFsBtn(true, i >= SCALES.length - 1)} aria-label="Крупнее текст" disabled={i >= SCALES.length - 1}
           onClick={() => { Audio.play('tick'); setScale(SCALES[Math.min(SCALES.length - 1, i + 1)]); }}>A</button>
       </span>
-      <AudioControls wave learn={learn} buttonStyle={{ width: TB_FS_H, height: TB_FS_H, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
+      <AudioControls wave learn={learn} buttonStyle={{ width: TB_FS_OUT, height: TB_FS_OUT, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
     </div>
   );
 }
