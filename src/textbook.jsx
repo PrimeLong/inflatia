@@ -37,6 +37,7 @@ import { StatTile, Meter, DayBars, STATS_CSS } from './learn-stats.jsx';
 import { openBookLevels } from './learn/grade.js';
 import { unlockBypass } from './learn-unlock.jsx';
 import { trackDaily } from './lib/client.js';
+import { router, bookPageOf } from './lib/route.js';
 
 const LEVER_BY_ID = Object.fromEntries(LEVERS.map((l) => [l.id, l]));
 const DRILL_BY_ID = Object.fromEntries(DRILLS.map((d) => [d.id, d]));
@@ -2516,7 +2517,11 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
      закреплённое настроение не трогаем; в партии снова по режиму экономики (leaveWave в src/MacroSimulator.jsx) */
   useEffect(() => { if (!Audio.nowPlaying().locked) Audio.setPlaylist('wave'); }, []);
   const [progress, setProgress] = useState(loadProgress);
-  const [page, setPage] = useState(() => startPage || (resume && progress.last ? progress.last : { kind: 'toc' }));
+  /* Вкладка «Учебник» живёт по адресу (src/lib/route.js; docs/mechanics.md, «Адреса и история»): /book — оглавление,
+     /book/<id главы> — глава; остальные страницы (повторение, приложения, экзамен) — записи истории с адресом /book.
+     Учебник поверх урока или партии адреса не меняет: он сам — слой истории. */
+  const routed = asTab;
+  const [page, setPage] = useState(() => startPage || (routed ? bookPageOf(router().current()) : null) || (resume && progress.last ? progress.last : { kind: 'toc' }));
   const [stack, setStack] = useState([]);
   const [scale, setScaleRaw] = useState(() => { const v = readJSON(SCALE_KEY, 1); return SCALES.includes(v) ? v : 1; });
   const setScale = (v) => { setScaleRaw(v); writeJSON(SCALE_KEY, v); };
@@ -2603,15 +2608,38 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
     evs.forEach((ev) => window.addEventListener(ev, stop, { passive: true, capture: true }));
     return () => { stop(); evs.forEach((ev) => window.removeEventListener(ev, stop, { capture: true })); };
   }, [page]);
-  const go = (next, { push = true } = {}) => {
+  const show = (next) => {
     // уходя, запомнить, где остановились на этой странице (на странице замка — нечего)
-    if (typeof window !== 'undefined' && !lockedNow.current) saveScroll(pageKey(page));
-    if (push && pageKey(next) !== pageKey(page)) setStack((st) => [...st, page].slice(-30));
-    if (pageKey(next) !== pageKey(page)) Audio.play('paper');
+    if (typeof window !== 'undefined' && !lockedNow.current) saveScroll(pageKey(pageRef.current));
+    if (pageKey(next) !== pageKey(pageRef.current)) Audio.play('paper');
     setPage(next);
     // «продолжить» — глава или приложение; оглавление и «на сегодня» место чтения не меняют
     update((p) => setLast(p, next.kind === 'chapter' || next.kind === 'appendix' ? { kind: next.kind, id: next.id } : p.last));
   };
+  const go = (next, { push = true } = {}) => {
+    if (push && pageKey(next) !== pageKey(page)) setStack((st) => [...st, page].slice(-30));
+    // вкладка: страница — запись истории со своим адресом
+    if (routed) router().navigate({ tab: 'book', page: next }, { replace: !push });
+    show(next);
+  };
+  // «Назад» и «Вперёд» браузера на вкладке «Учебник»: страница — по адресу и состоянию записи
+  React.useEffect(() => {
+    if (!routed) return undefined;
+    return router().subscribe((r) => {
+      const next = bookPageOf(r);
+      if (!next) return;
+      const cur = pageRef.current;
+      if (pageKey(next) === pageKey(cur) && (next.anchor || null) === (cur.anchor || null)) return;
+      // вернулись на прошлую страницу — она уходит из стопки «назад»; ушли куда-то ещё — стопка пуста
+      setStack((st) => { const top = st[st.length - 1]; return top && pageKey(top) === pageKey(next) ? st.slice(0, -1) : []; });
+      show(next);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routed]);
+  // адрес главы, которой нет, — оглавление
+  React.useEffect(() => {
+    if (routed && page.kind === 'chapter' && !CHAPTER_BY_ID[page.id]) { router().navigate({ tab: 'book' }, { replace: true }); setPage({ kind: 'toc' }); }
+  }, [routed, page]);
   /* повторное нажатие на вкладку «Учебник» — на главную страницу учебника (оглавление), к началу.
      Только новое нажатие: вкладка пересоздаётся при каждом заходе, и старый счётчик сбивал бы
      возврат оглавления на место, где остановились */
@@ -2619,12 +2647,15 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
   React.useEffect(() => {
     if (homeTick === homeSeen.current) return;
     homeSeen.current = homeTick;
-    if (page.kind !== 'toc') { go({ kind: 'toc' }, { push: false }); setStack([]); }
+    // на вкладке оглавление — новая запись истории: «Назад» браузера вернёт в главу
+    if (page.kind !== 'toc') { go({ kind: 'toc' }, { push: routed }); setStack([]); }
     if (typeof window !== 'undefined' && window.scrollTo) requestAnimationFrame(() => window.scrollTo(0, 0));
   }, [homeTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const back = () => {
     const prev = stack[stack.length - 1];
     if (!prev) { go({ kind: 'toc' }, { push: false }); return; }
+    // вкладка: прошлая страница — прошлая запись истории; её покажет подписка на адрес
+    if (routed && router().back()) return;
     setStack((st) => st.slice(0, -1));
     go(prev, { push: false });
   };

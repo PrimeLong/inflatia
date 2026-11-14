@@ -12,6 +12,7 @@ import { RUDE_NAME } from './lib/moderation.js';
 import { Mascot } from './mascot.jsx';
 import { InflatiaMark } from './logo.jsx';
 import { DsRoot, Button, IconButton, Heading } from './ds.jsx';
+import { useHistoryLayer } from './lib/route.js';
 import { ArtStyle, Guilloche, Rosette } from './ds-art-core.jsx';
 import { dsThemeId } from './ds-tokens.js';
 import { loadProgress, saveProgress } from './textbook/progress.js';
@@ -247,6 +248,8 @@ export function Welcome({ initialScreen = 'hello', onCancel = null }) {
   const [screen, setScreen] = useState(initialScreen);
   const [plan, setPlan] = useState(() => loadOnboarding() || { goal: null, minutes: null, knows: false });
   const go = (s) => { setScreen(s); window.scrollTo(0, 0); };
+  // шаги после приветствия (цель, вход, регистрация) — запись истории: «Назад» браузера возвращает на первый экран
+  useHistoryLayer(screen !== initialScreen, () => go(initialScreen));
   return (
     <DsRoot theme={dsThemeId()} page accent="#C2490B">
       <ArtStyle />

@@ -74,6 +74,7 @@ import { symbolsOf } from './textbook/symbols.js';
 import { inCrowns, sceneInCrowns } from './learn/money.js';
 import { ReportFlag, QuoteReport, ReportsView, REPORT_CSS, THEORY_REASONS, exerciseContext, flatText } from './learn-report.jsx';
 import { DsRoot, Button, IconButton, Card, MenuCard, Heading, AnswerBar, Sheet, TopBar } from './ds.jsx';
+import { useHistoryLayer } from './lib/route.js';
 import { ArtStyle, Guilloche, Rosette, Chest, Engraving, EngravingG, ProgressChart, InflaMeter, CoinShower, CountUp, useReducedMotion, useWide, useMedia } from './ds-art.jsx';
 import { placeOf, unitColor, DIAMOND_COLOR, dsThemeId } from './ds-tokens.js';
 import { countryPath, RIVER, curveTo } from './lib/mapgeo.js';
@@ -1575,6 +1576,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   }, [stage, cur, result]);
   // до первого ответа выход ничего не стоит и не спрашивает
   const exit = () => { if (stage === 'done' || !started) onClose(); else setAsking(true); };
+  /* урок — запись истории (src/lib/route.js): «Назад» браузера — как крестик: посреди урока спрашивает «Выйти из урока?»
+     (урок остаётся открытым, поэтому false — запись возвращается в историю), на итогах — закрывает */
+  useHistoryLayer(true, () => { if (stage === 'done' || !started) { onClose(); return undefined; } setAsking(true); return false; });
   // термины условия — с подсказками; варианты ответа не размечаем: нажатие по ним — это выбор
   const marked = useMemo(() => (cur ? { ...cur, prompt: markTerms(cur.prompt) } : null), [cur]);
   respRef.current = resp;
@@ -3333,6 +3337,18 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   useEffect(() => { if (reopenBook) { openBook(null, true); onBookReopened(); } // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reopenBook]);
   const start = (r) => { setSheet(null); setRun(r); };
+  /* Всё, что открыто поверх вкладки, — записи истории (src/lib/route.js; docs/mechanics.md, «Адреса и история»): «Назад»
+     браузера закрывает верхний слой — урок, страницу настроек, уведомления, учебник поверх вкладки. Шторки (карточка
+     урока, сундук, список уровней) — тоже записи: это делает сам компонент Sheet; урок — сам Runner. */
+  useHistoryLayer(!!book, () => setBook(null));
+  useHistoryLayer(tasks, () => setTasks(false));
+  useHistoryLayer(settings, () => setSettings(false));
+  useHistoryLayer(bell, () => setBell(false));
+  useHistoryLayer(friendsPage, () => setFriendsPage(false));
+  useHistoryLayer(!!friendLogin, () => setFriendLogin(null));
+  useHistoryLayer(reports, () => setReports(false));
+  useHistoryLayer(analytics, () => setAnalytics(false));
+  useHistoryLayer(!!reading, () => setReading(null));
   /* особые уроки дороги (src/learn/stops.js): «Чтение», «Персоналии», «Работа над ошибками»;
      закрытый — подсказка, когда откроется */
   const [people, setPeople] = useState(null);
@@ -3347,6 +3363,10 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   // «Нарисуй сам» — только с дороги юнита
   const [draw, setDraw] = useState(null);
   const [extraLocked, setExtraLocked] = useState(null);
+  useHistoryLayer(!!people, () => setPeople(null));
+  useHistoryLayer(!!graph, () => setGraph(null));
+  useHistoryLayer(!!draw, () => setDraw(null));
+  useHistoryLayer(!!dockBook, () => setDockBook(null));
   // «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам» — сначала карточка урока, «Начать» — сам урок
   const [extraSheet, setExtraSheet] = useState(null);
   const onExtra = (x) => {

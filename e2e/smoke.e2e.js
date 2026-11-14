@@ -4856,6 +4856,147 @@ test('«Большое повторение» в конце уровня: нов
   expect(errors).toEqual([]);
 });
 
+/* АДРЕСА И ИСТОРИЯ (docs/mechanics.md, «Адреса и история»; пункт владельца 13.11): у экранов свои адреса, слои — записи
+   истории. Раньше адрес был один — «/»: «Назад» браузера уводил с сайта, перезагрузка в главе возвращала на Путь,
+   на главу нельзя было дать ссылку. */
+const pathOf = (page) => new URL(page.url()).pathname;
+test('адреса: «назад» из главы ведёт в оглавление, перезагрузка в главе — та же глава', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await openTab(page, 'book');
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  expect(pathOf(page)).toBe('/book');
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  expect(pathOf(page)).toBe('/book/supply-demand');
+  // перезагрузка — та же глава по тому же адресу
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  await expect(page.getByTestId('tb-topbar')).toContainText('Спрос и предложение');
+  expect(pathOf(page)).toBe('/book/supply-demand');
+  // «Назад» браузера — оглавление, не уход с сайта
+  await page.goBack();
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  await expect(page.getByTestId('chapter')).toHaveCount(0);
+  expect(pathOf(page)).toBe('/book');
+  // ещё раз — Путь; «Вперёд» дважды — снова глава
+  await page.goBack();
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  await page.goForward(); await page.goForward();
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  expect(pathOf(page)).toBe('/book/supply-demand');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: прямая ссылка на главу открывает главу; «назад» в ней — в оглавление; у каждой вкладки свой адрес', async ({ page }) => {
+  const { errors } = await openApp(page, '/book/elasticity', '{}', { tab: null });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  await expect(page.getByTestId('tb-topbar')).toContainText('Эластичность');
+  await expect(page.getByTestId('bottom-nav').locator('[data-tab="book"]')).toHaveAttribute('aria-current', 'page');
+  await bookBack(page);
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  expect(pathOf(page)).toBe('/book');
+  // вкладки: адрес меняется вместе с вкладкой, прямая ссылка открывает её
+  for (const [tab, path, testid] of [['league', '/league', 'league'], ['shop', '/shop', 'shop'], ['profile', '/profile', 'learn-profile'], ['news', '/news', 'news'], ['world', '/world', 'world'], ['path', '/', 'path']]) {
+    await openTab(page, tab);
+    await expect(page.getByTestId(testid)).toBeVisible();
+    expect(pathOf(page), tab).toBe(path);
+  }
+  for (const [path, testid] of [['/shop', 'shop'], ['/league', 'league'], ['/profile', 'learn-profile'], ['/news', 'news'], ['/world', 'world'], ['/book', 'textbook']]) {
+    await page.goto(path, { waitUntil: 'networkidle' });
+    await expect(page.getByTestId(testid), path).toBeVisible();
+    expect(pathOf(page)).toBe(path);
+  }
+  // главы нет — оглавление; адреса нет — Путь
+  await page.goto('/book/net-takoy-glavy', { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('textbook')).toBeVisible();
+  expect(pathOf(page)).toBe('/book');
+  await page.goto('/chto-to', { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: карточка урока, урок и шторки — записи истории; «Назад» закрывает верхний слой и не уводит с сайта', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  // карточка урока: «Назад» закрывает её, Путь на месте
+  await showUnit(page, 'scarcity');
+  await pathNode(page, 'sc-i1').click();
+  await expect(page.getByTestId('lesson-sheet')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByTestId('lesson-sheet')).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  // урок: до первого ответа «Назад» закрывает его сразу
+  await startLesson(page, 'sc-i1');
+  await page.goBack();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  // задания поверх Пути и шторка списка уровней — тоже слои
+  await page.getByTestId('tasks-card').click();
+  await expect(page.getByTestId('tasks')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByTestId('tasks')).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  // слой закрыли кнопкой — его записи в истории нет: «Назад» с вкладки ведёт на прошлую вкладку, а не в закрытую шторку
+  await openTab(page, 'shop');
+  await expect(page.getByTestId('shop')).toBeVisible();
+  await openTab(page, 'path');
+  await pathNode(page, 'sc-i1').click();
+  await expect(page.getByTestId('lesson-sheet')).toBeVisible();
+  await page.getByTestId('lesson-sheet-back').click({ position: { x: 5, y: 5 } });
+  await expect(page.getByTestId('lesson-sheet')).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByTestId('shop')).toBeVisible();
+  expect(pathOf(page)).toBe('/shop');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: посреди урока «Назад» спрашивает «Выйти из урока?», а не закрывает молча', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const lessons = Object.fromEntries(['sd-i1', 'sd-l1', 'sd-w', 'sd-i2'].map((id) => [id, { at, runs: 1, best: 90 }]));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'supply-demand');
+  await startLesson(page, 'sd-l3');
+  const lesson = page.getByTestId('lesson');
+  // первый ответ дан — урок начат
+  await answerExercise(page);
+  await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toBeVisible();
+  await expect(lesson).toBeVisible();
+  // «Продолжить урок» — урок на месте; «Назад» снова спрашивает
+  await page.getByRole('button', { name: 'Продолжить урок' }).click();
+  await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+  await expect(lesson).toHaveCount(0);
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  expect(errors).toEqual([]);
+});
+
+test('адреса: из партии «Назад» выходит в меню «Мира»; партия ждёт в автосохранении и сама после перезагрузки не открывается', async ({ page }) => {
+  const { errors } = await openApp(page);
+  expect(pathOf(page)).toBe('/world');
+  await startSoloGame(page);
+  await page.goBack();
+  await expect(page.getByTestId('world')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Завершить квартал и применить решения' })).toHaveCount(0);
+  expect(pathOf(page)).toBe('/world');
+  expect(await page.evaluate(() => !!localStorage.getItem('ems-autosave-v1'))).toBe(true);
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByTestId('world')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 /* Первый визит на телефоне (docs/mechanics.md, «Приветствие и загрузка»; пункт владельца 13.11): уведомление о памяти
    браузера стоит в потоке страницы и ничего не перекрывает — «Начать» и «У меня уже есть аккаунт» целиком на первом
    экране и нажимаются. Раньше плашка висела поверх низа экрана и на 360×640 лежала на кнопках. */

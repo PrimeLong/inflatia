@@ -11,6 +11,7 @@
 import React from 'react';
 import { DS_THEMES, tokenVars, worldTokens } from './ds-tokens.js';
 import { typo } from './lib/typo.js';
+import { useHistoryLayer } from './lib/route.js';
 
 export const DS_CSS = `
   .ds { background: var(--ds-paper); color: var(--ds-ink); font-family: var(--ds-sans); font-size: 16px; line-height: 1.5; -webkit-tap-highlight-color: transparent; --u-ink: color-mix(in srgb, var(--u) 80%, #000); }
@@ -340,6 +341,8 @@ export function AnswerBar({ ok, stamp, say = null, plain = false, children, clas
   );
 }
 export function Sheet({ label, onClose, children, testid, ...rest }) {
+  // шторка — запись истории: «Назад» браузера закрывает её (src/lib/route.js)
+  useHistoryLayer(true, onClose);
   return (
     <div className="ds-sheet-back" onClick={onClose} data-testid={testid ? `${testid}-back` : undefined}>
       <div className="ds-sheet ds-rise" role="dialog" aria-label={label} data-testid={testid} onClick={(e) => e.stopPropagation()} {...rest}>{children}</div>

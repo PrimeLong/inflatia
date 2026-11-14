@@ -194,7 +194,7 @@ function NetworkLobby({ onEnter }) {
       // убираем ?room= из адресной строки, чтобы обновление страницы не пыталось
       // «войти по ссылке» повторно поверх уже сохранённой сессии
       if (typeof window !== 'undefined' && window.history && window.location.search) {
-        window.history.replaceState(null, '', window.location.pathname);
+        window.history.replaceState(window.history.state, '', window.location.pathname);
       }
       onEnter(net);
     } catch (e) {

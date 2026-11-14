@@ -12,6 +12,7 @@ import { BrandLoader } from './logo.jsx';
 import { useAccount, loadAccount, refreshAccount, NameGate } from './account.jsx';
 import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './lib/world-trial.js';
+import { router, useHistoryLayer } from './lib/route.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -592,6 +593,12 @@ export function loadTycoonMeta() {
   try { return JSON.parse(localStorage.getItem(TYCOON_META_KEY) || 'null') || {}; } catch { return {}; }
 }
 
+/* Из партии вышли «Назад» браузера (docs/mechanics.md, «Адреса и история»): партия остаётся в автосохранении и ждёт в меню
+   «Мира», но сама при следующей загрузке не открывается. Новая или продолженная партия отметку снимает. */
+const GAME_LEFT_KEY = 'ems-game-left';
+const gameLeft = () => { try { return localStorage.getItem(GAME_LEFT_KEY) === '1'; } catch { return false; } };
+const setGameLeft = (on) => { try { if (on) localStorage.setItem(GAME_LEFT_KEY, '1'); else localStorage.removeItem(GAME_LEFT_KEY); } catch { /* приватный режим */ } };
+
 export const loadAutosave = () => {
   try {
     const raw = localStorage.getItem(AUTOSAVE_KEY);
@@ -1013,8 +1020,8 @@ export default function MacroSimulator() {
   // «Мир» закрыт (проба с приветствия кончилась, docs/mechanics.md, «„Мир“ на пробу») — сохранённая партия сама не открывается
   const [worldShut] = useState(() => trialEnded() && !featureOpen(loadTextbookProgress().learn, 'world'));
   const [resumeTycoon] = useState(() => (!roomCodeFromUrl() && !worldShut && tycoonWasOpen() ? loadTycoonSave() : null));
-  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : loadAutosave()));
-  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : (loadAutosave() || {}).setup || null));
+  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut || gameLeft() ? null : loadAutosave()));
+  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut || gameLeft() ? null : (loadAutosave() || {}).setup || null));
   const [nonce, setNonce] = useState(0);
   // оформление «Мира» — сохранённое на устройстве или по ночной теме из настроек (ds-tokens.js)
   const [theme, setThemeState] = useState(worldThemeId);
@@ -1026,8 +1033,15 @@ export default function MacroSimulator() {
   /* Главный экран — оболочка с нижней панелью: Путь (уроки), Практика, Теория (учебник как
      справочник), Мир (партия, «Своё дело», лаборатория) и Профиль. view 'menu' — оболочка,
      tab — открытая вкладка; из Лаборатории или партии возвращаемся на ту же вкладку. */
-  const [tab, setTabRaw] = useState('path');
-  const setTab = (t) => { setTabRaw(t); window.scrollTo(0, 0); };
+  /* Вкладка — из адреса (src/lib/route.js; docs/mechanics.md, «Адреса и история»): /, /book, /league, /shop, /profile,
+     /world, /news. Смена вкладки — новая запись истории; «Назад» и «Вперёд» браузера возвращают вкладку по адресу. */
+  const [tab, setTabRaw] = useState(() => router().current().tab);
+  const setTab = (t, opts) => { router().navigate({ tab: t }, opts); setTabRaw(t); window.scrollTo(0, 0); };
+  React.useEffect(() => {
+    // незнакомый адрес — это Путь: адрес поправляем, чтобы перезагрузка и ссылка вели туда же
+    if (!router().current().known) router().navigate({ tab: 'path' }, { replace: true });
+    return router().subscribe((r) => { setTabRaw((t) => { if (t !== r.tab) window.scrollTo(0, 0); return r.tab; }); });
+  }, []);
   // аналитика: открыли вкладку «Мир» — не чаще раза в день с устройства (docs/mechanics.md, «Аналитика»)
   React.useEffect(() => { if (tab === 'world' && view === 'menu') trackDaily('world_open'); }, [tab, view]);
   /* Вход обязателен: без аккаунта — только приветствие, вход и регистрация (src/welcome.jsx).
@@ -1049,12 +1063,12 @@ export default function MacroSimulator() {
   // «Мир» на пробу кончился — окно «Пробная игра окончена» (src/lib/world-trial.js)
   const [trialOver, setTrialOver] = useState(false);
   React.useEffect(() => {
-    const ready = () => { setTrialOver(false); setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
-    const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('path'); setFirstLesson(true); window.scrollTo(0, 0); };
+    const ready = () => { setTrialOver(false); setGate(false); setGuest(false); setView('menu'); setTab('path', { replace: true }); };
+    const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTab('path', { replace: true }); setFirstLesson(true); };
     const guestSave = () => { setTrialOver(false); setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
     const guestLogin = () => { setTrialOver(false); setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
     // с приветствия — сразу в «Мир», без аккаунта и уроков
-    const worldTrial = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('world'); window.scrollTo(0, 0); track('world_trial_start'); };
+    const worldTrial = () => { setGuest(true); setGate(false); setView('menu'); setTab('world', { replace: true }); track('world_trial_start'); };
     window.addEventListener('ems-account-ready', ready);
     window.addEventListener(GUEST_START, guestStart);
     window.addEventListener(GUEST_SAVE, guestSave);
@@ -1120,8 +1134,8 @@ export default function MacroSimulator() {
       const ended = tickTrial(1);
       setTrialLeftS(trialLeft());
       if (ended) {
-        setNetwork(null); setLoaded(null); setSetup(null); setTycoon(null); setView('menu'); setTabRaw('world');
-        setTrialOver(true); window.scrollTo(0, 0); track('world_trial_end');
+        setNetwork(null); setLoaded(null); setSetup(null); setTycoon(null); setView('menu'); setTab('world', { replace: true });
+        setTrialOver(true); track('world_trial_end');
       }
     }, 1000);
     return () => clearInterval(id);
@@ -1155,6 +1169,21 @@ export default function MacroSimulator() {
   React.useEffect(() => { window.scrollTo(0, 0); }, [screenKey]);
 
   const backToMenu = () => { setNetwork(null); setLoaded(null); setSetup(null); goMenu(); };
+  /* Экраны «Мира» поверх вкладки (партия, «Своё дело», сетевая игра, анкета, лаборатория, задачи, обучение) — слой истории:
+     «Назад» браузера закрывает экран и возвращает туда, откуда его открыли (в учебник или на вкладку). Партия при этом
+     не теряется: она в автосохранении и ждёт в меню «Мира». */
+  const worldOver = !showGate && !!(tycoon || network || setup || view !== 'menu');
+  useHistoryLayer(worldOver, () => {
+    if (setup && !tycoon && !network) setGameLeft(true);
+    const toBook = fromBook || gameFromBook;
+    setBookOverlay(null); setTycoon(null); setNetwork(null); setLoaded(null); setSetup(null); setSetupPreset(null); setTycoonLesson(null); setLabInit(null);
+    setFromBook(false); setGameFromBook(false);
+    if (toBook) backToBook(); else goMenu();
+  });
+  // партия на экране — отметка «вышли „Назад“» снята
+  React.useEffect(() => { if (setup) setGameLeft(false); }, [setup]);
+  // «Подробнее в учебнике» из партии — слой поверх партии
+  useHistoryLayer(!!bookOverlay && !showGate, () => closeBookOverlay());
   const startTycoon = (x) => {
     if (loadTycoonSave() && !window.confirm('Начать новое дело? Сохранённая компания будет потеряна (репутация останется).')) return;
     setTycoon({ lesson: tycoonLesson, setupNew: { start: x.sector || 'farm', scenario: x.scenario, difficulty: x.difficulty, cbPersona: x.cbPersona,
