@@ -1360,7 +1360,7 @@ test('тема «Северное сияние» на ПК: сияние — т�
   await startLesson(page, 'sc-l1');
   await expect(page.locator('.sk-au')).toBeVisible();
   const look = await page.evaluate(() => ({
-    bands: [...document.querySelectorAll('.sk-au-band')].map((b) => ({ h: b.getBoundingClientRect().height, o: Number(getComputedStyle(b).opacity) })),
+    bands: [...document.querySelectorAll('.sk-au-band')].map((b) => ({ h: b.offsetHeight, o: Number(getComputedStyle(b).opacity) })),
     veil: !!document.querySelector('.sk-au-veil'),
     trees: [...document.querySelectorAll('[data-testid=skin-au-tree]')].map((t) => { const r = t.getBoundingClientRect(); return r.width / r.height; }),
   }));
