@@ -1321,6 +1321,31 @@ test('живая модель: знакомство — карточка «Но�
   expect(errors).toEqual([]);
 });
 
+// жалоба ученика (mc-sum, ПК 1910×950): «тут сломана предыдущая карточка с аксессуаром»
+test('украшения урока: на «Предыдущей карточке» гирлянда не ложится на её заголовок и флажок', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'украшения урока — на ПК и планшете');
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } }, owned: { 'desk-bunting': at }, wear: { desk: 'desk-bunting', at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await page.setViewportSize({ width: 1910, height: 950 });
+  await startLesson(page, 'sc-i1');
+  const band = page.locator('.ln-desk');
+  await expect(band).toBeVisible();
+  await page.getByTestId('lesson').locator('.ln-foot button').last().click();
+  await page.getByTestId('lesson-back').click();
+  const peek = page.getByTestId('lesson-peek');
+  await expect(peek).toBeVisible();
+  const b = await band.boundingBox();
+  const head = await peek.locator('.ln-kind').boundingBox();
+  // заголовок прошлой карточки и флажок — ниже полосы гирлянды
+  expect(head.y).toBeGreaterThanOrEqual(b.y + b.height - 1);
+  expect(errors).toEqual([]);
+});
+
 test('украшения урока: своя витрина с живыми превью, покупка вешает вещицу в уроки, она отзывается на ответ', async ({ page, isMobile }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {

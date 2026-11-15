@@ -736,6 +736,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
   const [prevShot, setPrevShot] = useState(null);
   const [peek, setPeek] = useState(false);
   const headRef = useRef(null);
+  // полоса украшения урока (гирлянда, мобиле) — под шапкой; слой «Предыдущая карточка» начинается ниже неё
+  const deskRef = useRef(null);
   const [anim, setAnim] = useState({ k: 0, kind: null });
   /* Встряска после неверного ответа — перезапуском CSS-анимации на том же узле: обёртка
      упражнения после ответа не пересоздаётся, и раунд мини-игры не теряет свой счёт. */
@@ -1107,7 +1109,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       </div>
       {/* украшение урока из лавки — живое, его можно трогать */}
       {/* колыбель — на подставке сбоку (урок не сдвигается), гирлянда и мобиле — полосой под шапкой */}
-      {desk && stage !== 'done' && (desk === 'desk-cradle' ? <><style>{CRADLE_CSS}</style><CradleStand id={desk} /></> : <div className="ln-desk"><DeskDecor id={desk} height={48} /></div>)}
+      {desk && stage !== 'done' && (desk === 'desk-cradle' ? <><style>{CRADLE_CSS}</style><CradleStand id={desk} /></> : <div className="ln-desk" ref={deskRef}><DeskDecor id={desk} height={48} /></div>)}
 
       {asking && (
         <Sheet label="Выйти из урока?" onClose={() => setAsking(false)}>
@@ -1122,9 +1124,10 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       )}
 
       {/* «предыдущая карточка» — слой поверх тела урока (шапка остаётся видна); текущий экран под ним
-          не закрывается: ответ, ход игры и прокрутка целы */}
+          не закрывается: ответ, ход игры и прокрутка целы. Начинается под полосой украшения: раньше гирлянда
+          ложилась на строку «Предыдущая карточка» и флажок (жалоба ученика, mc-sum: «сломана предыдущая карточка с аксессуаром») */}
       {peek && prevShot && stage !== 'done' && (
-        <div className="ln-peek" style={{ top: headRef.current ? headRef.current.offsetHeight : 64 }}>
+        <div className="ln-peek" data-testid="lesson-peek-layer" style={{ top: (headRef.current ? headRef.current.offsetHeight : 64) + (deskRef.current && deskRef.current.isConnected ? deskRef.current.offsetHeight : 0) }}>
           <div className="ln-body"><div className="ln-inner ds-rise" data-testid="lesson-peek" data-type={prevShot.type}>
             {/* и на прошлой карточке можно пожаловаться: нажали «Дальше» на автомате — вернулись и отметили */}
             <div className="ln-kind ds-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
