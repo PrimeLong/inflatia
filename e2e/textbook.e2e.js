@@ -540,6 +540,9 @@ test('учебник: оглавление главы сворачивается
   const b0 = await mainBox();
   await ch.getByTestId('tb-toc-fold').click();
   await expect(ch.getByTestId('tb-ch-grid')).toHaveAttribute('data-folded', 'true');
+  // сворачивается плавно (пункт владельца 15.11): текст главы и оглавление едут переходом, а не прыгают
+  await expect(ch.getByTestId('tb-ch-grid')).toHaveAttribute('data-fold-anim', '1');
+  expect(await ch.locator('.tb-ch-aside').evaluate((el) => el.getAnimations().length)).toBeGreaterThan(0);
   await expect(ch.getByTestId('tb-sections')).toHaveCount(0);
   await expect(ch.getByTestId('tb-side-toc')).toHaveCount(0);
   if (!isMobile) {

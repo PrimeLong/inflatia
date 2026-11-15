@@ -30,7 +30,7 @@ import { Audio, getPlayerId, syncProfile, SYNC_EVENT, syncState } from './MacroS
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, reviewQueue } from './textbook/progress.js';
 import { applyDupeAudit, fineOf } from './learn/audit.js';
 // курс — из лёгкого ядра: Путь рисуется по указателю курса, главы грузятся с уроком (src/learn/course-core.js)
-import { UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, LESSON_BY_ID, LESSON_KIND, practiceIds, PRACTICE_MAX, pathState, LEVEL_REVIEW_SIZE } from './learn/course-core.js';
+import { UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, LESSON_BY_ID, LESSON_KIND, practiceIds, PRACTICE_MAX, pathState, LEVEL_REVIEW_SIZE, reachedLevel } from './learn/course-core.js';
 import { abandonLesson, skipLesson, streak, goalToday, missedYesterday, applyFreezes, setPlacement, dayOf, markShown, shownWith, levelConfirmed, LEVEL_REVIEW_OK } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
 import { settle, questsFor, indexed, COIN, chestKey, hasClaim, outfitOf, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';

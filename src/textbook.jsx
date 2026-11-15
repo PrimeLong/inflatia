@@ -1388,6 +1388,23 @@ function ChapterBody({ id, ctx }) {
   // оглавление и «В этой главе» сворачиваются — выбор помнится на устройстве (пункт владельца 09.11)
   const [tocFolded, setTocFoldedRaw] = useState(() => readJSON(TOC_FOLD_KEY, false) === true);
   const setTocFolded = (v) => { Audio.play('click'); setTocFoldedRaw(v); writeJSON(TOC_FOLD_KEY, v); };
+  /* сворачивается плавно (пункт владельца 15.11: «слишком резко, без анимации»): текст главы переезжает на новое
+     место, а не прыгает, оглавление (или узкая планка вместо него) проявляется. Где что стояло, запоминаем на
+     каждой отрисовке; при «уменьшить движение» — сразу. */
+  const gridRef = useRef(null); const tocWas = useRef(null);
+  useLayoutEffect(() => {
+    const g = gridRef.current; if (!g) return;
+    const aside = g.querySelector('.tb-ch-aside'); const main = g.querySelector('.tb-ch-main');
+    if (!aside || !main) return;
+    const now = { folded: tocFolded, x: main.offsetLeft, y: main.offsetTop, w: main.offsetWidth };
+    const was = tocWas.current; tocWas.current = now;
+    const calm = !main.animate || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (!was || was.folded === tocFolded || calm) return;
+    const o = { duration: 320, easing: 'cubic-bezier(.3, .8, .3, 1)' };
+    if (was.x !== now.x || was.y !== now.y) main.animate([{ transform: `translate(${was.x - now.x}px, ${was.y - now.y}px)` }, { transform: 'none' }], o);
+    aside.animate([{ opacity: 0, transform: wide ? `translateX(${tocFolded ? 14 : -14}px)` : `translateY(${tocFolded ? 8 : -8}px)` }, { opacity: 1, transform: 'none' }], o);
+    g.dataset.foldAnim = String((Number(g.dataset.foldAnim) || 0) + 1);
+  });
   const ch = CHAPTER_BY_ID[id];
   const blocks = CHAPTER_BLOCKS[id];
   // соседние главы — в порядке чтения (как на Пути), только готовые
@@ -1408,7 +1425,7 @@ function ChapterBody({ id, ctx }) {
         <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 14px', fontWeight: 700 }}>{ch.title}</h1>
       </>)}
       {blocks ? (
-        <div className={`tb-ch-grid${tocFolded ? ' folded' : ''}`} data-testid="tb-ch-grid" data-folded={String(tocFolded)}>
+        <div ref={gridRef} className={`tb-ch-grid${tocFolded ? ' folded' : ''}`} data-testid="tb-ch-grid" data-folded={String(tocFolded)}>
           <aside className="tb-ch-aside">
             {tocFolded ? (
               wide ? <button type="button" className="ems-btn tb-toc-rail" data-testid="tb-toc-unfold" aria-label="Показать оглавление" onClick={() => setTocFolded(false)}><ChevronRight size={14} aria-hidden="true" />Оглавление</button>
