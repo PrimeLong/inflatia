@@ -28,7 +28,7 @@ const MAX_SOLVED = 200;
    placement — вступительный тест: когда пройден и какие юниты открыл;
    topics — точность по урокам (первые попытки, окно ~20 последних): слабые темы;
    recent — последние 30 первых попыток строкой «1»/«0»: уровень сложности;
-   daily — счётчики дня для заданий дня: уроки (l), из них новые (n), без ошибок, верные, первые попытки (a), секунды, серия, игры, практика;
+   daily — счётчики дня для заданий дня: уроки (l), из них новые (n), без ошибок, верные, первые попытки (a), секунды, серия, игры, практика, кварталы в «Мире» (w);
    coins/spent — монеты по дням (заработано/потрачено), claimed — полученные награды (ключ → когда):
    одна награда не выдаётся дважды и на двух устройствах; owned — купленные вещи, wear — наряд Инфли;
    freezeBuy — старые разовые полисы «Страховки серии» по дням, frozen — дни, которые они спасли;
@@ -248,9 +248,15 @@ export function countAnswers(s, right, total, now = Date.now()) {
 }
 /* серия, с которой начинается урок: бессрочная run; у прогресса без run (до бессрочной серии) — сегодняшняя rc */
 export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n : dayEntry(s, dayOf(now)).rc);
-const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h'];
-const dayEntry = (s, day) => ({ l: 0, n: 0, p: 0, a: 0, c: 0, s: 0, r: 0, rc: 0, g: 0, pr: 0, h: 0, ...(s.daily || {})[day] });
+const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h', 'w'];
+const dayEntry = (s, day) => ({ l: 0, n: 0, p: 0, a: 0, c: 0, s: 0, r: 0, rc: 0, g: 0, pr: 0, h: 0, w: 0, ...(s.daily || {})[day] });
 export const dailyOf = (s, now = Date.now()) => dayEntry(s, dayOf(now));
+/* квартал, сыгранный в «Мире», — в счётчик дня (w): редкое задание дня «Сыграть два квартала в „Мире“»
+   (docs/mechanics.md, «Редкое задание дня»); больше 40 в день не считаем */
+export function countWorldQuarter(s, now = Date.now()) {
+  const day = dayOf(now); const d = dayEntry(s, day);
+  return d.w >= 40 ? s : upd(s, { daily: { ...s.daily, [day]: { ...d, w: d.w + 1 } } });
+}
 
 // ответы при регистрации — из них цель дня и задания; меняются в профиле
 export function setProfile(s, { goal, minutes, knows }, now = Date.now()) {

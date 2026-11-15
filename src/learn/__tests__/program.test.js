@@ -6,11 +6,11 @@ import { skillLevel, levelNote, weakLessons, recommend, courseCtx, lessonOpts, t
 import { evalExpr, fmtResult, pressRoot } from '../calc.js';
 import {
   balance, earn, courseIncome, runCoins, rateOn, rateHistory, priceOf, buy, setWear, outfitOf, FREEZE, BOOST, OUTFITS, shopDay, SHOWCASE_SIZE, DEAL_OFF, boostActive, questsFor, openChest, chestCoins, chestKey,
-  settle, monthChallenge, fixMonth, achievementsOf, hash01, COIN, goalCoins,
+  settle, monthChallenge, fixMonth, achievementsOf, hash01, COIN, goalCoins, rareQuestId,
 } from '../rewards.js';
 import {
   emptyLearn, recordAttempt, finishLesson, setProfile, setPlacement, passUnit, normalizeLearn, mergeLearn, streak, applyFreezes, ownedFreezes,
-  dayOf, addDays, weekDots, dailyOf, MAX_FREEZES, goalToday, goalMinutes, pendingGoal, studyWeeks,
+  dayOf, addDays, weekDots, dailyOf, MAX_FREEZES, goalToday, goalMinutes, pendingGoal, studyWeeks, countWorldQuarter, addMistake,
 } from '../../textbook/learn-state.js';
 
 const at = (day, h = 12) => { const [y, m, d] = day.split('-').map(Number); return new Date(y, m - 1, d, h).getTime(); };
@@ -341,6 +341,29 @@ describe('лавка и заморозки', () => {
 });
 
 describe('задания дня, сундук, печати, испытание месяца', () => {
+  it('редкое задание дня: примерно в один день из пяти — «Мир» или работа над ошибками, только доступное; кварталы «Мира» считаются и оплачиваются', () => {
+    // новичку («Мир» закрыт, ошибок нет) редкое не выпадает
+    const days = Array.from({ length: 200 }, (_, d) => T + d * 86400e3);
+    expect(days.filter((t) => rareQuestId(emptyLearn(), t)).length).toBe(0);
+    // «Мир» уже открыт (сегодня в нём играли) и есть ошибки — редкие дни есть, но их немного, и бывают оба задания
+    const ready = (t) => addMistake(countWorldQuarter(emptyLearn(), t), 'x', t);
+    const rare = days.map((t) => rareQuestId(ready(t), t)).filter(Boolean);
+    expect(rare.length).toBeGreaterThan(20); expect(rare.length).toBeLessThan(60);
+    expect(new Set(rare)).toEqual(new Set(['world', 'practice']));
+    // в редкий день оно стоит третьим, первые два — обычные
+    const t = days.find((x) => rareQuestId(ready(x), x) === 'world');
+    let s = ready(t);
+    let q = questsFor(s, t);
+    expect(q[2]).toMatchObject({ id: 'world', rare: true, have: 1, target: 2, done: false });
+    expect(q[0].rare).toBeUndefined();
+    // второй квартал — задание выполнено, монеты выдаёт settle
+    s = countWorldQuarter(s, t + 60e3);
+    q = questsFor(s, t + 60e3);
+    expect(q[2].done).toBe(true);
+    const r = settle(s, {}, t + 120e3);
+    expect(r.gains.some((g) => g.key === q[2].key)).toBe(true);
+    expect(questsFor(r.s, t + 180e3)[2].claimed).toBe(true);
+  });
   it('три задания: про уроки, про ответы, про опыт или новый урок; размер — от цели в минутах; набор одинаков весь день', () => {
     const s = setProfile(emptyLearn(), { minutes: 15 }, T);
     const q = questsFor(s, T);

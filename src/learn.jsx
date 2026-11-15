@@ -33,7 +33,7 @@ import { applyDupeAudit, fineOf } from './learn/audit.js';
 import { UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, LESSON_BY_ID, LESSON_KIND, practiceIds, PRACTICE_MAX, pathState, LEVEL_REVIEW_SIZE } from './learn/course-core.js';
 import { abandonLesson, skipLesson, streak, goalToday, missedYesterday, applyFreezes, setPlacement, dayOf, markShown, shownWith, levelConfirmed, LEVEL_REVIEW_OK } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
-import { settle, indexed, COIN, chestKey, hasClaim, outfitOf, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
+import { settle, questsFor, indexed, COIN, chestKey, hasClaim, outfitOf, chargePremiums, fixMonth, gainsNote, onCoinGuard } from './learn/rewards.js';
 import { weakLessons, recommend, courseCtx, theoryNotice } from './learn/program.js';
 import { REWARD_CSS, QuestsCard, MonthCard, TasksEntry, ChestSheet, MorningStreak, PlacementCard } from './learn-rewards.jsx';
 import { getResume, takeExpiredResumes, resumeIds } from './learn/resume.js';
@@ -574,6 +574,8 @@ function useLearn() {
     /* взносы страховки — только по общему прогрессу (docs/mechanics.md, «Страховка серии»): устройство со старым прогрессом
        иначе «прекращало» давно расторгнутый на другом устройстве полис — с уведомлением (пункт владельца 09.11) */
     syncProfile(playerId).then((pf) => { if (alive && pf) { setProgress(loadProgress()); update((s) => chargePremiums(s)); } }).catch(() => {}).finally(() => { if (alive) audit(); });
+    // задание дня, выполненное вне урока (кварталы в «Мире»), выдаётся при возвращении на Путь
+    if (questsFor(loadProgress().learn).some((q) => q.done && !q.claimed)) update((x) => x, { settle: true });
     // уроки, которые не продолжили за сутки, — брошенные: только они портят долю доведённых
     const expired = takeExpiredResumes();
     if (expired.length) update((s) => expired.reduce((acc, r) => abandonLesson(acc, r.kind || 'choice', r.pos || 0), s));

@@ -1,4 +1,5 @@
 import { ruNum, ruDots } from './lib/num.js';
+import { noteWorldQuarter } from './textbook/progress.js';
 import React, { useState, useMemo, useCallback, useRef, Suspense } from 'react';
 import { fetchSoloSlots, fetchSoloSlot, saveSoloSlot, renameSoloSlot, deleteSoloSlot, submitDailyResult } from './lib/client.js';
 import { withSeededRandom, hashSeed, dailyScore, DAILY_SCORE_KEYS, rng } from './lib/catalog.js';
@@ -4714,6 +4715,7 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
        без решений игрока: «а если бы вы ничего не делали» (lib/counterfactual.js). */
     const qSeed = Math.floor(rng() * 2147483647);
     const result = withSeededRandom(qSeed, () => simulateQuarter(quarterInput));
+    noteWorldQuarter(); // редкое задание дня «Сыграть два квартала в „Мире“» (docs/mechanics.md)
     const myGroups = (roleDef.groups || []).filter((g) => g === 'monetary' || g === 'fiscal');
     let cf = null;
     if (myGroups.length) {
