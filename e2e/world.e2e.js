@@ -2,7 +2,7 @@
    Общие помощники — e2e/helpers.js. Запуск одного раздела: npx playwright test e2e/world.e2e.js */
 import { test, expect } from '@playwright/test';
 import { freshRoom, resolveQuarter, publicView } from '../api/room.js';
-import { defaultDecisions } from '../src/lib/engine.js';
+import { defaultDecisions, makeInitialEconomy } from '../src/lib/engine.js';
 import {
   openApp, gotoApp, ACCOUNT, expectNoSidewaysScroll, startSoloGame, dottedNumbers, installHooks,
 } from './helpers.js';

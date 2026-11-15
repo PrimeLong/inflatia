@@ -2,7 +2,7 @@
    Общие помощники — e2e/helpers.js. Запуск одного раздела: npx playwright test e2e/rewards.e2e.js */
 import { test, expect } from '@playwright/test';
 import {
-  openApp, gotoApp, shopTab, openTab, openBook, expectNoSidewaysScroll, accountApi, playLesson, withTestFlag, pathNode, startLesson, installHooks,
+  openApp, gotoApp, shopTab, openTab, openBook, expectNoSidewaysScroll, accountApi, playLesson, withTestFlag, pathNode, startLesson, installHooks, ACCOUNT,
 } from './helpers.js';
 
 installHooks();
@@ -539,7 +539,7 @@ test('открытия: новичку лиги, лавка, копилка и �
     if (localStorage.getItem('ems-textbook-v1')) return;
     // один урок пройден вчера: лиги открыты (сцена — давно позади), лавка — после второго
     const at = Date.now() - 5 * 86400000;
-    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } } } }));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 } } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   const nav = page.getByTestId('bottom-nav');

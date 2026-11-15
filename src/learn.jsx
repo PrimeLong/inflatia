@@ -574,8 +574,8 @@ function useLearn() {
     /* взносы страховки — только по общему прогрессу (docs/mechanics.md, «Страховка серии»): устройство со старым прогрессом
        иначе «прекращало» давно расторгнутый на другом устройстве полис — с уведомлением (пункт владельца 09.11) */
     syncProfile(playerId).then((pf) => { if (alive && pf) { setProgress(loadProgress()); update((s) => chargePremiums(s)); } }).catch(() => {}).finally(() => { if (alive) audit(); });
-    // задание дня, выполненное вне урока (кварталы в «Мире»), выдаётся при возвращении на Путь
-    if (questsFor(loadProgress().learn).some((q) => q.done && !q.claimed)) update((x) => x, { settle: true });
+    // редкое задание дня, выполненное вне урока (кварталы в «Мире»), выдаётся при возвращении на Путь; обычные — как раньше, после урока
+    if (questsFor(loadProgress().learn).some((q) => q.rare && q.done && !q.claimed)) update((x) => x, { settle: true });
     // уроки, которые не продолжили за сутки, — брошенные: только они портят долю доведённых
     const expired = takeExpiredResumes();
     if (expired.length) update((s) => expired.reduce((acc, r) => abandonLesson(acc, r.kind || 'choice', r.pos || 0), s));
