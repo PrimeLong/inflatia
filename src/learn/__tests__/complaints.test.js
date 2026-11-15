@@ -12,6 +12,23 @@ const texts = (x, out = []) => {
 };
 
 describe('жалобы', () => {
+  it('pr-radio-robot: из условия ясно, что сборщикам не хватало рам, — ответ «поднимет» однозначен («не сказано, хватает ли станков»)', () => {
+    const ex = EXERCISES['pr-radio-robot'];
+    const all = `${ex.context} ${texts(ex.prompt).join(' ')}`;
+    expect(all).toMatch(/простаивали/);
+    expect(all).toMatch(/рам (не хватало|теперь хватает|хватает)/);
+    expect(texts(ex.explain).join(' ')).toMatch(/Если бы рам и раньше хватало/);
+  });
+  it('«Чтение» и «Персоналии»: вопрос не ссылается на график, которого на странице нет (read-brand, Сраффа: «каком графике»)', async () => {
+    const { READINGS } = await import('../reading.js');
+    const { PEOPLE_SETS } = await import('../people.js').then((m) => ({ PEOPLE_SETS: m.PEOPLE_SETS || m.PEOPLE || [] }));
+    const prompts = [];
+    READINGS.forEach((r) => r.pages.forEach((p) => prompts.push([`${r.id}: ${p.author}`, p.ask.prompt])));
+    (Array.isArray(PEOPLE_SETS) ? PEOPLE_SETS : []).forEach((g) => (g.people || []).forEach((p) => { if (p.ask) prompts.push([`${g.id}: ${p.name}`, p.ask.prompt]); }));
+    expect(prompts.length).toBeGreaterThan(20);
+    // «на графике» без пояснения, о каком графике речь (чей он или чего), — как будто он нарисован рядом
+    prompts.forEach(([who, q]) => expect(q, who).not.toMatch(/(^|\s)(на|На|по|По) (этом )?графике(?! фирмы| спроса| предложения| издержек| рынка| [А-ЯЁ])/));
+  });
   it('расчёт-вариант на Пути: в условии, решении и ловушках нет «{,}» вне формул (ct-l1, var:v-costs-mcavg — «13{,}5 кр.»)', () => {
     // так Путь заводит «трудные» расчёты уроков и проверки юнита (hard="var:…")
     const vars = TEMPLATES.filter((t) => t.gen(seeded(1)).parts.length === 1).map((t) => ({ id: `var:${t.id}`, kind: 'calc', variant: t.id, lesson: null, unitId: t.chapter }));
