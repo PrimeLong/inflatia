@@ -251,6 +251,15 @@ export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n :
 const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h', 'w'];
 const dayEntry = (s, day) => ({ l: 0, n: 0, p: 0, a: 0, c: 0, s: 0, r: 0, rc: 0, g: 0, pr: 0, h: 0, w: 0, ...(s.daily || {})[day] });
 export const dailyOf = (s, now = Date.now()) => dayEntry(s, dayOf(now));
+/* минуты занятия без «урока»: повтор особого урока («Персоналии», «Чтение», «Разбор графика», «Нарисуй сам»)
+   опыта и счёта уроков не даёт, но время в цель дня идёт (пункт владельца 15.11: «минуты в квадратных уроках
+   не считает»). Те же границы, что у урока: не больше 15 минут за раз и только время после полуночи (UTC). */
+export function addStudySeconds(s, seconds, now = Date.now()) {
+  const add = Math.max(0, Math.round(Math.min(900, seconds || 0, (now - dayStart(now)) / 1000)));
+  if (!add) return s;
+  const day = dayOf(now); const d = dayEntry(s, day);
+  return upd(s, { daily: { ...s.daily, [day]: { ...d, s: Math.min(86400, d.s + add) } } });
+}
 /* квартал, сыгранный в «Мире», — в счётчик дня (w): редкое задание дня «Сыграть два квартала в „Мире“»
    (docs/mechanics.md, «Редкое задание дня»); больше 40 в день не считаем */
 export function countWorldQuarter(s, now = Date.now()) {

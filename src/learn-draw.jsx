@@ -5,6 +5,7 @@
    появляется на графике по-настоящему и под ним — что это значит; ошибка — что не так и подсказка, можно
    ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — итоги, как после урока
    (ExtraResult из src/learn-extra-result.jsx): 15 опыта и монеты — один раз, под итогами — построенный график. */
+import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Gem, Plus, Minus, Hand, Expand } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
@@ -12,7 +13,7 @@ import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour } from './learn/draws.js';
-import { finishLesson, markDraw, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { finishLesson, markDraw, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -110,7 +111,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const [res, setRes] = useState(null); // { ok, why } | { shown: true }
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   const firstTry = useRef(0);
-  const started = useRef(Date.now());
+  const activeMs = useActiveMs();
   const root = useRef(null);
   const ink = useRef(null);
   const drag = useRef(null);
@@ -314,21 +315,21 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const finish = () => {
     Audio.play('register');
     const right = firstTry.current; const accuracy = Math.round((right / n) * 100);
-    const seconds = Math.min(900, (Date.now() - started.current) / 1000);
+    const seconds = Math.min(900, activeMs() / 1000);
     if (gem && update) {
       // алмаз — все шаги с первой (и единственной) попытки; опыт и монеты — за первый взятый
       const won = right === n; const had = hasGem(learn, id);
-      const apply = (s) => { const t = countAnswers(s, right, n); return won && !had ? markGem(finishLesson(t, null, { xp: DRAW_XP, accuracy: 100, seconds, kind: 'draw', extra: { fresh: false } }), id) : t; };
+      const apply = (s) => { const t = countAnswers(s, right, n); return won && !had ? markGem(finishLesson(t, null, { xp: DRAW_XP, accuracy: 100, seconds, kind: 'draw', extra: { fresh: false } }), id) : addStudySeconds(t, seconds); };
       const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy });
-      setResult({ xp: won && !had ? DRAW_XP : 0, right, total: n, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+      setResult({ xp: won && !had ? DRAW_XP : 0, right, total: n, ms: activeMs(), diamond: true, won, replay: won && had, ...pay });
       setPhase('done');
       return;
     }
     // шаги, верные с первой попытки, — в задание дня «N верных ответов», и при повторе (docs/mechanics.md);
     // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle)
-    const apply = (s) => { const t = countAnswers(s, right, n); return already ? t : markDraw(finishLesson(t, null, { xp: DRAW_XP, accuracy, seconds, kind: 'draw', extra: { fresh: true } }), id); };
+    const apply = (s) => { const t = countAnswers(s, right, n); return already ? addStudySeconds(t, seconds) : markDraw(finishLesson(t, null, { xp: DRAW_XP, accuracy, seconds, kind: 'draw', extra: { fresh: true } }), id); };
     const pay = update ? payExtra(learn, update, apply, { id, fresh: !already, accuracy }) : { coins: 0, gains: [], streakUp: 0 };
-    setResult({ xp: already ? 0 : DRAW_XP, right, total: n, ms: Date.now() - started.current, replay: already, ...pay });
+    setResult({ xp: already ? 0 : DRAW_XP, right, total: n, ms: activeMs(), replay: already, ...pay });
     setPhase('done');
   };
   const next = () => {

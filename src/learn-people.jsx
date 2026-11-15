@@ -3,6 +3,7 @@
    медальон с инициалами), имя крупно, кто он, годы жизни на ленте веков с отметкой главного года,
    рассказ, главная идея, «Знаете ли вы» и вопрос. В конце — стена галереи: три портрета
    повисают в рамах, опыт — один раз. Отдельный ленивый чанк. */
+import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
@@ -10,7 +11,7 @@ import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf, quizIdea } from './learn/people.js';
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
-import { finishLesson, markMet, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { finishLesson, markMet, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -243,7 +244,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
     Audio.play(name === who[k].answer ? 'coin' : 'down');
     setWhoPicks((m) => ({ ...m, [k]: name }));
   };
-  const started = useRef(Date.now());
+  const activeMs = useActiveMs();
   const firstOk = useRef({});
   const root = useRef(null);
   // знакомы ли были до этого захода: после финиша прогресс уже отмечен, а на экране — «+12 опыта»
@@ -281,19 +282,19 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
       const whoRight = who.filter((it) => whoPicks[it.k] === it.answer).length;
       const all = g.people.length + who.length; const ok = right + whoRight;
       const won = ok === all; const had = hasGem(learn, id);
-      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: MET_XP, accuracy: 100, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: false } }), id) : t; };
+      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: MET_XP, accuracy: 100, seconds: Math.min(900, activeMs() / 1000), kind: 'people', extra: { fresh: false } }), id) : addStudySeconds(t, activeMs() / 1000); };
       const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy: (ok / all) * 100 });
       Audio.play(won ? 'stamp' : 'register');
-      setResult({ xp: won && !had ? MET_XP : 0, right: ok, total: all, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+      setResult({ xp: won && !had ? MET_XP : 0, right: ok, total: all, ms: activeMs(), diamond: true, won, replay: won && had, ...pay });
       setFinished(true);
       return;
     }
     // верные ответы — в задание дня «N верных ответов», и при повторе (docs/mechanics.md);
     // впервые — опыт и монеты, как за урок, и всё, что урок выполнил (settle); итоги — как после урока
-    const apply = (s) => { const t = countAnswers(s, right, g.people.length); return already ? t : markMet(finishLesson(t, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'people', extra: { fresh: true } }), id); };
+    const apply = (s) => { const t = countAnswers(s, right, g.people.length); return already ? addStudySeconds(t, activeMs() / 1000) : markMet(finishLesson(t, null, { xp: MET_XP, accuracy: acc, seconds: Math.min(900, activeMs() / 1000), kind: 'people', extra: { fresh: true } }), id); };
     const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy: acc });
     Audio.play('register');
-    setResult({ xp: already ? 0 : MET_XP, right, total: g.people.length, ms: Date.now() - started.current, replay: already, ...pay });
+    setResult({ xp: already ? 0 : MET_XP, right, total: g.people.length, ms: activeMs(), replay: already, ...pay });
     setFinished(true);
   };
   // назад — к прошлому человеку: его ответ и разбор на месте

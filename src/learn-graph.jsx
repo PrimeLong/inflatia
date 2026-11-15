@@ -4,6 +4,7 @@
    Внизу — одна мысль простыми словами, «Назад» и «Дальше»; в конце — вопрос на понимание и «+10 опыта»
    (один раз). Открывается остановкой на дороге юнита и кнопкой «Разобрать график по шагам» на карточке
    урока с этим графиком — тогда без опыта (peek), поверх урока. При «уменьшить движение» — без анимаций. */
+import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
@@ -13,7 +14,7 @@ import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView, graphCloze } from './learn/graphs.js';
-import { finishLesson, markGraph, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
+import { finishLesson, markGraph, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -324,7 +325,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
   const [order] = useState(() => (g ? g.quiz.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5) : []));
   const [picked, setPicked] = useState(null);
   const firstOk = useRef(null);
-  const started = useRef(Date.now());
+  const activeMs = useActiveMs();
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты (не при подсказке из урока — peek)
@@ -367,14 +368,14 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       const qs = cloze.filter(Boolean).length;
       const ok = qs - czMiss.current.size + (firstOk.current ? 1 : 0); const all = qs + 1;
       const won = ok === all; const had = hasGem(learn, id);
-      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: false } }), id) : t; };
+      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: Math.min(900, activeMs() / 1000), kind: 'graph', extra: { fresh: false } }), id) : addStudySeconds(t, activeMs() / 1000); };
       const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy: (ok / all) * 100 });
-      setResult({ xp: won && !had ? GRAPH_XP : 0, right: ok, total: all, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
+      setResult({ xp: won && !had ? GRAPH_XP : 0, right: ok, total: all, ms: activeMs(), diamond: true, won, replay: won && had, ...pay });
     } else if (!peek && update) {
       const right = firstOk.current ? 1 : 0; const accuracy = firstOk.current ? 100 : 60;
-      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? t : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id); };
+      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? addStudySeconds(t, activeMs() / 1000) : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, activeMs() / 1000), kind: 'graph', extra: { fresh: true } }), id); };
       const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy });
-      setResult({ xp: already ? 0 : GRAPH_XP, right, total: 1, accuracy, ms: Date.now() - started.current, replay: already, ...pay });
+      setResult({ xp: already ? 0 : GRAPH_XP, right, total: 1, accuracy, ms: activeMs(), replay: already, ...pay });
     }
     setPhase('done');
   };

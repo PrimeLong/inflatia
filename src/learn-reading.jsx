@@ -2,6 +2,7 @@
    Страница книги: печать-монограмма автора, годы, книга и год, цитата антиквой — слова проступают, как
    чернила; ниже — контекст и вопрос. «Найдите в цитате»: слова цитаты нажимаются, верное место
    подчёркивается маркером. В конце — полка: прочитанная подборка встаёт книгой к остальным. */
+import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Check, BookOpen, ArrowRight, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
@@ -9,7 +10,7 @@ import { Button, IconButton } from './ds.jsx';
 import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho } from './learn/reading.js';
-import { finishLesson, markRead, markReadGem, countAnswers } from './textbook/learn-state.js';
+import { finishLesson, markRead, markReadGem, countAnswers, addStudySeconds } from './textbook/learn-state.js';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 const CSS = `
@@ -218,7 +219,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   const [done, setDone] = useState(false);
   const [got, setGot] = useState(0);
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
-  const [startAt] = useState(() => Date.now());
+  const activeMs = useActiveMs();
   // алмазный уровень: после страниц — «Кто это сказал?»; алмаз — без единой ошибки
   const who = useMemo(() => (gem && r ? quizWho(r) : []), [gem, r]);
   const [whoStage, setWhoStage] = useState(false);
@@ -245,16 +246,16 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     if (idx + 1 < r.pages.length) { setIdx(idx + 1); toTop(); return; }
     if (gem && !whoStage) { setWhoStage(true); toTop(); return; }
     const right = answers.filter((a) => a && a.ok).length;
-    const seconds = Math.round((Date.now() - startAt) / 1000);
+    const seconds = Math.round(activeMs() / 1000);
     // ответы — в задание дня «N верных ответов», и при перечитывании (docs/mechanics.md)
     const whoRight = who.filter((it, k) => picks[k] === it.answer).length;
     if (gem) {
       // алмаз — без единой ошибки и на страницах, и в «Кто это сказал?»; опыт и монеты — за первый взятый
       const clean = right === r.pages.length && who.every((it, k) => picks[k] === it.answer);
       const ok = right + whoRight; const all = r.pages.length + who.length; const had = isReadGem(learn, r.id);
-      const apply = (s) => { const t = countAnswers(s, ok, all); return clean && !had ? markReadGem(finishLesson(t, null, { xp: READ_GEM_XP, accuracy: 100, seconds, kind: 'read', extra: { fresh: false } }), r.id) : t; };
+      const apply = (s) => { const t = countAnswers(s, ok, all); return clean && !had ? markReadGem(finishLesson(t, null, { xp: READ_GEM_XP, accuracy: 100, seconds, kind: 'read', extra: { fresh: false } }), r.id) : addStudySeconds(t, seconds); };
       const pay = payExtra(learn, update, apply, { id: r.id, diamond: true, won: clean, gem: had, accuracy: (ok / all) * 100 });
-      setResult({ xp: clean && !had ? READ_GEM_XP : 0, right: ok, total: all, ms: Date.now() - startAt, diamond: true, won: clean, replay: clean && had, ...pay });
+      setResult({ xp: clean && !had ? READ_GEM_XP : 0, right: ok, total: all, ms: activeMs(), diamond: true, won: clean, replay: clean && had, ...pay });
       setWon(clean);
       if (clean && !had) setGot(READ_GEM_XP);
       setDone(true);
@@ -264,9 +265,9 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     // дочитали: опыт и монеты — один раз, книга — на полку; итоги — как после урока
     const first = !isRead(learn, r.id);
     const accuracy = (right / r.pages.length) * 100;
-    const apply = (s) => { const t = countAnswers(s, right, r.pages.length); return first ? markRead(finishLesson(t, null, { xp: READ_XP, accuracy, seconds, kind: 'read', extra: { fresh: true } }), r.id) : t; };
+    const apply = (s) => { const t = countAnswers(s, right, r.pages.length); return first ? markRead(finishLesson(t, null, { xp: READ_XP, accuracy, seconds, kind: 'read', extra: { fresh: true } }), r.id) : addStudySeconds(t, seconds); };
     const pay = payExtra(learn, update, apply, { id: r.id, fresh: first, accuracy });
-    setResult({ xp: first ? READ_XP : 0, right, total: r.pages.length, ms: Date.now() - startAt, replay: !first, ...pay });
+    setResult({ xp: first ? READ_XP : 0, right, total: r.pages.length, ms: activeMs(), replay: !first, ...pay });
     if (first) setGot(READ_XP);
     setDone(true);
     Audio.play('stamp');
