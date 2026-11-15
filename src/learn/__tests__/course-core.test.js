@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import INDEX from 'virtual:course-index';
-import { UNITS, LESSONS, LESSON_BY_ID, mistakeUnit, canPractice, pathState, courseHydrated, lessonMeta, LESSON_SECTIONS } from '../course-core.js';
+import { UNITS, LESSONS, LESSON_BY_ID, mistakeUnit, canPractice, pathState, courseHydrated, lessonMeta, LESSON_SECTIONS, reachedLevel } from '../course-core.js';
+import { advancedOpen } from '../../lib/disclosure.js';
 import { EXERCISES, practiceUnitOf, buildLesson } from '../course.js';
 import { buildCourseIndex } from '../course-index-build.js';
 import { TEMPLATES } from '../../textbook/variants.js';
@@ -60,6 +61,20 @@ describe('указатель курса: Путь без текстов глав
     const st = pathState(emptyLearn());
     expect(st[0].lessons[0].open).toBe(true);
     expect(st[0].current.id).toBe(st[0].lessons[0].id);
+  });
+  it('уровень для «Мира»: самый высокий уровень, до которого дошёл ученик, — а не всегда «Начальный» (пункт владельца 15.11)', () => {
+    expect(reachedLevel(pathState(emptyLearn()))).toBe(0);
+    // прошёл Начальный и Базовый, учится в Среднем
+    const at = Date.now() - 86400e3; const lessons = {};
+    UNITS.filter((u) => ['start', 'basic'].includes(u.level)).forEach((u) => u.lessons.forEach((l) => { lessons[l.id] = { at, runs: 1, best: 90 }; }));
+    const mid = { ...emptyLearn(), lessons, levels: { start: { at }, basic: { at } } };
+    expect(reachedLevel(pathState(mid))).toBe(2);
+    expect(advancedOpen({ quarterIndex: 1, level: reachedLevel(pathState(mid)) })).toBe(true);
+    // сдал юнит Продвинутого проверкой — уровень продвинутый, даже если текущий урок ниже
+    const top = UNITS.filter((u) => u.lessons.length).map((u) => ['start', 'basic', 'middle', 'advanced', 'pro'].indexOf(u.level)).reduce((x, y) => Math.max(x, y), 0);
+    const high = UNITS.find((u) => u.lessons.length && ['start', 'basic', 'middle', 'advanced', 'pro'].indexOf(u.level) === top);
+    const adv = { ...mid, units: { [high.id]: { tested: at } } };
+    expect(reachedLevel(pathState(adv))).toBe(top);
   });
   it('модули Пути не тянут главы: в их статических импортах нет course.js, content.js, markdown.js, variants.js, glossary.js', () => {
     const root = path.resolve(import.meta.dirname, '../..');

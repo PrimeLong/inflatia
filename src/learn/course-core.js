@@ -128,6 +128,18 @@ export const fixCount = (learn, unitId) => Math.min(PRACTICE_MAX, fixIds(learn, 
 const levelGateOff = () => {
   try { return typeof navigator !== 'undefined' && !!navigator.webdriver && localStorage.getItem('ems-level-test') !== '1'; } catch { return false; }
 };
+/* До какого уровня курса дошёл ученик (индекс в LEVELS): самый высокий уровень юнита, в котором он учится или
+   который закончил (пройден или сдан проверкой). Его читает «Мир» (src/lib/disclosure.js): с «Среднего» компас
+   ставки и риски открыты сразу. Раньше уровень искали через LEVELS.indexOf(levelOf(...)) — levelOf отдаёт копию
+   объекта, indexOf её не находил, и уровень всегда был «Начальный» (пункт владельца 15.11: «давно на
+   продвинутом», а «Мир» ждал «Средний»). */
+export function reachedLevel(states) {
+  let top = 0;
+  (states || []).forEach((st) => {
+    if (st.current || st.complete || st.tested || st.lessons.some((l) => l.done)) top = Math.max(top, levelOf(st.course.id).no - 1);
+  });
+  return top;
+}
 export function pathState(learn) {
   // Путь сквозной: первый урок юнита открывается, когда пройден последний урок прошлого юнита
   // или прошлый юнит сдан проверкой

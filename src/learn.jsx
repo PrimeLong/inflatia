@@ -1411,7 +1411,7 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
   const hello = g.done >= g.goal ? 'joy' : sleepy ? 'sleep' : 'hello';
   const first = states.find((x) => x.current) || states[0];
   // уровень текущего юнита — «Миру» (хранится наибольший): с «Среднего» продвинутые панели партии открыты сразу
-  const levelNo = first ? LEVELS.indexOf(levelOf(first.course.id)) : 0;
+  const levelNo = reachedLevel(states);
   useEffect(() => { writeLearnLevel(Math.max(0, levelNo)); }, [levelNo]);
   const [soonOpen, setSoonOpen] = useState(false);
   /* На Пути — юниты одного уровня. По умолчанию — уровень, где ученик сейчас (иначе последний
