@@ -33,7 +33,7 @@ export const BOOK_REASONS = [
   ['typo', 'Опечатка или ошибка в тексте'], ['unclear', 'Непонятно написано'], ['visual', 'Что-то выглядит не так'], ['broken', 'Не работает или не звучит'],
 ];
 // «filter» — «Это ошибка фильтра» с экрана регистрации: в списке есть, в выборе причины — нет
-const REASON_BY_ID = { ...Object.fromEntries(REASONS), ...Object.fromEntries(THEORY_REASONS), filter: 'Фильтр не пропустил имя' };
+const REASON_BY_ID = { ...Object.fromEntries(REASONS), ...Object.fromEntries(THEORY_REASONS), filter: 'Фильтр не пропустил имя', crash: 'Сбой экрана' };
 // eslint-disable-next-line no-undef
 export const BUILD = typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev';
 

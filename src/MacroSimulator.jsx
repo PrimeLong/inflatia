@@ -14,6 +14,7 @@ import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './lib/world-trial.js';
 import { router, useHistoryLayer } from './lib/route.js';
 import { TRACK } from './learn/track.js';
+import { reportCrash } from './lib/crash.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -1014,7 +1015,8 @@ function CrashScreen({ error, onMenu }) {
 class ScreenErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error('Экран упал:', error, info); }
+  // сбой экрана — и владельцам, обезличенно (src/lib/crash.js)
+  componentDidCatch(error, info) { console.error('Экран упал:', error, info); reportCrash(error, 'boundary'); }
   componentDidUpdate(prev) {
     // сменили экран — пробуем снова: ошибка была у того, который уже закрыт
     if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null });

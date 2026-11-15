@@ -5011,6 +5011,39 @@ test('адреса: из партии «Назад» выходит в меню 
   expect(errors).toEqual([]);
 });
 
+/* ОШИБКИ ЭКРАНА (docs/mechanics.md, «Ошибки экрана»; пункт владельца 13.11): необработанная ошибка страницы уходит
+   владельцам обезличенным сообщением — не больше трёх за открытие страницы, одна и та же — один раз. */
+test('сбой экрана: window.onerror и unhandledrejection шлют обезличенное сообщение в api/reports; частота ограничена', async ({ page }) => {
+  const sent = [];
+  await page.route('**/api/**', (r) => {
+    let body = null; try { body = r.request().postDataJSON(); } catch { body = null; }
+    if (r.request().url().includes('/api/reports') && body && body.action === 'crash') sent.push(body);
+    return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  // ошибка в обработчике и отклонённое обещание — с «личным» в тексте
+  await page.evaluate(() => {
+    setTimeout(() => { throw new Error('упало: https://example.org/x?token=secret123 anna@example.com'); }, 0);
+    Promise.reject(new Error('обещание отклонено'));
+  });
+  await expect.poll(() => sent.length).toBe(2);
+  const [a, b] = [sent.find((x) => x.kind === 'error'), sent.find((x) => x.kind === 'promise')];
+  expect(a.message).toContain('упало: https://example.org/x');
+  expect(a.message).not.toMatch(/secret123|anna@example\.com/);
+  expect(b.message).toBe('обещание отклонено');
+  // в сообщении — только ошибка, экран, сборка и устройство: ни логина, ни сессии
+  for (const m of sent) {
+    expect(Object.keys(m).sort()).toEqual(['action', 'build', 'device', 'kind', 'message', 'screen', 'stack', 'viewport']);
+    expect(JSON.stringify(m)).not.toMatch(/tester|"t"|Тест/);
+    expect(m.screen).toBe('/');
+  }
+  // та же ошибка снова — не шлётся; всего за открытие страницы — не больше трёх
+  await page.evaluate(() => { for (let k = 0; k < 8; k += 1) setTimeout(() => { throw new Error(k < 2 ? 'обещание отклонено' : `ещё ${k}`); }, 0); });
+  await page.waitForTimeout(800);
+  expect(sent.length).toBe(3);
+});
+
 /* ССЫЛКИ И ПОИСК (docs/mechanics.md, «Ссылки и поиск»; пункт владельца 13.11). */
 test('вход: ссылки и поиск — абсолютные og:image, og:url и canonical; robots.txt и sitemap.xml; документы с приветствия', async ({ page, request }) => {
   const { errors } = await openApp(page, '/', '{}', { tab: null });

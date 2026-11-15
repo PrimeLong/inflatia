@@ -1384,8 +1384,6 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
               {/* пояснение к молнии — под плитками, а не в плитке: на узком телефоне оно растягивало все три */}
               {result.bonus > 0 && <div className="ln-xp-note" data-testid="result-xp-note"><Zap size={15} strokeWidth={2.4} aria-hidden="true" />+{result.bonus} опыта — {result.game ? 'за игру и верные ответы подряд' : 'за верные ответы подряд'}</div>}
               <GainsList coins={result.coins} gains={result.gains} label={run.mode === 'level' ? 'За большое повторение' : 'За урок'} />
-              {lesson && run.mode === 'lesson' && !replay && partsOfLesson(lesson.id).length > 0 && (
-                <div className="ds-sub" style={{ fontSize: 14.5, marginTop: 10 }} data-testid="result-model">
               {/* монеты за урок и печати — только за честную работу (docs/mechanics.md, «Награды за урок») */}
               {result.unfair && (
                 <div className="ln-unfair" data-testid="result-unfair" data-why={result.unfair} role="note">
@@ -1394,6 +1392,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
                   {' '}— монеты «За урок» и печати за такой урок не выдаются. Урок засчитан, Путь открыт дальше; повторите его спокойно — и монеты ваши.
                 </div>
               )}
+              {lesson && run.mode === 'lesson' && !replay && partsOfLesson(lesson.id).length > 0 && (
+                <div className="ds-sub" style={{ fontSize: 14.5, marginTop: 10 }} data-testid="result-model">
                   В модель рынка добавлено: {partsOfLesson(lesson.id).map((p) => `«${p.title}»`).join(', ')}. Покрутить её можно на Пути, под юнитом.
                 </div>
               )}
