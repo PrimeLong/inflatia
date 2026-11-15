@@ -919,6 +919,32 @@ test('учебник на широком ПК: черновик на полях,
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 15.11: «в учебнике, когда включаешь черновик, тебя кидает далеко вверх с лагами, а выключаешь — вниз»
+test('учебник: включили и выключили черновик — место, которое читали, остаётся на экране', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'черновик в учебнике — на широком экране с мышью');
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await openTab(page, 'book');
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  await page.getByTestId('textbook').getByRole('button', { name: /Инфляция/ }).first().click();
+  const ch = page.getByTestId('chapter');
+  await expect(ch).toHaveAttribute('data-chapter', 'inflation');
+  // читаем середину главы: запоминаем заголовок раздела у верха экрана
+  const h = ch.locator('.tb-ch-main h2').nth(2);
+  await h.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 140));
+  await page.waitForTimeout(300);
+  const topOf = () => h.evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  const before = await topOf();
+  for (const state of ['true', 'false']) {
+    await page.getByTestId('sketch-toggle').click();
+    await expect(page.getByTestId('sketch-toggle')).toHaveAttribute('aria-checked', state);
+    await page.waitForTimeout(1000);
+    // раньше заголовок уезжал на сотни пикселей — за экран
+    expect(Math.abs(await topOf() - before), `черновик ${state}`).toBeLessThan(24);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('учебник из гайда юнита: черновик на полях есть и там', async ({ page, isMobile }) => {
   test.skip(isMobile, 'черновик в учебнике — на широком экране с мышью');
   await page.setViewportSize({ width: 1600, height: 950 });
