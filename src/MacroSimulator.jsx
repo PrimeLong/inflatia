@@ -92,6 +92,15 @@ export const COLOR = { ...THEMES.chamber.colors, isDark: false };
 export function applyTheme(id) {
   const t = THEMES[id] || THEMES.chamber;
   Object.assign(COLOR, t.colors, { isDark: t.dark });
+  syncThemeColor(COLOR.bg);
+}
+/* Цвет строки браузера (meta theme-color) — фон действующей темы приложения (docs/mechanics.md, «Доступность»).
+   Раньше он шёл за системой: при тёмной системе строка была тёмной, а обучение — светлым. */
+export function syncThemeColor(color) {
+  if (typeof document === 'undefined' || !color) return;
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) { meta = document.createElement('meta'); meta.setAttribute('name', 'theme-color'); document.head.appendChild(meta); }
+  if (meta.getAttribute('content') !== color) meta.setAttribute('content', color);
 }
 
 // верхний свет на поверхностях: на тёмных темах — едва заметный, на светлой — молочный

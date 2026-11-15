@@ -4138,9 +4138,9 @@ test.describe('офлайн', () => {
     await page.goto('/', { waitUntil: 'networkidle' });
     const manifest = await page.evaluate(async () => (await fetch(document.querySelector('link[rel=manifest]').href)).json());
     expect(manifest.display).toBe('standalone');
-    // светлая тема — по умолчанию: и манифест, и строка браузера; тёмный цвет — только для тёмной системы
+    // светлая тема — по умолчанию: и манифест, и строка браузера; цвет строки — один, без привязки к теме системы
     expect([manifest.theme_color, manifest.background_color]).toEqual(['#FFF8EE', '#FFF8EE']);
-    expect(await page.locator('meta[name="theme-color"]').evaluateAll((els) => els.map((e) => [e.content, e.media || '']))).toEqual([['#0B0F17', '(prefers-color-scheme: dark)'], ['#FFF8EE', '']]);
+    expect(await page.locator('meta[name="theme-color"]').evaluateAll((els) => els.map((e) => e.media || ''))).toEqual(['']);
     expect(manifest.icons.some((i) => i.sizes === '512x512')).toBe(true);
     await page.evaluate(() => navigator.serviceWorker.ready);
     // со второго открытия страницей управляет service worker и складывает файлы в кэш
@@ -5008,6 +5008,38 @@ test('адреса: из партии «Назад» выходит в меню 
   expect(await page.evaluate(() => !!localStorage.getItem('ems-autosave-v1'))).toBe(true);
   await page.reload({ waitUntil: 'networkidle' });
   await expect(page.getByTestId('world')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/* СТРОКА БРАУЗЕРА (docs/mechanics.md, «Доступность»; пункт владельца 13.11): theme-color — фон действующей темы приложения.
+   Раньше он шёл за системой: при тёмной системе строка была тёмной (#0B0F17), а обучение — светлым. */
+test('строка браузера: цвет — по теме приложения, а не системы: светлое обучение при тёмной системе, тёмная тема, «Мир»', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const bar = () => page.evaluate(() => { const m = document.querySelectorAll('meta[name="theme-color"]'); return { n: m.length, color: m[0].content.toUpperCase(), media: m[0].media || '' }; });
+  const lum = (hex) => { const v = hex.replace('#', ''); const [r, g, b] = [0, 2, 4].map((k) => parseInt(v.slice(k, k + 2), 16)); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+  // фон страницы и цвет строки — одного тона
+  const pageBg = () => page.evaluate(() => { const el = document.querySelector('.ems-root') || document.body; const c = getComputedStyle(el).backgroundColor.match(/\d+/g).map(Number); return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255; });
+  let b = await bar();
+  expect(b).toMatchObject({ n: 1, media: '' });
+  expect(lum(b.color), `Путь при тёмной системе: ${b.color}`).toBeGreaterThan(0.8);
+  expect(await pageBg()).toBeGreaterThan(0.8);
+  // тёмная тема обучения — строка тёмная
+  await page.evaluate(() => localStorage.setItem('ems-learn-dark', '1'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByTestId('path')).toBeVisible();
+  b = await bar();
+  expect(lum(b.color), `тёмная тема обучения: ${b.color}`).toBeLessThan(0.25);
+  // обратно в светлую, вкладка «Мир» — цвет его темы; назад на Путь — снова светлый
+  await page.evaluate(() => localStorage.removeItem('ems-learn-dark'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await openTab(page, 'world');
+  await expect(page.getByTestId('world')).toBeVisible();
+  const world = await bar();
+  expect(Math.abs(lum(world.color) - await pageBg()), `«Мир»: ${world.color}`).toBeLessThan(0.12);
+  await openTab(page, 'path');
+  await expect(page.getByTestId('path')).toBeVisible();
+  expect(lum((await bar()).color)).toBeGreaterThan(0.8);
   expect(errors).toEqual([]);
 });
 
