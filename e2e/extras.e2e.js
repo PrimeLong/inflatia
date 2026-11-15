@@ -45,7 +45,7 @@ test('«Чтение» — урок на дороге юнита: после у�
     await expect(page.getByTestId('reading-feedback')).toHaveAttribute('data-ok', 'true');
     await page.getByTestId('reading-next').click();
   }
-  await expect(page.getByTestId('reading-done')).toContainText('Книга на полке');
+  await expect(page.getByTestId('reading-done')).toContainText('Подборка встала на полку');
   // итоги — как после урока (пункт владельца 08.11, вечер): опыт, точность, время и монеты за урок
   const rres = page.getByTestId('reading-done').getByTestId('extra-result');
   await expect(rres).toHaveAttribute('data-kind', 'read');
