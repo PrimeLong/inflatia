@@ -695,6 +695,37 @@ test('лавка: младше 16 — без «−30%» и «ещё N дней, 
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 15.11: «в „Протереть“ одно улучшение на твой выбор, чтобы купить и через какое-то время окупить»
+test('«Пыльная витрина»: микрофибра — купить за 24 монеты; тряпка шире, шестая витрина в день, видно, сколько вернула', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } }, coins: { '2026-10-01': 50 } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await page.getByTestId('shop-tabs').locator('[data-tab="dust"]').click();
+  await page.getByTestId('shop-dust').getByTestId('dust-open').click();
+  const game = page.getByTestId('dust-game');
+  const cloth = game.getByTestId('dust-cloth');
+  await expect(cloth).toHaveAttribute('data-owned', 'false');
+  await expect(cloth).toContainText('Окупится за 12 дней');
+  await expect(game.getByTestId('dust-hint')).toContainText('из 5');
+  // одна и та же полоса до покупки и после: с микрофиброй стёрто заметно больше
+  const glass = game.getByTestId('dust-glass');
+  const swipe = async (y) => { const b = await glass.boundingBox(); await page.mouse.move(b.x + 6, b.y + b.height * y); await page.mouse.down(); await page.mouse.move(b.x + b.width - 6, b.y + b.height * y, { steps: 14 }); await page.mouse.up(); };
+  const pct = async () => Number(await game.getByTestId('dust-percent').getAttribute('data-value'));
+  await swipe(0.2); const p1 = await pct();
+  await game.getByTestId('dust-cloth-buy').click();
+  await expect(cloth).toHaveAttribute('data-owned', 'true');
+  await expect(cloth).toContainText('Вернула 0 из 24');
+  await expect(game.getByTestId('dust-hint')).toContainText('из 6');
+  const spent = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.spent || {}).reduce((a, x) => a + x, 0));
+  expect(spent).toBe(24);
+  await swipe(0.7); const p2 = (await pct()) - p1;
+  expect(p2).toBeGreaterThan(p1 * 1.25);
+  expect(errors).toEqual([]);
+});
+
 test('«Пыльная витрина»: протирка не выделяет текст', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;

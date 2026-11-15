@@ -229,3 +229,24 @@ describe('портреты «Персоналий» руками: файл в pu
     });
   });
 });
+
+describe('«Пыльная витрина»: микрофибра окупается (пункт владельца 15.11)', () => {
+  it('24 монеты; шире тряпка; шестая витрина в день; окупается за 12 дней, видно, сколько вернула', async () => {
+    const { CLOTH, buyCloth, hasCloth, dustPerDay, dustRag, dustClaim, dustLeft, clothReturn, clothPaybackDays, DUST } = await import('../dust.js');
+    const { emptyLearn } = await import('../../textbook/learn-state.js');
+    const { balance } = await import('../rewards.js');
+    const T = Date.UTC(2026, 10, 15, 12);
+    let s = { ...emptyLearn(), coins: { '2026-10-01': 30 } };
+    expect(dustPerDay(s)).toBe(5); expect(dustRag(s)).toEqual({ r: 0.085, wipe: DUST.wipe });
+    const r = buyCloth(s, T); expect(r.ok).toBe(true); s = r.s;
+    expect(balance(s)).toBe(6); expect(hasCloth(s)).toBe(true);
+    expect(buyCloth(s, T).ok).toBe(false);
+    expect(buyCloth({ ...emptyLearn(), coins: { '2026-10-01': 10 } }, T)).toMatchObject({ ok: false });
+    expect(dustPerDay(s)).toBe(6); expect(dustRag(s).r).toBeGreaterThan(0.085 * 1.3); expect(dustRag(s).wipe).toBeGreaterThan(DUST.wipe);
+    expect(clothPaybackDays()).toBe(12);
+    // двенадцать дней по шесть витрин — шестые вернули ровно цену
+    for (let d = 0; d < 12; d += 1) { const now = T + d * 86400e3; for (let k = 0; k < 6; k += 1) s = dustClaim(s, now); expect(dustLeft(s, now)).toBe(0); }
+    expect(clothReturn(s)).toBe(CLOTH.price);
+    expect(balance(s)).toBe(6 + 12 * 6 * DUST.coins);
+  });
+});
