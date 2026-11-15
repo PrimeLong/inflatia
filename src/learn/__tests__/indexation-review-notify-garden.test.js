@@ -128,6 +128,30 @@ describe('уведомления: вчерашние напоминания о �
   });
 });
 
+describe('сад: дерево стоит прямо, пакетики семян целые (пункты владельца 15.11)', () => {
+  it('денежное дерево не наклоняется; цветы — как раньше', async () => {
+    const { plantLook } = await import('../garden.js');
+    const ats = Array.from({ length: 40 }, (_, k) => 1700000000000 + k * 7919000);
+    ats.forEach((at) => expect(plantLook(at, 'moneytree').tilt).toBe(0));
+    expect(ats.some((at) => Math.abs(plantLook(at, 'peony').tilt) > 2)).toBe(true);
+    expect(plantLook(ats[3], 'peony')).toEqual(plantLook(ats[3]));
+  });
+  it('пакетик дерева: дерево целиком в окошке, без стебелька цветка; семена — с контуром (видны и у орхидеи)', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const React = (await import('react')).default;
+    const { SeedPacketArt } = await import('../../learn-garden.jsx');
+    const tree = renderToStaticMarkup(React.createElement(SeedPacketArt, { id: 'moneytree' }));
+    expect(tree).toContain('seed-packet-tree');
+    expect(tree).not.toContain('M40 66 Q39 58 40 50'); // стебелёк цветка
+    // окошко — y от 28 до 70: низ ствола (y = 76 в рисунке дерева) должен попасть внутрь
+    const m = /translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)/.exec(tree);
+    expect(Number(m[2]) + 76 * Number(m[3])).toBeLessThanOrEqual(70);
+    expect(Number(m[2]) + 17 * Number(m[3])).toBeGreaterThanOrEqual(28);
+    const orchid = renderToStaticMarkup(React.createElement(SeedPacketArt, { id: 'orchid' }));
+    expect((orchid.match(/class="gd-seed"[^>]*stroke="#6B4A22"/g) || []).length).toBe(5);
+  });
+});
+
 describe('сад: растения не одинаковые (пункт 12 от 06.11)', () => {
   it('рост 0,84–1,16, наклон до 5°, сторона — от момента посадки; у соседних — разные', async () => {
     const { plantLook } = await import('../garden.js');
