@@ -1346,6 +1346,33 @@ test('украшения урока: на «Предыдущей карточк�
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 15.11: «тема северного сияния сломана на ПК, буквально выглядит ужасно, а северное сияние слишком яркое»
+test('тема «Северное сияние» на ПК: сияние — тонкие ленты у верха, под текстом тёмная подложка, ёлки не растянуты', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'проверка — на широком экране');
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } }, owned: { 'theme-aurora': at }, wear: { theme: 'theme-aurora', at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await page.setViewportSize({ width: 1600, height: 950 });
+  await startLesson(page, 'sc-l1');
+  await expect(page.locator('.sk-au')).toBeVisible();
+  const look = await page.evaluate(() => ({
+    bands: [...document.querySelectorAll('.sk-au-band')].map((b) => ({ h: b.getBoundingClientRect().height, o: Number(getComputedStyle(b).opacity) })),
+    veil: !!document.querySelector('.sk-au-veil'),
+    trees: [...document.querySelectorAll('[data-testid=skin-au-tree]')].map((t) => { const r = t.getBoundingClientRect(); return r.width / r.height; }),
+  }));
+  expect(look.bands).toHaveLength(3);
+  // раньше лента была в треть экрана (≈320 px) и белила фон под вопросом
+  look.bands.forEach((b) => { expect(b.h).toBeLessThanOrEqual(160); expect(b.o).toBeLessThanOrEqual(0.35); });
+  expect(look.veil).toBe(true);
+  expect(look.trees.length).toBeGreaterThan(0);
+  look.trees.forEach((k) => expect(Math.abs(k - 26 / 34)).toBeLessThan(0.05));
+  expect(errors).toEqual([]);
+});
+
 test('украшения урока: своя витрина с живыми превью, покупка вешает вещицу в уроки, она отзывается на ответ', async ({ page, isMobile }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {
