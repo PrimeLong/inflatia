@@ -13,6 +13,7 @@ import { useAccount, loadAccount, refreshAccount, NameGate } from './account.jsx
 import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './lib/world-trial.js';
 import { router, useHistoryLayer } from './lib/route.js';
+import { TRACK } from './learn/track.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -882,7 +883,9 @@ const LabScreen = React.lazy(() => import('./trainer.jsx').then((m) => ({ defaul
 // учебник: главы, KaTeX, приложения — свой чанк
 const TextbookScreen = React.lazy(() => import('./textbook.jsx').then((m) => ({ default: m.TextbookScreen })));
 // путь уроков, практика и профиль учёбы — вместе с учебником (формулы и графики те же)
-const loadLearn = () => import('./learn.jsx');
+/* вкладка обучения рисует Путь по указателю курса (src/learn/course-core.js). У пробного курса политологии указателя
+   нет: для него сначала грузится курс целиком, потом вкладка */
+const loadLearn = () => (TRACK === 'politics' ? import('./learn/course.js').then(() => import('./learn.jsx')) : import('./learn.jsx'));
 const LearnTab = React.lazy(() => loadLearn().then((m) => ({ default: m.LearnTab })));
 const Welcome = React.lazy(() => import('./welcome.jsx'));
 // витрина дизайн-системы обучения — внутренняя страница …/#ds

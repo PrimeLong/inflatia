@@ -14,7 +14,7 @@ import { dayOf, longestStreak } from '../textbook/learn-state.js';
 import { leagueState, PLACE_COINS, PROMO_COINS, LEAGUES } from './league.js';
 import { RACE } from './friends.js';
 import { PLANT_BY_ID, GRADE_BY_ID, gradeOf } from './garden.js';
-import { UNITS } from './course.js';
+import { UNITS } from './course-core.js';
 
 export const DUPE_FINE = 'dupe-2026-11';
 /* второй проход (8 ноября 2026): у кого списание прошло, когда копилку ещё не трогали, а минус кошелька остался —

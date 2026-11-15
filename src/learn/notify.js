@@ -10,9 +10,9 @@ import { streak, goalToday, dayOf, addDays, dayAt } from '../textbook/learn-stat
 import { leagueState, pendingRewards, standings, LEAGUE_BY_ID, LESSON_XP } from './league.js';
 import { gardenPlots, growth, PLANT_BY_ID } from './garden.js';
 import { piggyState, monthChallenge, hasClaim, chestKey, coinsWord, plural, OUTFIT_BY_ID } from './rewards.js';
-import { pathState, practiceIds, unitTitle } from './course.js';
+import { pathState, practiceIds, unitTitle } from './course-core.js';
 import { placeOf } from '../ds-tokens.js';
-import { NEWS, newsForLearner, learnerSince } from './news.js';
+import { LATEST_NEWS_HEAD, newsForLearner, learnerSince } from './news-head.js';
 import { halloween } from './halloween.js';
 import { raceView, raceClaimed, RACE } from './friends.js';
 
@@ -305,7 +305,7 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
   // новости: только выпуск, вышедший после первого дня ученика — новичку прошлое обновление не новость
   const since = opts.since || null;
   // только свежий выпуск: прошлые — в самой ленте
-  const fresh = NEWS[0];
+  const fresh = LATEST_NEWS_HEAD;
   if (newsForLearner(fresh, since)) {
     add({ id: `news:${fresh.id}`, kind: 'news', icon: 'newspaper', tone: fresh.color, at: Math.min(now - 60 * 1000, at(fresh.date, 9)), go: 'news', toast: true,
       title: 'Что нового в Инфляции', text: fresh.title });

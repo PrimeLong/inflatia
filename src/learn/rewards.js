@@ -5,7 +5,7 @@
    под ключом (claimed) — ни дважды, ни на двух устройствах. Экраны — src/learn.jsx. */
 import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf, diamondCount } from '../textbook/learn-state.js';
 import { plural } from '../lib/plural.js';
-import { LESSONS, UNITS } from './course.js';
+import { LESSONS, UNITS } from './course-core.js';
 import { halloweenOn, WEB_FRAME } from './halloween.js';
 export { plural };
 

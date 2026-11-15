@@ -3,7 +3,7 @@
    короткий ряд: сначала недавно полученные, потом ближайшие к получению; стрелка — весь список с
    полученными и ещё не полученными. Касание марки — она крупно, за что дана и когда получена.
    Модуль чистый: его читают профиль (src/learn-profile.jsx) и тесты. */
-import { pathState } from './course.js';
+import { pathState } from './course-core.js';
 import { achievementsOf, monthStamps, monthChallenge } from './rewards.js';
 import { placeOf } from '../ds-tokens.js';
 import { plural } from '../lib/plural.js';

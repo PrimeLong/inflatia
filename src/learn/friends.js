@@ -9,7 +9,7 @@ import { streak, addDays, dayOf, weekOf } from '../textbook/learn-state.js';
 import { achievementsOf, ACHIEVEMENTS, outfitOf, earn, hasClaim, mix01, plural, indexedOn } from './rewards.js';
 import { leagueState, LEAGUE_BY_ID, LEAGUE_DAYS } from './league.js';
 import { albumItems } from './collections.js';
-import { pathState, levelOf, LEVEL_BY_ID } from './course.js';
+import { pathState, levelOf, LEVEL_BY_ID } from './course-core.js';
 import { placeOf } from '../ds-tokens.js';
 
 const DAY_MS = 86400000;

@@ -9,7 +9,7 @@ import { dayOf } from '../textbook/learn-state.js';
 import { SEEN_KEY, FEED_SEEN_KEY, NEWS_SEEN_PREFIX, newsForLearner, readNewsSeen } from './news-head.js';
 
 // лёгкая часть (первый день ученика, прочитанные выпуски, новое от друзей) — в news-head.js: её зовёт нижняя панель
-export { LATEST_NEWS_HEAD, learnerSince, newsForLearner, NEWS_SEEN_PREFIX, readNewsSeen, readFeedSeenAt, friendNewsSince } from './news-head.js';
+export { LATEST_NEWS_HEAD, learnerSince, newsForLearner, NEWS_SEEN_PREFIX, readNewsSeen, readFeedSeenAt, friendNewsSince, newsDate } from './news-head.js';
 
 export const NEWS = [
   {
@@ -336,13 +336,6 @@ export const NEWS = [
 export const NEWS_BY_ID = Object.fromEntries(NEWS.map((n) => [n.id, n]));
 export const LATEST_NEWS = NEWS[0];
 
-const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-// «15 октября»; другой год — с годом
-export function newsDate(day, today = null) {
-  const [y, m, d] = day.split('-').map(Number);
-  const sameYear = !today || today.slice(0, 4) === String(y);
-  return `${d} ${MONTHS_GEN[m - 1]}${sameYear ? '' : ` ${y}`}`;
-}
 
 // ключи прогресса для прочитанных выпусков: сам выпуск и его уведомление (центр уведомлений — n:news:<id>)
 export const newsShownKeys = (ids) => ids.flatMap((id) => [`${NEWS_SEEN_PREFIX}${id}`, `n:news:${id}`]);

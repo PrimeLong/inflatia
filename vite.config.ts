@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import textbookSections from './scripts/textbook-sections-plugin.js'
 import voiceFiles from './scripts/voice-files-plugin.js'
 import serviceWorker from './scripts/sw-plugin.js'
+import courseIndex from './scripts/course-index-plugin.js'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
@@ -33,7 +34,7 @@ function chunkLimit(limit: number) {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), textbookSections(), voiceFiles(), serviceWorker(), chunkLimit(Number(process.env.CHUNK_LIMIT_KB || 400) * 1024)],
+  plugins: [react(), textbookSections(), courseIndex(), voiceFiles(), serviceWorker(), chunkLimit(Number(process.env.CHUNK_LIMIT_KB || 400) * 1024)],
   define: { __BUILD__: JSON.stringify(BUILD) },
   preview: { headers: SITE_HEADERS },
   build: {

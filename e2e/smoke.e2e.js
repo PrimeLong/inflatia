@@ -3938,6 +3938,8 @@ test('навигация: у каждого экрана один «назад»
   await expectScreen(page, 'path', seen);
   // Путь → гайд юнита → назад: у справочника поверх экрана один «назад», оглавления на странице нет
   await page.getByTestId('path-unit').first().getByTestId('unit-guide').click();
+  // учебник грузится по требованию — ждём главу
+  await expect(page.getByTestId('chapter')).toBeVisible();
   await expectScreen(page, 'book', seen);
   await expect(page.getByTestId('chapter')).toHaveAttribute('data-chapter', 'scarcity');
   await expect(page.getByTestId('tb-toc')).toHaveCount(0);
@@ -4983,6 +4985,8 @@ test('адреса: посреди урока «Назад» спрашивае�
   // «Продолжить урок» — урок на месте; «Назад» снова спрашивает
   await page.getByRole('button', { name: 'Продолжить урок' }).click();
   await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toHaveCount(0);
+  // шторка закрылась кнопкой — её запись уходит из истории своим шагом назад; дать ему завершиться
+  await page.waitForTimeout(400);
   await page.goBack();
   await expect(page.getByRole('dialog', { name: 'Выйти из урока?' })).toBeVisible();
   await page.getByRole('button', { name: 'Выйти', exact: true }).click();
@@ -5005,6 +5009,44 @@ test('адреса: из партии «Назад» выходит в меню 
   await expect(page.getByTestId('world')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+/* ВЕС ПУТИ (docs/mechanics.md, «Приветствие и загрузка»; пункт владельца 13.11): до появления Пути — не больше 1600 КБ JS
+   без сжатия; главы, KaTeX, движок партии, графики, учебник, урок и лавка — по требованию. Раньше до появления Пути
+   грузилось 4,9 МБ в 68 файлах: все главы и всё перечисленное. Фоновая подгрузка для офлайна — после простоя и не
+   при экономии трафика. */
+const PATH_JS_KB = 1600;
+const HEAVY_CHUNK = /\/assets\/(katex|engine|recharts|recharts-deps|textbook|learn-lesson|learn-shop|learn-model(?!-thumb)|course(?!-core)|variants|glossary|game|tycoon|scarcity|supply-demand|labor|elasticity|inflation|money-banks|gdp)-[\w-]+\.js/;
+for (const saveData of [true, false]) {
+  test(`путь: до появления Пути — не больше ${PATH_JS_KB} КБ JS, главы, формулы, движок и лавка не грузятся; фоновая подгрузка ${saveData ? 'при экономии трафика не идёт' : 'идёт после простоя'}`, async ({ page }) => {
+    const js = []; let shown = false;
+    page.on('response', async (r) => {
+      if (!/\.js(\?|$)/.test(r.url())) return;
+      const before = !shown;
+      try { js.push({ url: r.url(), size: (await r.body()).length, before }); } catch { /* ответ без тела */ }
+    });
+    if (saveData) await page.addInitScript(() => { Object.defineProperty(navigator, 'connection', { configurable: true, value: { saveData: true, effectiveType: '4g' } }); });
+    const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+    await page.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+    await page.goto('/', { waitUntil: 'commit' });
+    await expect(page.getByTestId('path')).toBeVisible();
+    shown = true;
+    await page.waitForLoadState('networkidle');
+    const before = js.filter((x) => x.before);
+    const kb = Math.round(before.reduce((a, x) => a + x.size, 0) / 1024);
+    const list = before.sort((a, b) => b.size - a.size).slice(0, 12).map((x) => `${x.url.split('/').pop()} ${Math.round(x.size / 1024)} КБ`).join(', ');
+    expect(kb, `JS до появления Пути: ${list}`).toBeLessThanOrEqual(PATH_JS_KB);
+    expect(before.map((x) => x.url).filter((u) => HEAVY_CHUNK.test(u)), 'тяжёлые чанки до появления Пути').toEqual([]);
+    // после простоя (4 с и пауза браузера): фоновая подгрузка урока — или её нет при экономии трафика
+    await page.waitForTimeout(7000);
+    const lesson = js.filter((x) => /\/assets\/learn-lesson-/.test(x.url)).length;
+    if (saveData) expect(js.map((x) => x.url).filter((u) => HEAVY_CHUNK.test(u)), 'при экономии трафика ничего не догружается').toEqual([]);
+    else expect(lesson, 'файл урока догружен в фоне').toBeGreaterThan(0);
+    // урок открывается и там, и там
+    await startLesson(page, 'sc-i1');
+    await expect(page.getByTestId('lesson')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
 
 /* ЧИТАЕМОСТЬ (docs/mechanics.md, «Учебник: чтение главы»; пункт владельца 13.11): на компьютере строка главы — не шире
    75 знаков. Считаются настоящие строки абзацев и пунктов списков (без формул); раньше в строке было 110–119 знаков. */
