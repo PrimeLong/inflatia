@@ -51,9 +51,18 @@ export function createRouter(win) {
 
   const own = () => (hist.state && hist.state.ems ? hist.state : null);
   const url = () => `${loc.pathname}${loc.search || ''}${loc.hash || ''}`;
+  /* canonical и og:url — по адресу экрана (index.html отдаётся один на все адреса, в нём — адрес главной):
+     поисковик, исполняющий скрипты, видит у главы учебника её собственный адрес */
+  const syncMeta = () => {
+    const doc = win.document; if (!doc || !doc.querySelector) return;
+    const href = `${loc.origin || ''}${loc.pathname}`;
+    const link = doc.querySelector('link[rel="canonical"]'); if (link) link.setAttribute('href', href);
+    const og = doc.querySelector('meta[property="og:url"]'); if (og) og.setAttribute('content', href);
+  };
   const write = (st, to, replace) => {
     if (replace) hist.replaceState(st, '', to); else hist.pushState(st, '', to);
     lastI = st.i;
+    syncMeta();
   };
   // первая загрузка или перезагрузка: запись без нашего состояния — заводим; слоёв после перезагрузки нет
   const adopt = () => {
@@ -63,6 +72,7 @@ export function createRouter(win) {
     else lastI = st.i;
   };
   adopt();
+  syncMeta();
   // прокрутку при «Назад» ведёт приложение: вкладка открывается сверху, учебник — там, где читали
   try { hist.scrollRestoration = 'manual'; } catch { /* старый браузер */ }
 
@@ -130,6 +140,7 @@ export function createRouter(win) {
     }
     // запись слоя, которого уже нет (закрыли кнопкой, а запись осталась позади): назад — проходим её насквозь
     if (!kept && st.d > layers.length && back && st.i > 0) { hist.back(); return; }
+    syncMeta();
     const r = current();
     subs.forEach((fn) => fn(r));
   };

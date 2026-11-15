@@ -3,7 +3,7 @@
    урока — «Сохраните прогресс» → регистрация: аккаунт забирает прогресс устройства.
    «У меня уже есть аккаунт» → вход (и восстановление по коду, если забыт пароль).
    У каждого экрана один «назад» — стрелка вверху слева. */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Timer, Coffee, Globe2 } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { authenticate, RecoveryCodeView, StorageWarning, NameRefused, ConsentBox, ParentStep, consentsReady, BirthYearField, birthYearOf, PasswordField, passwordLongEnough } from './account.jsx';
@@ -13,6 +13,8 @@ import { Mascot } from './mascot.jsx';
 import { InflatiaMark } from './logo.jsx';
 import { DsRoot, Button, IconButton, Heading } from './ds.jsx';
 import { useHistoryLayer } from './lib/route.js';
+import { PrivacyPage, PRIVACY_TITLE } from './privacy.jsx';
+import { TermsPage, TERMS_TITLE } from './terms.jsx';
 import { ArtStyle, Guilloche, Rosette } from './ds-art-core.jsx';
 import { dsThemeId } from './ds-tokens.js';
 import { loadProgress, saveProgress } from './textbook/progress.js';
@@ -42,6 +44,8 @@ const CSS = `
   .wl-top { display: flex; align-items: center; min-height: 44px; }
   .wl-body { flex: 1; display: flex; flex-direction: column; }
   .wl-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+  .wl-docs { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 8px; font-size: 13px; color: var(--ds-ink3); }
+  .wl-docs button { background: none; border: 0; padding: 0 2px; min-height: 44px; font: inherit; color: var(--ds-ink2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
   .wl-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .wl-opts .ds-opt { margin: 0; text-align: center; font-weight: 700; }
   .wl-err { color: var(--ds-bad); font-size: 14px; margin: 4px 0 8px; }
@@ -94,6 +98,10 @@ export const VALUE_POINTS = [
   ['Знания в деле', 'В «Мире» вы ведёте страну и видите, как работают ставка, бюджет и рынок.', Globe2],
 ];
 function Hello({ go }) {
+  // документы — с первого экрана: прочитать можно до регистрации (docs/mechanics.md, «Приветствие и загрузка»)
+  const [doc, setDoc] = useState(null); // null | 'privacy' | 'terms'
+  // воронка начинается с показа приветствия — раз с устройства (docs/mechanics.md, «Аналитика»)
+  useEffect(() => { trackOnce('welcome_view'); }, []);
   return (
     <div className="wl wl-hello" data-testid="welcome">
       {/* титул — как купюра: гильош, розетка-водяной знак, Инфля в середине */}
@@ -116,7 +124,14 @@ function Hello({ go }) {
         {/* «Мир» на пробу — без регистрации и уроков (docs/mechanics.md, «„Мир“ на пробу — без регистрации») */}
         <Button variant="ghost" wide icon={Globe2} data-testid="welcome-world" onClick={() => { Audio.prime(); Audio.play('click'); trackOnce('welcome_world_trial'); startWorldTrial(); }}>Сначала сыграть в «Мир»</Button>
         <div className="ds-faint" style={{ textAlign: 'center', fontSize: 13, marginTop: -6 }} data-testid="welcome-world-note">{Math.round(TRIAL_SECONDS / 60)} минут без регистрации</div>
+        <nav className="wl-docs" aria-label="Документы" data-testid="welcome-docs">
+          <button type="button" data-testid="welcome-privacy" onClick={() => setDoc('privacy')}>{PRIVACY_TITLE}</button>
+          <span aria-hidden="true">·</span>
+          <button type="button" data-testid="welcome-terms" onClick={() => setDoc('terms')}>{TERMS_TITLE}</button>
+        </nav>
       </div>
+      {doc === 'privacy' && <PrivacyPage onClose={() => setDoc(null)} />}
+      {doc === 'terms' && <TermsPage onClose={() => setDoc(null)} />}
     </div>
   );
 }

@@ -5011,6 +5011,49 @@ test('адреса: из партии «Назад» выходит в меню 
   expect(errors).toEqual([]);
 });
 
+/* ССЫЛКИ И ПОИСК (docs/mechanics.md, «Ссылки и поиск»; пункт владельца 13.11). */
+test('вход: ссылки и поиск — абсолютные og:image, og:url и canonical; robots.txt и sitemap.xml; документы с приветствия', async ({ page, request }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: null });
+  await expect(page.getByTestId('welcome')).toBeVisible();
+  const meta = await page.evaluate(() => ({
+    canonical: document.querySelector('link[rel=canonical]').href, ogUrl: document.querySelector('meta[property="og:url"]').content,
+    ogImage: document.querySelector('meta[property="og:image"]').content, tw: document.querySelector('meta[name="twitter:image"]').content,
+  }));
+  for (const [k, v] of Object.entries(meta)) expect(v, k).toMatch(/^https?:\/\/[^/]+\//);
+  expect(meta.ogImage).toMatch(/\/og-image\.png$/);
+  expect((await request.get(meta.ogImage.replace(/^https?:\/\/[^/]+/, ''))).ok()).toBe(true);
+  const robots = await request.get('/robots.txt');
+  expect(robots.ok()).toBe(true);
+  expect(await robots.text()).toMatch(/Disallow: \/api\/[\s\S]*Sitemap: https?:\/\/\S+\/sitemap\.xml/);
+  const map = await request.get('/sitemap.xml');
+  expect(map.ok()).toBe(true);
+  const xml = await map.text();
+  for (const p of ['/', '/book', '/league', '/shop', '/profile', '/world', '/news', '/book/supply-demand']) expect(xml, p).toMatch(new RegExp(`<loc>https?://[^/<]+${p === '/' ? '/' : p}</loc>`));
+  // документы — с первого экрана, до регистрации
+  await page.getByTestId('welcome-privacy').click();
+  await expect(page.getByTestId('privacy')).toBeVisible();
+  await page.getByTestId('privacy').locator('[data-nav="back"]').click();
+  await page.getByTestId('welcome-terms').click();
+  await expect(page.getByTestId('terms')).toBeVisible();
+  await page.getByTestId('terms').locator('[data-nav="back"]').click();
+  await expect(page.getByTestId('welcome')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('адреса: canonical и og:url следуют за экраном — у главы учебника её собственный адрес', async ({ page }) => {
+  const { errors } = await openApp(page, '/book/supply-demand', '{}', { tab: null });
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  const canon = () => page.evaluate(() => [new URL(document.querySelector('link[rel=canonical]').href).pathname, new URL(document.querySelector('meta[property="og:url"]').content).pathname]);
+  expect(await canon()).toEqual(['/book/supply-demand', '/book/supply-demand']);
+  await openTab(page, 'shop');
+  await expect(page.getByTestId('shop')).toBeVisible();
+  expect(await canon()).toEqual(['/shop', '/shop']);
+  await page.goBack();
+  await expect(page.getByTestId('chapter')).toBeVisible();
+  expect(await canon()).toEqual(['/book/supply-demand', '/book/supply-demand']);
+  expect(errors).toEqual([]);
+});
+
 /* НАГРАДЫ ЗА УРОК — ТОЛЬКО ЗА ЧЕСТНУЮ РАБОТУ (docs/mechanics.md, «Награды за урок…»; пункт владельца 13.11): точность с
    первой попытки ниже 60% или среднее время на вопрос меньше трети нормы — монет «За урок» и печатей нет, вместо них
    «Пройдите работу над ошибками». Раньше урок, пройденный наугад, платил 10 монет и печать «Первый шаг». */
