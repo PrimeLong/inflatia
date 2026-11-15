@@ -332,6 +332,9 @@ export const TEXTBOOK_CSS = `
     .ln-textbook.wide .tb-ch-main { max-width: 33em; }
     /* оглавление свёрнуто — узкая полоска с кнопкой, глава шире (пункт владельца 09.11) */
     .ln-textbook.wide .tb-ch-grid.folded { grid-template-columns: 44px minmax(0, 1fr); }
+    /* «Повторение» на ПК — колонкой посередине, как глава (пункт владельца 15.11: «повторение в учебнике съехало вправо»):
+       на строке во всю ширину метка «была ошибка», флажок и «Убрать из повторения» уезжали к правому краю экрана */
+    .ln-textbook.wide [data-testid="review-page"] { max-width: 860px; margin: 0 auto; }
     .ln-textbook.wide .tb-ch-grid.folded .tb-ch-main { max-width: 33em; margin: 0 auto; width: 100%; }
     .ln-textbook.wide .tb-body { font-size: 16px; }
     .ln-textbook.wide .tb-ch-main.tb-body { font-size: 18px; }

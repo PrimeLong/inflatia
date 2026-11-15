@@ -791,7 +791,7 @@ test('учебник: калькулятор по полям а → б → в, �
   expect(errors).toEqual([]);
 });
 
-test('повторение прочитанного: у вопроса «Вспомните» — флажок «Сообщить об ошибке», как у задач', async ({ page }) => {
+test('повторение прочитанного: у вопроса «Вспомните» — флажок «Сообщить об ошибке», как у задач', async ({ page, isMobile }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 3 * 86400000;
@@ -803,6 +803,12 @@ test('повторение прочитанного: у вопроса «Всп�
   await openTasks(page);
   await page.getByTestId('practice-review').click();
   const review = page.getByTestId('review');
+  // на ПК повторение — колонкой посередине, как глава, а не во всю ширину (пункт владельца 15.11)
+  if (!isMobile) {
+    const col = await page.getByTestId('review-page').boundingBox();
+    expect(col.width).toBeLessThanOrEqual(861);
+    expect(Math.abs(col.x + col.width / 2 - page.viewportSize().width / 2)).toBeLessThan(12);
+  }
   const recall = review.locator('[data-testid=review-item][data-item="sc-r-oc"]');
   await expect(recall.getByTestId('tb-recall')).toBeVisible();
   await expect(recall.getByTestId('tb-report')).toHaveCount(1);
