@@ -588,7 +588,7 @@ export function GainsList({ coins, gains, label = 'За урок' }) {
         <Coins size={20} color="var(--ds-gold)" aria-hidden="true" /><CountUp value={total} prefix="+" /> <span style={{ font: '15px var(--ds-sans)' }}>{coinsWord(total)}</span>
       </div>
       <div style={{ marginTop: 6 }}>
-        {coins > 0 && <div className="ds-row" style={{ fontSize: 13.5 }}><span>{label}</span><b className="ds-num">+{coins}</b></div>}
+        {coins > 0 && <div className="ds-row" style={{ fontSize: 13.5 }} data-testid="result-lesson-coins"><span>{label}</span><b className="ds-num">+{coins}</b></div>}
         {gains.map((g) => <div key={g.key} className="ds-row" style={{ fontSize: 13.5 }} data-testid="gain" data-kind={g.kind}><span>{g.title}</span><b className="ds-num">+{g.coins}</b></div>)}
       </div>
     </div>

@@ -64,6 +64,16 @@ export function runCoins({ mode, replay = false, accuracy = 0, pass = null, item
   if (mode === 'check') return pass ? COIN.check : 0;
   return 0;
 }
+/* ЧЕСТНАЯ РАБОТА (docs/mechanics.md, «Награды за урок: только за честную работу»): монеты «За урок» и печати не
+   выдаются, если точность с первой попытки ниже FAIR.accuracy или среднее время на вопрос меньше FAIR.speed нормы
+   (SECONDS в src/learn/course.js) — урок «прощёлкан». Урок при этом пройден, Путь открыт дальше; монеты за него
+   ждут честного повтора. ms — время урока, normMs — сумма норм его заданий. Ответ — почему нечестно, или null. */
+export const FAIR = { accuracy: 60, speed: 1 / 3 };
+export const fairRun = ({ accuracy = 0, ms = 0, normMs = 0, checkSpeed = true }) => (accuracy < FAIR.accuracy ? 'accuracy'
+  : checkSpeed && normMs > 0 && ms < normMs * FAIR.speed ? 'speed' : null);
+/* уроки, за которые монеты придержаны: пройдены с точностью ниже порога и «За урок» ещё не получено. Пока такие
+   есть, печати не выдаются: сначала — работа над ошибками и честный повтор */
+export const heldLessons = (s) => Object.keys((s && s.lessons) || {}).filter((id) => { const l = s.lessons[id]; return l.runs > 0 && l.held && !hasClaim(s, `l:${id}`); });
 // ключ награды: первое прохождение урока и первый алмаз — по разу
 export const runKey = ({ mode, lessonId, replay, diamond, gem, levelId = null, pass = false, confirmed = false }) => (mode === 'level' ? (pass ? `lvok:${levelId}` : confirmed ? null : `lv:${levelId}`)
   : mode !== 'lesson' ? null : diamond ? (gem ? null : `d:${lessonId}`) : replay ? null : `l:${lessonId}`);
@@ -605,7 +615,7 @@ const SESSION_PAID = new Map();
 let guardHook = null;
 export const onCoinGuard = (fn) => { guardHook = fn; };
 export const resetCoinGuard = () => { SESSION_PAID.clear(); };
-export function settle(s, ctx, now = Date.now()) {
+export function settle(s, ctx, now = Date.now(), { seals = true } = {}) {
   const gains = [];
   const give = (t, n, key, title, kind) => {
     const paid = key ? SESSION_PAID.get(key) : null;
@@ -631,7 +641,8 @@ export function settle(s, ctx, now = Date.now()) {
   const m = monthChallenge(t, now);
   if (m.done) t = give(t, m.coins, m.key, `Испытание месяца: ${m.name}`, 'month');
   const full = { longest: longestStreak(t), ...ctx };
-  ACHIEVEMENTS.forEach((a) => { if (a.test(t, full)) t = give(t, a.coins, achievementKey(a.id), `Печать «${a.title}»`, 'achievement'); });
+  // печати — только за честную работу: не в уроке, пройденном наугад или на скорость, и пока такой урок не повторён
+  if (seals && !heldLessons(t).length) ACHIEVEMENTS.forEach((a) => { if (a.test(t, full)) t = give(t, a.coins, achievementKey(a.id), `Печать «${a.title}»`, 'achievement'); });
   return { s: t, gains };
 }
 /* Плашка выплаты вне урока (docs/mechanics.md, «Экономика наград»): settle выдал накопленное при действии

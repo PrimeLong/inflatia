@@ -148,12 +148,12 @@ describe('слабые темы и «рекомендуем сейчас»', () 
   const done = (ids) => ids.reduce((s, id) => lessonOn(s, id, '2026-09-27'), emptyLearn());
   const topics = (s, map) => ({ ...s, topics: Object.fromEntries(Object.entries(map).map(([id, [ok, n]]) => [id, { ok, n }])) });
   it('слабая тема — пройденный урок с точностью ниже 70% (от четырёх попыток), слабейшие первыми', () => {
-    const s = topics(done(['sc-i1', 'sc-l1', 'sc-l2']), { 'sc-i1': [9, 10], 'sc-l1': [2, 6], 'sc-l2': [3, 5], 'sc-l3': [0, 5] });
+    const s = topics(done(['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2']), { 'sc-i1': [9, 10], 'sc-l1': [2, 6], 'sc-l2': [3, 5], 'sc-l3': [0, 5] });
     expect(weakLessons(s).map((w) => w.id)).toEqual(['sc-l1', 'sc-l2']);
     expect(lessonOpts(s).weak).toEqual(['sc-l1', 'sc-l2']);
   });
   it('рекомендуем: всегда следующая непройденная остановка; слабое место (ниже 60%) — отдельно, без отметки над пройденным уроком', () => {
-    const base = done(['sc-i1', 'sc-l1', 'sc-l2']);
+    const base = done(['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2']);
     const cur = pathState(base).find((x) => x.current).current.id;
     expect(recommend(base)).toEqual({ lessonId: cur, why: 'next' });
     expect(recommend(topics(base, { 'sc-l2': [3, 5] }))).toEqual({ lessonId: cur, why: 'next' });

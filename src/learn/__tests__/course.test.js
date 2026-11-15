@@ -151,7 +151,8 @@ describe.each(PATH)('юнит %s', (unitId) => {
       for (let s = 1; s <= N; s += 1) {
         const { seconds, items } = buildLesson(l.id, seeded(s));
         if (l.kind === 'game') { expect(seconds, l.id).toBe(items[0].kind === 'wallet' ? 120 : 60); continue; }
-        expect(seconds, `${l.id}: ${seconds} с`).toBeGreaterThanOrEqual(STEPPED.includes(l.kind) ? 120 : 180);
+        // первый урок курса разделён на два коротких (не больше четырёх новых идей в уроке): им хватает минуты
+        expect(seconds, `${l.id}: ${seconds} с`).toBeGreaterThanOrEqual(['sc-i1', 'sc-i1b'].includes(l.id) ? 60 : STEPPED.includes(l.kind) ? 120 : 180);
         expect(seconds, `${l.id}: ${seconds} с`).toBeLessThanOrEqual(300);
       }
     });
@@ -790,7 +791,7 @@ describe('алмазный уровень', () => {
   });
   it('«Знакомство» с алмазными шагами: шаги и вопросы после них есть только на алмазном уровне', () => {
     const deep = lessons.filter((l) => l.inner.some((c) => c.diamond));
-    expect(deep.map((l) => l.id).sort()).toEqual(['cm-i1', 'cm-i2', 'cs-i1', 'cs-i2', 'ct-i1', 'ct-i2', 'el-i1', 'el-i2', 'in-i1', 'in-i2', 'lm-i1', 'lm-i2', 'mb-i1', 'mb-i2', 'mc-i1', 'mc-i2', 'mf-i1', 'mf-i2', 'pr-i1', 'pr-i2', 'sc-i1', 'sc-i2', 'sd-i1', 'sd-i2']);
+    expect(deep.map((l) => l.id).sort()).toEqual(['cm-i1', 'cm-i2', 'cs-i1', 'cs-i2', 'ct-i1', 'ct-i2', 'el-i1', 'el-i2', 'in-i1', 'in-i2', 'lm-i1', 'lm-i2', 'mb-i1', 'mb-i2', 'mc-i1', 'mc-i2', 'mf-i1', 'mf-i2', 'pr-i1', 'pr-i2', 'sc-i1', 'sc-i1b', 'sc-i2', 'sd-i1', 'sd-i2']);
     deep.forEach((l) => {
       const plainIds = buildLesson(l.id, seeded(1)).items.map((it) => it.id);
       const gemPlan = buildLesson(l.id, seeded(1), { diamond: true });

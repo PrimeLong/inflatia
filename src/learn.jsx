@@ -510,6 +510,7 @@ export const CSS = `
   .ln-lvrev[data-state="locked"] .ln-lvrev-icon { background: var(--ds-card2); color: var(--ds-ink3); box-shadow: none; }
   .ln-lvrev-seal { width: 30px; height: 30px; flex: none; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--ds-ok); transform: rotate(-8deg); }
   @media (prefers-reduced-motion: reduce) { .ln-lvrev.cur { animation: none; } }
+  .ln-unfair { margin-top: 12px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--ds-rule2); background: var(--ds-card2); font-size: 14.5px; line-height: 1.45; text-align: left; }
   .ln-soon-head { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; color: inherit; font: inherit; padding: 12px 14px; cursor: pointer; text-align: left; }
 `;
 

@@ -1946,7 +1946,7 @@ test('путь: карточка урока, «Знакомство» шагам
   await expect(path.getByTestId('level-switch')).toContainText('Начальный');
   await expect(path.getByTestId('level-prev')).toBeDisabled();
   await expect(path.getByTestId('level-next')).toHaveAttribute('data-locked', 'true');
-  await expect(path.getByTestId('path-lesson')).toHaveCount(24);
+  await expect(path.getByTestId('path-lesson')).toHaveCount(25);
   await expect(path.getByTestId('path-level')).toContainText('основные термины');
   // глав «в планах» в Начальном больше нет — «Рынок труда» вышел
   await expect(path.getByTestId('path-soon')).toHaveCount(0);
@@ -2006,7 +2006,8 @@ test('путь: карточка урока, «Знакомство» шагам
   await page.getByRole('button', { name: 'Дальше', exact: true }).click();
   const { retries, cards } = await playLesson(page);
   expect(retries, 'та же задача в конце урока не возвращается').toBe(0);
-  expect(cards, 'перед каждым вопросом — свой шаг').toBeGreaterThanOrEqual(4);
+  // в первом уроке четыре идеи (docs/mechanics.md, «Первый урок — не больше четырёх новых идей»): первая уже пройдена выше
+  expect(cards, 'перед каждым вопросом — свой шаг').toBeGreaterThanOrEqual(3);
   const result = page.getByTestId('lesson-result');
   await expect(result).toContainText('Урок пройден');
   await expect(page.getByTestId('coins')).toHaveCount(1);
@@ -2027,9 +2028,9 @@ test('путь: карточка урока, «Знакомство» шагам
   // прогресс заданий виден без открытия: строка «что продвинулось» и подросшее кольцо в карточке «Задания»
   await expect(page.getByTestId('tasks-news').first()).toBeAttached();
   expect(await page.getByTestId('tasks-ring').evaluateAll((els) => els.some((e) => Number(e.dataset.have) > 0))).toBe(true);
-  await expect(pathNode(page, 'sc-l1')).toHaveAttribute('data-state', 'open');
-  await expect(pathNode(page, 'sc-l1').getByTestId('unlock-anim')).toHaveCount(1);
-  await expect(pathNode(page, 'sc-l1').getByTestId('unlock-anim')).toHaveCount(0, { timeout: 5000 });
+  await expect(pathNode(page, 'sc-i1b')).toHaveAttribute('data-state', 'open');
+  await expect(pathNode(page, 'sc-i1b').getByTestId('unlock-anim')).toHaveCount(1);
+  await expect(pathNode(page, 'sc-i1b').getByTestId('unlock-anim')).toHaveCount(0, { timeout: 5000 });
   await expect(page.getByTestId('streak')).toHaveText('1');
   await expect(page.getByTestId('streak-chip')).toHaveAttribute('data-today', 'true');
   // цель дня — минуты занятий (по умолчанию 10)
@@ -2242,7 +2243,7 @@ test('путь: после алмазного урока на прошлом у�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -2332,7 +2333,7 @@ test('урок: после перезагрузки продолжается с 
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(['sc-i1', 'sc-l1', 'sc-l2'].map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2'].map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   // серия дня — в сохранённом состоянии ученика
@@ -2390,7 +2391,7 @@ test('путь: юнит «Спрос и предложение» — кажды
   // юнит пройден — любой урок открыт для повтора
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -2508,7 +2509,7 @@ test('путь: юнит «Порт» (провалы рынка) — кажды
   await withTestFlag(page);
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
       'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum',
       'el-i1', 'el-l1', 'el-i2', 'el-l2', 'el-w', 'el-s1', 'el-radio', 'el-g', 'el-rev', 'el-sum',
       'mf-i1', 'mf-l1', 'mf-i2', 'mf-l2', 'mf-w', 'mf-s1', 'mf-radio', 'mf-g', 'mf-rev', 'mf-sum'];
@@ -2548,7 +2549,7 @@ test('путь: юнит «Банк» (деньги и банки) — кажд�
   await withTestFlag(page);
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
       'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum',
       'el-i1', 'el-l1', 'el-i2', 'el-l2', 'el-w', 'el-s1', 'el-radio', 'el-g', 'el-rev', 'el-sum',
       'mf-i1', 'mf-l1', 'mf-i2', 'mf-l2', 'mf-w', 'mf-s1', 'mf-radio', 'mf-g', 'mf-rev', 'mf-sum'];
@@ -2588,7 +2589,7 @@ test('путь: юнит «Инфляция» — каждый урок прох
   await withTestFlag(page);
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
       'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum',
       'el-i1', 'el-l1', 'el-i2', 'el-l2', 'el-w', 'el-s1', 'el-radio', 'el-g', 'el-rev', 'el-sum',
       'mf-i1', 'mf-l1', 'mf-i2', 'mf-l2', 'mf-w', 'mf-s1', 'mf-radio', 'mf-g', 'mf-rev', 'mf-sum',
@@ -3176,7 +3177,7 @@ test('лиги: в воскресенье перерыв — итоги неде
 const unitDone = (page) => page.addInitScript(() => {
   if (localStorage.getItem('ems-textbook-v1')) return;
   const at = Date.now() - 86400000;
-  const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum'];
+  const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum'];
   localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
 });
 /* Мини-игра на время: в тесте игра короче (window.__INFLATIA_GAME_SECONDS__), каждая карточка —
@@ -3765,7 +3766,7 @@ test('вход: программа — вступительный тест, су
   await result.getByRole('button', { name: 'Дальше', exact: true }).click();
   // уроки юнита 1 открыты, но не пройдены; юнит 2 открыт с начала; приглашения на тест больше нет
   await expect(page.getByTestId('placement-card')).toHaveCount(0);
-  await expect(page.locator('[data-testid="path-unit"][data-unit="scarcity"] [data-testid="path-lesson"][data-state="open"]')).toHaveCount(14);
+  await expect(page.locator('[data-testid="path-unit"][data-unit="scarcity"] [data-testid="path-lesson"][data-state="open"]')).toHaveCount(15);
   await expect(page.locator('[data-testid="path-unit"][data-unit="scarcity"] [data-testid="path-lesson"][data-state="done"]')).toHaveCount(0);
   await expect(page.getByTestId('path-rec')).toHaveText(/рекомендуем/i);
   await showUnit(page, 'labor');
@@ -3912,7 +3913,7 @@ test('навигация: у каждого экрана один «назад»
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', accountApi, { tab: 'path' });
@@ -4175,7 +4176,7 @@ test('мир: выключенная музыка не включается по
 test('теория из карточки урока: внизу отмечен «Учебник», вкладка «Путь» закрывает учебник', async ({ page }) => {
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
       'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum',
       'el-i1', 'el-l1', 'el-i2', 'el-l2', 'el-w', 'el-s1', 'el-radio', 'el-g', 'el-rev', 'el-sum', 'cs-i1', 'cs-l1', 'cs-i2', 'cs-l2', 'cs-w'];
     if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
@@ -4201,7 +4202,7 @@ test('новые глаголы: «Откройте сами», живая мо�
   await withTestFlag(page);
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
     // sc-l1 пройден со слабой точностью: «рекомендуем» над ним висеть не должно
     if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: {
       lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), topics: { 'sc-l1': { n: 5, ok: 1 } }, coins: { '2026-01-01': 400 } } }));
@@ -4466,7 +4467,7 @@ test('Путь: открывается на рекомендованном ур�
   await withTestFlag(page);
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-i1', 'sd-l1'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-i1', 'sd-l1'];
     if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: {
       lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), claimed: { 'c:scarcity': at }, coins: { '2026-01-01': 400 } } }));
   });
@@ -4494,7 +4495,7 @@ test('Путь: открывается на рекомендованном ур�
   expect(titleBox.x + titleBox.width).toBeLessThanOrEqual((await sc.getByTestId('unit-guide').boundingBox()).x + 1);
   await sc.getByTestId('unit-fold').click();
   await expect(sc).toHaveAttribute('data-folded', 'false');
-  await expect(sc.getByTestId('path-lesson')).toHaveCount(14);
+  await expect(sc.getByTestId('path-lesson')).toHaveCount(15);
   // и обратно — свернуть (ниже касание места на карте раскроет его само)
   await sc.getByTestId('unit-fold').click();
   await expect(sc).toHaveAttribute('data-folded', 'true');
@@ -4562,7 +4563,7 @@ test('Путь: проверку пройденного юнита можно п
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -4595,7 +4596,7 @@ test('«Слушай» можно пропустить с билета урок�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum',
       'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
@@ -4786,7 +4787,7 @@ test('Путь: тест уровня — сдан, и Путь сразу на 
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -4828,7 +4829,7 @@ test('«Большое повторение» в конце уровня: нов
     localStorage.setItem('ems-level-test', '1');
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -5007,6 +5008,58 @@ test('адреса: из партии «Назад» выходит в меню 
   expect(await page.evaluate(() => !!localStorage.getItem('ems-autosave-v1'))).toBe(true);
   await page.reload({ waitUntil: 'networkidle' });
   await expect(page.getByTestId('world')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/* НАГРАДЫ ЗА УРОК — ТОЛЬКО ЗА ЧЕСТНУЮ РАБОТУ (docs/mechanics.md, «Награды за урок…»; пункт владельца 13.11): точность с
+   первой попытки ниже 60% или среднее время на вопрос меньше трети нормы — монет «За урок» и печатей нет, вместо них
+   «Пройдите работу над ошибками». Раньше урок, пройденный наугад, платил 10 монет и печать «Первый шаг». */
+test('награды: урок наугад (точность ниже 60%) — без монет «За урок» и печатей, «Пройдите работу над ошибками»; честный повтор платит', async ({ page }) => {
+  test.setTimeout(150_000);
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-i1');
+  // почти все ответы — неверно с первой попытки
+  await playLesson(page, { wrongAt: Array.from({ length: 30 }, (_, k) => k) });
+  const res = page.getByTestId('lesson-result');
+  expect(Number((await res.getByTestId('result-acc').innerText()).replace(/\D+/g, ''))).toBeLessThan(60);
+  const note = res.getByTestId('result-unfair');
+  await expect(note).toBeVisible();
+  await expect(note).toHaveAttribute('data-why', 'accuracy');
+  await expect(note).toContainText('Пройдите работу над ошибками');
+  // ни строки «За урок», ни печатей
+  await expect(res.getByTestId('gain').filter({ hasText: 'Печать' })).toHaveCount(0);
+  await expect(res.getByTestId('result-lesson-coins')).toHaveCount(0);
+  const held = () => page.evaluate(() => { const l = JSON.parse(localStorage.getItem('ems-textbook-v1')).learn; return { held: !!l.lessons['sc-i1'].held, paid: !!(l.claimed || {})['l:sc-i1'], runs: l.lessons['sc-i1'].runs }; });
+  expect(await held()).toEqual({ held: true, paid: false, runs: 1 });
+  await res.getByRole('button', { name: /Дальше|Готово|На Путь/ }).first().click();
+  // урок засчитан: следующий открыт
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(pathNode(page, 'sc-i1')).toHaveAttribute('data-state', 'done');
+  // честный повтор: монеты «За урок» выданы как за первое прохождение, отметка снята
+  await startLesson(page, 'sc-i1');
+  await playLesson(page);
+  const res2 = page.getByTestId('lesson-result');
+  await expect(res2.getByTestId('result-unfair')).toHaveCount(0);
+  await expect(res2.getByTestId('result-lesson-coins')).toBeVisible();
+  expect(await held()).toEqual({ held: false, paid: true, runs: 2 });
+  expect(errors).toEqual([]);
+});
+
+test('награды: урок «на скорость» (быстрее трети нормы на вопрос) — без монет и печатей, даже без ошибок', async ({ page }) => {
+  test.setTimeout(120_000);
+  await withTestFlag(page);
+  // автотест отвечает мгновенно; проверку скорости включаем сами
+  await page.addInitScript(() => localStorage.setItem('ems-fair-test', '1'));
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-i1');
+  await playLesson(page);
+  const res = page.getByTestId('lesson-result');
+  await expect(res.getByTestId('result-acc')).toContainText('100%');
+  await expect(res.getByTestId('result-unfair')).toHaveAttribute('data-why', 'speed');
+  await expect(res.getByTestId('result-unfair')).toContainText('слишком быстро');
+  await expect(res.getByTestId('result-lesson-coins')).toHaveCount(0);
+  await expect(res.getByTestId('gain').filter({ hasText: 'Печать' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -5261,8 +5314,9 @@ test('доступность: цели касания не меньше 44×44 �
   const big = async (loc, name) => {
     const b = await loc.boundingBox();
     expect(b, `${name}: не на экране`).toBeTruthy();
-    expect(b.width, `${name}: ширина`).toBeGreaterThanOrEqual(44);
-    expect(b.height, `${name}: высота`).toBeGreaterThanOrEqual(44);
+    // дробные доли пикселя при масштабе экрана телефона — не в счёт
+    expect(b.width, `${name}: ширина`).toBeGreaterThanOrEqual(43.9);
+    expect(b.height, `${name}: высота`).toBeGreaterThanOrEqual(43.9);
   };
   await big(page.getByRole('button', { name: 'Мельче текст' }), 'мельче текст');
   await big(page.getByRole('button', { name: 'Крупнее текст' }), 'крупнее текст');
@@ -5559,7 +5613,7 @@ test('монеты не появляются молча: цель дня вып�
     const D = 86400000; const at = Date.now() - D;
     const day = new Date().toISOString().slice(0, 10);
     // 35 монет; сегодня позанимались 10 минут (цель дня по умолчанию) — награда за цель ещё не выдана
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), coins: { '2026-01-01': 35 }, daily: { [day]: { s: 600 } } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
@@ -5682,7 +5736,7 @@ test('церемонии: юнит пройден — «Новая марка»,
     localStorage.setItem('ems-celebrated', '{}');
     const at = Date.now() - 3600000; const d = new Date();
     const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), claimed: { 'a:unit': at, [`m:${ym}`]: at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -5745,7 +5799,7 @@ test('ПК от 1024 px: Путь в две колонки, у главы уче
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -5888,7 +5942,7 @@ test('антистресс: после четырёх уроков — знак�
     localStorage.setItem('ems-antistress-test', '1');
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(['sc-i1', 'sc-l1', 'sc-l2'].map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2'].map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   const box = page.getByTestId('antistress');
@@ -6168,29 +6222,29 @@ test('Путь: наверху — уровень знаний маленьки�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
-    // в прошлый раз ученик видел 2 — теперь 4: рост показывается «+2»
+    // в прошлый раз ученик видел 2 — теперь 5: рост показывается «+3»
     if (!sessionStorage.getItem('seen-once')) { localStorage.setItem('ems-know-seen', '2'); sessionStorage.setItem('seen-once', '1'); }
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   const grade = page.getByTestId('course-level');
-  await expect(grade).toHaveAttribute('data-done', '4');
-  // 4 урока на 90%: по 1 за урок, без «условных единиц из 1000» и без ступеней A1…C2
-  await expect(grade).toHaveAttribute('data-points', '4');
-  await expect(page.getByTestId('course-points')).toHaveText('4');
-  await expect(grade).toHaveAttribute('data-gain', '2');
-  await expect(page.getByTestId('course-gain')).toHaveText('+2');
+  await expect(grade).toHaveAttribute('data-done', '5');
+  // 5 уроков на 90%: по 1 за урок, без «условных единиц из 1000» и без ступеней A1…C2
+  await expect(grade).toHaveAttribute('data-points', '5');
+  await expect(page.getByTestId('course-points')).toHaveText('5');
+  await expect(grade).toHaveAttribute('data-gain', '3');
+  await expect(page.getByTestId('course-gain')).toHaveText('+3');
   await expect(grade).toContainText('Уровень знаний');
   await expect(grade).toContainText('Начальный уровень курса');
-  await expect(page.getByTestId('course-next')).toHaveText('Пройдено уроков уровня: 4 из 24');
+  await expect(page.getByTestId('course-next')).toHaveText('Пройдено уроков уровня: 5 из 25');
   await expect(grade.locator('.ln-know-steps i')).toHaveCount(5);
   await expect(grade.locator('.ln-know-steps i.on')).toHaveText('1');
   await expect(grade).not.toContainText(/условн|из 1000|\b[ABC][12]\b/);
   await expect(page.getByTestId('wallet-balance')).toHaveCount(0);
   // число запомнено: при следующем заходе роста нет
   await page.reload();
-  await expect(page.getByTestId('course-level')).toHaveAttribute('data-points', '4');
+  await expect(page.getByTestId('course-level')).toHaveAttribute('data-points', '5');
   await expect(page.getByTestId('course-gain')).toHaveCount(0);
   // на узком телефоне подписи не вылезают за рамку
   // текст для чтения с экрана обрезан нарочно — его не считаем
@@ -6207,7 +6261,7 @@ test('живая модель: знакомство — карточка «Но�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-i1'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-i1'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -6282,7 +6336,7 @@ test('«Чтение» — урок на дороге юнита: после у�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -6348,7 +6402,7 @@ test('«Чтение» перечитано: книга уже стоит на �
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), read: { 'read-choice': at }, met: { 'people-scarcity': at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -6385,7 +6439,7 @@ test('«Чтение» на алмаз: контекст после ответа
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), read: { 'read-choice': at }, met: { 'people-scarcity': at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -6686,7 +6740,7 @@ test('темы урока: поле ответа, цифровая клавиа�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), owned: { 'theme-exchange': at }, wear: { theme: 'theme-exchange', at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -7134,7 +7188,7 @@ test('«Работа над ошибками»: много ошибок в юн�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2'];
     const mistakes = ['sc-e1-best', 'sc-e1-free', 'sc-e1-gap', 'sc-e1-uni', 'sc-e2-concert', 'sc-e2-project'].map((id, k) => ({ id, at: at + k }));
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 60 }])), mistakes } }));
   });
@@ -7214,7 +7268,7 @@ test('открытия: новичку лиги, лавка, копилка и �
   // второй урок пройден только что — лавка открылась: сцена «Открылось», «Заглянуть» ведёт в лавку
   await page.evaluate(() => {
     const p = JSON.parse(localStorage.getItem('ems-textbook-v1'));
-    p.learn.lessons['sc-l1'] = { at: Date.now() - 60000, runs: 1, best: 90 };
+    p.learn.lessons['sc-i1b'] = { at: Date.now() - 60000, runs: 1, best: 90 };
     localStorage.setItem('ems-textbook-v1', JSON.stringify(p));
   });
   await page.reload({ waitUntil: 'networkidle' });
@@ -7278,7 +7332,7 @@ test('особые уроки не пропустить: после урока �
     localStorage.setItem('ems-extra-test', '1');
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -7485,7 +7539,7 @@ test('«Разбор графика» — остановка на дороге �
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -7553,7 +7607,7 @@ test('«Разбор графика» на ПК: черновик на поля�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
     localStorage.setItem('ems-sketch-on', '1');
   });
@@ -7779,6 +7833,8 @@ test('график рынка труда: подпись «безработиц�
   const seg = chart.locator('text[data-seg-side]');
   await expect(seg).toHaveText('безработица');
   await expect(seg).toHaveAttribute('data-seg-side', 'above');
+  // график доезжает плавно — меряем, когда кривые и подписи встали на место
+  await page.waitForTimeout(900);
   const boxes = await chart.locator('svg text').evaluateAll((els) => els.map((e) => ({ t: e.textContent, b: e.getBoundingClientRect().toJSON() })));
   const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
   const u = boxes.find((x) => x.t === 'безработица'); const e = boxes.find((x) => x.t === 'E');
@@ -7792,7 +7848,7 @@ test('«Куда сдвинется?»: кривая сдвигается пла
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -7832,7 +7888,7 @@ test('итоги урока на телефоне 360: плитки ровные
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -7855,7 +7911,7 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -7906,7 +7962,7 @@ test('«Нарисуй сам»: во весь экран график — по 
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -7998,7 +8054,7 @@ test('«Разбор графика» на алмаз: пропущенное с
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -8053,7 +8109,7 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), met: { 'people-scarcity': at }, graphs: { 'graph-ppf': at }, draws: { 'draw-ppf': at } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -8101,7 +8157,7 @@ test('«Нарисуй сам» — остановка за графиком ю�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -8187,7 +8243,7 @@ test('юнит пройден — после «Дальше» на итогах 
     localStorage.setItem('ems-chest-test', '1');
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -8229,7 +8285,7 @@ test('защита монет: у ученика с длинной истори�
     // 300 ключей уроков и алмазов — раньше из-за них при обрезке по алфавиту терялись «st:3», «st:7», «st:30»
     const claimed = { 'st:3': now - 20 * D, 'st:7': now - 15 * D, 'st:14': now - 10 * D, 'st:30': now - D };
     for (let i = 0; i < 300; i += 1) claimed[`l:x${i}`] = now - 40 * D;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at: now - D, runs: 1, best: 90 }])), done, xp: done, claimed, coins: { [day(1)]: 500 } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -8260,7 +8316,7 @@ test('«Соедините» — как «вставьте слово»: сло�
   await withTestFlag(page);
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2'];
     if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -8441,7 +8497,7 @@ test('дюп: лишние монеты списаны, купленная на 
     if (localStorage.getItem('ems-textbook-v1')) return;
     const now = Date.now(); const day = new Date(now - 86400000).toISOString().slice(0, 10);
     // шесть уроков (лавка открыта), а монет — 4000 за один день (повторные бонусы серии), и всё потрачено на корону и медаль
-    const ids = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: {
       lessons: Object.fromEntries(ids.map((id) => [id, { at: now - 86400000, runs: 1, best: 90 }])),
       done: { [day]: 6 }, xp: { [day]: 120 }, coins: { [day]: 4000 }, spent: { [day]: 4000 },

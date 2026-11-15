@@ -334,14 +334,16 @@ export const DIAMOND_ACCURACY = 80;
 /* extra — особый урок дороги (Персоналии, Чтение, Разбор графика): у него нет номера урока, но в
    заданиях дня он считается как урок (l, p), а пройденный впервые (extra.fresh) — и как новый урок
    на Пути (n). Раньше такие уроки не засчитывались ни как урок, ни как новый (жалоба). */
-export function finishLesson(s, lessonId, { xp, accuracy, now = Date.now(), count = true, seconds = 0, kind = null, mode = 'lesson', diamond = false, extra = null }) {
+export function finishLesson(s, lessonId, { xp, accuracy, now = Date.now(), count = true, seconds = 0, kind = null, mode = 'lesson', diamond = false, extra = null, held = false }) {
   const day = dayOf(now);
   const prev = s.lessons[lessonId];
   // урок впервые пройден сейчас: старые записи вступительного теста (runs: 0) не в счёт —
   // иначе у них оставалась давняя дата, и задание «Пройти новый урок» не засчитывалось
   const fresh = !!lessonId && !(prev && prev.runs > 0);
   const gem = (prev && prev.diamond) || (diamond && accuracy >= DIAMOND_ACCURACY ? now : 0);
-  const lessons = lessonId ? { ...s.lessons, [lessonId]: { at: fresh ? now : prev.at, runs: (prev ? prev.runs : 0) + 1, best: Math.max(prev ? prev.best : 0, Math.round(accuracy)), ...(gem ? { diamond: gem } : {}) } } : s.lessons;
+  const lessons = lessonId ? { ...s.lessons, [lessonId]: { at: fresh ? now : prev.at, runs: (prev ? prev.runs : 0) + 1, best: Math.max(prev ? prev.best : 0, Math.round(accuracy)), ...(gem ? { diamond: gem } : {}),
+    // held — монеты «За урок» придержаны: урок пройден наугад или на скорость (src/learn/rewards.js, fairRun); честный повтор снимает отметку
+    ...(held ? { held: 1 } : {}) } } : s.lessons;
   const d = dayEntry(s, day);
   // «Ранняя пташка» и «Сова» — по часам устройства (местное время), а не по UTC: утро у каждого своё
   const hour = new Date(now).getHours();
@@ -561,13 +563,27 @@ const dayMap = (v, hi) => {
   Object.keys(obj(v)).filter(isDay).sort().slice(-MAX_DAYS).forEach((k) => { const x = cnt(v[k], hi); if (x > 0) out[k] = x; });
   return out;
 };
+/* УРОК РАЗДЕЛЁН (docs/mechanics.md, «Первый урок — не больше четырёх новых идей»): первый урок «Знакомство» был
+   на семь идей; с 13 ноября 2026 последние три — отдельный урок sc-i1b. Кто ушёл дальше прежнего урока (прошёл
+   следующий, past), прошёл и их: новая часть засчитана ему с датой и точностью прежнего урока — иначе посреди
+   пройденного юнита появился бы непройденный урок, и Путь вернул бы ученика в начало. Кто прошёл только первый
+   урок, встретит вторую часть следующим уроком. */
+export const LESSON_SPLITS = [{ part: 'sc-i1b', from: 'sc-i1', past: 'sc-l1' }];
+const applySplits = (lessons) => {
+  LESSON_SPLITS.forEach(({ part, from, past }) => {
+    const src = lessons[from]; const next = lessons[past];
+    if (src && src.runs > 0 && next && next.runs > 0 && !lessons[part]) lessons[part] = { at: src.at, runs: 1, best: src.best };
+  });
+  return lessons;
+};
 export function normalizeLearn(raw) {
   const r = obj(raw); const e = emptyLearn();
   const lessons = {};
   Object.keys(obj(r.lessons)).filter(okKey).slice(0, MAX_KEYS).forEach((k) => {
     const l = obj(r.lessons[k]); const gem = cnt(l.diamond, 1e14);
-    lessons[k] = { at: cnt(l.at, 1e14), runs: cnt(l.runs, 1e5), best: cnt(l.best, 100), ...(gem ? { diamond: gem } : {}) };
+    lessons[k] = { at: cnt(l.at, 1e14), runs: cnt(l.runs, 1e5), best: cnt(l.best, 100), ...(gem ? { diamond: gem } : {}), ...(l.held ? { held: 1 } : {}) };
   });
+  applySplits(lessons);
   const units = {};
   Object.keys(obj(r.units)).filter(okKey).slice(0, MAX_KEYS).forEach((k) => { const u = obj(r.units[k]); const t = cnt(u.tested, 1e14); const ace = cnt(u.ace, 1e14); if (t) units[k] = { tested: t, ...(ace ? { ace } : {}) }; });
   // «Большое повторение» уровня: когда пройдено впервые, лучшая точность, когда уровень подтверждён (80%+)
@@ -751,7 +767,9 @@ export function mergeLearn(a, b) {
   Object.entries(y.lessons).forEach(([k, l]) => {
     const c = lessons[k];
     const gem = Math.min(c && c.diamond ? c.diamond : Infinity, l.diamond || Infinity);
-    lessons[k] = c ? { at: Math.min(c.at || l.at, l.at || c.at), runs: Math.max(c.runs, l.runs), best: Math.max(c.best, l.best), ...(gem < Infinity ? { diamond: gem } : {}) } : l;
+    lessons[k] = c ? { at: Math.min(c.at || l.at, l.at || c.at), runs: Math.max(c.runs, l.runs), best: Math.max(c.best, l.best), ...(gem < Infinity ? { diamond: gem } : {}),
+      // придержано, только если так на обоих устройствах: честный повтор на одном снимает отметку и на другом
+      ...(c.held && l.held ? { held: 1 } : {}) } : l;
   });
   const units = { ...x.units };
   Object.entries(y.units).forEach(([k, u]) => { const c = units[k] || {}; const ace = Math.max(c.ace || 0, u.ace || 0); units[k] = { tested: Math.max(c.tested || 0, u.tested), ...(ace ? { ace } : {}) }; });

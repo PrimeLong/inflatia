@@ -19,13 +19,13 @@ import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
   UNITS, LEVEL_BY_ID, levelUnits, LESSON_BY_ID, KIND_LABEL, SHIFT_CURVES, LESSON_KIND, GAME_KINDS, SELF_CHECK, OPEN_MIN, buildLesson, buildUnitCheck, buildLevelCheck, buildPractice,
   practiceIds, canPractice, check, ready, answerText, unitFor, buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix, EXAM_LETTERS,
-  buildLevelReview,
+  buildLevelReview, SECONDS,
 } from './learn/course.js';
 import {
   startLesson, recordAttempt, addMistake, resolveMistake, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak, XP, setPlacement, dayOf, recordSeen, recordBest,
   DIAMOND_ACCURACY, streakBonus, gameXp, syncStreak, streakNow, markFixed, finishLevelReview, levelConfirmed, LEVEL_REVIEW_OK,
 } from './textbook/learn-state.js';
-import { runCoins, runKey, earn, settle, indexed, hasClaim, deskOf, themeOf, boostActive } from './learn/rewards.js';
+import { runCoins, runKey, earn, settle, indexed, hasClaim, deskOf, themeOf, boostActive, fairRun } from './learn/rewards.js';
 import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer, DESK_QUERY } from './learn-decor.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from './learn-skins.jsx';
 import { pickPhrase, situation, endKind } from './learn/voice.js';
@@ -898,13 +898,19 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     const ms = activeNow();
     const now = Date.now();
     let xp = 0; let pass = null; let opened = null;
+    /* Честная работа (src/learn/rewards.js, fairRun): точность с первой попытки ниже 60% или среднее время на вопрос
+       меньше трети нормы — монеты «За урок» и печати не выдаются. Норма — сумма SECONDS заданий урока. Автотест
+       отвечает мгновенно, поэтому скорость он проверяет, только если сам попросил (ems-fair-test). */
+    const normMs = plan.items.reduce((sum, it) => sum + (it.seconds || SECONDS[it.kind] || 0), 0) * 1000;
+    let speedOn = true; try { speedOn = !(navigator.webdriver && localStorage.getItem('ems-fair-test') !== '1'); } catch { /* приватный режим */ }
+    const unfair = run.mode === 'lesson' && !diamond ? fairRun({ accuracy, ms, normMs, checkSpeed: speedOn }) : null;
     const done = { accuracy, now, seconds: ms / 1000, kind: lesson ? lesson.kind : null, mode: run.mode };
     let apply;
     if (run.mode === 'lesson') {
       track('lesson_done', { lesson: run.lessonId, ms });
       trackOnce('first_lesson_done');
       xp = lessonXp({ firstTry: firstOk, replay, diamond, bonus: a.bonus });
-      apply = (s) => finishLesson(s, run.lessonId, { xp, ...done, diamond });
+      apply = (s) => finishLesson(s, run.lessonId, { xp, ...done, diamond, held: !!unfair });
       dropResume(run.lessonId);
     } else if (run.mode === 'check') {
       pass = mistakes <= plan.passMistakes;
@@ -938,9 +944,12 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     // монеты за урок и всё, что он выполнил: цель дня, задания, серия, печати
     // с индексацией месяца (docs/mechanics.md, «Индексация наград»)
     const confirmed = run.mode === 'level' && levelConfirmed(learn, run.levelId);
-    const coins = indexed(runCoins({ mode: run.mode, replay, accuracy, pass, items: total, diamond, gem, confirmed }), now);
-    const key = runKey({ mode: run.mode, lessonId: run.lessonId, replay, diamond, gem, levelId: run.levelId, pass, confirmed });
-    const full = (s) => { const t = earn(apply(s), coins, key, now); return settle(t, courseCtx(t), now); };
+    // повтор урока, за который монеты были придержаны, платит как первое прохождение
+    const owed = run.mode === 'lesson' && replay && !diamond && !hasClaim(learn, `l:${run.lessonId}`) && !!(learn.lessons[run.lessonId] || {}).held;
+    const paidAs = owed ? false : replay;
+    const coins = unfair ? 0 : indexed(runCoins({ mode: run.mode, replay: paidAs, accuracy, pass, items: total, diamond, gem, confirmed }), now);
+    const key = unfair ? null : runKey({ mode: run.mode, lessonId: run.lessonId, replay: paidAs, diamond, gem, levelId: run.levelId, pass, confirmed });
+    const full = (s) => { const t = earn(apply(s), coins, key, now); return settle(t, courseCtx(t), now, { seals: !unfair }); };
     const preview = full(learn);
     // первый урок дня продлил серию — огонёк загорается на итогах крупно
     const before = streak(learn, now); const after = streak(preview.s, now);
@@ -959,7 +968,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     }
     // из него — за серии и мини-игру (на повторе урока опыт — десятая часть, разбивку не показываем)
     const bonus = run.mode === 'lesson' && replay && !diamond ? 0 : a.bonus * (boosted ? 2 : 1);
-    setResult({ xp, bonus, accuracy, ms, pass, mistakes, coins: key && hasClaim(learn, key) ? 0 : coins, gains: preview.gains, opened, boosted, streakUp, game: a.game || null, raceFriends });
+    setResult({ xp, bonus, accuracy, ms, pass, mistakes, coins: key && hasClaim(learn, key) ? 0 : coins, gains: preview.gains, opened, boosted, streakUp, game: a.game || null, raceFriends, unfair });
     setStage('done');
   };
   const next = () => {
@@ -1375,6 +1384,14 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
               <GainsList coins={result.coins} gains={result.gains} label={run.mode === 'level' ? 'За большое повторение' : 'За урок'} />
               {lesson && run.mode === 'lesson' && !replay && partsOfLesson(lesson.id).length > 0 && (
                 <div className="ds-sub" style={{ fontSize: 14.5, marginTop: 10 }} data-testid="result-model">
+              {/* монеты за урок и печати — только за честную работу (docs/mechanics.md, «Награды за урок») */}
+              {result.unfair && (
+                <div className="ln-unfair" data-testid="result-unfair" data-why={result.unfair} role="note">
+                  <b>Пройдите работу над ошибками.</b>{' '}
+                  {result.unfair === 'accuracy' ? 'С первой попытки верно меньше 60% ответов' : 'Ответы даны слишком быстро, чтобы успеть прочитать вопросы'}
+                  {' '}— монеты «За урок» и печати за такой урок не выдаются. Урок засчитан, Путь открыт дальше; повторите его спокойно — и монеты ваши.
+                </div>
+              )}
                   В модель рынка добавлено: {partsOfLesson(lesson.id).map((p) => `«${p.title}»`).join(', ')}. Покрутить её можно на Пути, под юнитом.
                 </div>
               )}
