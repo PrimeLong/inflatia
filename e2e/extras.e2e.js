@@ -96,7 +96,10 @@ test('«Чтение» перечитано: книга уже стоит на �
   const done = page.getByTestId('reading-done');
   await expect(done.getByTestId('extra-result')).toHaveAttribute('data-replay', 'true');
   await expect(done.getByTestId('extra-result')).toHaveAttribute('data-coins', '0');
-  await expect(done.getByTestId('reading-shelf-count')).toContainText('Книга уже стояла на полке');
+  await expect(done.getByTestId('reading-shelf-count')).toContainText('Подборка уже стояла на полке');
+  // счёт — подборок цитат, а не книг: книг в библиотеке другое число (пункт владельца 15.11)
+  await expect(done.getByTestId('reading-shelf-count')).toContainText(/Прочитано подборок цитат — \d+ из \d+/);
+  await expect(done.getByTestId('reading-shelf-count')).not.toContainText('Книга');
   await expect(done.locator('[data-testid=reading-book][data-new]')).toHaveCount(0);
   await expect(done.locator('[data-testid=reading-book][data-done="true"]')).toHaveCount(1);
   // полки по шесть книг, каждая — во всю свою ширину (38px), а не сплющена

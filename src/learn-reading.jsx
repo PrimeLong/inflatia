@@ -302,7 +302,8 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
           {result && <ExtraResult kind="read" unitId={r.unitId} title={r.title} r={result} />}
           <Shelf learn={learn} fresh={got ? r.id : null} here={r.id} />
           <div className="ds-sub" style={{ fontSize: 15.5, lineHeight: 1.5, marginTop: 18 }} data-testid="reading-shelf-count">
-            {got ? 'Книга на полке.' : 'Книга уже стояла на полке.'} На полке — {shelfOf(learn).filter((b) => b.done || b.id === r.id).length} из {shelfOf(learn).length}.
+            {/* считаются подборки цитат «Чтения», а не книги библиотеки: «6 из 12 книг» читалось как счёт библиотеки, где книг девять (пункт владельца 15.11) */}
+            {got ? 'Подборка встала на полку.' : 'Подборка уже стояла на полке.'} Прочитано подборок цитат — {shelfOf(learn).filter((b) => b.done || b.id === r.id).length} из {shelfOf(learn).length}.
           </div>
           {/* цитата на память — та, с которой подборка начиналась */}
           <div className="rd-keep" data-testid="reading-keep">
