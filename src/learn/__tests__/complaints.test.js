@@ -12,6 +12,22 @@ const texts = (x, out = []) => {
 };
 
 describe('жалобы', () => {
+  it('«Нарисуй сам»: прибыль кофейни — между двумя отмеченными точками; новая ATC названа прямо (draw-moncomp, draw-costs)', async () => {
+    const { DRAW_BY_ID } = await import('../draws.js');
+    const { CHARTS, chartDefaults } = await import('../../textbook/charts.js');
+    const mon = DRAW_BY_ID['draw-moncomp'];
+    const k = mon.tasks.findIndex((t) => t.do === 'area');
+    // перед областью — шаг «отметьте ATC над 16 чашками»: нижний край прямоугольника виден
+    expect(mon.tasks[k - 1]).toMatchObject({ do: 'point', at: { x: 16, y: 51 } });
+    expect(mon.tasks[k].text).toMatch(/между двумя вашими точками/);
+    // 51 — и правда ATC модели при 16 чашках
+    const scene = CHARTS.moncomp.build(mon.attrs, chartDefaults('moncomp', mon.attrs));
+    const atc = scene.curves.find((c) => c.id === 'ATC').points;
+    const near = atc.reduce((b, p) => (Math.abs(p.x - 16) < Math.abs(b.x - 16) ? p : b));
+    expect(Math.abs(near.y - 51)).toBeLessThan(1.5);
+    const costs = DRAW_BY_ID['draw-costs'].tasks[3];
+    expect(costs.text).toMatch(/новой\*\* ATC/); expect(costs.text).toMatch(/бледной/);
+  });
   it('pr-radio-robot: из условия ясно, что сборщикам не хватало рам, — ответ «поднимет» однозначен («не сказано, хватает ли станков»)', () => {
     const ex = EXERCISES['pr-radio-robot'];
     const all = `${ex.context} ${texts(ex.prompt).join(' ')}`;

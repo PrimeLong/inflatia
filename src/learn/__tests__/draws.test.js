@@ -58,7 +58,7 @@ describe('«Нарисуй сам»: содержание', () => {
     expect(at('draw-budget', 3)).toEqual([40, 0]); expect(at('draw-budget', 4)).toEqual([0, 150]);
     expect(at('draw-product', 1)).toEqual([4, 64]); expect(at('draw-product', 3)).toEqual([4, 80]);
     expect(at('draw-costs', 1)).toEqual([3, 11]); expect(at('draw-costs', 2)).toEqual([5, 35]);
-    expect(at('draw-moncomp', 3)).toEqual([16, 90]); expect(at('draw-moncomp', 5)).toEqual([10, 60]);
+    expect(at('draw-moncomp', 3)).toEqual([16, 90]); expect(at('draw-moncomp', 6)).toEqual([10, 60]);
   });
 });
 
