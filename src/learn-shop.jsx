@@ -301,14 +301,16 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
     if (!r.ok) { Audio.play('down'); setMsg({ ok: false, text: r.reason }); return; }
     Audio.play('register');
     update(() => r.s, { settle: true });
+    // купили редкую вещь у ювелира — раз в день с устройства (docs/mechanics.md, «Аналитика»)
+    if (id !== BOOST.id && OUTFIT_BY_ID[id].rare) trackDaily('rare_buy');
     const slot = id === BOOST.id ? null : OUTFIT_BY_ID[id].slot;
     setMsg({ ok: true, text: id === BOOST.id ? `Двойной опыт на ${BOOST.minutes} минут — за ${r.price} ${coinsWord(r.price)}.`
       : slot === 'desk' ? `Куплено за ${r.price} ${coinsWord(r.price)} — украшение уже висит в уроках на ПК и планшете.`
         : slot === 'theme' ? `Куплено за ${r.price} ${coinsWord(r.price)} — тема уже включена: откройте любой урок.`
           : `Куплено за ${r.price} ${coinsWord(r.price)} — Инфля уже в обновке. Снять и переодеть — во вкладке «Гардероб».` });
   };
-  const toggle = (o) => { Audio.play('paper'); update((s) => setWear(s, o.slot, (s.wear || {})[o.slot] === o.id ? null : o.id, now)); };
-  const putOn = (slot, id) => { Audio.play('paper'); update((s) => setWear(s, slot, id, now)); };
+  const toggle = (o) => { Audio.play('paper'); trackDaily('wardrobe_wear'); update((s) => setWear(s, o.slot, (s.wear || {})[o.slot] === o.id ? null : o.id, now)); };
+  const putOn = (slot, id) => { Audio.play('paper'); if (id) trackDaily('wardrobe_wear'); update((s) => setWear(s, slot, id, now)); };
   /* младше 16 (или возраст не известен) — без давления дефицитом: ни «−30%», ни зачёркнутой цены, ни отсчётов
      (docs/mechanics.md, «Хеллоуин»); скидка дня остаётся — просто без плашки */
   const calm = noScarcity((loadAccount() || {}).birthYear, now);
@@ -616,14 +618,14 @@ function PiggyCard({ learn, update, now, b, onMsg }) {
   const put = () => {
     const r = piggyPut(learn, n, now, { topup });
     if (!r.ok) { Audio.play('down'); onMsg({ ok: false, text: r.reason }); return; }
-    Audio.play('register'); setDrop((k) => k + 1); update(() => r.s, { settle: true });
+    Audio.play('register'); setDrop((k) => k + 1); update(() => r.s, { settle: true }); trackDaily('piggy_put');
     onMsg({ ok: true, text: `${r.topup ? 'Пополняемый вклад' : 'Срочный вклад'}: ${r.amount} ${coinsWord(r.amount)} под ${fmtPct(r.rate)} в день. Через ${PIGGY.days} дней станет ${piggyValue(r.amount, PIGGY.days, r.rate)}${r.topup ? ' — и больше, если пополнять' : ''}.` });
   };
   const addN = Math.max(PIGGY.addMin, Math.min(addAmt, b));
   const add = () => {
     const r = piggyAdd(learn, addN, now);
     if (!r.ok) { Audio.play('down'); onMsg({ ok: false, text: r.reason }); return; }
-    Audio.play('register'); setDrop((k) => k + 1); update(() => r.s, { settle: true });
+    Audio.play('register'); setDrop((k) => k + 1); update(() => r.s, { settle: true }); trackDaily('piggy_put');
     onMsg({ ok: true, text: `Пополнено на ${r.amount} ${coinsWord(r.amount)}: эти монеты растут с сегодняшнего дня до конца срока.` });
   };
   const take = () => {

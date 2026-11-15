@@ -1018,16 +1018,18 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     document.addEventListener('visibilitychange', hidden);
     return () => { window.removeEventListener('pagehide', save); document.removeEventListener('visibilitychange', hidden); };
   }, []);
-  const leave = () => { snapshot(); onClose(); };
+  // вышли, не дойдя до конца: на каком шаге — обезличенный счётчик (docs/mechanics.md, «Аналитика»)
+  const quitMark = () => { if (run.mode === 'lesson' && started && stage !== 'done') track('lesson_quit', { lesson: run.lessonId, step: Math.min(99, pos + 1) }); };
+  const leave = () => { quitMark(); snapshot(); onClose(); };
   // пустой план (упражнения ошибок убраны из курса) — сразу итог
   useEffect(() => { if (stage === 'work' && !cur && !result) finish(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, cur, result]);
   // до первого ответа выход ничего не стоит и не спрашивает
-  const exit = () => { if (stage === 'done' || !started) onClose(); else setAsking(true); };
+  const exit = () => { if (stage === 'done' || !started) { quitMark(); onClose(); } else setAsking(true); };
   /* урок — запись истории (src/lib/route.js): «Назад» браузера — как крестик: посреди урока спрашивает «Выйти из урока?»
      (урок остаётся открытым, поэтому false — запись возвращается в историю), на итогах — закрывает. Саму запись держит
      вкладка (src/learn.jsx): она ставит её в тот же миг, когда закрывается карточка урока, — файл урока ещё грузится */
-  backRef.current = () => { if (stage === 'done' || !started) { onClose(); return undefined; } setAsking(true); return false; };
+  backRef.current = () => { if (stage === 'done' || !started) { quitMark(); onClose(); return undefined; } setAsking(true); return false; };
   useEffect(() => () => { backRef.current = null; }, [backRef]);
   // термины условия — с подсказками; варианты ответа не размечаем: нажатие по ним — это выбор
   const marked = useMemo(() => (cur ? { ...cur, prompt: markTerms(cur.prompt) } : null), [cur]);
