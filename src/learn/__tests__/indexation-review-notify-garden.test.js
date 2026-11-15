@@ -111,6 +111,23 @@ describe('уведомления: «Ранее» — последние три �
   });
 });
 
+describe('уведомления: вчерашние напоминания о состоянии в «Ранее» не висят (пункт владельца 15.11)', () => {
+  it('«Ошибки ждут повторения» — одно, сегодняшнее; вчерашний снимок с другим числом убран; ошибок нет — нет и его', async () => {
+    const { earlierOf } = await import('../notify.js');
+    const H = 3600000; const now = Date.UTC(2026, 10, 15, 14);
+    const m = (day, n, h) => ({ id: `mistakes:${day}`, kind: 'path', icon: 'repeat', tone: '#000', title: 'Ошибки ждут повторения', text: `${n} упражнений из прошлых уроков`, at: now - h * H, go: 'tasks' });
+    const chest = { id: 'chest:scarcity', kind: 'path', icon: 'chest', tone: '#000', title: 'Сундук ждёт', text: '', at: now - 30 * H, go: 'path' };
+    const history = [m('2026-11-14', 7, 26), m('2026-11-15', 4, 2), chest];
+    const seen = { 'mistakes:2026-11-14': 1, 'mistakes:2026-11-15': 1, 'chest:scarcity': 1 };
+    const got = earlierOf([m('2026-11-15', 4, 2)], history, seen);
+    expect(got.filter((x) => x.title === 'Ошибки ждут повторения').map((x) => x.id)).toEqual(['mistakes:2026-11-15']);
+    // событие (сундук) остаётся снимком, как раньше
+    expect(got.some((x) => x.id === 'chest:scarcity')).toBe(true);
+    // ошибки разобраны — напоминания в «Ранее» больше нет
+    expect(earlierOf([], history, seen).map((x) => x.id)).toEqual(['chest:scarcity']);
+  });
+});
+
 describe('сад: растения не одинаковые (пункт 12 от 06.11)', () => {
   it('рост 0,84–1,16, наклон до 5°, сторона — от момента посадки; у соседних — разные', async () => {
     const { plantLook } = await import('../garden.js');

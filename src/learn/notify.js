@@ -87,8 +87,14 @@ export function rememberNotes(notes) {
 }
 // list — уведомления сейчас, history — снимки прочитанного, seen — прочитанные id, skip — id, которых в «Ранее» нет
 // (новые на экране и смахнутые)
+/* Напоминания о состоянии — «ошибки ждут», «задачи учебника ждут», «сад сохнет», «вы в зоне вылета», «отстаёте в
+   забеге» — каждый день новые (в id — день) и говорят о том, что есть сейчас. Вчерашний снимок в «Ранее» — уже
+   неправда (другое число ошибок) и дубль сегодняшнего (пункт владельца 15.11: «два уведомления „Ошибки ждут
+   повторения“, так ещё и в одном неверная информация»): в «Ранее» остаётся только то, что верно сейчас. */
+export const REMINDER_ID = /^(mistakes|book-review|dry|lg-down|lg-zone-down|race-behind|race-ahead):/;
 export function earlierOf(list, history, seen, skip = {}, max = EARLIER_MAX) {
-  const by = new Map(history.map((n) => [n.id, n]));
+  const live = new Set(list.map((n) => n.id));
+  const by = new Map(history.filter((n) => !REMINDER_ID.test(n.id) || live.has(n.id)).map((n) => [n.id, n]));
   list.forEach((n) => { if (seen[n.id] || by.has(n.id)) by.set(n.id, n); });
   return [...by.values()].filter((n) => !skip[n.id] && (seen[n.id] || history.some((h) => h.id === n.id)))
     .sort((a, b) => b.at - a.at).slice(0, max);
