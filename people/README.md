@@ -5,7 +5,7 @@
 `public/people/` под именем из таблицы. После сборки на Vercel портрет появится сам —
 сайт отдаёт его со своего адреса, поэтому Википедия ученику не нужна.
 
-Сейчас лежит 29 из 35. Этот файл пишет команда `npm run people:export`.
+Сейчас лежит 33 из 35. Этот файл пишет команда `npm run people:export`.
 
 ## Как добавить портрет
 
@@ -52,7 +52,7 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 | 1 | Лайонел Роббинс | 1898–1984 | Люди выбора | `robbins.jpg` | [статья](https://en.wikipedia.org/wiki/Lionel_Robbins,_Baron_Robbins) | ✓ robbins.jpg, подпись есть |
 | 2 | Томас Мальтус | 1766–1834 | Люди выбора | `malthus.jpg` | [статья](https://en.wikipedia.org/wiki/Thomas_Robert_Malthus) | ✓ malthus.jpg, подпись есть |
 | 3 | Давид Рикардо | 1772–1823 | Люди выбора | `ricardo.jpg` | [статья](https://en.wikipedia.org/wiki/David_Ricardo) | ✓ ricardo.jpg, подпись есть |
-| 4 | Джон Бейтс Кларк | 1847–1938 | Люди труда | `clark.jpg` | [статья](https://en.wikipedia.org/wiki/John_Bates_Clark) | — |
+| 4 | Джон Бейтс Кларк | 1847–1938 | Люди труда | `clark.jpg` | [статья](https://en.wikipedia.org/wiki/John_Bates_Clark) | ✓ clark.jpg, подпись есть |
 | 5 | Джоан Робинсон | 1903–1983 | Люди труда, Люди бренда | `robinson.jpg` | [статья](https://en.wikipedia.org/wiki/Joan_Robinson) | ✓ robinson.jpg, подпись есть |
 | 6 | Гэри Беккер | 1930–2014 | Люди труда | `becker.jpg` | [статья](https://en.wikipedia.org/wiki/Gary_Becker) | ✓ becker.jpg, подпись есть |
 | 7 | Адам Смит | 1723–1790 | Люди рынка | `smith.jpg` | [статья](https://en.wikipedia.org/wiki/Adam_Smith) | ✓ smith.jpg, подпись есть |
@@ -81,6 +81,6 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 | 30 | Йозеф Шумпетер | 1883–1950 | Люди власти рынка | `schumpeter.jpg` | [статья](https://en.wikipedia.org/wiki/Joseph_Schumpeter) | ✓ schumpeter.jpg, подпись есть |
 | 31 | Эдвард Чемберлин | 1899–1967 | Люди бренда | `chamberlin.jpg` | [статья](https://en.wikipedia.org/wiki/Edward_Chamberlin) | ✓ chamberlin.jpg, подпись есть |
 | 32 | Гарольд Хотеллинг | 1895–1973 | Люди бренда | `hotelling.jpg` | [статья](https://en.wikipedia.org/wiki/Harold_Hotelling) | — |
-| 33 | Анн Робер Жак Тюрго | 1727–1781 | Люди отдачи | `turgot.jpg` | [статья](https://en.wikipedia.org/wiki/Anne_Robert_Jacques_Turgot) | — |
-| 34 | Иоганн Генрих фон Тюнен | 1783–1850 | Люди отдачи | `thunen.jpg` | [статья](https://en.wikipedia.org/wiki/Johann_Heinrich_von_Thunen) | — |
-| 35 | Пол Дуглас | 1892–1976 | Люди отдачи | `douglas.jpg` | [статья](https://en.wikipedia.org/wiki/Paul_Douglas) | — |
+| 33 | Анн Робер Жак Тюрго | 1727–1781 | Люди отдачи | `turgot.jpg` | [статья](https://en.wikipedia.org/wiki/Anne_Robert_Jacques_Turgot) | ✓ turgot.jpg, подпись есть |
+| 34 | Иоганн Генрих фон Тюнен | 1783–1850 | Люди отдачи | `thunen.jpg` | [статья](https://en.wikipedia.org/wiki/Johann_Heinrich_von_Thunen) | ✓ thunen.jpg, подпись есть |
+| 35 | Пол Дуглас | 1892–1976 | Люди отдачи | `douglas.jpg` | [статья](https://en.wikipedia.org/wiki/Paul_Douglas) | ✓ douglas.jpg, подпись есть |
