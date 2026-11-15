@@ -9,7 +9,7 @@ import { LEVELS, UNIT_LEVEL } from '../textbook/levels.js';
 import { CHAPTERS } from '../textbook/toc.js';
 import { CHAPTER_BLOCKS, CHAPTER_SECTIONS, PROBLEMS } from '../textbook/content.js';
 import { collectBlocks, parseInline, parseBlocks, checkAnswer, varyInstance } from '../textbook/markdown.js';
-import { TEMPLATE_BY_ID, TEMPLATES, templatesOf, seeded } from '../textbook/variants.js';
+import { TEMPLATE_BY_ID, TEMPLATES, templatesOf, seeded, genVariant } from '../textbook/variants.js';
 import { GLOSSARY } from '../textbook/glossary.js';
 import { CAST } from './cast.js';
 import { pathBlocks } from './money.js';
@@ -318,7 +318,7 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
     case 'calc': {
       if (ex.variant) {
         const tpl = TEMPLATE_BY_ID[ex.variant];
-        const v = tpl.gen(seeded(Math.floor(rand() * 2 ** 31) + 1));
+        const v = genVariant(tpl, seeded(Math.floor(rand() * 2 ** 31) + 1));
         const pt = v.parts[0];
         return { ...base, variant: ex.variant, source: tpl.source, prompt: parseBlocks(firstPart(v.statement, v.parts.length)), explain: parseBlocks(firstPart(v.solution, v.parts.length)), answer: pt.answer, tol: pt.tol != null ? pt.tol : null, unit: pt.unit || '', ...(pt.units ? { units: pt.units } : {}),
           traps: v.traps.filter((t) => t.part === 0).map((t) => ({ value: t.value, why: text(t.text) })) };

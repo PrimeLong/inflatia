@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseBlocks } from '../../textbook/markdown.js';
 import { EXERCISES, LESSONS, instantiate, check } from '../course.js';
-import { makeVariant } from '../../textbook/variants.js';
+import { makeVariant, TEMPLATES, seeded } from '../../textbook/variants.js';
 
 // все строки-тексты разобранного узла: формулы ($…$) в них уже вынесены в узлы math
 const texts = (x, out = []) => {
@@ -12,6 +12,22 @@ const texts = (x, out = []) => {
 };
 
 describe('жалобы', () => {
+  it('расчёт-вариант на Пути: в условии, решении и ловушках нет «{,}» вне формул (ct-l1, var:v-costs-mcavg — «13{,}5 кр.»)', () => {
+    // так Путь заводит «трудные» расчёты уроков и проверки юнита (hard="var:…")
+    const vars = TEMPLATES.filter((t) => t.gen(seeded(1)).parts.length === 1).map((t) => ({ id: `var:${t.id}`, kind: 'calc', variant: t.id, lesson: null, unitId: t.chapter }));
+    expect(vars.length).toBeGreaterThan(30);
+    expect(vars.some((e) => e.variant === 'v-costs-mcavg')).toBe(true);
+    vars.forEach((e) => {
+      for (let seed = 1; seed <= 6; seed += 1) {
+        const inst = instantiate(e, seeded(seed));
+        const all = [...texts(inst.prompt), ...texts(inst.explain), ...inst.traps.map((t) => t.why)].join(' ');
+        expect(all, `${e.id} #${seed}`).not.toContain('{,}');
+      }
+    });
+    // у этой задачи решение — по шагам: откуда берётся ответ
+    const mc = instantiate(vars.find((e) => e.variant === 'v-costs-mcavg'), seeded(3));
+    expect(texts(mc.explain).join(' ')).toMatch(/На один дополнительный круассан/);
+  });
   it('«|» внутри формулы варианта — модуль, а не разделитель объяснения (el-q1-type)', () => {
     const [ex] = parseBlocks(':::ex choice id=t\nВопрос?\n+ Неэластичный: $|E| = 0{,}3 < 1$\n- Эластичный | Потому что $3/10$\n:::');
     expect(ex.options[0].text.find((n) => n.t === 'math').v).toBe('|E| = 0{,}3 < 1');

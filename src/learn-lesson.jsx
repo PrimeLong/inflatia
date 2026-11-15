@@ -1053,7 +1053,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         {!fb.ok && inst.kind === 'match' && <div style={{ fontSize: 15 }} data-testid="match-summary">Неверных пар: {inst.left.filter((l) => (resp || {})[l.key] !== l.key).length} из {inst.left.length} — они отмечены красным, под каждой — верный термин.</div>}
         {!fb.ok && !GAME_KINDS.includes(inst.kind) && inst.kind !== 'match' && <div style={{ fontSize: 15 }}>Правильно: <b>{answerText(inst)}</b></div>}
         {(!fb.ok || fb.partial) && fb.why && <div style={{ fontSize: 15, marginTop: 4, lineHeight: 1.5 }} data-testid="ex-why"><Inline nodes={fb.why} ctx={noopCtx} /></div>}
-        {!fb.ok && !fb.why && inst.explain && !inst.steps && <div className="tb-body" style={{ fontSize: 15, marginTop: 4, color: 'inherit' }}><Blocks blocks={inst.explain} ctx={noopCtx} /></div>}
+        {/* расчёт-вариант: и при узнанной ошибке (fb.why) показываем решение по шагам — иначе видно «Правильно: 6 кр.», а откуда 6, непонятно (жалоба ct-l1) */}
+        {!fb.ok && (!fb.why || inst.variant) && inst.explain && !inst.steps && <div className="tb-body" data-testid="ex-solution" style={{ fontSize: 15, marginTop: 4, color: 'inherit' }}><Blocks blocks={inst.explain} ctx={noopCtx} /></div>}
         {!fb.ok && inst.explain && inst.steps && <StepsExplain blocks={inst.explain} key={inst.uid} />}
         {/* верный ответ на расчёт — ход решения по кнопке: важно не только число, но и почему так считают */}
         {fb.ok && inst.explain && !GAME_KINDS.includes(inst.kind) && inst.kind !== 'open' && (

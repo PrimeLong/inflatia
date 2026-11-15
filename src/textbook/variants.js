@@ -956,10 +956,15 @@ const LABELS = ['а)', 'б)', 'в)', 'г)'];
 /* «{,}» — десятичная запятая для формулы (KaTeX); в обычном тексте вне $…$ она осталась бы со
    скобками — «7{,}75» (отчёт mvit3sko). Вне формул — просто запятая. */
 const textCommas = (s) => String(s).split(/(\$\$[\s\S]*?\$\$|\$[^$]*\$)/).map((seg, i) => (i % 2 ? seg : seg.replace(/\{,\}/g, ','))).join('');
+/* Вариант «как есть», но с чистым текстом — для Пути (src/learn/course.js) и для задач учебника: условие, решение
+   и ловушки без «{,}» вне формул. Путь раньше брал tpl.gen напрямую, и в уроке было «13{,}5 кр.» (жалоба ct-l1). */
+export function genVariant(tpl, rand) {
+  const raw = tpl.gen(rand);
+  return { ...raw, statement: textCommas(raw.statement), solution: textCommas(raw.solution), traps: raw.traps.map((tr) => ({ ...tr, text: textCommas(tr.text) })) };
+}
 export function makeVariant(tplId, seed) {
   const tpl = TEMPLATE_BY_ID[tplId];
-  const raw = tpl.gen(seeded(seed));
-  const v = { ...raw, statement: textCommas(raw.statement), solution: textCommas(raw.solution), traps: raw.traps.map((tr) => ({ ...tr, text: textCommas(tr.text) })) };
+  const v = genVariant(tpl, seeded(seed));
   const parts = v.parts.map((pt, k) => ({ label: v.parts.length > 1 ? LABELS[k] : '', answer: pt.answer, tol: pt.tol != null ? pt.tol : null, unit: pt.unit || '' }));
   const traps = v.traps.filter((tr) => differs(tr.value, parts[tr.part].answer, parts[tr.part].tol || 0))
     .map((tr) => ({ part: tr.part, value: tr.value, text: parseInline(tr.text) }));
