@@ -124,12 +124,29 @@ export const TEXTBOOK_CSS = `
   .tb-key-sum { border-top: 1px dashed var(--c-border); margin-top: 6px; padding-top: 8px; }
   .tb-key-label { font: 700 12px/1.4 var(--ds-sans, sans-serif); letter-spacing: .07em; text-transform: uppercase; color: var(--c-gold-soft); }
   .tb-legend { font-size: 13px; line-height: 1.6; color: var(--c-muted); margin: -6px 0 14px; padding-left: 10px; border-left: 2px solid var(--c-hairline); }
-  .tb-calc { margin: 10px 0 4px; max-width: 300px; border: 1px solid var(--c-border); border-radius: 4px; padding: 8px; background: var(--c-panel-alt, rgba(0,0,0,.03)); }
-  .tb-calc-screen { text-align: right; font-family: var(--ds-mono, monospace); padding: 4px 6px 6px; }
-  .tb-calc-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
-  .tb-calc-keys button { font: 600 15px/1 var(--ds-mono, monospace); padding: 9px 0; border: 1px solid var(--c-border); border-radius: 3px; background: var(--c-panel, #fff); color: inherit; cursor: pointer; }
-  .tb-calc-keys button.op { color: var(--c-gold, #9C7218); }
-  .tb-calc-keys button.tb-calc-use { grid-column: span 3; font: 600 12.5px/1.2 var(--ds-sans, sans-serif); padding: 6px; }
+  /* калькулятор учебника (пункт владельца 15.11: «выглядит не очень красиво, появляется резко»): карточка с экраном
+     и крупными клавишами; раскрывается и сворачивается плавно — высотой и прозрачностью */
+  .tb-calc-wrap { flex-basis: 100%; display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .28s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+  .tb-calc-wrap[data-open="true"] { grid-template-rows: 1fr; opacity: 1; }
+  .tb-calc-wrap > div { min-height: 0; overflow: hidden; }
+  .tb-calc { margin: 10px 0 6px; max-width: 320px; border: 1px solid var(--c-border); border-radius: 16px; padding: 10px; background: var(--c-panel, #fff);
+    box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 10px 24px -16px rgba(0,0,0,.35); transform-origin: top left; transition: transform .28s cubic-bezier(.2,.8,.2,1); transform: translateY(-6px) scale(.98); }
+  .tb-calc-wrap[data-open="true"] .tb-calc { transform: none; }
+  .tb-calc-display { border-radius: 11px; padding: 8px 10px 9px; margin-bottom: 9px; background: var(--c-panel-alt, rgba(0,0,0,.045)); border: 1px solid var(--c-hairline, var(--c-border)); }
+  .tb-calc-display input { display: block; width: 100%; box-sizing: border-box; border: none; outline: none; background: none; padding: 0; text-align: right; color: var(--c-muted); font: 500 14px/1.4 var(--ds-mono, monospace); }
+  .tb-calc-display:focus-within { border-color: var(--c-gold, #9C7218); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-gold, #9C7218) 18%, transparent); }
+  .tb-calc-screen { text-align: right; font: 700 24px/1.25 var(--ds-mono, monospace); letter-spacing: -.01em; color: var(--c-text); min-height: 30px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-calc-screen[data-empty="true"] { color: var(--c-muted); }
+  .tb-calc-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .tb-calc-keys button { min-height: 44px; font: 600 16px/1 var(--ds-mono, monospace); padding: 0; border: 1px solid var(--c-border); border-bottom-width: 2px; border-radius: 10px; background: var(--c-panel, #fff); color: inherit; cursor: pointer;
+    transition: transform .08s ease, background .12s ease, border-color .12s ease; }
+  .tb-calc-keys button:hover { background: var(--c-panel-alt, rgba(0,0,0,.04)); }
+  .tb-calc-keys button:active { transform: translateY(1px) scale(.97); border-bottom-width: 1px; }
+  .tb-calc-keys button.op { color: var(--c-gold, #9C7218); background: color-mix(in srgb, var(--c-gold, #9C7218) 8%, var(--c-panel, #fff)); border-color: color-mix(in srgb, var(--c-gold, #9C7218) 30%, var(--c-border)); }
+  .tb-calc-keys button.fn { color: var(--c-muted); }
+  .tb-calc-keys button.eq { color: #fff; background: var(--c-gold, #9C7218); border-color: color-mix(in srgb, var(--c-gold, #9C7218) 70%, #000); }
+  .tb-calc-keys button.tb-calc-use { grid-column: span 3; min-height: 44px; border-radius: 10px; font: 700 13.5px/1.2 var(--ds-sans, sans-serif); padding: 6px; }
+  @media (prefers-reduced-motion: reduce) { .tb-calc-wrap, .tb-calc, .tb-calc-keys button { transition: none; } }
   /* карточка задачи (docs/mechanics.md, «Учебник: карточка задачи»): одно главное действие — «Проверить»,
      уверенность — короткий переключатель по желанию, подсказка/решение/калькулятор — тихая панель внизу */
   .tb-prob { background: var(--c-panel); border: 2px solid var(--c-hairline); border-radius: 18px; padding: 14px 16px; box-shadow: 0 2px 0 var(--c-hairline); }

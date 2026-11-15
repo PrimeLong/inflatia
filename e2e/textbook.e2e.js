@@ -146,6 +146,12 @@ test('учебник: оглавление, формулы KaTeX, график �
   // калькулятор задачи: корень и скобки; результат — в поле, где стоял курсор
   await multi.getByRole('textbox', { name: 'Задача 1, шаг б)' }).fill('');
   await multi.getByTestId('tb-calc-open').click();
+  // появляется плавно (пункт владельца 15.11): обёртка раскрывается переходом, клавиши — не меньше 44 px
+  const calcWrap = multi.getByTestId('tb-calc-wrap');
+  await expect(calcWrap).toHaveAttribute('data-open', 'true');
+  expect(await calcWrap.evaluate((el) => getComputedStyle(el).transitionProperty)).toContain('grid-template-rows');
+  await page.waitForTimeout(350);
+  expect((await multi.locator('[data-calc="7"]').boundingBox()).height).toBeGreaterThanOrEqual(43.9);
   await multi.getByRole('textbox', { name: 'Выражение для калькулятора' }).fill('√(300+100)');
   await expect(multi.getByTestId('tb-calc-value')).toHaveText('= 20');
   // «=» — как в калькуляторе урока: выражение заменяется результатом, с ним можно считать дальше

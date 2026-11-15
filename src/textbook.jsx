@@ -947,12 +947,14 @@ function TbCalc({ onUse, label = 'В ответ' }) {
   };
   return (
     <div className="tb-calc" data-testid="tb-calc">
-      <input value={expr} onChange={(e) => setExpr(e.target.value.replace(/[^0-9.,+\-−*/×÷:^√()\s]/g, '').slice(0, 40))} aria-label="Выражение для калькулятора" placeholder="например, (120−60)/2"
-        style={{ ...inputStyle(), width: '100%', boxSizing: 'border-box', fontFamily: 'var(--ds-mono, monospace)' }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (v != null) onUse(fmtResult(v).replace('−', '-')); } }} />
-      <div className="tb-calc-screen" data-testid="tb-calc-value" style={{ fontSize: 18, fontWeight: 700 }}>{v != null ? `= ${fmtResult(v)}` : expr ? '…' : '0'}</div>
+      <div className="tb-calc-display">
+        <input value={expr} onChange={(e) => setExpr(e.target.value.replace(/[^0-9.,+\-−*/×÷:^√()\s]/g, '').slice(0, 40))} aria-label="Выражение для калькулятора" placeholder="например, (120−60)/2"
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (v != null) onUse(fmtResult(v).replace('−', '-')); } }} />
+        <div className="tb-calc-screen" data-testid="tb-calc-value" data-empty={String(v == null)}>{v != null ? `= ${fmtResult(v)}` : expr ? '…' : '0'}</div>
+      </div>
       <div className="tb-calc-keys" role="group" aria-label="Калькулятор">
         {TB_KEYS.map((k) => (
-          <button key={k} type="button" className={'÷×−+^√()='.includes(k) ? 'op' : ''} data-calc={k} onClick={() => press(k)} aria-label={TB_LABEL[k] || k}>{k}</button>
+          <button key={k} type="button" className={k === '=' ? 'eq' : k === 'C' || k === '⌫' ? 'fn' : '÷×−+^√()'.includes(k) ? 'op' : ''} data-calc={k} onClick={() => press(k)} aria-label={TB_LABEL[k] || k}>{k}</button>
         ))}
         <button type="button" className="ems-btn primary tb-calc-use" disabled={v == null} data-testid="tb-calc-use"
           onClick={() => { Audio.play('click'); onUse(fmtResult(v).replace('−', '-')); }}>{label}</button>
@@ -964,23 +966,35 @@ function TbCalc({ onUse, label = 'В ответ' }) {
 // в какое поле пойдёт результат (labels, target), и его можно выбрать (onTarget)
 function CalcToggle({ onUse, labels = null, target = 0, onTarget = null }) {
   const [open, setOpen] = useState(false);
+  /* плавное появление (пункт владельца 15.11): калькулятор остаётся в документе, пока сворачивается;
+     shown — он в документе, wide — раскрыт (высота и прозрачность идут переходом, .tb-calc-wrap) */
+  const [shown, setShown] = useState(false);
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    if (open) { setShown(true); const id = requestAnimationFrame(() => requestAnimationFrame(() => setWide(true))); return () => cancelAnimationFrame(id); }
+    setWide(false);
+    const t = setTimeout(() => setShown(false), 300);
+    return () => clearTimeout(t);
+  }, [open]);
   const multi = labels && labels.length > 1;
   return (
     <>
       <button type="button" className="tb-tool" aria-expanded={open} data-testid="tb-calc-open"
         onClick={() => { Audio.play('click'); setOpen((x) => !x); }}><Calculator size={15} aria-hidden="true" />Калькулятор</button>
-      {open && (
-        <div style={{ flexBasis: '100%' }}>
-          {multi && onTarget && (
-            <div role="group" aria-label="Куда вставить результат" style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, color: COLOR.muted, marginBottom: 6 }}>
-              Куда:
-              {labels.map((l, k) => (
-                <button key={k} type="button" className="tb-chip" aria-pressed={k === target} data-testid="tb-calc-target" data-target={k}
-                  style={k === target ? { borderColor: COLOR.gold, color: COLOR.text } : undefined} onClick={() => { Audio.play('tick'); onTarget(k); }}>{l}</button>
-              ))}
-            </div>
-          )}
-          <TbCalc onUse={(x) => onUse(x)} label={multi ? `В ответ ${labels[target]}` : 'В ответ'} />
+      {shown && (
+        <div className="tb-calc-wrap" data-open={String(wide)} data-testid="tb-calc-wrap" inert={!open}>
+          <div>
+            {multi && onTarget && (
+              <div role="group" aria-label="Куда вставить результат" style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, color: COLOR.muted, margin: '8px 0 0' }}>
+                Куда:
+                {labels.map((l, k) => (
+                  <button key={k} type="button" className="tb-chip" aria-pressed={k === target} data-testid="tb-calc-target" data-target={k}
+                    style={k === target ? { borderColor: COLOR.gold, color: COLOR.text } : undefined} onClick={() => { Audio.play('tick'); onTarget(k); }}>{l}</button>
+                ))}
+              </div>
+            )}
+            <TbCalc onUse={(x) => onUse(x)} label={multi ? `В ответ ${labels[target]}` : 'В ответ'} />
+          </div>
         </div>
       )}
     </>
