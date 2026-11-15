@@ -393,6 +393,42 @@ test('учебник: график с ползунком едет плавно �
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 15.11: «анимация движения графика очень сильно багается, когда быстро ползунок двигаешь, да и когда медленно тоже»
+test('учебник: пока график едет за ползунком, подписи кривых и точек не прыгают', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Эластичность/ }).first().click();
+  const chart = page.getByTestId('chapter').locator('[data-testid=tb-chart][data-chart=elasticity]').first();
+  await chart.scrollIntoViewIfNeeded();
+  await expect(chart.locator('svg[role=img] text').first()).toBeVisible();
+  // каждый ползунок ведём до правого края и обратно до левого за 2,5 с и кадр за кадром смотрим, насколько сдвинулась каждая подпись
+  const worst = await chart.evaluate((el) => new Promise((done) => {
+    const inputs = [...el.querySelectorAll('input[type=range]')];
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    // подписи кривых и точек; числа на осях стоят на месте и повторяются — их не берём
+    const snap = () => [...el.querySelectorAll('svg[role=img] text')].filter((t) => !/^[\d\s,.−-]*$/.test(t.textContent)).map((t) => { const b = t.getBBox(); return { s: t.textContent, x: b.x, y: b.y }; });
+    const T = 2500; let prev = snap(); let max = 0; let who = ''; const t0 = performance.now(); let lastT = t0; const start = [];
+    const tick = (now) => {
+      const t = Math.max(0, now - t0); const k = Math.min(inputs.length - 1, Math.floor(t / T)); const input = inputs[k];
+      const lo = Number(input.min); const hi = Number(input.max); const step = Number(input.step) || 1; const f = Math.min(1, (t - k * T) / (T - 300));
+      // без рывков: от того, где ползунок стоял, — до правого края, потом до левого
+      if (start[k] == null) start[k] = Number(input.value);
+      const v = f < 0.4 ? start[k] + (hi - start[k]) * (f / 0.4) : hi + (lo - hi) * ((f - 0.4) / 0.6);
+      set.call(input, String(lo + Math.round((v - lo) / step) * step)); input.dispatchEvent(new Event('input', { bubbles: true }));
+      const cur = snap();
+      // долгий кадр (занятая машина) — не в счёт: за него подпись честно проезжает больше
+      if (now - lastT < 40) cur.forEach((a) => { const b = prev.find((p) => p.s === a.s); if (b) { const d = Math.hypot(a.x - b.x, a.y - b.y); if (d > max) { max = d; who = `${a.s} ${Math.round(b.x)},${Math.round(b.y)}→${Math.round(a.x)},${Math.round(a.y)} ползунок ${k} f=${f.toFixed(2)}`; } } });
+      prev = cur; lastT = now;
+      if (t < T * inputs.length) requestAnimationFrame(tick); else done({ max: Math.round(max), who, n: inputs.length });
+    };
+    requestAnimationFrame(tick);
+  }));
+  expect(worst.n).toBeGreaterThan(0);
+  // раньше подписи перескакивали на десятки пикселей за кадр
+  expect(worst.max, `подпись «${worst.who}»`).toBeLessThan(26);
+  expect(errors).toEqual([]);
+});
+
 // пункт владельца 09.11: «хотелось бы, чтобы можно было нажать на картинку и она открылась на весь экран»
 test('картинка на весь экран: график учебника — целиком посередине, приближается кнопками, двойным касанием и колёсиком, двигается; Esc закрывает только его', async ({ page, isMobile }) => {
   const { errors } = await openApp(page);

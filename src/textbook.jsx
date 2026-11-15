@@ -2,6 +2,8 @@
    вместе с KaTeX и текстами глав — в меню и в партии этот код не нужен.
    Тексты — src/textbook/chapters/*.md (разметка — src/textbook/markdown.js), порядок и
    ссылки на настоящие учебники — src/textbook/toc.js, прогресс — src/textbook/progress.js. */
+import { followStep } from './lib/follow.js';
+import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -521,6 +523,33 @@ export function ChartSvg({ scene }) {
   };
   // надпись с подложкой цвета фона: читается, даже если легла на линию
   const halo = { stroke: COLOR.panel, strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
+  /* подписи не прыгают, пока график едет (src/lib/glide.js): место подписи скакнуло — она доезжает плавно.
+     Считаем по левому краю надписи: смена выравнивания (у правого края поля) — тоже скачок. */
+  const glide = React.useRef(null); if (!glide.current) glide.current = newGlide();
+  const [, bump] = useState(0); const loop = React.useRef(0); const lastT = React.useRef(0);
+  const calm = useMemo(() => typeof window === 'undefined' || !window.requestAnimationFrame || !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches), []);
+  const used = [];
+  const place = (key, x, y, label = '', end = false) => {
+    if (calm) return { x, y };
+    used.push(key);
+    const w = end ? String(label).length * 7.2 : 0;
+    const at = glideAt(glide.current, key, x - w, y);
+    return { x: at.x + w, y: at.y };
+  };
+  React.useEffect(() => {
+    if (calm) return;
+    glideKeep(glide.current, used);
+    if (glide.current.off.size && !loop.current) {
+      lastT.current = performance.now();
+      const tick = (now) => {
+        const live = glideDecay(glide.current, now - lastT.current); lastT.current = now;
+        loop.current = live ? window.requestAnimationFrame(tick) : 0;
+        bump((n) => n + 1);
+      };
+      loop.current = window.requestAnimationFrame(tick);
+    }
+  });
+  React.useEffect(() => () => { if (loop.current) window.cancelAnimationFrame(loop.current); loop.current = 0; }, []);
   return (
     <div ref={box} style={{ width: '100%' }}>
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="График" style={{ display: 'block', maxWidth: 560, margin: '0 auto', fontFamily: 'inherit' }}>
@@ -567,7 +596,7 @@ export function ChartSvg({ scene }) {
           return (
             <g key={`s${i}`}>
               <line x1={sx(s.x0)} x2={sx(s.x1)} y1={sy(s.y)} y2={sy(s.y)} stroke={COLOR.gold} strokeWidth={5} strokeOpacity={0.8} />
-              <text x={(sx(s.x0) + sx(s.x1)) / 2} y={under ? sy(s.y) - 9 : sy(s.y) + 16} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle" data-seg-side={under ? 'above' : 'below'}>{s.label}</text>
+              <text {...place(`s${i}`, (sx(s.x0) + sx(s.x1)) / 2, under ? sy(s.y) - 9 : sy(s.y) + 16)} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle" data-label="seg" data-seg-side={under ? 'above' : 'below'}>{s.label}</text>
             </g>
           );
         })}
@@ -600,12 +629,13 @@ export function ChartSvg({ scene }) {
       })}
       {scene.curves.filter((c) => c.label && !c.ghost).map((c) => {
         const at = labelAt(c.points, c.labelPos);
-        return <text key={`l${c.id}`} x={at.x} y={at.y} fontSize={12.5} fontWeight={600} {...halo} fill={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()} textAnchor={at.x > W - 90 ? 'end' : 'start'}>{c.label}</text>;
+        const end = at.x > W - 90;
+        return <text key={`l${c.id}`} {...place(`l${c.id}`, at.x, at.y, c.label, end)} fontSize={12.5} fontWeight={600} {...halo} fill={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()} textAnchor={end ? 'end' : 'start'} data-label="curve">{c.label}</text>;
       })}
       {scene.points.filter(inside).map((p, i) => (
         <g key={`p${i}`}>
           <circle cx={sx(p.x)} cy={sy(p.y)} r={p.small ? 3 : 5} fill={p.color ? CURVE_COLOR[p.color]() : p.small ? COLOR.muted : COLOR.goldSoft} stroke={COLOR.bg} strokeWidth={1.5} />
-          <text x={Math.min(sx(p.x) + 8, W - M.r - 2)} y={p.below ? sy(p.y) + 17 : sy(p.y) - 8} fontSize={p.small ? 11 : 12.5} {...halo} textAnchor={sx(p.x) > W - 70 ? 'end' : 'start'}
+          <text {...place(`p${i}:${p.label}`, Math.min(sx(p.x) + 8, W - M.r - 2), p.below ? sy(p.y) + 17 : sy(p.y) - 8, p.label, sx(p.x) > W - 70)} fontSize={p.small ? 11 : 12.5} {...halo} textAnchor={sx(p.x) > W - 70 ? 'end' : 'start'} data-label="point"
             fill={p.color ? CURVE_COLOR[p.color]() : p.small ? COLOR.muted : COLOR.goldSoft} fontWeight={p.small ? 400 : 700}>{p.label}</text>
         </g>
       ))}
@@ -637,34 +667,32 @@ export function ChartLegend({ items }) {
   );
 }
 
-/* Плавный график (пункт владельца 09.11): числа ползунков меняются сразу, а сцена — кривые и точки — за треть секунды
-   доезжает до новых значений (кубическое замедление). Новая цель посреди пути — едем к ней от того, где сейчас.
-   Нечисловые значения (переключатели) — сразу; при «уменьшить движение» — всё сразу (docs/mechanics.md). */
-const TWEEN_MS = 320;
-function useTweened(target) {
+/* Плавный график (пункты владельца 09.11 и 15.11): числа ползунков меняются сразу, а сцена — кривые и точки —
+   идёт за ними, как груз на пружине без перелёта (src/lib/follow.js). Один цикл кадров на всё движение: новая цель его не перезапускает,
+   и скорость меняется плавно: нет рывка на каждый шаг ползунка. Нечисловые значения (переключатели) —
+   сразу; при «уменьшить движение» — всё сразу (docs/mechanics.md). span — размах ползунков: порог «доехали». */
+function useTweened(target, span = null) {
   const [shown, setShown] = useState(target);
-  const cur = useRef(target); const raf = useRef(0);
+  const cur = useRef(target); const goal = useRef(target); const raf = useRef(0); const last = useRef(0); const spanRef = useRef(span); const vel = useRef(null);
+  goal.current = target; spanRef.current = span;
   const key = JSON.stringify(target);
   useEffect(() => {
     const calm = typeof window === 'undefined' || !window.requestAnimationFrame || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    const from = cur.current;
-    const moving = Object.keys(target).filter((k) => typeof target[k] === 'number' && typeof from[k] === 'number' && Math.abs(from[k] - target[k]) > 1e-9);
-    if (calm || !moving.length) { cur.current = target; setShown(target); return undefined; }
-    const t0 = performance.now();
+    if (calm) { cur.current = target; setShown(target); return; }
+    if (raf.current) return; // цикл уже идёт — он сам увидит новую цель
+    last.current = performance.now();
     const step = (now) => {
-      const k = Math.min(1, (now - t0) / TWEEN_MS); const e = 1 - (1 - k) ** 3;
-      const next = { ...target };
-      moving.forEach((id) => { next[id] = from[id] + (target[id] - from[id]) * e; });
-      cur.current = k >= 1 ? target : next;
-      setShown(cur.current);
-      if (k < 1) raf.current = window.requestAnimationFrame(step);
+      const r = followStep(cur.current, goal.current, now - last.current, spanRef.current, vel.current);
+      last.current = now; cur.current = r.values; vel.current = r.vel; setShown(r.values);
+      raf.current = r.done ? 0 : window.requestAnimationFrame(step);
     };
     raf.current = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(raf.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  useEffect(() => () => { if (raf.current) window.cancelAnimationFrame(raf.current); raf.current = 0; }, []);
   return shown;
 }
+
 
 /* График с ползунками. Сам хранит положение ползунков, если его не ведёт задача:
    в графической задаче values/onValues приходят снаружи, only — какие ползунки показать. */
@@ -672,7 +700,8 @@ function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = 
   const def = CHARTS[type];
   const [own, setOwn] = useState(() => (def ? chartDefaults(type, attrs) : {}));
   // сцена — по плавно доезжающим значениям, ползунки и проверка задачи — по настоящим
-  const shown = useTweened(outer || own);
+  const spans = useMemo(() => (def ? Object.fromEntries(def.controls(attrs).filter((c) => typeof c.min === 'number' && typeof c.max === 'number').map((c) => [c.id, c.max - c.min])) : null), [def, attrs]);
+  const shown = useTweened(outer || own, spans);
   if (!def) return null;
   const values = outer || own;
   const setValues = (fn) => { const next = typeof fn === 'function' ? fn(values) : fn; if (onValues) onValues(next); else setOwn(next); };
