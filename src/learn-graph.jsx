@@ -4,6 +4,7 @@
    Внизу — одна мысль простыми словами, «Назад» и «Дальше»; в конце — вопрос на понимание и «+10 опыта»
    (один раз). Открывается остановкой на дороге юнита и кнопкой «Разобрать график по шагам» на карточке
    урока с этим графиком — тогда без опыта (peek), поверх урока. При «уменьшить движение» — без анимаций. */
+import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw, Gem } from 'lucide-react';
@@ -149,6 +150,25 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
   const view = alsoShow || alsoHide ? { ...view0, shown: new Set([...view0.shown, ...(alsoShow || [])].filter((id) => !(alsoHide || []).includes(id))) } : view0;
   const defaults = useMemo(() => Object.fromEntries((def.controls ? def.controls(g.attrs) : []).map((c) => [c.id, c.def])), [def, g.attrs]);
   const vals = useTweenValues({ ...defaults, ...view.values, ...live }, reduced || !!live);
+  /* подписи не прыгают, пока график едет (src/lib/glide.js; жалоба graph-moncomp: «что-то странное произошло с текстом
+     MR, когда двинулся график»): место подписи выбирается заново на каждый кадр, и, когда лучшим становится другое
+     место, подпись раньше перескакивала туда разом. Теперь она доезжает плавно. */
+  const glide = useRef(null); if (!glide.current) glide.current = newGlide();
+  const [, bumpGlide] = useState(0); const glideLoop = useRef(0); const glideT = useRef(0); const glideUsed = useRef([]);
+  useEffect(() => {
+    if (reduced) return;
+    glideKeep(glide.current, glideUsed.current);
+    if (glide.current.off.size && !glideLoop.current) {
+      glideT.current = performance.now();
+      const tick = (now) => {
+        const alive = glideDecay(glide.current, now - glideT.current); glideT.current = now;
+        glideLoop.current = alive ? requestAnimationFrame(tick) : 0;
+        bumpGlide((n) => n + 1);
+      };
+      glideLoop.current = requestAnimationFrame(tick);
+    }
+  });
+  useEffect(() => () => { if (glideLoop.current) cancelAnimationFrame(glideLoop.current); glideLoop.current = 0; }, []);
   const scene = sceneInCrowns(def.build(g.attrs, vals));
   const [x0, x1] = scene.xDomain; const [y0, y1] = scene.yDomain;
   const sx = (x) => M.l + ((x - x0) / (x1 - x0)) * (W - M.l - M.r);
@@ -191,14 +211,26 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
       return [{ x: x + 6, y: y - 8, anchor: 'start' }, { x: x - 6, y: y - 8, anchor: 'end' }, { x: x + 6, y: y + 16, anchor: 'start' }];
     });
   };
-  const spots = placeLabels([
+  const labelList = [
     ...view.marks.map((m, i) => ({ m, i })).filter(({ m }) => m.t === 'pt').map(({ m, i }) => {
       const c = aroundPoint(sx(m.x), sy(m.y));
       return { id: `m${i}`, text: m.label, size: 12.5, cands: m.below ? [c[2], c[3], ...c] : c };
     }),
     ...shownPts.filter(({ p }) => p.label).map(({ p, id }) => ({ id, text: p.label, size: p.small ? 12 : 14, cands: aroundPoint(sx(p.x), sy(p.y)) })),
     ...curveLabels.map((c) => ({ id: `c:${c.id}`, text: c.label, size: 14, cands: along(c) })),
-  ], { fixed: [...fixedText, ...xTicks.map((t) => t.box), ...yTicks.map((t) => t.box), ...dots], lines, bounds: { x0: M.l + 2, x1: W - 2, y0: 2, y1: H - M.b - 2 } });
+  ];
+  const spots = placeLabels(labelList, { fixed: [...fixedText, ...xTicks.map((t) => t.box), ...yTicks.map((t) => t.box), ...dots], lines, bounds: { x0: M.l + 2, x1: W - 2, y0: 2, y1: H - M.b - 2 } });
+  if (!reduced) {
+    glideUsed.current = [];
+    labelList.forEach((l) => {
+      const at = spots[l.id]; if (!at) return;
+      // считаем по левому краю надписи: смена выравнивания — тоже скачок
+      const w = String(l.text).length * l.size * 0.56 * (at.anchor === 'end' ? 1 : at.anchor === 'middle' ? 0.5 : 0);
+      const p = glideAt(glide.current, l.id, at.x - w, at.y);
+      glideUsed.current.push(l.id);
+      spots[l.id] = { ...at, x: p.x + w, y: p.y };
+    });
+  }
   return (
     <svg viewBox={vb || `0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}>
       <defs><clipPath id={clip}><rect x={M.l} y={M.t - 6} width={W - M.l - M.r + 6} height={H - M.t - M.b + 6} /></clipPath></defs>
