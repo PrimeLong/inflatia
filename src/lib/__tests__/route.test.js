@@ -25,7 +25,7 @@ function fakeWindow(start = '/') {
   };
   return win;
 }
-const tick = () => new Promise((r) => { setTimeout(r, 5); });
+const tick = () => new Promise((r) => { setTimeout(r, 40); });
 
 describe('адреса экранов', () => {
   it('у каждой вкладки свой адрес, и он читается обратно', () => {
