@@ -636,6 +636,13 @@ test('навигация: у каждого экрана один «назад»
   // марка из короткого ряда альбома — сразу крупно; колокольчик — уведомления; назад — в профиль
   await page.getByTestId('album-stamp').first().click();
   await expectScreen(page, 'item', seen);
+  // крупная марка цела (пункт владельца 15.11): здание не наезжает ни на строку «Почта Инфляции», ни на подпись
+  const parts = await page.locator('.pf-stamp.big').first().evaluate((el) => {
+    const r = (q) => el.querySelector(q).getBoundingClientRect();
+    return { top: r('.pf-stamp-top').bottom, art0: r('[data-testid=engraving]').top, art1: r('[data-testid=engraving]').bottom, cap: r('.pf-stamp-cap').top };
+  });
+  expect(parts.art0).toBeGreaterThanOrEqual(parts.top - 1);
+  expect(parts.art1).toBeLessThanOrEqual(parts.cap + 1);
   await clickBack(page);
   await expectScreen(page, 'profile', seen);
   await page.getByTestId('prof-bell').click();
