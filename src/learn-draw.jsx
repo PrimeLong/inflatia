@@ -8,7 +8,7 @@
 import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Gem, Plus, Minus, Hand, Expand } from 'lucide-react';
+import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Gem, Plus, Minus, Hand, Expand, Undo2, ChevronUp, ChevronDown } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
@@ -86,6 +86,16 @@ const CSS = `
   .dl-box.full .dl-mini-fb { font: 600 14px/1.35 var(--ds-sans); padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ds-ok) 10%, var(--ds-card)); }
   .dl-box.full .dl-mini-fb.bad { background: color-mix(in srgb, var(--ds-warn, #D9822B) 12%, var(--ds-card)); }
   .dl-full-row { display: flex; gap: 8px; }
+  .dl-fhead { display: flex; align-items: center; gap: 10px; flex: none; }
+  .dl-fstep { font: 800 13px var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--g-blue); }
+  .dl-fdots { display: flex; gap: 5px; flex: 1; } .dl-fdots i { width: 9px; height: 9px; border-radius: 50%; background: var(--ds-rule2); }
+  .dl-fdots i.on { background: var(--g-blue); transform: scale(1.2); } .dl-fdots i.ok { background: var(--ds-ok); }
+  .dl-pts { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+  .dl-pt { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px 4px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--g-blue) 40%, var(--ds-rule2));
+    background: color-mix(in srgb, var(--g-blue) 8%, var(--ds-card)); color: var(--ds-ink); font: 600 13px var(--ds-mono, monospace); cursor: pointer; }
+  .dl-pt:hover { border-color: var(--ds-bad); } .dl-pt svg { opacity: .6; }
+  .dl-box.full .dl-ink:focus-visible { outline: 3px solid var(--g-blue); outline-offset: -3px; }
+  .dl-full-btn:disabled { opacity: .45; cursor: default; }
   .dl-full-row > :last-child { flex: 1; }
   @media (prefers-reduced-motion: reduce) { .dl-task, .dl-fb { animation: none; } }
 `;
@@ -129,6 +139,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const [already] = useState(() => isDrawDone(learn, id));
   /* «На весь экран»: свой слой поверх урока; где можно — ещё и полноэкранный режим браузера с поворотом в альбомный */
   const [full, setFull] = useState(false);
+  /* на весь экран (пункт владельца 15.11: «раскрытие на весь экран всё ещё отвратительное — полный редизайн и куча
+     фич»): задание сворачивается, перекрестие к осям, список точек с удалением, «Отменить» (Ctrl+Z), клавиатура */
+  const [taskOpen, setTaskOpen] = useState(true);
+  const [kc, setKc] = useState(null); // курсор клавиатуры — точка на сетке
   const fullRef = useRef(false);
   fullRef.current = full;
   /* приближение графика (docs/mechanics.md, «Нарисуй сам»): окно viewBox у обоих слоев — графика и поля точек,
@@ -361,6 +375,50 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : { pts: (s.ps || (s.a ? [s.a, s.b] : [s.p])).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
   const mine = res && res.shown ? 'var(--g-rust)' : 'var(--g-blue)';
   const coordLabel = (q) => `${fmt(q.x)}; ${fmt(q.y)}`;
+  // поставить точку в q — как касание (линия и таблица: следующая или ближняя, если все стоят)
+  const placeAt = (q) => {
+    if (resolved || phase !== 'task' || t.do === 'shift') return;
+    touch();
+    const p = place(q);
+    if (t.do === 'line' || t.do === 'points') {
+      const near = pts.map((r, k) => ({ k, dd: Math.hypot(sx(r.x) - sx(p.x), sy(r.y) - sy(p.y)) })).sort((a, b) => a.dd - b.dd)[0];
+      const k = near && pts.length >= maxPts ? near.k : pts.length;
+      const next = [...pts]; next[k] = p; setPts(next);
+    } else setPts([p]);
+    Audio.play('tick');
+  };
+  const undoPt = () => { if (resolved || !pts.length) return; Audio.play('tick'); touch(); setPts(pts.slice(0, -1)); };
+  const dropPt = (k) => { if (resolved) return; Audio.play('tick'); touch(); setPts(pts.filter((_, j) => j !== k)); };
+  // клавиатура на весь экран: стрелки — курсор по сетке (Shift — ×5), Enter или пробел — точка, Ctrl+Z — отменить
+  const onKeys = (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я')) { e.preventDefault(); undoPt(); return; }
+    const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+    if (t.do === 'shift' && dir && dir[0] && !resolved) { e.preventDefault(); touch(); setV(clampV(v + dir[0] * d.snap[0] * (e.shiftKey ? 5 : 1))); return; }
+    if (dir) {
+      e.preventDefault();
+      const m = e.shiftKey ? 5 : 1;
+      const c = kc || place({ x: (x0 + x1) / 2, y: (y0 + y1) / 2 });
+      const q = { x: Math.max(x0, Math.min(x1, c.x + dir[0] * d.snap[0] * m)), y: Math.max(y0, Math.min(y1, c.y + dir[1] * d.snap[1] * m)) };
+      setKc(q); setHover(q); return;
+    }
+    if ((e.key === 'Enter' || e.key === ' ') && kc) { e.preventDefault(); placeAt(kc); }
+  };
+  // перекрестие: от точки под курсором — пунктир к осям и значения на них
+  const cross = (q) => {
+    const cx = sx(q.x); const cy = sy(q.y);
+    const tag = (x, y, text, anchor) => (
+      <g key={text + anchor}><rect x={anchor === 'end' ? x - (text.length * 7.4 + 10) * pz : x - (text.length * 3.7 + 5) * pz} y={y - 11 * pz} width={(text.length * 7.4 + 10) * pz} height={20 * pz} rx={6 * pz} fill="var(--g-blue)" />
+        <text x={anchor === 'end' ? x - 5 * pz : x} y={y + 4 * pz} fontSize={12.5 * pz} fontWeight="700" fill="#fff" textAnchor={anchor}>{text}</text></g>
+    );
+    return (
+      <g pointerEvents="none" data-testid="draw-cross">
+        <line x1={cx} x2={cx} y1={cy} y2={H - M.b} stroke="var(--g-blue)" strokeWidth={1.4 * pz} strokeDasharray={`${4 * pz} ${4 * pz}`} />
+        <line x1={M.l} x2={cx} y1={cy} y2={cy} stroke="var(--g-blue)" strokeWidth={1.4 * pz} strokeDasharray={`${4 * pz} ${4 * pz}`} />
+        {tag(cx, H - M.b + 14 * pz, fmt(q.x), 'middle')}
+        {tag(M.l - 2 * pz, cy, fmt(q.y), 'end')}
+      </g>
+    );
+  };
   // у правого края окна подпись — слева от точки
   const nearRight = (q) => sx(q.x) > vb.x + vb.w - 80 * pz;
   const pin = (q, key, col, label) => (
@@ -416,7 +474,15 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
             {!resolved && <span className="dl-how">{HOW[t.do]}{gem ? ' Алмаз: одна попытка на шаг.' : ''}</span>}
           </div>
           <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)} data-zoom={z.toFixed(2)}>
-          {full && <div className="dl-mini" data-testid="draw-full-task"><b>Шаг {i + 1} из {n}.</b> {rich(t.text)}
+          {full && (
+            <div className="dl-fhead" data-testid="draw-full-head">
+              <span className="dl-fstep">Шаг {i + 1} из {n}</span>
+              <span className="dl-fdots" aria-hidden="true">{d.tasks.map((_, j) => <i key={j} className={j < i || (j === i && resolved) ? 'ok' : j === i ? 'on' : ''} />)}</span>
+              <button type="button" className="dl-full-btn" aria-expanded={taskOpen} data-testid="draw-task-toggle" onClick={() => { Audio.play('tick'); setTaskOpen(!taskOpen); }}>
+                {taskOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}{taskOpen ? 'Скрыть задание' : 'Задание'}</button>
+            </div>
+          )}
+          {full && taskOpen && <div className="dl-mini" data-testid="draw-full-task">{rich(t.text)}
             {t.do === 'points' && <span className="dl-mini-rows"> {t.cols.join('; ')}: {t.at.map((q) => `${fmt(q.x)}; ${fmt(q.y)}`).join(' · ')}</span>}</div>}
           <div className="gl-stage">
             <div className="dl-fit" ref={fitArea}>
@@ -430,16 +496,21 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                   onClick={() => { Audio.play('tick'); setHand(!hand); setHover(null); }}><Hand size={14} aria-hidden="true" />Двигать</button>}
               </div>
               {!full && <button type="button" className="dl-full-btn" data-testid="draw-full" onClick={goFull}><Maximize2 size={14} aria-hidden="true" />На весь экран</button>}
+              {full && t.do !== 'shift' && (
+                <button type="button" className="dl-full-btn" data-testid="draw-undo" disabled={resolved || !pts.length} title="Отменить (Ctrl+Z)" onClick={undoPt}><Undo2 size={14} aria-hidden="true" />Отменить</button>
+              )}
             </div>
             <div ref={wrap} className={`dl-wrap${zoomed ? ' zoomed' : ''}`} data-testid="draw-wrap" style={full && fitBox ? { width: fitBox.w, height: fitBox.h } : undefined}>
               <GraphStage g={tour} k={k} grid={d.grid} vb={vbString(vb)} live={t.do === 'shift' && !resolved ? { [t.control]: v } : null}
                 alsoShow={!resolved && t.show ? t.show : null} alsoHide={!resolved && t.hide ? t.hide : null} />
               <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}${hand ? ' hand' : ''}`} viewBox={vbString(vb)} data-testid="draw-ink"
-                data-answer={testAnswer} data-ready={String(ready)} aria-label="Поле для рисования"
+                data-answer={testAnswer} data-ready={String(ready)} aria-label={full ? 'Поле для рисования. Стрелки — курсор по сетке, Enter — поставить точку, Ctrl+Z — отменить' : 'Поле для рисования'}
+                tabIndex={full ? 0 : undefined} onKeyDown={full ? onKeys : undefined}
                 onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onPointerLeave={() => setHover(null)}>
                 <defs><clipPath id={`dlc${id}`}><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath></defs>
                 {/* сетка — в самом графике (GraphStage, grid): линии через шаг задания, подписи — только на них */}
                 {!res?.ok && through()}
+                {full && hover && !resolved && t.do !== 'shift' && cross(hover)}
                 {hover && !drag.current && pts.length < maxPts && (
                   <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', coordLabel(hover))}</g>
                 )}
@@ -459,6 +530,11 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
               </label>
             )}
           </div>
+          {full && t.do !== 'shift' && t.do !== 'area' && pts.length > 0 && !resolved && (
+            <div className="dl-pts" data-testid="draw-pts" aria-label="Поставленные точки">
+              {pts.map((q, j) => <button key={j} type="button" className="dl-pt" data-testid="draw-pt" onClick={() => dropPt(j)} aria-label={`Убрать точку ${coordLabel(q)}`}>({coordLabel(q)})<X size={12} aria-hidden="true" /></button>)}
+            </div>
+          )}
           {full && res && (
             <div className={`dl-mini-fb${res.ok ? '' : ' bad'}`} data-testid="draw-full-feedback">{res.ok ? 'Верно.' : res.shown ? 'Вот как надо — смотрите на графике.' : `${res.why || 'Не совсем.'} Попробуйте ещё раз.`}</div>
           )}

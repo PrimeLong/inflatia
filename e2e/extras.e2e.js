@@ -870,6 +870,54 @@ test('«Персоналии»: портрет — свой файл из public
 });
 
 // «Нарисуй сам» на телефоне (пункт владельца 08.11, вечер): ровная сетка и «На весь экран»
+// пункт владельца 15.11: «раскрытие на весь экран в „Нарисуй“ всё ещё отвратительное — полный редизайн и куча фич»
+test('«Нарисуй сам» на весь экран: шаги, задание сворачивается, перекрестие к осям, точки списком с удалением, «Отменить», клавиатура', async ({ page, isMobile }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-id="draw-ppf"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  await g.getByTestId('draw-full').click();
+  await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'true');
+  await expect(g.getByTestId('draw-full-head')).toContainText('Шаг 1 из');
+  // задание сворачивается — графику больше места
+  const ink = g.getByTestId('draw-ink');
+  const h0 = (await ink.boundingBox()).height;
+  await g.getByTestId('draw-task-toggle').click();
+  await expect(g.getByTestId('draw-full-task')).toHaveCount(0);
+  await expect.poll(async () => (await ink.boundingBox()).height).toBeGreaterThanOrEqual(h0);
+  // клавиатура: стрелки — курсор по сетке, Enter — точка; перекрестие к осям
+  await ink.focus();
+  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Shift+ArrowUp');
+  await expect(g.getByTestId('draw-cross')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect(g.getByTestId('draw-pt')).toHaveCount(1);
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter');
+  await expect(g.getByTestId('draw-pt')).toHaveCount(2);
+  // Ctrl+Z и «Отменить» — последняя точка уходит; касание точки в списке — убирает её
+  await page.keyboard.press('Control+z');
+  await expect(g.getByTestId('draw-pt')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect(g.getByTestId('draw-pt')).toHaveCount(2);
+  await g.getByTestId('draw-undo').click();
+  await expect(g.getByTestId('draw-pt')).toHaveCount(1);
+  await g.getByTestId('draw-pt').first().click();
+  await expect(g.getByTestId('draw-pts')).toHaveCount(0);
+  // мышью: под курсором — перекрестие с подписями значений на осях
+  if (!isMobile) {
+    const b = await ink.boundingBox();
+    await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.45);
+    await expect(g.getByTestId('draw-cross').locator('text')).toHaveCount(2);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('«Нарисуй сам»: подписи осей — на линиях сетки; «На весь экран» — график во весь экран с кнопками', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
@@ -899,7 +947,7 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   const vp = page.viewportSize();
   const bb = await box.boundingBox();
   expect(bb.height).toBeGreaterThan(vp.height - 4);
-  await expect(g.getByTestId('draw-full-task')).toContainText('Шаг 1 из');
+  await expect(g.getByTestId('draw-full-head')).toContainText('Шаг 1 из');
   expect((await g.getByTestId('draw-ink').boundingBox()).width).toBeGreaterThanOrEqual(small - 1);
   // во весь экран — и решать: точки и «Проверить»
   const ink = g.getByTestId('draw-ink');
