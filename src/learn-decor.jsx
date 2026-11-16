@@ -25,7 +25,11 @@ const css = (el, name, def) => { const v = el ? getComputedStyle(el).getProperty
 
 /* ---------- гирлянда: натянутая струна с флажками ----------
    Точки висят на параболе покоя; соседи тянут друг друга (волновое уравнение), каждую —
-   слабая пружина к месту покоя, трение гасит. Потянули одну — волна бежит по гирлянде. */
+   слабая пружина к месту покоя, трение гасит. Потянули одну — волна бежит по гирлянде.
+   Мягко, как ткань на верёвке (пункт владельца 16.11: «слишком агрессивная физика»): взятый флажок не прыгает
+   под палец, а тянется к нему на упругой нити; струна натянута слабее и гасит колебания сильнее, скорость точек
+   ограничена, ветер верного ответа — медленный и слабый. Параметры — BUNTING. */
+export const BUNTING = { tension: 1100, restore: 22, damp: 6.5, wind: 420, windFreq: 4, sagForce: 380, pull: { k: 70, zeta: 0.95 }, maxV: 240, reach: 24 };
 function makeBunting(W, H) {
   const n = Math.max(8, Math.round(W / 26));
   const span = W - 16; const sag = Math.min(12, (H - 26) * 0.5);
@@ -35,23 +39,30 @@ function makeBunting(W, H) {
   });
   return { kind: 'bunting', pts, wind: 0, sag: 0, t: 0 };
 }
-const placePt = (p, x, y, H) => { p.ox = x - p.rx; p.oy = Math.max(-p.ry, Math.min(H - 22 - p.ry, y - p.ry)); p.x = p.rx + p.ox; p.y = p.ry + p.oy; };
+const clampOff = (p, ox, oy, H) => [Math.max(-BUNTING.reach, Math.min(BUNTING.reach, ox)), Math.max(-p.ry, Math.min(H - 22 - p.ry, Math.max(-BUNTING.reach, Math.min(BUNTING.reach, oy))))];
+const placePt = (p, x, y, H) => { [p.ox, p.oy] = clampOff(p, x - p.rx, y - p.ry, H); p.x = p.rx + p.ox; p.y = p.ry + p.oy; };
+// держать флажок q рукой в точке (x, y): он тянется туда, а не встаёт; отпустили — release
+export function holdBunting(q, x, y, H) { q.drag = true; [q.tx, q.ty] = clampOff(q, x - q.rx, y - q.ry, H); }
+export function releaseBunting(q) { q.drag = false; q.tx = null; q.ty = null; }
+const capV = (p) => { const v = Math.hypot(p.vx, p.vy); if (v > BUNTING.maxV) { p.vx *= BUNTING.maxV / v; p.vy *= BUNTING.maxV / v; } };
 function stepBunting(m, dt, H) {
-  const sub = 4; const h = dt / sub; const P = m.pts;
+  const sub = 4; const h = dt / sub; const P = m.pts; const B = BUNTING;
+  const pk = B.pull.k; const pc = 2 * B.pull.zeta * Math.sqrt(pk);
   for (let s = 0; s < sub; s += 1) {
     // сначала скорости всех точек по старым положениям, потом шаг — иначе струна раскачивается сама
     for (let i = 1; i < P.length - 1; i += 1) {
       const p = P[i];
-      if (p.drag) { p.vx = 0; p.vy = 0; continue; }
-      p.vx += (2400 * (P[i - 1].ox - 2 * p.ox + P[i + 1].ox) - 30 * p.ox - 3.2 * p.vx + m.wind * Math.sin(i * 0.9 + m.t * 9) * 900) * h;
-      p.vy += (2400 * (P[i - 1].oy - 2 * p.oy + P[i + 1].oy) - 30 * p.oy - 3.2 * p.vy + m.sag * 500 - m.wind * 260) * h;
+      // взятая точка — к руке на упругой нити (почти без перелёта)
+      if (p.drag && p.tx != null) { p.vx += (pk * (p.tx - p.ox) - pc * p.vx) * h; p.vy += (pk * (p.ty - p.oy) - pc * p.vy) * h; capV(p); continue; }
+      p.vx += (B.tension * (P[i - 1].ox - 2 * p.ox + P[i + 1].ox) - B.restore * p.ox - B.damp * p.vx + m.wind * Math.sin(i * 0.7 + m.t * B.windFreq) * B.wind) * h;
+      p.vy += (B.tension * (P[i - 1].oy - 2 * p.oy + P[i + 1].oy) - B.restore * p.oy - B.damp * p.vy + m.sag * B.sagForce - m.wind * 120) * h;
+      capV(p);
     }
     for (let i = 1; i < P.length - 1; i += 1) {
       const p = P[i];
-      if (p.drag) continue;
       const y = p.y + p.vy * h; placePt(p, p.x + p.vx * h, y, H);
       // упёрлась в край полосы — скорость поперёк гасится
-      if (p.y !== y) p.vy = 0;
+      if (Math.abs(p.y - y) > 1e-9) p.vy = 0;
     }
   }
   m.wind *= 0.96; m.sag *= 0.97;
@@ -238,7 +249,7 @@ const DRAW = { bunting: drawBunting, cradle: drawCradle, mobile: drawMobile };
 
 // реакция на ответ урока
 export function kick(m, ok) {
-  if (m.kind === 'bunting') { if (ok) m.wind = 1.4; else { m.sag = 1; m.pts.forEach((p, i) => { if (!p.pin) p.vy -= Math.sin(i) * 120; }); } }
+  if (m.kind === 'bunting') { if (ok) m.wind = 1.2; else { m.sag = 1; m.pts.forEach((p, i) => { if (!p.pin) p.vy -= Math.sin(i) * 70; }); } }
   if (m.kind === 'cradle') { if (ok) m.lift = { t: 0, from: m.balls[0].a }; else m.balls.forEach((x) => { x.w += (Math.random() - 0.5) * 0.6; }); }
   if (m.kind === 'mobile') m.coins.forEach((c, i) => { c.sv += ok ? 5 + (i % 3) : 1.2; c.glow = ok ? 1 : 0; c.w += ok ? 0.6 * (i % 2 ? 1 : -1) : 0.2; });
 }
@@ -279,7 +290,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
     // касание: ближайшая точка вещицы в радиусе — тянется за пальцем
     const local = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     const pick = (p) => {
-      if (m.kind === 'bunting') { let best = null; m.pts.forEach((q) => { if (q.pin) return; const d = Math.hypot(q.x - p.x, q.y + 8 - p.y); if (d < 30 && (!best || d < best.d)) best = { q, d }; }); return best && { kind: 'pt', q: best.q, dy: best.q.y - p.y }; }
+      if (m.kind === 'bunting') { let best = null; m.pts.forEach((q) => { if (q.pin) return; const d = Math.hypot(q.x - p.x, q.y + 8 - p.y); if (d < 30 && (!best || d < best.d)) best = { q, d }; }); return best && { kind: 'pt', q: best.q, dy: best.q.y - p.y, dx: best.q.x - p.x }; }
       if (m.kind === 'cradle') {
         let best = -1; let bd = 22;
         m.balls.forEach((x, i) => { const q = ballPos(m, x); const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = i; } });
@@ -302,7 +313,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       // взяли шарик на подставке: урок под ней этого нажатия не получает (ни нажатия, ни щелчка после)
       if (passThrough) { e.stopPropagation(); swallow = true; }
       drag = g; el.dataset.drag = 'true'; cursorAt('grabbing');
-      if (g.kind === 'pt') g.q.drag = true;
+      if (g.kind === 'pt') holdBunting(g.q, p.x + g.dx, p.y + g.dy, H);
       if (g.kind === 'coin') { g.c.sv += 3.5; g.c.glow = 0.6; }
       // взяли шарик — рука сразу держит его там, где нажали (он больше не качается сам)
       if (g.kind === 'ball') holdCradle(m, g.idx, p.x - m.balls[g.idx].ax);
@@ -313,7 +324,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
     const move = (e) => {
       if (!drag) { if (passThrough && !reduced && e.pointerType !== 'touch') cursorAt(overBall(local(e)) ? 'grab' : null); return; }
       const p = local(e);
-      if (drag.kind === 'pt') placePt(drag.q, p.x, p.y + drag.dy, H);
+      if (drag.kind === 'pt') holdBunting(drag.q, p.x + drag.dx, p.y + drag.dy, H);
       // шарик тянется к руке (а не встаёт под неё) — куда тянуть, считаем от точки подвеса
       if (drag.kind === 'ball') holdCradle(m, drag.idx, p.x - m.balls[drag.idx].ax);
       if (drag.kind === 'coin') { const c = drag.c; c.a = Math.max(-0.9, Math.min(0.9, (p.x - c.ax) / (c.L + 10))); c.w = 0; }
@@ -322,7 +333,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
     const up = (e) => {
       if (!drag) return;
       cursorAt(e && e.clientX != null && overBall(local(e)) ? 'grab' : null);
-      if (drag.kind === 'pt') drag.q.drag = false;
+      if (drag.kind === 'pt') releaseBunting(drag.q);
       if (drag.kind === 'ball') releaseCradle(m);
       if (drag.kind === 'coin') drag.c.drag = false;
       drag = null; el.dataset.drag = 'false'; wake();
