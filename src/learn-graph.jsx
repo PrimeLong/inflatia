@@ -271,8 +271,11 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
           const mid = `glm${g.id}${c.id}${k}`.replace(/[^A-Za-z0-9-]/g, '');
           return (
             <g key={`${c.id}-${isIn(c.id) ? k : 0}`} className={`${cls(c.id)}${isIn(c.id) ? ' g-in' : ''}`} style={{ '--k': col }} data-testid="graph-el" data-el={c.id} data-on={String(view.focus.has(c.id))}>
-              {/* линия чертится: маска-копия рисуется от начала к концу и открывает настоящую (с пунктиром) */}
-              {isIn(c.id) && <mask id={mid}><path className="draw" pathLength="1" d={d} fill="none" stroke="#fff" strokeWidth="14" strokeLinecap="round" /></mask>}
+              {/* линия чертится: маска-копия рисуется от начала к концу и открывает настоящую (с пунктиром). Область маски — во всё
+                 поле (userSpaceOnUse): по умолчанию она равна рамке линии, а у горизонтальной или вертикальной линии рамка нулевой
+                 высоты или ширины — и линия не видна вовсе (жалоба ученика 14.11, «Нарисуй сам: монополия»: «на графике уже есть
+                 MC = 20», а линии MC нет — «тут нет этого») */}
+              {isIn(c.id) && <mask id={mid} maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}><path className="draw" pathLength="1" d={d} fill="none" stroke="#fff" strokeWidth="14" strokeLinecap="round" /></mask>}
               <path className="c" d={d} fill="none" stroke={col} strokeWidth={c.ghost ? 1.8 : 2.8} strokeOpacity={c.ghost ? 0.45 : 1} strokeDasharray={dashed ? '6 5' : undefined}
                 strokeLinecap="round" mask={isIn(c.id) ? `url(#${mid})` : undefined} />
             </g>

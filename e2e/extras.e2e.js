@@ -1,10 +1,11 @@
 /* БРАУЗЕРНЫЕ СЦЕНАРИИ — особые уроки: «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам», книжная полка.
    Общие помощники — e2e/helpers.js. Запуск одного раздела: npx playwright test e2e/extras.e2e.js */
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
 import { BOOK_BY_ID, bookSpeech, passageAt, passageStart } from '../src/learn/shelf.js';
 import { PEOPLE } from '../src/learn/people.js';
 import { listPeoplePhotos, readPhotoCredits } from '../scripts/voice-files-plugin.js';
-import { openApp, openTab, pathNode, installHooks } from './helpers.js';
+import { openApp, openTab, pathNode, installHooks, showUnit } from './helpers.js';
 
 installHooks();
 
@@ -1181,6 +1182,39 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await expect(g.getByTestId('draw-solution').first()).toBeVisible();
   await expect(g.getByTestId('draw-next')).toBeVisible();
   await g.getByTestId('draw-close').click();
+  expect(errors).toEqual([]);
+});
+
+/* жалоба ученика 14.11 («Нарисуй сам: монополия», шаг 1 из 5: «Тут нет этого»): в условии «на графике уже есть MC = 20», а
+   линии не было — горизонтальную линию прятала маска анимации с рамкой нулевой высоты. Проверяем пиксели снимка. */
+test('«Нарисуй сам: монополия»: данная линия MC видна с первого шага (горизонтальные линии не пропадают)', async ({ page }) => {
+  const ids = fs.readdirSync('src/textbook/chapters').flatMap((f) => [...fs.readFileSync(`src/textbook/chapters/${f}`, 'utf8').matchAll(/:::idea id=(\S+)/g)].map((m) => m[1]));
+  await page.addInitScript((list) => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(list.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  }, ids);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'competition-monopoly');
+  const stop = page.locator('[data-testid=path-extra][data-id="draw-monopoly"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-sheet').getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  const mc = g.locator('[data-testid=graph-el][data-el="MC"] path.c');
+  await expect(mc).toHaveCount(1);
+  await page.waitForTimeout(1500);
+  // маска анимации — на всё поле, а не по рамке линии
+  for (const m of await g.locator('mask').all()) expect(await m.getAttribute('maskUnits')).toBe('userSpaceOnUse');
+  // точки на линии MC (в координатах экрана) — среди них есть рыжие пиксели самой линии
+  const pts = await mc.evaluate((el) => { const L = el.getTotalLength(); const m = el.getScreenCTM(); return [0.3, 0.45, 0.6, 0.75].map((f) => { const q = el.getPointAtLength(L * f).matrixTransform(m); return [Math.round(q.x), Math.round(q.y)]; }); });
+  const shot = (await page.screenshot()).toString('base64');
+  const rust = await page.evaluate(async ([b64, list]) => {
+    const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
+    const k = img.width / window.innerWidth;
+    return list.map(([x, y]) => { let hit = false; for (let dy = -2; dy <= 2; dy += 1) { const [r, gg, b] = ctx.getImageData(Math.round(x * k), Math.round((y + dy) * k), 1, 1).data; if (r > gg + 40 && r > b + 40) hit = true; } return hit; });
+  }, [shot, pts]);
+  expect(rust).toEqual([true, true, true, true]);
   expect(errors).toEqual([]);
 });
 
