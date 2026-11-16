@@ -5,9 +5,9 @@ import { emptyLearn } from '../../textbook/learn-state.js';
 
 const NOW = new Date(2026, 9, 18, 12).getTime();
 const HOUR = 3600000;
-const UNIT1 = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
+const UNIT1 = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum'];
 // юнит 1 пройден час назад, печати «Первый шаг» (вчера) и «Место на карте» (час назад), марка октября
-// открытия (лиги, лавка… — src/learn/unlocks.js) здесь ни при чём: у них свои проверки (shelf-read-unlocks-graph-steps.test.js)
+// открытия (лиги, лавка… — src/learn/unlocks.js) здесь ни при чём: у них свои проверки (batch-oct27)
 const own = (ms) => ms.filter((m) => m.kind !== 'unlock');
 const learn = () => ({
   ...emptyLearn(),

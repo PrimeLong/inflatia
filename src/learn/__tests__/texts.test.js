@@ -86,7 +86,7 @@ describe('термины по библии', () => {
   });
   it('в интерфейсе Пути — «опыт», а не «XP»; «Страховка серии», а не «заморозка»', async () => {
     const { readFileSync } = await import('node:fs');
-    const ui = ['../../learn.jsx', '../../learn-lesson.jsx', '../../learn-rewards.jsx', '../../learn-shop.jsx', '../../learn-play.jsx'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
+    const ui = ['../../learn.jsx', '../../learn-rewards.jsx', '../../learn-play.jsx'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
     // строки интерфейса: текст между > и < и в кавычках, без комментариев и идентификаторов
     const visible = ui.split('\n').filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
     // «XP» как слово на экране, а не идентификатор XP.correct / { XP } / lessonXp

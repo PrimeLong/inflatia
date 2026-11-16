@@ -1190,53 +1190,6 @@ const tradeChart = {
   },
 };
 
-/* ---------------- ВКЛАД И КОПИЛКА (юнит «Доходы, расходы и сбережения») ----------------
-   Стартовая сумма s0; в конце каждого года откладывают ещё add; вклад приносит r% в год, и проценты начисляются
-   и на прошлые проценты (сложный процент). Копилка — те же деньги без процентов. Горизонт — n лет.
-   Сумма меняется раз в год: точки — по годам, между ними — прямые. */
-const savingsParams = (A) => ({ s0: num(A, 's0', 1000), add: num(A, 'add', 0), r: num(A, 'r', 10), n: num(A, 'n', 10) });
-export const savedAfter = (s0, r, add, t) => { let s = s0; for (let k = 0; k < t; k += 1) s = s * (1 + r / 100) + add; return Math.round(s * 100) / 100; };
-const savingsChart = {
-  title: 'Вклад и копилка',
-  vars: (A, v) => { const p = savingsParams(A); const dep = savedAfter(p.s0, v.r, v.add, p.n); const box = savedAfter(p.s0, 0, v.add, p.n); return { n: `${p.n}`, dep: r1(dep), box: r1(box), gain: r1(dep - box) }; },
-  controls: (A) => {
-    const p = savingsParams(A);
-    return [
-      { id: 'r', label: 'Процент по вкладу в год', min: 0, max: 20, step: 1, def: p.r, fmt: (v) => `${v}%` },
-      { id: 'add', label: 'Откладывать в год', min: 0, max: Math.max(1000, p.add * 2), step: 100, def: p.add, fmt: (v) => `${v} кр.` },
-    ];
-  },
-  measure: (A, v) => { const p = savingsParams(A); const dep = savedAfter(p.s0, v.r, v.add, p.n); const box = savedAfter(p.s0, 0, v.add, p.n); return { deposit: dep, box, gain: dep - box }; },
-  build: (A, v) => {
-    const p = savingsParams(A);
-    const years = Array.from({ length: p.n + 1 }, (_, t) => t);
-    const dep = years.map((t) => ({ x: t, y: savedAfter(p.s0, v.r, v.add, t) }));
-    const box = years.map((t) => ({ x: t, y: savedAfter(p.s0, 0, v.add, t) }));
-    // ось — с запасом под самый высокий вклад, какой дают ползунки при этом взносе (линия не уходит за край)
-    const top = num(A, 'max', Math.ceil((savedAfter(p.s0, 20, v.add, p.n) * 1.08) / 500) * 500);
-    const moved = v.r !== p.r || v.add !== p.add;
-    const end = dep[dep.length - 1]; const endBox = box[box.length - 1];
-    return {
-      xDomain: [0, p.n], yDomain: [0, top], xLabel: 'годы', yLabel: 'кроны',
-      curves: [
-        ...(moved ? [{ id: 'V0', points: years.map((t) => ({ x: t, y: savedAfter(p.s0, p.r, p.add, t) })), ghost: true, color: 'gold' }] : []),
-        { id: 'M', label: 'в копилке', labelPos: 0.15, points: box, color: 'teal', dashed: true },
-        { id: 'V', label: 'на вкладе', labelPos: 0.75, points: dep, color: 'gold' },
-      ],
-      polys: end.y - endBox.y > 1 ? [{ points: [...box, ...[...dep].reverse()], label: 'проценты', tone: 'gold' }] : [],
-      points: [
-        { x: 0, y: p.s0, label: 'старт', small: true },
-        { x: end.x, y: end.y, label: 'итог', guide: true },
-      ],
-      readout: [
-        { label: `Через ${p.n} лет на вкладе`, value: r1(end.y) },
-        { label: 'В копилке', value: r1(endBox.y) },
-        { label: 'Проценты принесли', value: r1(end.y - endBox.y) },
-      ],
-    };
-  },
-};
-
 /* ---------------- НОМИНАЛЬНЫЙ И РЕАЛЬНЫЙ ВВП ----------------
    Реальный ВВП растёт на g в год, цены — на π. Номинальный = реальный × дефлятор. */
 const gdpParams = (A) => ({ y0: num(A, 'y0', 100), g: num(A, 'g', 2), pi: num(A, 'pi', 8), n: num(A, 'n', 5) });
@@ -1359,7 +1312,6 @@ const moneyChart = {
 // как называть величины графика в ответе графической задачи
 supplyDemand.measureNames = { P: 'цена', Q: 'количество' };
 laborChart.measureNames = { w: 'зарплата', L: 'число работающих' };
-savingsChart.measureNames = { deposit: 'сумма на вкладе через срок', box: 'деньги в копилке', gain: 'что принесли проценты' };
 elasticity.measureNames = { P: 'цена', Q: 'количество', R: 'выручка', E: 'эластичность' };
 isLm.measureNames = { Y: 'выпуск', r: 'ставка' };
 adAs.measureNames = { Y: 'выпуск', P: 'уровень цен' };
@@ -1629,7 +1581,7 @@ const isoquantChart = {
 };
 isoquantChart.measureNames = { L: 'рабочих', K: 'станков', Q: 'выпуск' };
 
-export const CHARTS = { product: productChart, isoquant: isoquantChart, 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, savings: savingsChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
+export const CHARTS = { product: productChart, isoquant: isoquantChart, 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
 /* Переменные подписи: {{имя}} в тексте подписи заменяется числом из модели графика при
    текущих ползунках — величины measure и свои vars графика; с приставкой d_ — при исходных. */
 const fmtVar = (x) => (typeof x === 'number' ? (Number.isInteger(Math.round(x * 100) / 100) ? String(Math.round(x)) : r1(x)).replace('-', '−') : String(x));

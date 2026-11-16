@@ -6,25 +6,16 @@
    слов в цепочке проверял больше русский язык, чем экономику. Модуль чистый: его читают
    тесты; экраны — src/learn.jsx. */
 import { LEVELS, UNIT_LEVEL } from '../textbook/levels.js';
-import { CHAPTERS } from '../textbook/toc.js';
+import { CHAPTERS, CHAPTER_BY_ID } from '../textbook/toc.js';
 import { CHAPTER_BLOCKS, CHAPTER_SECTIONS, PROBLEMS } from '../textbook/content.js';
 import { collectBlocks, parseInline, parseBlocks, checkAnswer, varyInstance } from '../textbook/markdown.js';
-import { TEMPLATE_BY_ID, TEMPLATES, templatesOf, seeded, genVariant } from '../textbook/variants.js';
+import { TEMPLATE_BY_ID, TEMPLATES, templatesOf, seeded } from '../textbook/variants.js';
 import { GLOSSARY } from '../textbook/glossary.js';
 import { CAST } from './cast.js';
 import { pathBlocks } from './money.js';
 import { plural } from '../lib/plural.js';
 import { walletYears, WALLET } from './wallet.js';
-import {
-  LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, LEVEL_REVIEW_SIZE, FIX_MIN, mistakeUnit, fixIds,
-  fixDue, fixCount, canPractice, practiceIds, pathState, unitTitle, hydrateCourse,
-} from './course-core.js';
-
-// лёгкая часть курса — в course-core.js; отсюда она видна под прежними именами
-export {
-  LEVELS, UNIT_LEVEL, LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, LEVEL_REVIEW_SIZE,
-  FIX_MIN, mistakeUnit, fixIds, fixDue, fixCount, canPractice, practiceIds, pathState, unitTitle,
-};
+import { extraLocks } from './stops.js';
 
 // сколько секунд на упражнение: одно касание — около десяти, расчёт и сборка — дольше
 export const SECONDS = { choice: 12, gap: 12, tf: 10, shift: 12, news: 16, match: 22, sort: 22, calc: 28, tiles: 20, curve: 15, price: 18, point: 15, swipe: 60, rush: 60, wallet: 120, open: 30, domino: 35, exam: 45 };
@@ -46,6 +37,8 @@ export const SELF_CHECK = ['domino'];
 /* Открытый вопрос в конце истории: письменный ответ и разбор. Неверного ответа у него нет — он
    не идёт ни в ошибки, ни в повторение, ни в проверку юнита. */
 export const OPEN_MIN = 15;
+// мини-игры: у них свой счёт внутри, в проверку юнита и повторение они не идут
+export const GAME_KINDS = ['swipe', 'rush', 'wallet'];
 /* Мини-игра урока — одна, на минуту (на алмазном уровне — 45 секунд): карточки идут по кругу,
    пока не кончится время; засчитана — чистый счёт от восьми: верных минус ошибок
    (docs/mechanics.md, «Мини-игра — зачёт»). */
@@ -76,8 +69,6 @@ export const SHIFT_CURVES = {
   'supply-demand': { D: { control: 'dA', label: 'Спрос', ...LR }, S: { control: 'dC', label: 'Предложение', ...LR } },
   // рынок труда (юнит «Биржа труда»): те же ползунки, свои названия кривых
   labor: { D: { control: 'dA', label: 'Спрос на труд', short: 'Спрос на труд', ...LR }, S: { control: 'dC', label: 'Предложение труда', short: 'Предложение', ...LR } },
-  // вклад и копилка (юнит «Сберкасса»): процент поднимает линию вклада круче вверх
-  savings: { V: { control: 'r', label: 'Линия вклада', short: 'Вклад', plus: 'круче вверх', minus: 'ниже', up: '↑', down: '↓' } },
   ppf: {
     X: { control: 'tx', label: 'Конец КПВ на оси хлеба', short: 'Хлеб', plus: 'наружу', minus: 'внутрь', up: '→', down: '←' },
     Y: { control: 'ty', label: 'Конец КПВ на оси станков', short: 'Станки', plus: 'наружу', minus: 'внутрь', up: '↑', down: '↓' },
@@ -271,13 +262,17 @@ function lessonsOf(chapterId) {
 /* УРОВНИ: юниты Пути разбиты на пять ступеней, от терминов до полноценного анализа. Путь идёт
    по уровням, внутри уровня — по порядку глав учебника. Сами уровни — в src/textbook/levels.js:
    по ним же сгруппировано оглавление учебника. */
-/* Юниты и уроки живут в лёгком ядре (course-core.js): Путь рисуется по указателю курса, собранному при сборке,
-   без текстов глав. Здесь, в тяжёлой части, уроки собираются из глав целиком и дополняют те же объекты:
-   упражнения, шаги, слова появляются у урока, когда этот файл загрузился (перед уроком, учебником, проверкой). */
+export { LEVELS, UNIT_LEVEL };
+export const LEVEL_BY_ID = Object.fromEntries(LEVELS.map((l, k) => [l.id, { ...l, no: k + 1 }]));
+export const levelOf = (unitId) => LEVEL_BY_ID[UNIT_LEVEL[unitId] || 'pro'];
 const levelRank = (id) => LEVELS.findIndex((l) => l.id === (UNIT_LEVEL[id] || 'pro'));
-hydrateCourse(CHAPTERS.map((c, k) => ({ id: c.id, title: c.title, part: c.part, ready: c.status === 'ready', lessons: lessonsOf(c.id), level: UNIT_LEVEL[c.id] || 'pro', order: k }))
-  .sort((a, b) => levelRank(a.id) - levelRank(b.id) || a.order - b.order));
+export const UNITS = CHAPTERS.map((c, k) => ({ id: c.id, title: c.title, part: c.part, ready: c.status === 'ready', lessons: lessonsOf(c.id), level: UNIT_LEVEL[c.id] || 'pro', order: k }))
+  .sort((a, b) => levelRank(a.id) - levelRank(b.id) || a.order - b.order);
+export const UNIT_BY_ID = Object.fromEntries(UNITS.map((u) => [u.id, u]));
+export const LESSONS = UNITS.flatMap((u) => u.lessons);
+export const LESSON_BY_ID = Object.fromEntries(LESSONS.map((l) => [l.id, l]));
 export const EXERCISES = Object.fromEntries(LESSONS.flatMap((l) => l.exercises.map((e) => [e.id, { ...e, lesson: l.id, unitId: l.unitId }])));
+export const pilotUnits = () => UNITS.filter((u) => u.lessons.length);
 
 /* ------------------------------ ЭКЗЕМПЛЯР УПРАЖНЕНИЯ ------------------------------
    То, что видит ученик: варианты перемешаны, у расчёта по варианту — новые числа. */
@@ -320,7 +315,7 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
     case 'calc': {
       if (ex.variant) {
         const tpl = TEMPLATE_BY_ID[ex.variant];
-        const v = genVariant(tpl, seeded(Math.floor(rand() * 2 ** 31) + 1));
+        const v = tpl.gen(seeded(Math.floor(rand() * 2 ** 31) + 1));
         const pt = v.parts[0];
         return { ...base, variant: ex.variant, source: tpl.source, prompt: parseBlocks(firstPart(v.statement, v.parts.length)), explain: parseBlocks(firstPart(v.solution, v.parts.length)), answer: pt.answer, tol: pt.tol != null ? pt.tol : null, unit: pt.unit || '', ...(pt.units ? { units: pt.units } : {}),
           traps: v.traps.filter((t) => t.part === 0).map((t) => ({ value: t.value, why: text(t.text) })) };
@@ -535,6 +530,9 @@ export function answerText(inst) {
 /* ------------------------------ СБОРКА УРОКА ------------------------------
    Свои упражнения урока плюс повторение прошлых уроков юнита — около трети урока, всего
    10–15. Повторение вперемешку со своими, первым идёт своё упражнение. */
+export const LESSON_KIND = {
+  intro: 'Знакомство', practice: 'Практика', words: 'Слова', story: 'История', listen: 'Слушай', game: 'Мини-игра', review: 'Повторение', summary: 'Итоги юнита',
+};
 // картинки шагов «Знакомства» (pic=…): значки, которые рисует src/learn.jsx
 export const STEP_PICS = ['clock', 'scale', 'hourglass', 'ticket', 'trending-up', 'circle-check', 'medal', 'arrow-left-right', 'handshake',
   'coffee', 'wallet', 'link', 'utensils', 'boxes', 'users', 'snowflake', 'arrow-down-to-line', 'arrow-up-to-line', 'croissant', 'landmark', 'radio', 'flag', 'factory', 'bike'];
@@ -827,6 +825,7 @@ export function buildUnitCheck(unitId, rand = Math.random, { seen = {} } = {}) {
    каждого (около 12), зачёт — не больше одной ошибки на шесть задач. Сдан — все юниты уровня
    сданы (passUnit), и открывается следующий уровень. */
 export const LEVEL_TEST_SIZE = 12;
+export const levelUnits = (levelId) => pilotUnits().filter((u) => u.level === levelId);
 export function buildLevelCheck(levelId, rand = Math.random, { seen = {} } = {}) {
   const units = levelUnits(levelId);
   const per = Math.max(2, Math.ceil(LEVEL_TEST_SIZE / Math.max(1, units.length)));
@@ -837,6 +836,7 @@ export function buildLevelCheck(levelId, rand = Math.random, { seen = {} } = {})
 /* «Большое повторение» в конце уровня (docs/mechanics.md, «Большое повторение: в конце каждого уровня»): 15 заданий,
    две трети — из юнитов этого уровня поровну, треть — из прошлых уровней (на первом — только он сам). В каждом юните
    сначала — его ошибки (похожей задачей или с новыми числами), потом реже виденное; расчёты — с новыми числами. */
+export const LEVEL_REVIEW_SIZE = 15;
 export const levelBefore = (levelId) => LEVELS.slice(0, Math.max(0, LEVELS.findIndex((l) => l.id === levelId))).map((l) => l.id);
 export function buildLevelReview(levelId, learn = {}, rand = Math.random) {
   const seen = learn.seen || {};
@@ -939,6 +939,8 @@ function buildDiamond(lessonId, rand, opts) {
 
 /* Практика: ошибки прошлых уроков (по id упражнения), не больше двенадцати. Если ошибок
    мало — добираем до восьми упражнениями из слабых тем (weak — уроки, по порядку слабости). */
+export const PRACTICE_MIN = 8;
+export const PRACTICE_MAX = 12;
 /* Что из ошибок можно решить в практике: упражнения уроков (кроме мини-игр и открытых
    вопросов) и задачи семинарского уровня из уроков. Ошибки, которых в практике нет, на
    «Повторить ошибки» не считаются — иначе счётчик не пустел бы никогда. */
@@ -952,8 +954,8 @@ function practiceEntry(id) {
     return PROBLEMS[pid] ? hardEntry(PROBLEMS[pid].chapter, pid) : null;
   } catch { return null; }
 }
-// что из ошибок можно решить в практике — для указателя курса (course-core.js): id → юнит
-export const practiceUnitOf = (id) => (practiceEntry(id) || {}).unitId || null;
+export const canPractice = (id) => !!practiceEntry(id);
+export const practiceIds = (learn) => (learn.mistakes || []).map((m) => m.id).filter(canPractice);
 export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}) {
   const exs = mistakeIds.map(practiceEntry).filter(Boolean);
   // ошибка возвращается похожей задачей или с новыми числами — ответ не запомнить
@@ -999,11 +1001,106 @@ export function placementFailed(items, first, unitId) {
   return items.filter((it) => it.placeUnit === unitId && it.uid in first && !first[it.uid]).length > PLACE_MISTAKES;
 }
 
+/* ------------------------------ СОСТОЯНИЕ ПУТИ ------------------------------
+   Урок открыт, если пройден предыдущий урок Пути (первый урок — всегда) или юнит сдан
+   проверкой / открыт вступительным тестом. Пройден — только если урок доведён до конца
+   (runs > 0): проверка и тест уроки открывают, но не засчитывают. Юнит пройден, когда
+   пройдены все его уроки — тогда и сундук. diamond — урок взят на алмазном уровне. */
+/* РАБОТА НАД ОШИБКАМИ (docs/mechanics.md, «Работа над ошибками»): набралось в юните FIX_MIN
+   нерешённых ошибок — на Пути перед следующим уроком встаёт обязательный урок из этих ошибок, и
+   дальше Путь не пускает, пока его не пройти. Не больше одного на юнит (learn.fixed). Встаёт только
+   там, где ученик сейчас: перед первым непройденным уроком юнита — или в конце юнита, если ошибки
+   набрались в последнем уроке; в пройденных давно юнитах задним числом не появляется. */
+export const FIX_MIN = 6;
+export const mistakeUnit = (id) => (practiceEntry(id) || {}).unitId || null;
+export const fixIds = (learn, unitId) => (learn.mistakes || []).map((m) => m.id).filter((id) => mistakeUnit(id) === unitId);
+export const fixDue = (learn, unitId) => !(learn.fixed || {})[unitId] && !((learn.units || {})[unitId] || {}).tested && fixIds(learn, unitId).length >= FIX_MIN;
 /* урок — ровно ошибки юнита (свежие, если их больше двенадцати), без добора: сколько на значке, столько
    заданий. Случайность — от юнита и списка ошибок: открыли снова — те же задания с теми же числами */
+export const fixCount = (learn, unitId) => Math.min(PRACTICE_MAX, fixIds(learn, unitId).length);
 const strHash = (t) => { let h = 2166136261; for (let i = 0; i < t.length; i += 1) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
 export function buildFix(learn, unitId, rand = null) {
   const ids = fixIds(learn, unitId).slice(-PRACTICE_MAX);
   return buildPractice(ids, rand || seeded(strHash(`${unitId}|${ids.join(',')}`)));
 }
 
+/* в автотестах замок уровня выключен (как замок особых уроков, src/learn/stops.js): длинные сценарии ставят пройденный
+   уровень и идут дальше; тест большого повторения включает его сам (ems-level-test) */
+const levelGateOff = () => {
+  try { return typeof navigator !== 'undefined' && !!navigator.webdriver && localStorage.getItem('ems-level-test') !== '1'; } catch { return false; }
+};
+export function pathState(learn) {
+  // Путь сквозной: первый урок юнита открывается, когда пройден последний урок прошлого юнита
+  // или прошлый юнит сдан проверкой
+  let prevDone = true; let frontier = false;
+  /* особый урок, которого ждёт следующий: он и есть текущая остановка юнита (waiting, current —
+     { id, title, extra }); если он стоит после последнего урока, его ждёт первый урок следующего юнита */
+  let pending = null;
+  const out = [];
+  /* «Большое повторение» в конце уровня: первый урок нового уровня ждёт его, если уровень ещё не начат
+     (ни урока, ни сданного юнита); начатый раньше — не останавливаем задним числом */
+  let prevLevel = null; let gate = null;
+  const levelStarted = (levelId) => pilotUnits().some((x) => x.level === levelId
+    && (!!(learn.units || {})[x.id] || x.lessons.some((l) => ((learn.lessons || {})[l.id] || {}).runs > 0)));
+  pilotUnits().forEach((u) => {
+    if (prevLevel && u.level !== prevLevel) {
+      const last = out[out.length - 1];
+      // весь уровень сдан тестами (тест уровня, вступительный тест) — повторение засчитано: знания уже проверены
+      const allTested = pilotUnits().filter((x) => x.level === prevLevel).every((x) => !!(learn.units || {})[x.id]);
+      const review = { levelId: prevLevel, title: `Большое повторение: ${LEVEL_BY_ID[prevLevel].title.toLowerCase()} уровень`, done: !!((learn.levels || {})[prevLevel] || {}).at || allTested };
+      if (last) last.levelReview = review;
+      if (prevDone && !review.done && !levelGateOff() && !levelStarted(u.level)) {
+        prevDone = false;
+        const w = { id: `level:${prevLevel}`, title: review.title, extra: 'level-review', levelId: prevLevel };
+        if (last && !last.current) last.current = w;
+        gate = w;
+      }
+    }
+    prevLevel = u.level;
+    const tested = !!(learn.units || {})[u.id];
+    const lessons = [];
+    // особые уроки дороги (Персоналии, Чтение, Разбор графика) — такие же уроки: следующий ждёт их
+    const extras = extraLocks(u, learn);
+    u.lessons.forEach((l, i) => {
+      const entry = learn.lessons[l.id];
+      const done = !!(entry && entry.runs > 0);
+      let open = done || prevDone || tested;
+      let fixLock = false;
+      if (!open && pending) {
+        const w = { id: pending.e.id, title: pending.e.title, extra: pending.e.type };
+        if (pending.st) { pending.st.waiting = w; if (!pending.st.current) pending.st.current = w; } else lessons.waiting = w;
+        pending = null;
+      }
+      // первый урок уровня ждёт большого повторения прошлого
+      const levelWait = i === 0 && gate && !open ? gate.levelId : null;
+      if (i === 0) gate = null;
+      // первый непройденный урок Пути: не набралось ли ошибок — в этом юните или в только что пройденном прошлом
+      if (open && !done && !tested && !frontier) {
+        frontier = true;
+        const prev = out[out.length - 1];
+        const owner = i > 0 && lessons.some((x) => x.done) ? { st: null, unitId: u.id, at: i }
+          : i === 0 && prev && prev.complete ? { st: prev, unitId: prev.course.id, at: prev.lessons.length } : null;
+        if (owner && fixDue(learn, owner.unitId)) {
+          open = false; fixLock = true;
+          const fix = { unitId: owner.unitId, at: owner.at, count: fixCount(learn, owner.unitId) };
+          if (owner.st) owner.st.fix = fix; else lessons.fix = fix;
+        }
+      }
+      // пропущенный «Слушай» открывает следующий урок, но сам остаётся не пройденным
+      const skipped = !done && open && !!(learn.skipped || {})[l.id];
+      const waits = (extras[i] || []).filter((e) => !e.done);
+      prevDone = (done || tested || skipped) && !fixLock && (tested || !waits.length);
+      pending = (done || skipped) && !tested && waits.length ? { e: waits[0], st: null } : null;
+      lessons.push({ id: l.id, no: l.no, title: l.title, done, open, diamond: !!(done && entry.diamond), ...(skipped ? { skipped: true } : {}), ...(fixLock ? { fixLock: true } : {}),
+        ...(waits.length && !tested ? { waits: waits.map((e) => e.type) } : {}), ...(levelWait ? { levelWait } : {}) });
+    });
+    const current = lessons.find((l) => l.open && !l.done && !l.skipped) || lessons.waiting || lessons.find((l) => l.open && !l.done) || null;
+    out.push({ course: u, lessons: [...lessons], current, complete: lessons.every((l) => l.done), tested, fix: lessons.fix || null, waiting: lessons.waiting || null });
+    if (pending) pending.st = out[out.length - 1];
+  });
+  // последний уровень с уроками: его большое повторение — после последнего юнита
+  const last = out[out.length - 1];
+  if (last && prevLevel) last.levelReview = { levelId: prevLevel, title: `Большое повторение: ${LEVEL_BY_ID[prevLevel].title.toLowerCase()} уровень`, done: !!((learn.levels || {})[prevLevel] || {}).at };
+  return out;
+}
+export const unitTitle = (id) => (CHAPTER_BY_ID[id] || {}).title || id;

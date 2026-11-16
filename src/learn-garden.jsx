@@ -203,13 +203,9 @@ export function SeedPacketArt({ id, title = '', color = '#7A5616' }) {
       <path d={`M12,12 ${zig} L68,12 L68,92 Q68,96 64,96 L16,96 Q12,96 12,92 Z`} fill={`color-mix(in srgb, ${color} 16%, #FFFBF2)`} stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
       <rect x="12" y="14" width="56" height="9" fill={color} />
       <rect x="18" y="28" width="44" height="42" rx="6" fill="#FFFFFF" stroke={color} strokeWidth="1" />
-      {/* дерево — целиком в окошке, со своим стволом: раньше его рисовали в масштабе цветка — крона наезжала на
-          зелёный стебелёк цветка, а ствол вылезал из окошка на семена (пункт владельца 15.11: «сломана картинка») */}
-      {id === 'moneytree'
-        ? <g transform="translate(15.2 20.5) scale(.62)" data-testid="seed-packet-tree"><TreeArt p={p} stage="bloom" /></g>
-        : <><path d="M40 66 Q39 58 40 50" stroke="#5E9234" strokeWidth="1.8" fill="none" /><g transform="translate(9.6 30.2) scale(.76)"><Bloom p={p} /></g></>}
-      {/* семена — с тёмным контуром: светлые (у орхидеи — жёлтые) на кремовом пакетике были не видны («у орхидеи нет семян») */}
-      {[[30, 82], [38, 85], [46, 81], [53, 85], [34, 88]].map(([x, y], k) => <ellipse key={k} className="gd-seed" cx={x} cy={y} rx="2.2" ry="1.4" fill={p.heart} stroke="#6B4A22" strokeWidth=".6" transform={`rotate(${k * 37} ${x} ${y})`} />)}
+      <path d="M40 66 Q39 58 40 50" stroke="#5E9234" strokeWidth="1.8" fill="none" />
+      <g transform="translate(9.6 30.2) scale(.76)">{id === 'moneytree' ? <TreeArt p={p} stage="bloom" /> : <Bloom p={p} />}</g>
+      {[[30, 82], [38, 85], [46, 81], [53, 85], [34, 88]].map(([x, y], k) => <ellipse key={k} cx={x} cy={y} rx="2.2" ry="1.4" fill={p.heart} transform={`rotate(${k * 37} ${x} ${y})`} />)}
     </svg>
   );
 }
@@ -386,7 +382,7 @@ export function GardenView({ learn, update }) {
             return (
               <div key={g.at} className={`gd-bed${st.ripe ? ' ripe' : ''}${w && w.dry ? ' dry' : ''}`} data-testid="garden-plot" data-plant={g.plant} data-stage={st.stage} data-dry={w && w.dry ? 'true' : undefined}>
                 <div className="gd-soil">
-                  {(() => { const lk = plantLook(g.at, g.plant); return (
+                  {(() => { const lk = plantLook(g.at); return (
                     <span className="gd-look" data-testid="garden-look" data-k={lk.k} style={{ '--k': lk.k, '--tilt': `${lk.tilt}deg`, '--flip': lk.flip }}>
                       <PlantArt id={g.plant} stage={st.stage} pot={false} />
                     </span>

@@ -262,7 +262,7 @@ export function AnalyticsView({ onBack }) {
             </div>
             {!lessons.length ? <div className="an-sub">Пока мало данных: здесь уроки, которые начинали хотя бы 5 раз.</div> : (
               <table className="an-table" data-testid="analytics-lessons">
-                <thead><tr><th>Урок</th><th className="num">Начали</th><th className="num">Дошли</th><th className="num">Минут</th><th className="num" title="На каком шаге чаще всего выходят, не дойдя до конца">Бросают на шаге</th></tr></thead>
+                <thead><tr><th>Урок</th><th className="num">Начали</th><th className="num">Дошли</th><th className="num">Минут</th></tr></thead>
                 <tbody>
                   {lessons.map((l) => (
                     <tr key={l.id} data-lesson={l.id}>
@@ -270,7 +270,6 @@ export function AnalyticsView({ onBack }) {
                       <td className="num">{l.start}</td>
                       <td className="num">{pct(l.finish)}</td>
                       <td className="num">{l.minutes == null ? '—' : l.minutes.toFixed(1).replace('.', ',')}</td>
-                      <td className="num" data-testid="analytics-quit">{l.quitStep ? `${l.quitStep} (${l.quitAtStep} из ${l.quit})` : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

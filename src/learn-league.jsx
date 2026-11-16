@@ -10,7 +10,7 @@ import { LEAGUE_BY_ID, LEAGUES, PROMOTE, GROUP, DEMOTE, PLACE_COINS, PROMO_COINS
 import { coinsWord, plural, indexed } from './learn/rewards.js';
 import { trackDaily } from './lib/client.js';
 import { dayOf, dowOf, rolloverLocal } from './textbook/learn-state.js';
-import { newsDate } from './learn/news-head.js';
+import { newsDate } from './learn/news.js';
 import { CoinShower } from './ds-art.jsx';
 
 const LEAGUE_CSS = `

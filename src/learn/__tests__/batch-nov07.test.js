@@ -111,47 +111,6 @@ describe('уведомления: «Ранее» — последние три �
   });
 });
 
-describe('уведомления: вчерашние напоминания о состоянии в «Ранее» не висят (пункт владельца 15.11)', () => {
-  it('«Ошибки ждут повторения» — одно, сегодняшнее; вчерашний снимок с другим числом убран; ошибок нет — нет и его', async () => {
-    const { earlierOf } = await import('../notify.js');
-    const H = 3600000; const now = Date.UTC(2026, 10, 15, 14);
-    const m = (day, n, h) => ({ id: `mistakes:${day}`, kind: 'path', icon: 'repeat', tone: '#000', title: 'Ошибки ждут повторения', text: `${n} упражнений из прошлых уроков`, at: now - h * H, go: 'tasks' });
-    const chest = { id: 'chest:scarcity', kind: 'path', icon: 'chest', tone: '#000', title: 'Сундук ждёт', text: '', at: now - 30 * H, go: 'path' };
-    const history = [m('2026-11-14', 7, 26), m('2026-11-15', 4, 2), chest];
-    const seen = { 'mistakes:2026-11-14': 1, 'mistakes:2026-11-15': 1, 'chest:scarcity': 1 };
-    const got = earlierOf([m('2026-11-15', 4, 2)], history, seen);
-    expect(got.filter((x) => x.title === 'Ошибки ждут повторения').map((x) => x.id)).toEqual(['mistakes:2026-11-15']);
-    // событие (сундук) остаётся снимком, как раньше
-    expect(got.some((x) => x.id === 'chest:scarcity')).toBe(true);
-    // ошибки разобраны — напоминания в «Ранее» больше нет
-    expect(earlierOf([], history, seen).map((x) => x.id)).toEqual(['chest:scarcity']);
-  });
-});
-
-describe('сад: дерево стоит прямо, пакетики семян целые (пункты владельца 15.11)', () => {
-  it('денежное дерево не наклоняется; цветы — как раньше', async () => {
-    const { plantLook } = await import('../garden.js');
-    const ats = Array.from({ length: 40 }, (_, k) => 1700000000000 + k * 7919000);
-    ats.forEach((at) => expect(plantLook(at, 'moneytree').tilt).toBe(0));
-    expect(ats.some((at) => Math.abs(plantLook(at, 'peony').tilt) > 2)).toBe(true);
-    expect(plantLook(ats[3], 'peony')).toEqual(plantLook(ats[3]));
-  });
-  it('пакетик дерева: дерево целиком в окошке, без стебелька цветка; семена — с контуром (видны и у орхидеи)', async () => {
-    const { renderToStaticMarkup } = await import('react-dom/server');
-    const React = (await import('react')).default;
-    const { SeedPacketArt } = await import('../../learn-garden.jsx');
-    const tree = renderToStaticMarkup(React.createElement(SeedPacketArt, { id: 'moneytree' }));
-    expect(tree).toContain('seed-packet-tree');
-    expect(tree).not.toContain('M40 66 Q39 58 40 50'); // стебелёк цветка
-    // окошко — y от 28 до 70: низ ствола (y = 76 в рисунке дерева) должен попасть внутрь
-    const m = /translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)/.exec(tree);
-    expect(Number(m[2]) + 76 * Number(m[3])).toBeLessThanOrEqual(70);
-    expect(Number(m[2]) + 17 * Number(m[3])).toBeGreaterThanOrEqual(28);
-    const orchid = renderToStaticMarkup(React.createElement(SeedPacketArt, { id: 'orchid' }));
-    expect((orchid.match(/class="gd-seed"[^>]*stroke="#6B4A22"/g) || []).length).toBe(5);
-  });
-});
-
 describe('сад: растения не одинаковые (пункт 12 от 06.11)', () => {
   it('рост 0,84–1,16, наклон до 5°, сторона — от момента посадки; у соседних — разные', async () => {
     const { plantLook } = await import('../garden.js');

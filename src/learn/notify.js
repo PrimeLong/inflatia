@@ -10,9 +10,9 @@ import { streak, goalToday, dayOf, addDays, dayAt } from '../textbook/learn-stat
 import { leagueState, pendingRewards, standings, LEAGUE_BY_ID, LESSON_XP } from './league.js';
 import { gardenPlots, growth, PLANT_BY_ID } from './garden.js';
 import { piggyState, monthChallenge, hasClaim, chestKey, coinsWord, plural, OUTFIT_BY_ID } from './rewards.js';
-import { pathState, practiceIds, unitTitle } from './course-core.js';
+import { pathState, practiceIds, unitTitle } from './course.js';
 import { placeOf } from '../ds-tokens.js';
-import { LATEST_NEWS_HEAD, newsForLearner, learnerSince } from './news-head.js';
+import { NEWS, newsForLearner, learnerSince } from './news.js';
 import { halloween } from './halloween.js';
 import { raceView, raceClaimed, RACE } from './friends.js';
 
@@ -87,14 +87,8 @@ export function rememberNotes(notes) {
 }
 // list — уведомления сейчас, history — снимки прочитанного, seen — прочитанные id, skip — id, которых в «Ранее» нет
 // (новые на экране и смахнутые)
-/* Напоминания о состоянии — «ошибки ждут», «задачи учебника ждут», «сад сохнет», «вы в зоне вылета», «отстаёте в
-   забеге» — каждый день новые (в id — день) и говорят о том, что есть сейчас. Вчерашний снимок в «Ранее» — уже
-   неправда (другое число ошибок) и дубль сегодняшнего (пункт владельца 15.11: «два уведомления „Ошибки ждут
-   повторения“, так ещё и в одном неверная информация»): в «Ранее» остаётся только то, что верно сейчас. */
-export const REMINDER_ID = /^(mistakes|book-review|dry|lg-down|lg-zone-down|race-behind|race-ahead):/;
 export function earlierOf(list, history, seen, skip = {}, max = EARLIER_MAX) {
-  const live = new Set(list.map((n) => n.id));
-  const by = new Map(history.filter((n) => !REMINDER_ID.test(n.id) || live.has(n.id)).map((n) => [n.id, n]));
+  const by = new Map(history.map((n) => [n.id, n]));
   list.forEach((n) => { if (seen[n.id] || by.has(n.id)) by.set(n.id, n); });
   return [...by.values()].filter((n) => !skip[n.id] && (seen[n.id] || history.some((h) => h.id === n.id)))
     .sort((a, b) => b.at - a.at).slice(0, max);
@@ -311,7 +305,7 @@ export function notificationsOf(learn, now = Date.now(), opts = {}) {
   // новости: только выпуск, вышедший после первого дня ученика — новичку прошлое обновление не новость
   const since = opts.since || null;
   // только свежий выпуск: прошлые — в самой ленте
-  const fresh = LATEST_NEWS_HEAD;
+  const fresh = NEWS[0];
   if (newsForLearner(fresh, since)) {
     add({ id: `news:${fresh.id}`, kind: 'news', icon: 'newspaper', tone: fresh.color, at: Math.min(now - 60 * 1000, at(fresh.date, 9)), go: 'news', toast: true,
       title: 'Что нового в Инфляции', text: fresh.title });

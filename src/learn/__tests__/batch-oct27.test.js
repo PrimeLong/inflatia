@@ -61,7 +61,7 @@ describe('учебник: редкое «Загляните в учебник»'
 describe('открытия: возможности — постепенно', async () => {
   const { UNLOCKS, isUnlocked, lessonsLeft, progressOf, unlockedAt, TESTED_WEIGHT } = await import('../unlocks.js');
   const { momentsOf, pendingMoments } = await import('../celebrate.js');
-  const done = (n, from = T('2026-10-27T08:00:00Z')) => ({ ...emptyLearn(), lessons: Object.fromEntries(['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5'].slice(0, n).map((id, k) => [id, { at: from + k * 600000, runs: 1, best: 90 }])) });
+  const done = (n, from = T('2026-10-27T08:00:00Z')) => ({ ...emptyLearn(), lessons: Object.fromEntries(['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5'].slice(0, n).map((id, k) => [id, { at: from + k * 600000, runs: 1, best: 90 }])) });
   it('лиги — после 1-го урока, лавка — после 2-го, копилка — после 4-го, сад — после 6-го, Мир — после 10-го', () => {
     expect(UNLOCKS.map((u) => [u.id, u.lessons])).toEqual([['league', 1], ['shop', 2], ['piggy', 4], ['garden', 6], ['world', 10]]);
     expect(UNLOCKS.every((u) => !isUnlocked(emptyLearn(), u.id))).toBe(true);
@@ -80,7 +80,7 @@ describe('открытия: возможности — постепенно', as
   });
   it('открытие — церемония в момент нужного урока; давнее — без сцены', () => {
     const l = done(2);
-    expect(unlockedAt(l).map((u) => [u.id, u.at])).toEqual([['league', l.lessons['sc-i1'].at], ['shop', l.lessons['sc-i1b'].at]]);
+    expect(unlockedAt(l).map((u) => [u.id, u.at])).toEqual([['league', l.lessons['sc-i1'].at], ['shop', l.lessons['sc-l1'].at]]);
     expect(momentsOf(l).filter((m) => m.kind === 'unlock').map((m) => m.key)).toEqual(['o:league', 'o:shop']);
     expect(pendingMoments(l, {}, T('2026-10-27T09:00:00Z')).filter((m) => m.kind === 'unlock')).toHaveLength(2);
     expect(pendingMoments(l, { 'o:league': 1 }, T('2026-10-27T09:00:00Z')).filter((m) => m.kind === 'unlock').map((m) => m.key)).toEqual(['o:shop']);

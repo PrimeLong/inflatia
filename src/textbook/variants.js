@@ -585,37 +585,6 @@ T.push({ id: 'v-lm-min', chapter: 'labor', level: 2, source: 'labor-min', gen: (
     check: ([j]) => near(j, jobless),
   };
 } });
-// бюджет семьи: сбережения — доход минус все расходы, срок накопления на покупку
-T.push({ id: 'v-hh-budget', chapter: 'household', level: 1, source: 'household-budget', gen: (rand) => {
-  const k = draw(rand, () => ({ I: ri(rand, 9000, 16000, 500), must: ri(rand, 5000, 10000, 500), extra: ri(rand, 1000, 3000, 500), months: ri(rand, 2, 8) }),
-    ({ I, must, extra }) => I - must - extra >= 500);
-  const save = k.I - k.must - k.extra; const price = save * k.months;
-  return {
-    statement: `Доход семьи — ${k.I} кр. в месяц, обязательные расходы — ${k.must} кр., необязательные — ${k.extra} кр.\n\nа) Сколько семья откладывает в месяц?\n\nб) За сколько месяцев она накопит на покупку за ${price} кр.?`,
-    parts: [{ answer: save, unit: 'кр.', pos: true }, { answer: k.months, unit: 'мес.', pos: true }],
-    traps: [
-      { part: 0, value: k.I - k.must, text: 'Это без необязательных расходов. Их семья тоже тратит — вычтите и их.' },
-      { part: 0, value: k.I, text: 'Это весь доход. Отложить можно только то, что осталось после всех расходов.' },
-    ],
-    solution: `а) $${k.I} - ${k.must} - ${k.extra} = ${save}$ кр.\n\nб) $${price} / ${save} = ${k.months}$ мес.`,
-    check: ([sv, mo]) => near(sv, k.I - k.must - k.extra) && near(mo, price / sv),
-  };
-} });
-// вклад: сложный процент за два года
-T.push({ id: 'v-hh-compound', chapter: 'household', level: 2, source: 'household-deposit', gen: (rand) => {
-  const k = draw(rand, () => ({ s0: ri(rand, 1000, 10000, 1000), r: pick(rand, [5, 10, 20]) }), () => true);
-  const g = 1 + k.r / 100; const y1 = k.s0 * g; const y2 = y1 * g;
-  return {
-    statement: `На вклад положили ${k.s0} кр. под ${k.r}% годовых; проценты прибавляют к вкладу (сложный процент). Сколько будет на вкладе через два года?`,
-    parts: [{ answer: r2(y2), unit: 'кр.', pos: true }],
-    traps: [
-      { part: 0, value: k.s0 * (1 + (2 * k.r) / 100), text: 'Это простой процент: дважды одна и та же прибавка. На второй год процент начисляют и на прошлые проценты.' },
-      { part: 0, value: y1, text: 'Это через год. На второй год сумма ещё раз растёт на тот же процент.' },
-    ],
-    solution: `Год: $${k.s0} \\cdot ${m(g)} = ${m(y1)}$. Второй: $${m(y1)} \\cdot ${m(g)} = ${m(y2)}$ кр.`,
-    check: ([x]) => near(x, y2),
-  };
-} });
 // производство: предельный и средний продукт по таблице цеха (убывающая отдача)
 T.push({ id: 'v-pr-mp', chapter: 'production', level: 1, source: 'production-mp', gen: (rand) => {
   const k = draw(rand, () => {
@@ -987,15 +956,10 @@ const LABELS = ['а)', 'б)', 'в)', 'г)'];
 /* «{,}» — десятичная запятая для формулы (KaTeX); в обычном тексте вне $…$ она осталась бы со
    скобками — «7{,}75» (отчёт mvit3sko). Вне формул — просто запятая. */
 const textCommas = (s) => String(s).split(/(\$\$[\s\S]*?\$\$|\$[^$]*\$)/).map((seg, i) => (i % 2 ? seg : seg.replace(/\{,\}/g, ','))).join('');
-/* Вариант «как есть», но с чистым текстом — для Пути (src/learn/course.js) и для задач учебника: условие, решение
-   и ловушки без «{,}» вне формул. Путь раньше брал tpl.gen напрямую, и в уроке было «13{,}5 кр.» (жалоба ct-l1). */
-export function genVariant(tpl, rand) {
-  const raw = tpl.gen(rand);
-  return { ...raw, statement: textCommas(raw.statement), solution: textCommas(raw.solution), traps: raw.traps.map((tr) => ({ ...tr, text: textCommas(tr.text) })) };
-}
 export function makeVariant(tplId, seed) {
   const tpl = TEMPLATE_BY_ID[tplId];
-  const v = genVariant(tpl, seeded(seed));
+  const raw = tpl.gen(seeded(seed));
+  const v = { ...raw, statement: textCommas(raw.statement), solution: textCommas(raw.solution), traps: raw.traps.map((tr) => ({ ...tr, text: textCommas(tr.text) })) };
   const parts = v.parts.map((pt, k) => ({ label: v.parts.length > 1 ? LABELS[k] : '', answer: pt.answer, tol: pt.tol != null ? pt.tol : null, unit: pt.unit || '' }));
   const traps = v.traps.filter((tr) => differs(tr.value, parts[tr.part].answer, parts[tr.part].tol || 0))
     .map((tr) => ({ part: tr.part, value: tr.value, text: parseInline(tr.text) }));

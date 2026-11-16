@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 /* «Персоналии»: не обязательно каждый раз новый человек — знакомый возвращается в другом юните с новой идеей,
    а в галерее он один (docs/mechanics.md, «Персоналии»). */
 import { describe, it, expect } from 'vitest';
@@ -32,24 +31,5 @@ describe('знакомый возвращается', () => {
     const ids = galleryOf({}).map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
     PEOPLE.forEach((g) => g.people.forEach((p) => expect(PERSON_BY_ID[p.id], p.id).toBeTruthy()));
-  });
-});
-
-/* Овальные исходники (пункт владельца 15.11): портреты Тюрго, Витте и Джона Ло были овалом в прямоугольнике,
-   и в рамке-арке овал было видно. Файлы обрезаны до прямоугольника 4:5 внутри овала. */
-describe('портреты из овальных исходников обрезаны под рамку', () => {
-  const size = (file) => {
-    const b = readFileSync(new URL(`../../../public/people/${file}`, import.meta.url));
-    for (let i = 2; i < b.length;) {
-      const m = b[i + 1]; const len = b.readUInt16BE(i + 2);
-      if (m >= 0xC0 && m <= 0xC3) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) };
-      i += 2 + len;
-    }
-    return null;
-  };
-  it.each([['turgot.jpg', 310], ['witte.jpg', 360], ['law.jpg', 226]])('%s — 4:5, уже исходника', (file, w) => {
-    const s = size(file);
-    expect(s.w).toBe(w);
-    expect(Math.abs(s.w / s.h - 0.8)).toBeLessThan(0.01);
   });
 });

@@ -7,7 +7,6 @@
    сразу или в настройках). Открывается после четырёх уроков, в первый раз — со знакомством: урок
    тускнеет, окошко подсвечено. Только на ПК с мышью — там же, где черновик на полях. */
 import React, { useEffect, useRef, useState } from 'react';
-import { trackDaily } from './lib/client.js';
 import {
   ChevronLeft, ChevronRight, Pause, Play, X, Circle, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, RotateCw, ArrowDownToLine,
   Move, MoveDiagonal2, Sparkles, Orbit, Target, Swords, Waves, Lamp, Fish, Hourglass, Grid3x3, Blocks, Worm,
@@ -360,7 +359,7 @@ export function Antistress({ paused = false }) {
     <>
       <style>{ANTISTRESS_CSS}</style>
       <section ref={shell} className={`ast${min ? ' min' : ''}${drag ? ' drag' : ''}${sizing ? ' sizing' : ''}${phase === 'bye' ? ' bye' : ''}${intro ? ' tour' : ''}`}
-        style={{ left: pos.left, top: pos.top, ...(min ? null : { width: sw, height: sh }) }} aria-label={`Антистресс: ${C.title}`} data-testid="antistress" onPointerDownCapture={() => trackDaily('antistress_open')}
+        style={{ left: pos.left, top: pos.top, ...(min ? null : { width: sw, height: sh }) }} aria-label={`Антистресс: ${C.title}`} data-testid="antistress"
         data-channel={C.id} data-min={String(min)} data-corner={corner} data-playing={String(live)} data-size={k.toFixed(2)}
         onPointerDown={onDown} onPointerEnter={() => { over.current = true; }} onPointerLeave={() => { over.current = false; }}>
         <div className="ast-head" inert={min}>
