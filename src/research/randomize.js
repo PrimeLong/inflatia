@@ -1,7 +1,11 @@
 /* Распределение по группам (research/methodology.md, «Рандомизация»): перемешанные блоки по 2 и 4 внутри слоя входного
    теста. В каждом блоке групп поровну, размер блока случаен — следующую группу нельзя угадать по предыдущим. Решает
-   только сервер, после входного теста: участник и исследователь заранее группу не знают. Генератор с зерном — чтобы
-   последовательность распределения можно было воспроизвести при проверке. */
+   только сервер, после входного теста: участник и исследователь заранее группу не знают.
+
+   Последовательность целиком задаётся зерном (RESEARCH_ALLOC_SEED): группа n-го участника слоя — armAt(зерно, слой, n), без
+   Math.random. До запуска в журнал протокола записывается хэш зерна, само зерно раскрывается при анализе — так распределение
+   можно воспроизвести и проверить, а заранее угадать нельзя. Номер участника в слое выдаёт атомарный счётчик базы
+   (api/research.js) — поэтому одновременные записи не получают одну и ту же позицию. */
 import { ARMS, STRATA } from './dictionary.js';
 
 // mulberry32: быстрый воспроизводимый генератор 0…1 от 32-битного зерна
@@ -26,16 +30,17 @@ export function newBlock(rnd) {
   const size = BLOCK_SIZES[Math.floor(rnd() * BLOCK_SIZES.length)];
   return shuffle(Array.from({ length: size }, (_, i) => ARMS[i % ARMS.length]), rnd);
 }
-/* Состояние распределения: по слою — остаток текущего блока и счётчики. allocate возвращает группу и новое состояние,
-   старое не меняет (сервер сохраняет новое атомарно вместе с записью участника). */
-export const emptyAllocation = () => ({ strata: Object.fromEntries(STRATA.map((s) => [s, { queue: [], n: { game: 0, plain: 0 } }])) });
-export function allocate(state, stratum, rnd) {
+// зерно слоя: из общего зерна и имени слоя (FNV-1a), чтобы слои шли независимыми последовательностями
+const strataSeed = (seed, stratum) => [...`${seed}:${stratum}`].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0, 2166136261);
+// первые n групп слоя — блоками по 2 и 4
+export function allocationSequence(seed, stratum, n) {
   if (!STRATA.includes(stratum)) throw new Error(`нет слоя ${stratum}`);
-  const cur = state.strata[stratum];
-  const queue = cur.queue.length ? [...cur.queue] : newBlock(rnd);
-  const arm = queue.shift();
-  const next = { ...state, strata: { ...state.strata, [stratum]: { queue, n: { ...cur.n, [arm]: cur.n[arm] + 1 } } } };
-  return { arm, state: next };
+  const rnd = seededRandom(strataSeed(seed, stratum));
+  const out = [];
+  while (out.length < n) out.push(...newBlock(rnd));
+  return out.slice(0, n);
 }
+// группа участника с номером index (с нуля) в слое
+export const armAt = (seed, stratum, index) => allocationSequence(seed, stratum, index + 1)[index];
 // слой по входному тесту: доля верных ниже порога (по умолчанию половина задач) — «low»
 export const stratumOf = (correct, total, cut = 0.5) => (total > 0 && correct / total >= cut ? 'high' : 'low');

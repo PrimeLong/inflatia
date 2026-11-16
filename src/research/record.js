@@ -26,11 +26,17 @@ export function normalizeCode(s) {
   if (check(raw.slice(0, 10)) !== raw[10]) return null;
   return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
 }
+// запись для выгрузки: без служебных полей (service: true в словаре) — они нужны только серверу
+export function exportRecord(table, rec) {
+  const spec = FIELDS[table] || {};
+  return Object.fromEntries(Object.entries(rec || {}).filter(([k]) => spec[k] && !spec[k].service));
+}
 export const isParticipantCode = (s) => typeof s === 'string' && normalizeCode(s) === s;
 
 const ID_RE = /^[a-z0-9][a-z0-9_:.-]{0,79}$/i;
 const VERSION_RE = /^[a-z0-9][a-z0-9._-]{0,39}$/i;
 const MONTH_RE = /^20\d\d-(0[1-9]|1[0-2])$/;
+const DATE_RE = /^20\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 function valid(spec, v) {
   switch (spec.type) {
     case 'code': return isParticipantCode(v);
@@ -40,6 +46,7 @@ function valid(spec, v) {
     case 'id': return typeof v === 'string' && ID_RE.test(v);
     case 'version': return typeof v === 'string' && VERSION_RE.test(v);
     case 'month': return typeof v === 'string' && MONTH_RE.test(v);
+    case 'date': return typeof v === 'string' && DATE_RE.test(v);
     default: return false;
   }
 }
