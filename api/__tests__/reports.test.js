@@ -2,7 +2,7 @@
    (OWNER_LOGINS), контекст чистится. */
 import { describe, it, expect, beforeAll } from 'vitest';
 import accountHandler from '../account.js';
-import reportsHandler, { REPORTS_PER_HOUR, sanitizeReport } from '../reports.js';
+import reportsHandler, { REPORTS_PER_HOUR, sanitizeReport, sanitizeCrash, CRASH_PER_HOUR } from '../reports.js';
 
 let ipN = 0;
 const call = (handler, body, ip = `10.9.0.${ipN++}`) => new Promise((resolve) => {
@@ -151,5 +151,38 @@ describe('сообщения об ошибках', () => {
     expect(r.context.quote).toHaveLength(500);
     expect(sanitizeReport({ reason: 'formula' }).reason).toBe('formula');
     expect(sanitizeReport({ reason: 'visual' }).reason).toBe('visual');
+  });
+});
+
+/* Сбои экрана (docs/mechanics.md, «Ошибки экрана»; пункт владельца 13.11): страница сама сообщает о необработанной
+   ошибке — без сессии, логина и ника; с ограничением частоты; одинаковые сбои складываются. */
+describe('сбой экрана', () => {
+  it('в сообщение попадает только ошибка, экран, сборка и устройство — лишние поля отбрасываются', () => {
+    const c = sanitizeCrash({ message: 'boom', stack: 'Error: boom\n at f (a.js:1:2)', kind: 'boundary', screen: '/book', build: 'abc · 2026-11-13', device: 'UA', viewport: '360×640', login: 'anna', session: 't', answer: 'секрет' });
+    expect(c).toMatchObject({ reason: 'crash', kind: 'boundary', comment: 'boom\nError: boom\n at f (a.js:1:2)', context: { screen: '/book', build: 'abc · 2026-11-13', device: 'UA', viewport: '360×640' } });
+    expect(JSON.stringify(c)).not.toMatch(/anna|секрет|session/);
+    expect(sanitizeCrash({ message: '' })).toBe(null);
+    expect(sanitizeCrash({ message: 'x', kind: 'что-то' }).kind).toBe('error');
+    expect(sanitizeCrash({ message: 'x'.repeat(5000) }).comment.length).toBe(300);
+  });
+  it('принимается без сессии; владелец видит его среди сообщений без логина; тот же сбой — одно сообщение со счётчиком', async () => {
+    const ip = '10.77.0.1';
+    const body = { action: 'crash', kind: 'error', message: `crash-${Date.now()}`, stack: 'Error\n at g (b.js:3:4)', screen: '/shop', build: 'b1' };
+    expect((await call(reportsHandler, body, ip)).status).toBe(200);
+    expect((await call(reportsHandler, body, ip)).status).toBe(200);
+    expect((await call(reportsHandler, { ...body, build: 'b2' }, ip)).status).toBe(200);
+    const owner = `crown${Date.now() % 100000}`;
+    const reg = await call(accountHandler, { action: 'register', consentPage: true, consentPd: true, birthYear: 1990, login: owner, password: 'secret12' });
+    process.env.OWNER_LOGINS = owner;
+    const list = (await call(reportsHandler, { action: 'list', session: reg.data.token })).data.reports.filter((r) => r.reason === 'crash' && r.comment.startsWith(body.message));
+    expect(list).toHaveLength(2); // две сборки — два сообщения
+    const first = list.find((r) => r.context.build === 'b1');
+    expect(first).toMatchObject({ login: '—', name: '—', n: 2, kind: 'error', context: { screen: '/shop', build: 'b1' } });
+  });
+  it('не больше десяти в час с одного адреса', async () => {
+    const ip = '10.77.0.2'; let last = null;
+    for (let k = 0; k <= CRASH_PER_HOUR; k += 1) last = await call(reportsHandler, { action: 'crash', message: `flood-${k}` }, ip);
+    expect(CRASH_PER_HOUR).toBe(10);
+    expect(last.status).toBe(429);
   });
 });

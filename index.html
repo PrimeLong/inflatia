@@ -6,8 +6,8 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <!-- цвет строки браузера: тёмный — только в тёмной системе (первым: берётся первый подходящий), по умолчанию — светлый, как тема обучения -->
-    <meta name="theme-color" content="#0B0F17" media="(prefers-color-scheme: dark)" />
+    <!-- цвет строки браузера — по действующей теме приложения, а не системы: до запуска — светлый, как тема обучения;
+         дальше его ведёт applyTheme (src/MacroSimulator.jsx) -->
     <meta name="theme-color" content="#FFF8EE" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Инфляция — экономика пять минут в день: короткие уроки с Инфлей, учебник с задачами и живая страна, где знания проверяются в деле." />
@@ -15,10 +15,15 @@
     <meta property="og:site_name" content="Инфляция" />
     <meta property="og:title" content="Инфляция — экономика пять минут в день" />
     <meta property="og:description" content="Короткие уроки с Инфлей, учебник с задачами и живая страна: ставка, бюджет, рынок — пять минут в день." />
-    <meta property="og:image" content="/og-image.png" />
+    <!-- адрес сайта подставляет сборка (scripts/site-meta-plugin.js): ссылки для превью и поиска — абсолютные -->
+    <link rel="canonical" href="%SITE_URL%/" />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:image" content="%SITE_URL%/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="%SITE_URL%/og-image.png" />
     <title>Инфляция — экономика пять минут в день</title>
   </head>
   <body>

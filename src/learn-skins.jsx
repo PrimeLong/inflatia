@@ -127,11 +127,16 @@ export const SKIN_CSS = `
     radial-gradient(1px 1px at 22% 42%, #fff, transparent), radial-gradient(1px 1px at 64% 46%, #fff, transparent), radial-gradient(1.3px 1.3px at 8% 70%, #fff, transparent),
     radial-gradient(1px 1px at 44% 64%, #fff, transparent), radial-gradient(1.2px 1.2px at 92% 66%, #fff, transparent); animation: sk-twinkle 5s ease-in-out infinite alternate; }
   @keyframes sk-twinkle { to { opacity: .55 } }
-  .sk-au-band { position: absolute; left: -20%; width: 140%; height: 34%; filter: blur(42px); opacity: .55; mix-blend-mode: screen; border-radius: 50%;
+  /* сияние (пункт владельца 15.11: «на ПК выглядит ужасно, а сияние слишком яркое»): полосы — узкие ленты у верха
+     неба, а не засветка полэкрана; высота — в пикселях, а не в процентах (на ПК лента была в 320 px и белила фон
+     под текстом); под колонкой урока — тёмная подложка (.sk-au-veil), текст читается на ночном небе */
+  .sk-au-band { position: absolute; left: -20%; width: 140%; height: clamp(70px, 16vh, 150px); filter: blur(36px); opacity: .32; mix-blend-mode: screen; border-radius: 50%;
     animation: sk-wave 16s ease-in-out infinite alternate; }
-  .sk-au-band.a { top: 4%; background: linear-gradient(90deg, transparent, #2BE3A0 30%, #22C1E8 60%, transparent); }
-  .sk-au-band.b { top: 18%; background: linear-gradient(90deg, transparent, #7B5CFF 35%, #2BE3A0 70%, transparent); animation-duration: 22s; animation-delay: -6s; opacity: .46; }
-  .sk-au-band.c { top: 30%; background: linear-gradient(90deg, transparent, #22C1E8 40%, #C95CFF 75%, transparent); animation-duration: 28s; animation-delay: -12s; opacity: .36; }
+  .sk-au-band.a { top: 2%; background: linear-gradient(90deg, transparent, #2BE3A0 30%, #22C1E8 60%, transparent); }
+  .sk-au-band.b { top: 10%; background: linear-gradient(90deg, transparent, #7B5CFF 35%, #2BE3A0 70%, transparent); animation-duration: 22s; animation-delay: -6s; opacity: .24; }
+  .sk-au-band.c { top: 19%; background: linear-gradient(90deg, transparent, #22C1E8 40%, #C95CFF 75%, transparent); animation-duration: 28s; animation-delay: -12s; opacity: .18; }
+  .sk-au-veil { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse min(46%, 520px) 70% at 50% 45%, rgba(5,8,22,.55), rgba(5,8,22,.25) 70%, transparent); }
   @keyframes sk-wave { 0% { transform: translateX(-6%) skewY(-4deg) scaleY(.8) } 50% { transform: translateX(4%) skewY(3deg) scaleY(1.15) } 100% { transform: translateX(8%) skewY(-2deg) scaleY(.9) } }
   .sk-on[data-skin="aurora"] .ds-opt { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; color: #EEF2FF; --edge: rgba(0,0,0,.3);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
@@ -208,6 +213,8 @@ export const SKIN_CSS = `
     radial-gradient(1px 1px at 14% 56%, #fff, transparent), radial-gradient(1px 1px at 36% 52%, #fff, transparent), radial-gradient(1px 1px at 70% 58%, #fff, transparent);
     animation-duration: 7s; animation-delay: -3s; }
   .sk-au-hills { position: absolute; left: 0; right: 0; bottom: calc(var(--sk-foot, 92px) - 2px); width: 100%; height: 120px; }
+  /* ёлки — отдельно и в своих пропорциях: в общем растянутом рисунке гор они на ПК сплющивались в блины */
+  .sk-au-tree { position: absolute; bottom: calc(var(--sk-foot, 92px) + 8px); width: 26px; height: 34px; }
 
   /* ---------- во всех темах: проверенный ответ — зелёный или красный, поверх стиля темы ---------- */
   .sk-on[data-skin] .ds-opt.right { border-color: #2BD67B; background-color: rgba(43,214,123,.16); box-shadow: 0 0 0 1px #2BD67B; color: var(--sk-ink); }
@@ -342,14 +349,19 @@ function Backdrop({ k, preview = false }) {
     <div ref={exRef} className="ln-skin sk-au" data-testid={preview ? undefined : 'lesson-skin'} data-skin="aurora">
       <div className="sk-au-stars" /><div className="sk-au-stars b" />
       <div className="sk-au-band a" /><div className="sk-au-band b" /><div className="sk-au-band c" />
+      {!preview && <div className="sk-au-veil" />}
       {!preview && (
         <svg className="sk-au-hills" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
-          <defs><linearGradient id="sk-au-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2BE3A0" stopOpacity=".55" /><stop offset=".08" stopColor="#0B1235" stopOpacity="1" /></linearGradient></defs>
+          <defs><linearGradient id="sk-au-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2BE3A0" stopOpacity=".2" /><stop offset=".08" stopColor="#0B1235" stopOpacity="1" /></linearGradient></defs>
           <path d="M0 70 L40 48 L70 62 L110 30 L150 58 L190 40 L230 66 L270 34 L310 56 L350 44 L400 64 V120 H0 Z" fill="#0B1235" opacity=".9" />
           <path d="M0 92 L30 80 L60 88 L95 72 L130 90 L170 78 L210 94 L250 80 L290 90 L330 76 L370 88 L400 82 V120 H0 Z" fill="url(#sk-au-rim)" />
-          {[24, 58, 92, 300, 336, 372].map((x, i) => <path key={i} d={`M${x} ${66 + (i % 3) * 4} l-7 18 h4 l-6 14 h18 l-6 -14 h4 z`} fill="#050816" />)}
         </svg>
       )}
+      {!preview && [6, 14, 22, 78, 86, 94].map((x, i) => (
+        <svg key={i} className="sk-au-tree" style={{ left: `calc(${x}% - 13px)`, transform: `scale(${0.8 + (i % 3) * 0.15})`, transformOrigin: '50% 100%' }} viewBox="0 0 26 34" aria-hidden="true" data-testid="skin-au-tree">
+          <path d="M13 0 L5 14 h4 L2 26 h22 l-7 -12 h4 Z M11 26 h4 v8 h-4 Z" fill="#050816" />
+        </svg>
+      ))}
     </div>
   );
 }

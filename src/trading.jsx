@@ -6,6 +6,7 @@
 
    COLOR/Audio/INSTR_BY_ID/... — те же самые общие объекты/функции, что и
    в MacroSimulator.jsx (экспортированы оттуда), а не копия. */
+import { ruNum } from './lib/num.js';
 import React, { useState, useMemo, Suspense } from 'react';
 import { Coins, TrendingUp } from 'lucide-react';
 import { GOALS, clamp, fmt1, fmt2, fmtSigned1, fmtMoney, mlnScale, fmtMln, fmtMlnSigned, quarterLabel } from './lib/engine.js';
@@ -79,7 +80,7 @@ function PriceCell({ value, size = 12, bold }) {
   return (
     <span className="ems-mono" style={{ fontSize: size, fontWeight: bold ? 600 : 400, transition: 'color 0.45s ease',
       color: dir > 0 ? COLOR.teal : dir < 0 ? COLOR.rust : COLOR.text }}>
-      {Number.isFinite(value) ? value.toFixed(2) : '—'}
+      {Number.isFinite(value) ? ruNum(value, 2) : '—'}
     </span>
   );
 }
@@ -106,7 +107,7 @@ function InstrumentPrimer({ instr, economy, prev, amt }) {
         <Row k={`Работает позиция размером (×${instr.lev})`} v={fmtMln(notional)} />
         <Row k="Движение цены на 1%" v={`± ${fmtMln(perPct)} = ${instr.lev}% вашего ГО`}
           tone={COLOR.gold} />
-        <Row k="Убыток съедает ГО полностью при" v={`падении на ${(100 / instr.lev).toFixed(1)}%`} tone={COLOR.rust} />
+        <Row k="Убыток съедает ГО полностью при" v={`падении на ${ruNum(100 / instr.lev, 1)}%`} tone={COLOR.rust} />
         <div style={{ color: COLOR.faint, marginTop: 6 }}>
           Прибыль и убыток считаются от всей позиции, а не от внесённых денег, и живут в строке
           «Прибыль» — на счёт они попадают только когда вы нажмёте «Закрыть». Продажа при нулевой
@@ -250,7 +251,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
   const posLabel = (i, q) => {
     if (i.kind === 'opt') return lots.length ? `${lots.length} серии` : '—';
     if (!q) return '—';
-    return `${q > 0 ? 'лонг' : 'шорт'} ${Math.abs(q).toFixed(1)}`;
+    return `${q > 0 ? 'лонг' : 'шорт'} ${ruNum(Math.abs(q), 1)}`;
   };
 
   return (
@@ -426,7 +427,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, background: COLOR.panelAlt,
             border: `1px solid ${COLOR.border}`, borderRadius: 3, padding: '8px 10px' }}>
             {[['Позиция', posLabel(instr, held)],
-              [instr.kind === 'opt' ? 'Страйк' : 'Средняя', instr.kind === 'opt' ? (lots[0] ? lots[0].strike.toFixed(0) : '—') : (avg ? avg.toFixed(2) : '—')],
+              [instr.kind === 'opt' ? 'Страйк' : 'Средняя', instr.kind === 'opt' ? (lots[0] ? ruNum(lots[0].strike, 0) : '—') : (avg ? ruNum(avg, 2) : '—')],
               [instr.kind === 'fut' ? 'Номинал' : 'Стоимость',
                 instr.kind === 'opt' ? (lotsValue > 0 ? fmtMln(lotsValue) : '—')
                   : Math.abs(held) > 0.001 ? fmtMln(Math.abs(heldValue)) : '—'],
@@ -492,7 +493,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
                         </span>
                         <span className="ems-mono" style={{ whiteSpace: 'nowrap' }}>{fmtMln(t.amt)}</span>
                         <span className="ems-mono" style={{ color: COLOR.faint, width: 78, textAlign: 'right', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          по {t.price.toFixed(2)}
+                          по {ruNum(t.price, 2)}
                         </span>
                       </div>
                     </React.Fragment>
@@ -540,16 +541,16 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
           <div style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.5, borderLeft: `2px solid ${side === 'buy' ? COLOR.teal : COLOR.rust}`, paddingLeft: 9 }}>
             {amt <= 0.001 ? 'Выберите сумму сделки.' : instr.kind === 'opt' ? (
               side === 'buy'
-                ? <>Покупка <b className="ems-mono" style={{ color: COLOR.text }}>{qty.toFixed(1)}</b> контрактов со страйком {price.toFixed(0)} и экспирацией через {instr.life} кв.
-                  Премия {fmtMln(amt)} — это максимум, который можно потерять. Волатильность в цене опциона: {(vol * 100).toFixed(0)}%.</>
+                ? <>Покупка <b className="ems-mono" style={{ color: COLOR.text }}>{ruNum(qty, 1)}</b> контрактов со страйком {ruNum(price, 0)} и экспирацией через {instr.life} кв.
+                  Премия {fmtMln(amt)} — это максимум, который можно потерять. Волатильность в цене опциона: {ruNum(vol * 100, 0)}%.</>
                 : <>Закрытие позиций по опционам на {fmtMln(amt)} по текущей оценке.</>
             ) : (
               <>
-                {side === 'buy' ? 'Покупка' : willShort ? 'Продажа в шорт' : 'Продажа'} <b className="ems-mono" style={{ color: COLOR.text }}>{qty.toFixed(1)}</b> ед.
-                по <b className="ems-mono" style={{ color: COLOR.text }}>{price.toFixed(2)}</b>
+                {side === 'buy' ? 'Покупка' : willShort ? 'Продажа в шорт' : 'Продажа'} <b className="ems-mono" style={{ color: COLOR.text }}>{ruNum(qty, 1)}</b> ед.
+                по <b className="ems-mono" style={{ color: COLOR.text }}>{ruNum(price, 2)}</b>
                 {instr.kind === 'fut' && <> · номинал <b className="ems-mono" style={{ color: COLOR.text }}>{fmtMln(amt * instr.lev)}</b> при плече {instr.lev}:1</>}
                 , комиссия {fmtMln(amt * instr.fee * (instr.lev || 1))}.
-                {willShort && <span style={{ color: COLOR.rust }}> Шорт: прибыль при падении цены, плата за заём {(BORROW_FEE * 100).toFixed(1)}% годовых, убыток теоретически не ограничен.</span>}
+                {willShort && <span style={{ color: COLOR.rust }}> Шорт: прибыль при падении цены, плата за заём {ruNum(BORROW_FEE * 100, 1)}% годовых, убыток теоретически не ограничен.</span>}
                 {instr.kind === 'spot' && side === 'buy' && book.cash - amt < 0 && <span style={{ color: COLOR.rust }}> Сделка в плечо под {fmt1(economy.lendingRate)}% годовых.</span>}
               </>
             )}

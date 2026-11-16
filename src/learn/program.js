@@ -4,8 +4,7 @@
    выше) — «hard», ниже 60% — «easy» (см. buildLesson в course.js). Слабая тема — пройденный
    урок, где недавняя точность ниже 70%: его упражнения первыми идут в «Повторение» и добирают
    практику. Модуль чистый: экраны — src/learn.jsx. */
-import { LESSON_BY_ID, UNIT_BY_ID, pathState } from './course.js';
-import { CHAPTER_SECTIONS } from '../textbook/content.js';
+import { LESSON_BY_ID, UNIT_BY_ID, pathState, LESSON_SECTIONS } from './course-core.js';
 import { sectionDone } from '../textbook/study-core.js';
 import { lessonDone, firstTries } from '../textbook/learn-state.js';
 
@@ -87,7 +86,8 @@ export const lessonOpts = (s) => ({
    теорию — для них напоминания нет. */
 export function theoryNotice(lesson, learn, progress = null, known = []) {
   if (!lesson || lesson.kind === 'intro' || !lesson.section) return null;
-  const sec = (CHAPTER_SECTIONS[lesson.unitId] || []).find((x) => x.id === lesson.section);
+  // разделы уроков — из указателя курса: главы учебника для напоминания не нужны
+  const sec = (LESSON_SECTIONS[lesson.unitId] || []).find((x) => x.id === lesson.section);
   if (!sec || known.includes(sec.id)) return null;
   if (progress && ((progress.read || {})[lesson.unitId] || sectionDone(progress, sec))) return null;
   const unit = UNIT_BY_ID[lesson.unitId];

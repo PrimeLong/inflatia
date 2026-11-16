@@ -10,7 +10,7 @@ export const LEVELS = [
 ];
 export const UNIT_LEVEL = {
   // по пять юнитов на уровень (карта Пути — 25 мест); «Рынок труда» — в Начальном, сразу после «Ограниченности»
-  scarcity: 'start', labor: 'start',
+  scarcity: 'start', labor: 'start', household: 'start',
   'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic',
   consumer: 'middle', production: 'middle', costs: 'middle', 'competition-monopoly': 'middle', monopolistic: 'middle',
   oligopoly: 'advanced', gdp: 'advanced', 'is-lm': 'advanced', 'ad-as': 'advanced', phillips: 'advanced',

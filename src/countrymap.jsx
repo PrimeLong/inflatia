@@ -1,6 +1,7 @@
 /* Карта страны: округа, их напряжение и итоги выборов по округам. Вынесена
    из MacroSimulator.jsx в отдельный чанк и грузится лениво — карта нужна
    только по нажатию вкладки «Карта», а не при первой загрузке сайта. */
+import { ruNum } from './lib/num.js';
 import { AlertTriangle, Anchor, ArrowLeft, Castle, CheckCircle2, Coins, Construction, Crown, Expand, Factory, Flag, Globe2, Handshake, Landmark, Lock, Maximize2, Minimize2, Minus, Mountain, Pickaxe, Plus, Shield, Swords, Trees, Vote, Wheat, Wind } from 'lucide-react';
 import { MAP_REGIONS, REGION_PROJECTS, clamp, fmt1, fmtMoney, projectBlocker, regionBlurb, warFrontRegion, defaultWarOrder, WAR_STANCES, warObjectiveOpen, warStrength,
   CAMPAIGN_POINTS, CAMPAIGN_COST, electionForecast, swingLabel,
@@ -1680,7 +1681,7 @@ export function CountryMap({ economy, plan, onPlan, planner, onEventPlan = undef
         {Math.abs(zoom.zoom - 1) > 0.01 && (
           <div className="ems-mono" style={{ position: 'absolute', right: 10, bottom: 10, fontSize: 12, color: COLOR.muted, background: `${COLOR.bg}cc`,
             border: `1px solid ${COLOR.border}`, borderRadius: 6, padding: '2px 7px', pointerEvents: 'none' }}>
-            ×{zoom.zoom.toFixed(1)} · перетащите, чтобы сдвинуть
+            ×{ruNum(zoom.zoom, 1)} · перетащите, чтобы сдвинуть
           </div>
         )}
         </div>
@@ -2464,7 +2465,7 @@ export const BusinessMap = memo(function BusinessMap({ economy, selected, onSele
           const alpha = Math.round(10 + (n / maxCount) * 60).toString(16).padStart(2, '0');
           return (
             <g key={r.id} role="button" tabIndex={0} aria-pressed={r.id === selected} className="map-region map-region-in" style={{ cursor: 'pointer', animationDelay: `${ri * 55}ms` }}
-              aria-label={`${r.name}: ${n ? `ваших зданий ${n}` : 'ваших зданий нет'}${highlight ? (can != null ? `, строить можно, выработка ×${can.toFixed(2)}` : ', строить нельзя') : ''}`}
+              aria-label={`${r.name}: ${n ? `ваших зданий ${n}` : 'ваших зданий нет'}${highlight ? (can != null ? `, строить можно, выработка ×${ruNum(can, 2)}` : ', строить нельзя') : ''}`}
               onClick={() => { if (zoom.wasDrag()) return; Audio.play('tab'); onSelect(r.id); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); Audio.play('tab'); onSelect(r.id); } }}>
               <path d={regionPath(r.id)} fill={COLOR.bg} />
@@ -2561,7 +2562,7 @@ export const BusinessMap = memo(function BusinessMap({ economy, selected, onSele
                   )}
                   {highlight && highlight[r.id] != null && (
                     <text y={inf && inf.count ? 29 : 15} textAnchor="middle" className="ems-mono" style={{ fontSize: 12, fill: COLOR.teal, fontWeight: 600, paintOrder: 'stroke', stroke: COLOR.bg, strokeWidth: 3 }}>
-                      ×{highlight[r.id].toFixed(2)}
+                      ×{ruNum(highlight[r.id], 2)}
                     </text>
                   )}
                   {!highlight && demand && demand[r.id] && (

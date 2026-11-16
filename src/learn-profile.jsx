@@ -82,11 +82,13 @@ export const PROFILE_CSS = `
     box-shadow: inset 0 0 0 2px var(--u), inset 0 0 0 5px #FFFBF1, inset 0 0 0 6px color-mix(in srgb, var(--u) 50%, #FFFBF1); }
   .pf-stamp-top { display: flex; justify-content: space-between; align-items: baseline; font: 700 9px var(--ds-head); letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--u) 75%, #2A221C); }
   .pf-stamp-top b { font: 700 18px var(--ds-mono); letter-spacing: 0; }
-  .pf-stamp-art { display: grid; place-items: center; height: 104px; }
+  /* поле рисунка — по высоте самой гравюры (150 × 112,5): в поле 104 px здание наезжало на подпись под ним, а дым —
+     на строку «Почта Инфляции» (пункт владельца 15.11: «картинки на марках какие-то сломанные») */
+  .pf-stamp-art { display: grid; place-items: center; height: 114px; margin: 3px 0 5px; overflow: hidden; }
   .pf-stamp-cap { font: 700 13px/1.15 var(--ds-head); letter-spacing: .1em; text-transform: uppercase; text-align: center; color: color-mix(in srgb, var(--u) 75%, #2A221C);
     border-top: 1.5px solid var(--u); padding-top: 6px; }
   /* штемпель полученной: круг с датой и волны гашения — поверх угла, «чернилами» */
-  .pf-postmark { position: absolute; right: -14px; bottom: 18px; color: #3B4A6B; opacity: .62; mix-blend-mode: multiply; transform: rotate(-12deg); pointer-events: none; }
+  .pf-postmark { position: absolute; right: -30px; bottom: 24px; color: #3B4A6B; opacity: .5; mix-blend-mode: multiply; transform: rotate(-12deg) scale(.82); transform-origin: 100% 100%; pointer-events: none; }
   .pf-postmark svg { display: block; }
   .pf-stamp[data-got="false"] { filter: none; }
   .pf-stamp[data-got="false"] .pf-perf { background: var(--ds-card2); }

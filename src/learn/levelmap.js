@@ -4,7 +4,7 @@
    юнита, клетки юнитов одного уровня — область уровня. Граница рисуется только между разными
    уровнями. Новый юнит на карте сам двигает границы — рисовать их руками не нужно.
    Модуль чистый: его читают карта Пути (src/learn.jsx) и тесты. */
-import { UNITS, LEVELS } from './course.js';
+import { UNITS, LEVELS } from './course-core.js';
 import { placeOf, SOON_PLACES } from '../ds-tokens.js';
 import { countryPoints } from '../lib/mapgeo.js';
 

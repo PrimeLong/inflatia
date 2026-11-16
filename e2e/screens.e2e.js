@@ -17,7 +17,7 @@ async function openMore(page, id) {
 const DIR = 'screens';
 const ACCOUNT = { token: 't', login: 'tester', name: 'Тест', emblem: 'star', kidsMode: false, birthYear: 1990 };
 // пройдено всё, кроме «Итогов юнита»: на Пути видно и пройденное, и текущее; любой урок открыт для повтора
-const DONE = ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev'];
+const DONE = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev'];
 
 async function setup(page, { theme, account = true, learn = null }) {
   const errors = [];
@@ -50,8 +50,9 @@ const shot = async (page, name, theme, opts = {}) => {
 /* Доступность каждого снятого экрана: текст интерфейса не мельче 12 px (подписи внутри
    SVG-рисунков — часть рисунка и масштабируются вместе с ним) и axe без нарушений уровня
    serious/critical (WCAG 2 A/AA: контраст, имена кнопок и полей, роли). */
-async function a11y(page, name) {
-  const small = await page.evaluate(() => {
+// текст мельче minPx: что именно и каким размером (подписи внутри SVG и индексы KaTeX не в счёт)
+async function smallText(page, minPx = 12) {
+  return page.evaluate((min) => {
     const out = [];
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     while (w.nextNode()) {
@@ -63,11 +64,15 @@ async function a11y(page, name) {
       const cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
       const px = parseFloat(cs.fontSize);
-      if (px < 11.95) out.push(`${px}px «${w.currentNode.textContent.trim().slice(0, 30)}» <${el.tagName.toLowerCase()} class="${el.className}">`);
+      // служебный невидимый элемент графиков (recharts меряет им ширину подписей)
+      if (el.id === 'recharts_measurement_span') continue;
+      if (px < min - 0.05) out.push(`${px}px «${w.currentNode.textContent.trim().slice(0, 30)}» <${el.tagName.toLowerCase()} class="${el.className}">`);
     }
     return [...new Set(out)].slice(0, 12);
-  });
-  expect(small, `${name}: текст мельче 12 px`).toEqual([]);
+  }, minPx);
+}
+async function a11y(page, name) {
+  expect(await smallText(page, 12), `${name}: текст мельче 12 px`).toEqual([]);
   const res = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   const bad = res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
     .map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 4).map((n) => `${n.target.join(' ')}${n.any[0] && n.any[0].message ? ` — ${n.any[0].message.slice(0, 120)}` : ''}`).join('; ')}`);
@@ -183,6 +188,52 @@ test('экраны: приветствие на ПК (desktop)', async ({ page, 
   await page.goto('/', { waitUntil: 'networkidle' });
   await expect(page.getByTestId('welcome')).toBeVisible();
   await shot(page, '01-welcome-desktop', 'light', { wait: 1500 });
+  expect(errors).toEqual([]);
+});
+
+/* ПАРТИЯ НА ТЕЛЕФОНЕ (docs/mechanics.md, «Доступность»; пункт владельца 13.11): основной текст — не мельче 14 px.
+   Экран партии набран под ПК (12–13 px); раньше на телефоне мельче 14 px было 98,6% знаков текста. Проверяются
+   панель, три нижние вкладки, карта, общество, рынок и газета после квартала; заодно — ничего не уезжает вбок. */
+test('экраны: партия на телефоне — текст не мельче 14 px', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'телефон');
+  test.setTimeout(120_000);
+  const errors = await setup(page, { theme: 'light' });
+  await page.goto('/world', { waitUntil: 'networkidle' });
+  await page.getByText('Партия у руля страны', { exact: true }).click();
+  await page.getByText('Глава Центрального банка', { exact: true }).click();
+  await page.getByRole('checkbox', { name: /Обучение по экрану/ }).uncheck();
+  await page.getByRole('button', { name: 'Принять полномочия' }).click();
+  const game = page.getByTestId('game');
+  await expect(game).toBeVisible();
+  const check = async (name) => {
+    fs.mkdirSync(DIR, { recursive: true });
+    await page.waitForTimeout(500);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - Math.min(window.innerWidth, document.documentElement.clientWidth));
+    expect(overflow, `${name}: страницу можно прокрутить вбок`).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: `${DIR}/${name}.png`, animations: 'disabled' });
+    expect(await smallText(page, 14), `${name}: текст мельче 14 px`).toEqual([]);
+  };
+  await check('60-game-panel');
+  // нижние вкладки телефона: решения, новости и графики, показатели
+  for (const [label, name] of [['Решения', '61-game-decisions'], ['Новости и графики', '62-game-news'], ['Показатели', '63-game-indicators']]) {
+    await game.getByRole('button', { name: label, exact: true }).click();
+    await check(name);
+  }
+  // экраны партии: карта, общество, рынок
+  for (const [label, name] of [['Карта', '64-game-map'], ['Общество', '65-game-society'], ['Рынок', '66-game-market'], ['Панель', null]]) {
+    await game.getByRole('button', { name: label, exact: true }).first().click();
+    if (name) await check(name);
+  }
+  // квартал прошёл — газета (её кнопка — на вкладке «Новости и графики»)
+  await game.getByRole('button', { name: 'Новости и графики', exact: true }).click();
+  await page.getByRole('button', { name: /Завершить квартал/ }).click();
+  const close = page.getByRole('button', { name: 'Закрыть газету' });
+  await page.waitForTimeout(700);
+  if (!(await close.isVisible().catch(() => false))) await page.getByRole('button', { name: /Газета/ }).first().click();
+  await expect(close).toBeVisible();
+  await check('67-game-newspaper');
+  await close.click();
+  await check('68-game-after-quarter');
   expect(errors).toEqual([]);
 });
 
@@ -439,7 +490,7 @@ for (const theme of ['light', 'dark']) {
         try {
           const p = JSON.parse(localStorage.getItem('ems-textbook-v1'));
           const at = Date.now() - 86400000;
-          ['sc-i1', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'sd-sum', 'el-sum', ...ids].forEach((id) => { p.learn.lessons[id] = { at, runs: 1, best: 90 }; });
+          ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'sd-sum', 'el-sum', ...ids].forEach((id) => { p.learn.lessons[id] = { at, runs: 1, best: 90 }; });
           localStorage.setItem('ems-textbook-v1', JSON.stringify(p));
         } catch { /* нет хранилища */ }
       }, CS);
