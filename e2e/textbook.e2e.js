@@ -6,7 +6,7 @@ import katex from 'katex';
 import { parseChapter, collectBlocks } from '../src/textbook/markdown.js';
 import { TRACKS } from '../src/audio/tracks.js';
 import {
-  openApp, openTab, openTasks, openBook, bookBack, toToc, expectNoSidewaysScroll, testWav, withTestFlag, showUnit, installHooks,
+  openApp, openTab, openTasks, openBook, bookBack, toToc, expectNoSidewaysScroll, testWav, withTestFlag, showUnit, installHooks, pathNode,
 } from './helpers.js';
 
 installHooks();
@@ -16,7 +16,7 @@ test('музыка: у пьесы есть запись в public/music — иг
   await withTestFlag(page);
   await page.addInitScript((ids) => { window.__INFLATIA_MUSIC_FILES__ = ids; }, Object.keys(TRACKS));
   const asked = [];
-  const wav = testWav();
+  const wav = testWav(8);
   await page.route('**/music/*.mp3', (route) => { asked.push(new URL(route.request().url()).pathname); return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: wav }); });
   const { errors } = await openApp(page);
   await openBook(page);
@@ -37,6 +37,15 @@ test('музыка: у пьесы есть запись в public/music — иг
   await expect(now).not.toContainText('BPM');
   await expect(panel.locator('.mp-cover')).toBeVisible();
   for (const b of ['music-prev', 'music-play', 'music-next']) expect((await panel.getByTestId(b).boundingBox()).height).toBeGreaterThanOrEqual(40);
+  // пауза и снова «Играть» — запись продолжается с того же места, а не с начала (пункт владельца 16.11, вечер)
+  const pos = async () => Number(await page.evaluate(() => window.__inflatiaAudioPos && window.__inflatiaAudioPos()));
+  await expect.poll(pos, { timeout: 10000 }).toBeGreaterThan(1);
+  await panel.getByTestId('music-play').click();
+  const stopped = await pos();
+  await page.waitForTimeout(700);
+  await panel.getByTestId('music-play').click();
+  await page.waitForTimeout(300);
+  expect(await pos()).toBeGreaterThan(stopped - 0.2);
   // «Волна» выбирает следующую пьесу заранее — её запись уже загружается
   const nextId = await now.getAttribute('data-next');
   expect(nextId).toBeTruthy();
@@ -150,9 +159,36 @@ test('музыка в обучении: мини-плашка над вклад�
   expect(await page.evaluate(() => localStorage.getItem('ems-learn-music'))).toBe(null);
   await dock.getByTestId('music-dock-play').click();
   await expect(dock).toHaveAttribute('data-state', 'playing');
-  await dock.getByTestId('music-dock-like').click();
+  // лайк: на ПК — в плашке; на узком телефоне плашка без него — он в развёрнутом проигрывателе
+  if (await dock.getByTestId('music-dock-like').isVisible()) await dock.getByTestId('music-dock-like').click();
+  else { await dock.getByTestId('music-dock-open').click(); await page.getByTestId('music-panel').getByTestId('music-like').click(); await page.getByTestId('music-panel').getByRole('button', { name: 'Закрыть' }).click(); }
   await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(1);
+  // пункт владельца 16.11, вечер: переключение видно — кнопка вздрагивает, название въезжает; есть «назад»
+  const title0 = await dock.getByTestId('music-dock-title').textContent();
   await dock.getByTestId('music-dock-next').click();
+  await expect(dock.getByTestId('music-dock-next')).toHaveAttribute('data-kick', 'true');
+  await expect(dock.getByTestId('music-dock-title')).not.toHaveText(title0);
+  await expect(dock.getByTestId('music-dock-title')).toHaveClass(/in-next/);
+  await dock.getByTestId('music-dock-prev').click();
+  await expect(dock.getByTestId('music-dock-prev')).toHaveAttribute('data-kick', 'true');
+  await expect(dock.getByTestId('music-dock-title')).toHaveText(title0);
+  // касание названия разворачивает полный проигрыватель над плашкой
+  await dock.getByTestId('music-dock-title-btn').click();
+  const full = page.getByTestId('music-panel');
+  await expect(full).toBeVisible();
+  expect((await full.boundingBox()).y + (await full.boundingBox()).height).toBeLessThanOrEqual((await dock.boundingBox()).y + 2);
+  await full.getByRole('button', { name: 'Закрыть' }).click();
+  // в уроке плашки нет, но в шапке урока — своя кнопка музыки (пункт владельца 16.11: «в уроке нигде нет переключения музыки»)
+  await openTab(page, 'path');
+  await pathNode(page, 'sc-i1').click();
+  await page.getByTestId('lesson-start').click();
+  await expect(page.getByTestId('lesson')).toBeVisible();
+  await expect(dock).toHaveCount(0);
+  await page.getByTestId('lesson').getByTestId('lesson-music').click();
+  await expect(page.getByTestId('music-panel')).toBeVisible();
+  await page.getByTestId('music-panel').getByRole('button', { name: 'Закрыть' }).click();
+  await page.getByTestId('lesson').getByRole('button', { name: 'Выйти из урока' }).click();
+  await expect(dock).toBeVisible();
   // «×» — музыка выключена и в настройках обучения, плашки нет
   await dock.getByTestId('music-dock-close').click();
   await expect(dock).toHaveCount(0);

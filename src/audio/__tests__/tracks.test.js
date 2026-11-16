@@ -138,8 +138,11 @@ describe('звуковой движок без Web Audio', () => {
   it('«Волна»: случайный выбор из пяти настроений; начало — всегда спокойное; переходы плавные, без повторов подряд', async () => {
     const { waveNext, WAVE_ENERGY, WAVE_RECENT } = await import('../tracks.js');
     const { seededRandom } = await import('../../research/randomize.js');
-    const moods = ['calm', 'frost', 'slump', 'boom', 'stag'];
-    expect([...MOOD_PLAYLISTS.wave].sort()).toEqual(moods.flatMap((m) => MOOD_PLAYLISTS[m]).sort());
+    const moods = ['calm', 'frost', 'slump', 'stabilization', 'boom', 'campaign', 'stag'];
+    // в волне — все пьесы этих настроений, не только из плейлистов (раньше «Гимн», «Первый урок»… в ней не звучали)
+    expect([...MOOD_PLAYLISTS.wave].sort()).toEqual(Object.keys(TRACKS).filter((id) => moods.includes(TRACKS[id].mood)).sort());
+    for (const id of ['anthem', 'firstlesson', 'chalkboard', 'openingbell', 'residence', 'graduation', 'anchor']) expect(MOOD_PLAYLISTS.wave).toContain(id);
+    for (const id of ['warmarch', 'ironmarch', 'collapse', 'decree']) expect(MOOD_PLAYLISTS.wave).not.toContain(id);
     expect(MOOD_LABEL.wave).toBe('Волна');
     // начало — из спокойных, и разное (случайное)
     const firsts = new Set(Array.from({ length: 200 }, (_, k) => waveNext([], { rnd: seededRandom(k + 1) })));
@@ -160,14 +163,26 @@ describe('звуковой движок без Web Audio', () => {
     for (let i = 0; i < 20; i += 1) other.push(waveNext(other, { rnd: rnd2 }));
     expect(other).not.toEqual(hist.slice(0, 20));
   });
+  // пункт владельца 16.11, вечер: «музыка часто повторяется, и такое ощущение, что не вся может играть в волне»
+  it('«Волна»: пока есть не звучавшие пьесы, повторов нет; за длинную волну звучит каждая пьеса', async () => {
+    const { waveNext } = await import('../tracks.js');
+    const { seededRandom } = await import('../../research/randomize.js');
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const rnd = seededRandom(seed); const hist = [];
+      for (let i = 0; i < 120; i += 1) hist.push(waveNext(hist, { rnd }));
+      // первые 18 — без единого повтора (плавные переходы по энергии иногда вынуждают повтор позже — не раньше 19-й пьесы)
+      expect(new Set(hist.slice(0, 18)).size, `зерно ${seed}`).toBe(18);
+      expect(new Set(hist), `зерно ${seed}`).toEqual(new Set(MOOD_PLAYLISTS.wave));
+    }
+  });
   it('«Волна»: пьесы с лайком звучат чаще; у «Волны» нет плейлиста; экономика её не сбивает', async () => {
     const { waveNext } = await import('../tracks.js');
     const { seededRandom } = await import('../../research/randomize.js');
     const rnd = seededRandom(3);
     const count = (likes) => { let liked = 0; for (let k = 0; k < 3000; k += 1) if (waveNext([], { likes, rnd }) === 'ledger') liked += 1; return liked; };
-    // семь спокойных: без лайка «ledger» — примерно 1/7, с лайком — 3/9
-    expect(count([])).toBeLessThan(560);
-    expect(count(['ledger'])).toBeGreaterThan(850);
+    // двенадцать спокойных: без лайка «ledger» — примерно 1/12, с лайком — 3/14
+    expect(count([])).toBeLessThan(350);
+    expect(count(['ledger'])).toBeGreaterThan(550);
     const a = createAudioEngine({ rnd: seededRandom(1) });
     a.setPlaylist('wave');
     expect(a.playlist()).toEqual([]);

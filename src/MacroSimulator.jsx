@@ -508,6 +508,14 @@ export const playerCss = () => `
   .mp-meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
   .mp-chip { padding: 1px 8px; border-radius: 999px; font: 600 11.5px/18px var(--ds-sans, sans-serif); color: var(--mp); background: color-mix(in srgb, var(--mp) 14%, transparent); }
   .mp-chip.rec { color: ${COLOR.goldSoft}; background: none; box-shadow: inset 0 0 0 1px ${COLOR.gold}; }
+  /* переключение пьесы: кнопка вздрагивает в свою сторону, вокруг расходится кольцо, название въезжает */
+  .mp-b.kick-next, .mp-b.kick-prev { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mp) 45%, transparent); animation: mp-ring .45s ease-out; }
+  .mp-b.kick-next svg { animation: mp-nudge-r .4s cubic-bezier(.3,1.6,.5,1); } .mp-b.kick-prev svg { animation: mp-nudge-l .4s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes mp-ring { to { box-shadow: 0 0 0 12px transparent; } }
+  @keyframes mp-nudge-r { 40% { transform: translateX(5px); } } @keyframes mp-nudge-l { 40% { transform: translateX(-5px); } }
+  .mp-title.in-next { animation: mp-in-r .35s ease-out; } .mp-title.in-prev { animation: mp-in-l .35s ease-out; }
+  @keyframes mp-in-r { from { opacity: 0; transform: translateX(16px); } } @keyframes mp-in-l { from { opacity: 0; transform: translateX(-16px); } }
+  @media (prefers-reduced-motion: reduce) { .mp-b.kick-next, .mp-b.kick-prev, .mp-b svg, .mp-title { animation: none !important; } }
   .mp-like { flex: none; width: 38px; height: 38px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; background: none; color: ${COLOR.faint}; transition: color .15s, transform .12s; }
   .mp-like:hover { color: ${COLOR.text}; } .mp-like:active { transform: scale(.88); } .mp-like.on { color: #E0457B; }
   .mp-ctl { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 12px 0 10px; }
@@ -545,8 +553,14 @@ export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked
 /* wave — экран без экономики (учебник): вместо «По режиму экономики» — «Волна», пьесы сами сменяют друг друга;
    buttonStyle — кнопка под соседей (в учебнике — круглая, высотой с кнопки размера текста) */
 /* learn — панель внутри обучения: музыка и звуки — настройки обучения (как в профиле), а не «Мира» */
-export function AudioControls({ wave = false, buttonStyle = null, learn = false }) {
+/* icon, label, testid — своя кнопка открытия (мини-плашка музыки разворачивает проигрыватель стрелкой «вверх»,
+   в уроке — круглая кнопка в шапке) */
+export function AudioControls({ wave = false, buttonStyle = null, learn = false, icon = null, label = 'Музыка и звуки', testid = 'music-btn', className = 'ems-btn' }) {
   const DD_WIDTH = 268;
+  // анимация переключения: «вперёд» / «назад» вздрагивают, название въезжает с той стороны (пункт владельца 16.11)
+  const [kick, setKick] = useState(null);
+  const kickRef = React.useRef(0);
+  const doKick = (dir) => { setKick(dir); window.clearTimeout(kickRef.current); kickRef.current = window.setTimeout(() => setKick(null), 450); };
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
   // музыку, звуки и громкость читаем из движка при каждом рисовании: их ставит и экран
   // (настройки «Мира» и обучения после перезагрузки), не только эта панель
@@ -563,9 +577,9 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
     ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
   return (
     <div style={{ position: 'relative' }}>
-      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px', minWidth: 44, minHeight: 44, display: 'inline-grid', placeItems: 'center', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
-        onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
-        {anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
+      <button ref={btnRef} className={className} style={{ padding: '7px 9px', minWidth: 44, minHeight: 44, display: 'inline-grid', placeItems: 'center', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid={testid} aria-label={label}
+        aria-expanded={open} onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
+        {icon ? React.createElement(icon, { size: 17, 'aria-hidden': true }) : anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
       {open && (
         <div className="ems-panel-raised ems-fade-in mp" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, zIndex: 60, maxHeight: pos.maxHeight, '--mp': MOOD_TINT[np.mood] || MOOD_TINT.calm }}>
@@ -579,7 +593,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
           <div className="mp-now" data-testid="music-now" data-track={np.id || ''} data-next={np.next || ''} data-file={String(!!np.file)}>
             <div className={`mp-cover${music ? ' on' : ''}`} aria-hidden="true"><Music size={20} /><span className="mp-eq"><i /><i /><i /><i /></span></div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="mp-title">{np.name}</div>
+              <div className={`mp-title${kick ? ` in-${kick}` : ''}`} key={np.id || 'none'} data-testid="music-title">{np.name}</div>
               <div className="mp-meta">
                 {np.moodLabel && <span className="mp-chip">{np.moodLabel}</span>}
                 {/* звучит запись из public/music, а не синтез (docs/mechanics.md, «Музыка: записи вместо синтеза») */}
@@ -593,10 +607,10 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
             )}
           </div>
           <div className="mp-ctl">
-            <button className="mp-b" aria-label="Предыдущая пьеса" data-testid="music-prev" onClick={() => { Audio.play('tick'); Audio.skip(false); }}><SkipBack size={16} /></button>
+            <button className={`mp-b${kick === 'prev' ? ' kick-prev' : ''}`} aria-label="Предыдущая пьеса" data-testid="music-prev" data-kick={kick === 'prev' ? 'true' : undefined} onClick={() => { Audio.play('tick'); doKick('prev'); Audio.skip(false); }}><SkipBack size={16} /></button>
             <button className="mp-b main" aria-label={music ? 'Пауза' : 'Играть'} data-testid="music-play"
               onClick={() => { const v = !music; Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); setMusic(v); }}>{music ? <Pause size={20} /> : <Play size={20} />}</button>
-            <button className="mp-b" aria-label="Следующая пьеса" data-testid="music-next" onClick={() => { Audio.play('tick'); Audio.skip(true); }}><SkipForward size={16} /></button>
+            <button className={`mp-b${kick === 'next' ? ' kick-next' : ''}`} aria-label="Следующая пьеса" data-testid="music-next" data-kick={kick === 'next' ? 'true' : undefined} onClick={() => { Audio.play('tick'); doKick('next'); Audio.skip(true); }}><SkipForward size={16} /></button>
           </div>
           {list.length > 1 && (
             <div className="mp-list ems-scroll" role="list" aria-label="Плейлист">

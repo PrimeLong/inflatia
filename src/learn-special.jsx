@@ -11,10 +11,11 @@
      useSpecialResume — продолжить с того места, где вышли (сутки, на этом устройстве, как урок); «Продолжить» — кнопкой
        в карточке урока, как у обычного урока, без полосы «Продолжаем…» внутри. */
 import { useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Music } from 'lucide-react';
 import { DsRoot, IconButton } from './ds.jsx';
 import { InflaMeter, ProgressChart, useMedia } from './ds-art.jsx';
 import { StreakFlame } from './learn-flame.jsx';
+import { AudioControls } from './MacroSimulator.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars } from './learn-skins.jsx';
 import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer, DESK_QUERY } from './learn-decor.jsx';
 import { themeOf, deskOf } from './learn/rewards.js';
@@ -87,6 +88,7 @@ export function SpecialHead({ closeLabel = 'Выйти из урока', closeTe
         <ProgressChart answers={answers} total={total} testid="special-progress" />
         {run && <StreakFlame n={run.n} plus={false} />}
         {run && <span className="sp-run" data-testid="special-run" data-n={run.n} aria-label={`Верных ответов подряд: ${run.n}`}><InflaMeter streak={run.n} mood={run.mood} size={34} /></span>}
+        {run && <AudioControls wave learn icon={Music} label="Музыка" testid="lesson-music" className="ln-music" />}
       </div>
     </div>
   );

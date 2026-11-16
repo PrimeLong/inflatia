@@ -5,13 +5,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, ArrowLeft, Zap, Check, Calculator, BookOpenText, Delete, RotateCcw, Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link,
+  X, ArrowLeft, Zap, Music, Check, Calculator, BookOpenText, Delete, RotateCcw, Clock, Scale, Hourglass, Ticket, TrendingUp, CircleCheck, Medal, ArrowLeftRight, Handshake, Coffee, Wallet, Link,
   Utensils, Boxes, Users, Snowflake, ArrowDownToLine, ArrowUpToLine, Flag, Croissant, Landmark, Radio, SkipForward, ChartSpline, Factory, Bike,
 } from 'lucide-react';
 // огонёк серии на итогах — общий с итогами особых уроков
 import { StreakBurst } from './learn-extra-result.jsx';
 import { track, trackOnce } from './lib/client.js';
-import { Audio } from './MacroSimulator.jsx';
+import { Audio, AudioControls } from './MacroSimulator.jsx';
 import { Blocks, Inline, ChartSvg, ChartLegend } from './textbook.jsx';
 import { CHARTS, chartDefaults } from './textbook/charts.js';
 import { afterPathAnswer, dropFromReview } from './textbook/review-sync.js';
@@ -1076,6 +1076,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         {/* Инфля надувается с каждым верным ответом подряд и мягко сдувается после ошибки */}
         <StreakFlame n={run3} plus={!(run.mode === 'lesson' && replay && !diamond)} />
         <InflaMeter streak={run3} mood={fb && !fb.empty ? (fb.ok ? 'joy' : 'cheer') : 'hello'} size={34} />
+        {/* музыка прямо в уроке (пункт владельца 16.11: «в уроке нигде нет переключения музыки»): тот же проигрыватель */}
+        <AudioControls wave learn icon={Music} label="Музыка" testid="lesson-music" className="ln-music" />
       </div>
       {/* украшение урока из лавки — живое, его можно трогать */}
       {/* колыбель — на подставке сбоку (урок не сдвигается), гирлянда и мобиле — полосой под шапкой */}
