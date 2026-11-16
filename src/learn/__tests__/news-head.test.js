@@ -10,6 +10,13 @@ describe('заголовок свежего выпуска новостей', ()
     expect(LATEST_NEWS_HEAD).toEqual({ id: NEWS[0].id, date: NEWS[0].date, color: NEWS[0].color, title: NEWS[0].title });
     expect(LATEST_NEWS.id).toBe(LATEST_NEWS_HEAD.id);
   });
+  it('новый юнит объявлен в ленте: «Сберкасса» — первым пунктом свежего выпуска, с уровнем и местом на Пути', () => {
+    const item = NEWS[0].items[0];
+    expect(item.title).toContain('«Сберкасса»');
+    expect(item.text).toContain('Начальном уровне');
+    expect(item.text).toContain('«Биржи труда»');
+    expect(NEWS[0].title).toContain('Сберкасса');
+  });
   it('оболочка не тянет тексты выпусков: импортирует news-head.js, а не news.js', () => {
     const shell = readFileSync(new URL('../../MacroSimulator.jsx', import.meta.url), 'utf8');
     expect(shell).toContain("from './learn/news-head.js'");
