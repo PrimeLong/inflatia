@@ -133,20 +133,49 @@ describe('звуковой движок без Web Audio', () => {
     expect(a.playlist().map((p) => p.id)).toEqual(MOOD_PLAYLISTS.totalitarian);
   });
 
-  // «Волна» — в учебнике, где экономики нет (docs/mechanics.md, «Музыка»): настроения по кругу, без повторов подряд
-  it('«Волна»: все пьесы пяти спокойных настроений, одинаковое настроение подряд не звучит (и по кругу тоже)', () => {
-    const wave = MOOD_PLAYLISTS.wave;
-    const moods = ['calm', 'boom', 'slump', 'frost', 'stag'];
-    expect([...wave].sort()).toEqual(moods.flatMap((m) => MOOD_PLAYLISTS[m]).sort());
-    wave.forEach((id, i) => expect(TRACKS[id].mood, `${i}: ${id}`).not.toBe(TRACKS[wave[(i + 1) % wave.length]].mood));
+  /* «Волна» — в обучении, где экономики нет (пункт владельца 16.11: «не должен показывать плейлист, он случайно выбирает
+     треки, как реальная волна, и чтобы с агрессивных не начинало, и чтобы можно было ставить лайки») */
+  it('«Волна»: случайный выбор из пяти настроений; начало — всегда спокойное; переходы плавные, без повторов подряд', async () => {
+    const { waveNext, WAVE_ENERGY, WAVE_RECENT } = await import('../tracks.js');
+    const { seededRandom } = await import('../../research/randomize.js');
+    const moods = ['calm', 'frost', 'slump', 'boom', 'stag'];
+    expect([...MOOD_PLAYLISTS.wave].sort()).toEqual(moods.flatMap((m) => MOOD_PLAYLISTS[m]).sort());
     expect(MOOD_LABEL.wave).toBe('Волна');
-    const a = createAudioEngine();
+    // начало — из спокойных, и разное (случайное)
+    const firsts = new Set(Array.from({ length: 200 }, (_, k) => waveNext([], { rnd: seededRandom(k + 1) })));
+    firsts.forEach((id) => expect(TRACKS[id].mood).toBe('calm'));
+    expect(firsts.size).toBeGreaterThan(3);
+    // длинная волна: другое настроение, энергия меняется не больше чем на ступень, недавние не повторяются
+    const rnd = seededRandom(9); const hist = [];
+    for (let i = 0; i < 600; i += 1) hist.push(waveNext(hist, { rnd }));
+    for (let i = 1; i < hist.length; i += 1) {
+      const a = TRACKS[hist[i - 1]].mood; const b = TRACKS[hist[i]].mood;
+      expect(b, `${i}`).not.toBe(a);
+      expect(Math.abs(WAVE_ENERGY[a] - WAVE_ENERGY[b]), `${a}→${b}`).toBeLessThanOrEqual(1);
+      expect(hist.slice(Math.max(0, i - WAVE_RECENT), i), `${i}: ${hist[i]}`).not.toContain(hist[i]);
+    }
+    // не по списку: звучат все настроения, порядок двух волн разный
+    expect(new Set(hist.map((id) => TRACKS[id].mood))).toEqual(new Set(moods));
+    const other = []; const rnd2 = seededRandom(10);
+    for (let i = 0; i < 20; i += 1) other.push(waveNext(other, { rnd: rnd2 }));
+    expect(other).not.toEqual(hist.slice(0, 20));
+  });
+  it('«Волна»: пьесы с лайком звучат чаще; у «Волны» нет плейлиста; экономика её не сбивает', async () => {
+    const { waveNext } = await import('../tracks.js');
+    const { seededRandom } = await import('../../research/randomize.js');
+    const rnd = seededRandom(3);
+    const count = (likes) => { let liked = 0; for (let k = 0; k < 3000; k += 1) if (waveNext([], { likes, rnd }) === 'ledger') liked += 1; return liked; };
+    // семь спокойных: без лайка «ledger» — примерно 1/7, с лайком — 3/9
+    expect(count([])).toBeLessThan(560);
+    expect(count(['ledger'])).toBeGreaterThan(850);
+    const a = createAudioEngine({ rnd: seededRandom(1) });
     a.setPlaylist('wave');
-    expect(a.playlist().map((p) => p.id)).toEqual(wave);
+    expect(a.playlist()).toEqual([]);
     expect(a.nowPlaying().locked).toBe('wave');
-    // экономика меняется — «Волна» держится, пока её не сняли
+    a.setLikes(['dawn', 'нет-такой']);
+    expect(a.nowPlaying().liked).toBe(a.nowPlaying().id === 'dawn');
     a.setMood({ regime: 'banking', politicalRegime: 'democracy', inflationRisk: 0, bankingRisk: 0, debtRisk: 0, recessionRisk: 0, gdpGrowth: 2 });
-    expect(a.playlist().map((p) => p.id)).toEqual(wave);
+    expect(a.nowPlaying().locked).toBe('wave');
     a.setPlaylist(null);
     expect(a.playlist().map((p) => p.id)).toEqual(MOOD_PLAYLISTS.crisis);
   });

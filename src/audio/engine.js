@@ -9,7 +9,7 @@
    так громкость и пики каждой пьесы можно измерить честно, отрендерив её, а не на слух.
 ========================================================================================= */
 import { clamp } from '../lib/catalog.js';
-import { hz, LH, BASS_LINES, TRACKS, MOOD_PLAYLISTS, ROLE_PLAYLISTS, MOOD_LABEL, REGIME_MOOD, STINGERS } from './tracks.js';
+import { hz, LH, BASS_LINES, TRACKS, MOOD_PLAYLISTS, ROLE_PLAYLISTS, MOOD_LABEL, REGIME_MOOD, STINGERS, waveNext } from './tracks.js';
 import { TRACK_GAIN_DB, STINGER_GAIN_DB, SFX_GAIN_DB } from './loudness.js';
 import MUSIC_FILES from 'virtual:music-files';
 
@@ -55,6 +55,12 @@ export function createAudioEngine(options = {}) {
   const opts = { music: true, sfx: true, volume: 0.6 };
   let lastTick = 0; const listeners = [];
   let track = TRACKS.dawn; let mood = 'calm'; let lockedMood = null; let playlistIdx = 0;
+  /* «Волна» (tracks.js, waveNext): история сыгранного (для «назад» и чтобы не повторяться), следующая пьеса — выбрана
+     заранее (её запись загружается до конца текущей), пьесы с лайком — чаще */
+  let waveHist = []; let waveUp = null; let waveBack = false; let likes = [];
+  const rnd = options.rnd || Math.random;
+  const isWave = () => lockedMood === 'wave';
+  const waveUpcoming = () => waveUp || (waveUp = waveNext(waveHist, { likes, rnd }));
   let roleId = null;
   const listOf = (m) => (
     (roleId && ROLE_PLAYLISTS[roleId] && ROLE_PLAYLISTS[roleId][m])
@@ -686,9 +692,23 @@ export function createAudioEngine(options = {}) {
     if (!TRACKS[id]) return;
     track = TRACKS[id]; sectionPlan = plan(track); formBars = sectionPlan.reduce((a, s) => a + s.bars, 0);
     plays[id] = (plays[id] || 0) + 1;
+    if (isWave()) {
+      if (waveBack) waveBack = false; else if (waveHist[waveHist.length - 1] !== id) waveHist.push(id);
+      if (waveHist.length > 40) waveHist.shift();
+      waveUp = null;
+    }
     stepIdx = 0; outroEnd = -1; notify();
   };
   const advancePlaylist = (forward) => {
+    if (isWave()) {
+      pendingKind = 'cut';
+      // «назад» — к прошлой пьесе волны; её нет — текущая с начала
+      if (forward === false) {
+        if (waveHist.length >= 2) { waveHist.pop(); pending = waveHist[waveHist.length - 1]; waveBack = true; } else { pending = track.id; waveBack = true; }
+        waveUp = null; return;
+      }
+      pending = waveUpcoming(); waveUp = null; return;
+    }
     const list = listOf(lockedMood || mood);
     playlistIdx = (playlistIdx + (forward === false ? -1 : 1) + list.length) % list.length;
     pending = list[playlistIdx]; pendingKind = 'cut';
@@ -873,7 +893,7 @@ export function createAudioEngine(options = {}) {
     return fileBufs[id];
   };
   // следующая пьеса плейлиста (без перехода к ней)
-  const peekNext = () => { const list = listOf(lockedMood || mood); return list[(playlistIdx + 1) % list.length]; };
+  const peekNext = () => { if (isWave()) return waveUpcoming(); const list = listOf(lockedMood || mood); return list[(playlistIdx + 1) % list.length]; };
   // заранее — следующую запись: к концу этой она уже декодирована
   const prefetchNext = () => { const id = peekNext(); if (id && fileTrack(id)) loadFile(id).catch(() => {}); };
   const stopFile = (at) => {
@@ -1206,8 +1226,12 @@ export function createAudioEngine(options = {}) {
     // file — сейчас звучит запись (а не синтез): в панели у пьесы пометка «запись»
     nowPlaying: () => ({ id: track.id, name: track.name, subtitle: track.subtitle, mood: track.mood,
       moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood,
-      file: !!(fileSrc && fileFor === track.id) }),
-    playlist: () => listOf(lockedMood || mood).map((id) => ({ id, name: TRACKS[id].name, current: id === track.id, file: fileTrack(id) })),
+      file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), next: peekNext() }),
+    // у «Волны» плейлиста нет — она выбирает пьесы сама
+    playlist: () => (isWave() ? [] : listOf(lockedMood || mood).map((id) => ({ id, name: TRACKS[id].name, current: id === track.id, file: fileTrack(id) }))),
+    // лайки: пьесы, которые «Волна» ставит чаще (хранит экран — ems-music-likes)
+    setLikes(ids) { likes = Array.isArray(ids) ? ids.filter((id) => TRACKS[id]) : []; waveUp = null; notify(); },
+    waveHistory: () => [...waveHist],
     setRole(id) {
       if (roleId === id) return;
       roleId = id || null;
@@ -1220,6 +1244,8 @@ export function createAudioEngine(options = {}) {
     setPlaylist(moodId) {
       lockedMood = moodId || null;
       const list = MOOD_PLAYLISTS[lockedMood || mood] || MOOD_PLAYLISTS.calm;
+      // «Волна» начинается заново: спокойная пьеса, случайная (лайкнутые — чаще)
+      if (isWave()) { waveHist = []; waveUp = null; waveBack = false; playlistIdx = 0; queue(waveNext([], { likes, rnd })); notify(); if (!running && opts.music) this.startMusic(); return; }
       playlistIdx = 0; queue(list[0]); notify();
       if (!running && opts.music) this.startMusic();
     },

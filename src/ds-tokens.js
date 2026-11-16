@@ -150,6 +150,13 @@ export const setLearnSfx = (on) => store.set('ems-learn-sfx', on ? null : '0');
 // прежнее «выключено» ('0') и отсутствие записи — выключено.
 export const worldMusic = () => store.get('ems-world-music') === '1';
 export const setWorldMusic = (on) => store.set('ems-world-music', on ? '1' : null);
+/* лайки пьес (docs/mechanics.md, «Музыка: „Волна“»): «Волна» ставит их чаще; помнит устройство */
+export const musicLikes = () => { try { const v = JSON.parse(store.get('ems-music-likes') || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 200) : []; } catch { return []; } };
+export const toggleMusicLike = (id) => {
+  const cur = musicLikes(); const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+  store.set('ems-music-likes', next.length ? JSON.stringify(next) : null);
+  return next;
+};
 export const worldSfx = () => store.get('ems-world-sfx') !== '0';
 export const setWorldSfx = (on) => store.set('ems-world-sfx', on ? null : '0');
 export const worldVolume = () => { const v = parseFloat(store.get('ems-world-volume')); return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.6; };

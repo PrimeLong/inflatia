@@ -5,7 +5,7 @@ import {
   VolumeX, Music, Trophy, Lock, Share2, GraduationCap, BookOpenText, Crown, Gavel, Hammer, Play, Calendar, BookOpen,
   Vote, Layers, Award, BarChart3, Medal, Handshake, HeartHandshake, LifeBuoy, Ban, DoorOpen, Factory, Wheat, Route,
   UserRound, Map as MapIcon, ShoppingBag, Ellipsis, Newspaper,
-  SkipBack, SkipForward, Pause,
+  SkipBack, SkipForward, Pause, Heart,
 } from 'lucide-react';
 // звуковой движок подгружается по первому клику — в стартовом файле только обёртка
 import { Audio } from './audio/lazy.js';
@@ -19,7 +19,7 @@ import { reportCrash } from './lib/crash.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
-  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx,
+  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike,
 } from './ds-tokens.js';
 import { DsRoot, Tabs } from './ds.jsx';
 import {
@@ -510,6 +510,8 @@ export const playerCss = () => `
   .mp-meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
   .mp-chip { padding: 1px 8px; border-radius: 999px; font: 600 11.5px/18px var(--ds-sans, sans-serif); color: var(--mp); background: color-mix(in srgb, var(--mp) 14%, transparent); }
   .mp-chip.rec { color: ${COLOR.goldSoft}; background: none; box-shadow: inset 0 0 0 1px ${COLOR.gold}; }
+  .mp-like { flex: none; width: 38px; height: 38px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; background: none; color: ${COLOR.faint}; transition: color .15s, transform .12s; }
+  .mp-like:hover { color: ${COLOR.text}; } .mp-like:active { transform: scale(.88); } .mp-like.on { color: #E0457B; }
   .mp-ctl { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 12px 0 10px; }
   .mp-b { width: 40px; height: 40px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; color: ${COLOR.text}; background: ${COLOR.panelAlt}; transition: transform .12s, background .15s; }
   .mp-b:hover { background: color-mix(in srgb, var(--mp) 14%, ${COLOR.panelAlt}); } .mp-b:active { transform: scale(.93); }
@@ -537,6 +539,8 @@ export const playerCss = () => `
   @media (prefers-reduced-motion: reduce) { .mp-eq i { animation: none; transform: scaleY(.6); } .mp-sw i, .mp-b { transition: none; } }
 `;
 
+// лайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
+Audio.setLikes(musicLikes());
 /* «Волна» играет в учебнике; в партии музыка снова следует за экономикой (docs/mechanics.md, «Музыка») */
 export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked === 'wave') Audio.setPlaylist(null); };
 
@@ -574,9 +578,9 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
             <button className="mp-x" aria-label="Закрыть" onClick={() => { Audio.play('click'); setOpen(false); }}><X size={14} /></button>
           </div>
           {/* обложка, название и управление; описаний пьес нет (пункт владельца 15.11: «убери описание песен») */}
-          <div className="mp-now" data-testid="music-now" data-track={np.id || ''} data-file={String(!!np.file)}>
+          <div className="mp-now" data-testid="music-now" data-track={np.id || ''} data-next={np.next || ''} data-file={String(!!np.file)}>
             <div className={`mp-cover${music ? ' on' : ''}`} aria-hidden="true"><Music size={20} /><span className="mp-eq"><i /><i /><i /><i /></span></div>
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div className="mp-title">{np.name}</div>
               <div className="mp-meta">
                 {np.moodLabel && <span className="mp-chip">{np.moodLabel}</span>}
@@ -584,6 +588,11 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
                 {np.file && <span className="mp-chip rec" data-testid="music-file">запись</span>}
               </div>
             </div>
+            {/* лайк: «Волна» ставит пьесу чаще (пункт владельца 16.11) */}
+            {np.id && (
+              <button className={`mp-like${np.liked ? ' on' : ''}`} aria-pressed={!!np.liked} aria-label={np.liked ? 'Убрать лайк' : 'Нравится — чаще в «Волне»'} data-testid="music-like"
+                onClick={() => { Audio.play('tick'); Audio.setLikes(toggleMusicLike(np.id)); }}><Heart size={18} fill={np.liked ? 'currentColor' : 'none'} /></button>
+            )}
           </div>
           <div className="mp-ctl">
             <button className="mp-b" aria-label="Предыдущая пьеса" data-testid="music-prev" onClick={() => { Audio.play('tick'); Audio.skip(false); }}><SkipBack size={16} /></button>
@@ -610,7 +619,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
               {moods.map(([id, label]) => (<option key={id} value={id}>{label}</option>))}
             </select>
           </label>
-          {wave && (np.locked || 'wave') === 'wave' && <div className="mp-hint" data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
+          {wave && (np.locked || 'wave') === 'wave' && <div className="mp-hint" data-testid="music-wave-hint">«Волна» подбирает пьесы сама: начинает спокойно, переходит плавно. ♥ — пьеса будет звучать чаще</div>}
           {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); }, Music],
             ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); if (learn) setLearnSfx(v); else setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
               <div key={label} className="mp-sw-row">

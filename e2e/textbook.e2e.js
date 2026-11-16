@@ -37,11 +37,13 @@ test('музыка: у пьесы есть запись в public/music — иг
   await expect(now).not.toContainText('BPM');
   await expect(panel.locator('.mp-cover')).toBeVisible();
   for (const b of ['music-prev', 'music-play', 'music-next']) expect((await panel.getByTestId(b).boundingBox()).height).toBeGreaterThanOrEqual(40);
-  const rows = panel.getByTestId('music-row');
-  const ids = await rows.evaluateAll((els) => els.map((e) => e.dataset.track));
-  const nextId = ids[(ids.indexOf(id) + 1) % ids.length];
+  // «Волна» выбирает следующую пьесу заранее — её запись уже загружается
+  const nextId = await now.getAttribute('data-next');
+  expect(nextId).toBeTruthy();
   await expect.poll(() => asked.includes(`/music/${nextId}.mp3`), { timeout: 10000 }).toBe(true);
-  // в списке пьес у записей — значок «запись»
+  // у «Волны» плейлиста нет; у настроения он есть — и у записей в нём значок «запись»
+  await expect(panel.getByTestId('music-row')).toHaveCount(0);
+  await panel.getByTestId('music-what').selectOption('calm');
   await expect(panel.locator('[data-testid=music-row] .mp-rec[title="запись"]').first()).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -91,7 +93,17 @@ test('музыка: в панели нет «Заставок событий» �
   await expect(what).toHaveValue('wave');
   await expect(what.locator('option[value="auto"]')).toHaveCount(0);
   await expect(what.locator('option[value="wave"]')).toContainText('Волна');
-  await expect(panel.getByTestId('music-wave-hint')).toContainText('сменяют друг друга сами');
+  // «Волна» — без плейлиста (пункт владельца 16.11): пьесы подбираются сами, спокойное начало, лайки
+  await expect(panel.getByTestId('music-wave-hint')).toContainText('подбирает пьесы сама');
+  await expect(panel.getByTestId('music-row')).toHaveCount(0);
+  // лайк — пьесе, которая звучит; помнит устройство. Пьеса могла смениться сразу после включения — сверяем с тем, что сохранено
+  const like = panel.getByTestId('music-like');
+  await expect(like).toHaveAttribute('aria-pressed', 'false');
+  await like.click();
+  const liked = await page.evaluate(() => JSON.parse(localStorage.getItem('ems-music-likes')));
+  expect(liked).toHaveLength(1);
+  await expect.poll(async () => (await panel.getByTestId('music-now').getAttribute('data-track')) === liked[0]
+    ? await like.getAttribute('aria-pressed') : 'true').toBe('true');
   // выбрали настроение — играет оно; «Волна» — снова первая строка
   await what.selectOption('calm');
   await expect(what).toHaveValue('calm');
