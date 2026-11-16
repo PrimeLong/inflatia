@@ -41,7 +41,7 @@ describe('особые уроки: время — активное, и при п
     const { readFileSync } = await import('node:fs');
     ['learn-people.jsx', 'learn-reading.jsx', 'learn-graph.jsx', 'learn-draw.jsx'].forEach((f) => {
       const src = readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
-      expect(src, f).toContain('useActiveMs()');
+      expect(src, f).toContain('useActiveMs(');
       expect(src, f).not.toMatch(/Date\.now\(\) - (started\.current|startAt)/);
       // повтор урока: время всё равно идёт в минуты дня
       expect(src, f).toContain('addStudySeconds(');

@@ -5,9 +5,10 @@
 import { useEffect, useRef } from 'react';
 import { activeClock, tickClock, actClock } from './learn/active-time.js';
 
-export function useActiveMs() {
+// base — уже набранное время (особый урок продолжили с места)
+export function useActiveMs(base = 0) {
   const clock = useRef(null);
-  if (!clock.current) clock.current = activeClock(Date.now());
+  if (!clock.current) clock.current = activeClock(Date.now(), base);
   const read = useRef(null);
   if (!read.current) {
     const visible = () => typeof document === 'undefined' || !document.hidden;

@@ -4,6 +4,7 @@
    Внизу — одна мысль простыми словами, «Назад» и «Дальше»; в конце — вопрос на понимание и «+10 опыта»
    (один раз). Открывается остановкой на дороге юнита и кнопкой «Разобрать график по шагам» на карточке
    урока с этим графиком — тогда без опыта (peek), поверх урока. При «уменьшить движение» — без анимаций. */
+import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
 import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -351,21 +352,31 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
 
 export default function GraphLesson({ id, learn, update, onClose, peek = false, gem = false }) {
   const g = GRAPH_BY_ID[id];
-  const [k, setK] = useState(0);
+  // вышли посреди разбора — продолжаем с того же шага (learn-special.jsx); подсказка из урока (peek) — без этого
+  const resume = useSpecialResume('graph', id, gem);
+  const was = peek ? null : resumedState(resume);
+  const [resumed, setResumed] = useState(!!was);
+  const run = useAnswerRun(was ? was.run || 0 : 0);
+  const [k, setK] = useState(() => (was ? was.k : 0));
   const [replay, setReplay] = useState(0);
-  const [phase, setPhase] = useState('tour'); // tour → quiz → done
-  const [order] = useState(() => (g ? g.quiz.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5) : []));
-  const [picked, setPicked] = useState(null);
-  const firstOk = useRef(null);
-  const activeMs = useActiveMs();
+  const [phase, setPhase] = useState(() => (was ? was.phase : 'tour')); // tour → quiz → done
+  const [order] = useState(() => (was && was.order ? was.order : g ? g.quiz.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5) : []));
+  const [picked, setPicked] = useState(() => (was ? was.picked : null));
+  const firstOk = useRef(was ? was.firstOk : null);
+  const activeMs = useActiveMs(was ? was.ms || 0 : 0);
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты (не при подсказке из урока — peek)
   /* алмазный уровень: в тексте шага пропущено выделенное слово или число — выбрать из трёх; ошибка остаётся видна,
      можно выбрать снова, но алмаз — без единой ошибки (docs/mechanics.md, «Особые уроки юнита») */
   const cloze = useMemo(() => (gem && g ? graphCloze(g) : []), [gem, g]);
-  const [cz, setCz] = useState({}); // шаг → выбранные варианты по порядку
-  const czMiss = useRef(new Set());
+  const [cz, setCz] = useState(() => (was ? was.cz || {} : {})); // шаг → выбранные варианты по порядку
+  const czMiss = useRef(new Set(was ? was.czMiss || [] : []));
+  useEffect(() => {
+    if (peek) return;
+    if (phase === 'done') { resume.drop(); return; }
+    if (k > 0 || phase !== 'tour' || Object.keys(cz).length) resume.save({ pos: k, k, phase, order, picked, firstOk: firstOk.current, cz, czMiss: [...czMiss.current], run: run.current(), ms: activeMs() });
+  }, [k, phase, picked, cz]); // eslint-disable-line react-hooks/exhaustive-deps
   // ПК с мышью: поля по бокам разбора — черновик, как в уроке (learn-sketch.jsx)
   const sketch = useMedia(SKETCH_QUERY);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [k, phase]);
@@ -381,15 +392,20 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
     if (cOk) return;
     const ok = o === cq.term;
     if (!ok) czMiss.current.add(k);
+    run.answer(ok);
     Audio.play(ok ? 'coin' : 'down');
     setCz((m) => ({ ...m, [k]: [...(m[k] || []), o] }));
   };
   const pick = (i) => {
     if (answered) return;
     const ok = !!order[i].ok;
-    if (firstOk.current == null) firstOk.current = ok;
+    if (firstOk.current == null) { firstOk.current = ok; run.answer(ok); }
     Audio.play(ok ? 'coin' : 'down');
     setPicked(i);
+  };
+  const restart = () => {
+    Audio.play('paper'); resume.restart(); setResumed(false);
+    firstOk.current = null; czMiss.current = new Set(); setCz({}); setPicked(null); setPhase('tour'); setK(0);
   };
   const finish = () => {
     Audio.play('register');
@@ -425,6 +441,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
         <IconButton label="Закрыть" icon={X} data-testid="graph-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="gl-title"><small>Разбор графика</small>{g.title}</div>
         {gem && <span className="gl-gem-tag" data-testid="graph-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
+        {!peek && <SpecialRun n={run.n} mood={run.mood} />}
         {/* «Ошибка?» — флажок с подписью (серый значок не замечали): шаг (или вопрос) и его текст уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({
           screen: 'graph', lesson: id, unit: g.unitId, kind: 'graph',
@@ -435,6 +452,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       </div>
       <div className="gl-bar" aria-hidden="true">{[...g.steps, null].map((_, i) => <i key={i} className={phase !== 'tour' || i <= k ? 'on' : ''} />)}</div>
       </div>
+      {!peek && <SpecialDesk learn={learn} />}
+      {!peek && <ResumeNote shown={resumed && phase !== 'done'} onRestart={restart} />}
       {phase === 'tour' && (
         <div className="gl-page">
           <div className="gl-stage">
@@ -504,6 +523,6 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       </div>
     </div>
   );
-  return body;
+  return peek ? body : <SpecialShell learn={learn}>{body}</SpecialShell>;
 }
 

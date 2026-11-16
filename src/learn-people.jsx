@@ -3,6 +3,7 @@
    медальон с инициалами), имя крупно, кто он, годы жизни на ленте веков с отметкой главного года,
    рассказ, главная идея, «Знаете ли вы» и вопрос. В конце — стена галереи: три портрета
    повисают в рамах, опыт — один раз. Отдельный ленивый чанк. */
+import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check, Gem } from 'lucide-react';
@@ -229,23 +230,29 @@ function WhoIdea({ items, picks, onPick }) {
 export default function PeopleView({ id, learn, update, onClose, gem = false }) {
   const g = PEOPLE_BY_ID[id];
   const reduced = useReducedMotion();
-  const [k, setK] = useState(0);
-  const [picked, setPicked] = useState({});
-  const [order] = useState(() => g.people.map((p) => p.ask.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5)));
+  // вышли посреди урока — продолжаем с того же человека, с теми же ответами и порядком вариантов (learn-special.jsx)
+  const resume = useSpecialResume('people', id, gem);
+  const was = resumedState(resume);
+  const [k, setK] = useState(() => (was ? was.k : 0));
+  const [picked, setPicked] = useState(() => (was ? was.picked : {}));
+  const [order] = useState(() => (was && was.order ? was.order : g.people.map((p) => p.ask.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5))));
+  const run = useAnswerRun(was ? was.run || 0 : 0);
+  const [resumed, setResumed] = useState(!!was);
   const [finished, setFinished] = useState(false);
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   // алмазный уровень: после людей — «Чья это идея?»; алмаз — без единой ошибки
   const who = useMemo(() => (gem && g ? quizIdea(g) : []), [gem, g]);
-  const [whoStage, setWhoStage] = useState(false);
-  const [whoPicks, setWhoPicks] = useState({});
+  const [whoStage, setWhoStage] = useState(() => !!(was && was.whoStage));
+  const [whoPicks, setWhoPicks] = useState(() => (was ? was.whoPicks || {} : {}));
   const whoDone = who.length > 0 && who.every((it) => whoPicks[it.k] != null);
   const pickWho = (k, name) => {
     if (whoPicks[k] != null) return;
     Audio.play(name === who[k].answer ? 'coin' : 'down');
+    run.answer(name === who[k].answer);
     setWhoPicks((m) => ({ ...m, [k]: name }));
   };
-  const activeMs = useActiveMs();
-  const firstOk = useRef({});
+  const activeMs = useActiveMs(was ? was.ms || 0 : 0);
+  const firstOk = useRef(was ? { ...was.firstOk } : {});
   const root = useRef(null);
   // знакомы ли были до этого захода: после финиша прогресс уже отмечен, а на экране — «+12 опыта»
   const [already] = useState(() => isMet(learn, id));
@@ -258,7 +265,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
   const pick = (i) => {
     if (answered) return;
     const ok = !!order[k][i].ok;
-    if (!(k in firstOk.current)) firstOk.current[k] = ok;
+    if (!(k in firstOk.current)) { firstOk.current[k] = ok; run.answer(ok); }
     Audio.play(ok ? 'coin' : 'down');
     setPicked((m) => ({ ...m, [k]: i }));
     pickedAt.current = Date.now();
@@ -271,6 +278,15 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
     if (!el || Date.now() - pickedAt.current > 1000 || !el.scrollIntoView) return;
     el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
   }, [choice, k, reduced]);
+  // место урока — после каждого ответа и перехода; урок закончен — сохранённое убираем
+  useEffect(() => {
+    if (finished) { resume.drop(); return; }
+    if (Object.keys(picked).length || k > 0 || whoStage) resume.save({ pos: k, k, picked, order, whoStage, whoPicks, firstOk: firstOk.current, run: run.current(), ms: activeMs() });
+  }, [k, picked, whoStage, whoPicks, finished]); // eslint-disable-line react-hooks/exhaustive-deps
+  const restart = () => {
+    Audio.play('paper'); resume.restart(); setResumed(false);
+    firstOk.current = {}; setPicked({}); setWhoPicks({}); setWhoStage(false); setK(0);
+  };
   const next = () => {
     Audio.play('paper');
     if (k < g.people.length - 1) { setK(k + 1); return; }
@@ -302,6 +318,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
   const style = { '--pp': g.color, '--pp-ink': `color-mix(in srgb, ${g.color} 82%, #000)` };
   const met = galleryOf({ ...learn, met: { ...learn.met, [id]: 1 } }).filter((x) => x.met).length;
   return (
+    <SpecialShell learn={learn}>
     <div className="pp-root" ref={root} style={style} data-testid="people" data-id={id} role="dialog" aria-label={`Персоналии: ${g.title}`}>
       <style>{PEOPLE_CSS + REPORT_CSS}</style>
       <div className="pp-top">
@@ -311,6 +328,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
         <div className="pp-pips" aria-hidden="true">
           {g.people.map((x, i) => <i key={x.id} className={finished || i < k ? 'ok' : i === k ? 'on' : ''}>{finished || i < k ? <Check size={13} strokeWidth={3} /> : i + 1}</i>)}
         </div>
+        <SpecialRun n={run.n} mood={run.mood} />
         {/* «Сообщить об ошибке» — как в любом уроке: человек, вопрос и выбранный ответ уходят в жалобу */}
         <ReportFlag context={() => ({
           screen: 'people', lesson: id, unit: g.unitId, kind: 'people',
@@ -319,6 +337,8 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
           answer: finished ? '' : whoStage ? who.map((it) => whoPicks[it.k] || '—').join(' / ') : choice != null ? order[k][choice].text : '',
         })} />
       </div>
+      <SpecialDesk learn={learn} />
+      <ResumeNote shown={resumed && !finished} onRestart={restart} />
       {!finished && whoStage ? <WhoIdea items={who} picks={whoPicks} onPick={pickWho} /> : !finished ? (
         <div className="pp-page pp-two" key={p.id} data-testid="people-page" data-person={p.id}>
           <div className="pp-col-l">
@@ -383,5 +403,6 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
         </div>
       </div>
     </div>
+    </SpecialShell>
   );
 }

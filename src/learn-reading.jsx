@@ -2,6 +2,7 @@
    Страница книги: печать-монограмма автора, годы, книга и год, цитата антиквой — слова проступают, как
    чернила; ниже — контекст и вопрос. «Найдите в цитате»: слова цитаты нажимаются, верное место
    подчёркивается маркером. В конце — полка: прочитанная подборка встаёт книгой к остальным. */
+import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Check, BookOpen, ArrowRight, Gem } from 'lucide-react';
@@ -214,18 +215,28 @@ function WhoPage({ items, picks, onPick }) {
 
 export default function ReadingView({ id, learn, update, onClose, gem = false }) {
   const r = READING_BY_ID[id];
-  const [idx, setIdx] = useState(0);
-  const [answers, setAnswers] = useState([]);
+  // вышли посреди чтения — продолжаем с той же страницы, с теми же ответами (learn-special.jsx)
+  const resume = useSpecialResume('read', id, gem);
+  const was = resumedState(resume);
+  const [resumed, setResumed] = useState(!!was);
+  const run = useAnswerRun(was ? was.run || 0 : 0);
+  const [idx, setIdx] = useState(() => (was ? was.idx : 0));
+  const [answers, setAnswers] = useState(() => (was ? was.answers : []));
   const [done, setDone] = useState(false);
   const [got, setGot] = useState(0);
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
-  const activeMs = useActiveMs();
+  const activeMs = useActiveMs(was ? was.ms || 0 : 0);
   // алмазный уровень: после страниц — «Кто это сказал?»; алмаз — без единой ошибки
   const who = useMemo(() => (gem && r ? quizWho(r) : []), [gem, r]);
-  const [whoStage, setWhoStage] = useState(false);
-  const [picks, setPicks] = useState({});
+  const [whoStage, setWhoStage] = useState(() => !!(was && was.whoStage));
+  const [picks, setPicks] = useState(() => (was ? was.picks || {} : {}));
   const [won, setWon] = useState(null);
   const reduced = useReducedMotion();
+  // место — после каждого ответа и перехода; дочитали — сохранённое убираем
+  useEffect(() => {
+    if (done) { resume.drop(); return; }
+    if (answers.length || idx > 0 || whoStage) resume.save({ pos: idx, idx, answers, whoStage, picks, run: run.current(), ms: activeMs() });
+  }, [idx, answers, whoStage, picks, done]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!r) return null;
   const page = r.pages[idx];
   const answered = answers[idx] || null;
@@ -233,14 +244,17 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   const pick = (k, text) => {
     if (picks[k] != null) return;
     Audio.play(text === who[k].answer ? 'up' : 'down');
+    run.answer(text === who[k].answer);
     setPicks((p) => ({ ...p, [k]: text }));
   };
   const toTop = () => window.requestAnimationFrame(() => { const el = document.querySelector('.rd-root'); if (el) el.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); });
   const answer = (a) => {
     if (answers[idx]) return;
     Audio.play(a.ok ? 'up' : 'down');
+    run.answer(!!a.ok);
     setAnswers((list) => { const next = [...list]; next[idx] = a; return next; });
   };
+  const restart = () => { Audio.play('paper'); resume.restart(); setResumed(false); setAnswers([]); setPicks({}); setWhoStage(false); setIdx(0); toTop(); };
   const next = () => {
     Audio.play('paper');
     if (idx + 1 < r.pages.length) { setIdx(idx + 1); toTop(); return; }
@@ -274,6 +288,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   };
   const style = { '--rd': r.color, '--rd-ink': `color-mix(in srgb, ${r.color} 80%, var(--ds-ink))` };
   return (
+    <SpecialShell learn={learn}>
     <div className="rd-root" role="dialog" aria-modal="true" aria-label={`Чтение: ${r.title}`} data-testid="reading" data-id={r.id} data-gem={gem ? 'true' : undefined} style={style}>
       <style>{CSS + REPORT_CSS}</style>
       <div className="rd-top">
@@ -282,6 +297,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
         <span className="rd-title">Чтение · {r.title}</span>
         {gem && <span className="rd-gem-tag" data-testid="reading-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
         {!done && <span className="rd-marks" aria-label={`Страница ${whoStage ? r.pages.length + 1 : idx + 1} из ${r.pages.length + (gem ? 1 : 0)}`}>{[...r.pages, ...(gem ? [null] : [])].map((_, k) => <i key={k} className={k <= idx || (whoStage && k === r.pages.length) ? 'on' : ''} />)}</span>}
+        <SpecialRun n={run.n} mood={run.mood} />
         {/* «Ошибка?» — подборка, страница, вопрос и ответ уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в чтении? Цитата, вопрос и устройство приложатся сами." context={() => ({
           screen: 'reading', lesson: r.id, unit: r.unitId, kind: 'read',
@@ -290,6 +306,8 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
           answer: !done && answered ? `${page.ask.kind === 'choice' ? ((page.ask.options || []).find((o) => o.k === answered.pick) || {}).text || '' : `слово ${answered.pick}`} — ${answered.ok ? 'верно' : 'неверно'}` : '',
         })} />
       </div>
+      <SpecialDesk learn={learn} />
+      <ResumeNote shown={resumed && !done} onRestart={restart} />
       {!done ? (
         <div className="rd-page">
           {whoStage ? <WhoPage items={who} picks={picks} onPick={pick} /> : <Page key={idx} p={page} i={idx} n={r.pages.length} answered={answered} onAnswer={answer} gem={gem} />}
@@ -324,5 +342,6 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
         </div>
       </div>
     </div>
+    </SpecialShell>
   );
 }

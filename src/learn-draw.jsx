@@ -5,6 +5,7 @@
    появляется на графике по-настоящему и под ним — что это значит; ошибка — что не так и подсказка, можно
    ещё раз; вторая ошибка — график показывает, как надо, и урок идёт дальше. В конце — итоги, как после урока
    (ExtraResult из src/learn-extra-result.jsx): 15 опыта и монеты — один раз, под итогами — построенный график. */
+import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Gem, Plus, Minus, Hand, Expand } from 'lucide-react';
@@ -102,7 +103,12 @@ const HOW = {
 export default function DrawLesson({ id, learn, update, onClose, gem = false }) {
   const d = DRAW_BY_ID[id];
   const tour = useMemo(() => (d ? drawTour(d) : null), [d]);
-  const [i, setI] = useState(0);
+  // вышли посреди задания — продолжаем с того же шага (learn-special.jsx)
+  const resume = useSpecialResume('draw', id, gem);
+  const was = resumedState(resume);
+  const [resumed, setResumed] = useState(!!was);
+  const run = useAnswerRun(was ? was.run || 0 : 0);
+  const [i, setI] = useState(() => (was ? was.i : 0));
   const [phase, setPhase] = useState('task'); // task → done
   const [pts, setPts] = useState([]);
   const [v, setV] = useState(0);
@@ -110,8 +116,12 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const [tries, setTries] = useState(0);
   const [res, setRes] = useState(null); // { ok, why } | { shown: true }
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
-  const firstTry = useRef(0);
-  const activeMs = useActiveMs();
+  const firstTry = useRef(was ? was.firstTry || 0 : 0);
+  const activeMs = useActiveMs(was ? was.ms || 0 : 0);
+  useEffect(() => {
+    if (phase === 'done') { resume.drop(); return; }
+    if (i > 0) resume.save({ pos: i, i, firstTry: firstTry.current, run: run.current(), ms: activeMs() });
+  }, [i, phase]); // eslint-disable-line react-hooks/exhaustive-deps
   const root = useRef(null);
   const ink = useRef(null);
   const drag = useRef(null);
@@ -304,9 +314,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     const r = checkTask(d, t, answer);
     setHover(null);
     if (r.ok) {
-      if (tries === 0) firstTry.current += 1;
+      if (tries === 0) { firstTry.current += 1; run.answer(true); }
       Audio.play('coin'); setRes({ ok: true }); return;
     }
+    if (tries === 0) run.answer(false);
     Audio.play('down');
     // алмазный уровень — одна попытка: ошибка — сразу «вот как надо» (docs/mechanics.md, «Особые уроки юнита»)
     if (tries >= 1 || gem) { setRes({ shown: true, why: r.why }); setTries(tries + 1); return; }
@@ -338,6 +349,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     setI(i + 1); setPts([]); setV(0); setTries(0); setRes(null); setHover(null); setVb(fullVb(W, H)); setHand(false);
   };
   const reset = () => { Audio.play('tick'); setPts([]); setV(0); touch(); };
+  const restart = () => {
+    Audio.play('paper'); resume.restart(); setResumed(false); firstTry.current = 0;
+    setI(0); setPts([]); setV(0); setTries(0); setRes(null); setHover(null); setVb(fullVb(W, H)); setHand(false);
+  };
 
   // что видно на графике: решено — шаг вперёд (новое появляется), иначе — как было плюс то, что нужно шагу
   const k = phase === 'done' ? n : i + (resolved ? 1 : 0);
@@ -374,6 +389,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
           <IconButton label="Закрыть" icon={X} data-testid="draw-close" onClick={() => { Audio.play('paper'); onClose(); }} />
           <div className="gl-title"><small>Нарисуй сам</small>{d.title}</div>
           {gem && <span className="dl-gem-tag" data-testid="draw-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
+          <SpecialRun n={run.n} mood={run.mood} />
           <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в задании? Шаг, его текст и устройство приложатся сами." context={() => ({
             screen: 'draw', lesson: id, unit: d.unitId, kind: 'draw',
             step: (phase === 'done' ? 'итог' : `шаг ${i + 1} из ${n}`) + (gem ? ' (алмаз)' : ''),
@@ -383,6 +399,8 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
         </div>
         <div className="gl-bar" aria-hidden="true">{d.tasks.map((_, j) => <i key={j} className={phase === 'done' || j < i || (j === i && resolved) ? 'on' : ''} />)}</div>
       </div>
+      <SpecialDesk learn={learn} />
+      <ResumeNote shown={resumed && phase !== 'done'} onRestart={restart} />
       {phase === 'task' && (
         <div className="gl-page">
           <div className="dl-task" key={i} data-testid="draw-task" data-do={t.do}>
@@ -484,5 +502,5 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
       </div>
     </div>
   );
-  return body;
+  return <SpecialShell learn={learn}>{body}</SpecialShell>;
 }

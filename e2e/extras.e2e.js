@@ -8,6 +8,49 @@ import { openApp, openTab, pathNode, installHooks } from './helpers.js';
 
 installHooks();
 
+// пункт владельца 15.11: «в квадратных уроках нет украшений и тем урока, … нету серии ответов, инфли. И нельзя продолжить, только начать заново»
+test('особые уроки как обычный: тема и украшение урока, серия ответов с Инфлей, продолжить с места', async ({ page, isMobile }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])),
+      owned: { 'theme-aurora': at, 'desk-bunting': at }, wear: { theme: 'theme-aurora', desk: 'desk-bunting', at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const open = async () => {
+    const card = page.locator('[data-testid=path-extra][data-id="read-choice"]');
+    await card.scrollIntoViewIfNeeded(); await card.click();
+    await page.getByTestId('extra-sheet').getByTestId('extra-start').click();
+    await expect(page.getByTestId('reading')).toBeVisible();
+  };
+  await open();
+  // тема урока из лавки — и в «Чтении»; украшение — на ПК и планшете
+  await expect(page.getByTestId('special-skin')).toHaveAttribute('data-skin', 'aurora');
+  await expect(page.getByTestId('special-desk')).toHaveCount(isMobile ? 0 : 1);
+  // серия верных ответов с Инфлей в шапке
+  const run = page.getByTestId('reading').getByTestId('special-run');
+  await expect(run).toHaveAttribute('data-n', '0');
+  const p = page.getByTestId('reading-page');
+  if (await p.getAttribute('data-kind') === 'mark') await p.locator('[data-testid=reading-word][data-hit="1"]').first().click();
+  else await p.locator('[data-testid=reading-opt][data-ok]').click();
+  await expect(run).toHaveAttribute('data-n', '1');
+  await page.getByTestId('reading-next').click();
+  await expect(p).toHaveAttribute('data-page', '2');
+  // вышли посреди чтения — при входе продолжаем со второй страницы, серия та же
+  await page.getByTestId('reading-close').click();
+  await expect(page.getByTestId('reading')).toHaveCount(0);
+  await open();
+  await expect(page.getByTestId('special-resumed')).toBeVisible();
+  await expect(page.getByTestId('reading-page')).toHaveAttribute('data-page', '2');
+  await expect(page.getByTestId('reading').getByTestId('special-run')).toHaveAttribute('data-n', '1');
+  // «Начать заново» — с первой страницы
+  await page.getByTestId('special-restart').click();
+  await expect(page.getByTestId('reading-page')).toHaveAttribute('data-page', '1');
+  await expect(page.getByTestId('special-resumed')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('«Чтение» — урок на дороге юнита: после урока перед ним; цитаты, «найдите в цитате», полка и опыт один раз', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
