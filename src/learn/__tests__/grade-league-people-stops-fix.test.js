@@ -177,6 +177,16 @@ describe('книжная полка', async () => {
     expect(bookOpen(markMet(emptyLearn(), 'people-scarcity'), smith)).toBe(true);
     expect(shelfBooks(markMet(emptyLearn(), 'people-consumer')).filter((b) => b.open).map((b) => b.id)).toEqual(['jevons-coal']);
   });
+  /* пункт владельца 16.11: «почему ты не создаёшь новые книги» — у новых юнитов Начального уровня своя книга на полке */
+  it('у каждого юнита Начального уровня — своя книга: «Биржа труда» — Смит о заработной плате, «Сберкасса» — Франклин', async () => {
+    const { levelUnits } = await import('../course-core.js');
+    for (const u of levelUnits('start')) expect(BOOKS.some((b) => b.unitId === u.id), u.id).toBe(true);
+    expect(shelfBooks(markRead(emptyLearn(), 'read-labor')).filter((b) => b.open).map((b) => b.id)).toEqual(['smith-wages']);
+    expect(shelfBooks(markMet(emptyLearn(), 'people-household')).filter((b) => b.open).map((b) => b.id)).toEqual(['franklin-wealth']);
+    const fr = BOOKS.find((b) => b.id === 'franklin-wealth');
+    expect(fr.passages.length).toBeGreaterThanOrEqual(5);
+    expect(fr.year).toBeLessThanOrEqual(1923);
+  });
 });
 
 describe('остановки дороги юнита', async () => {

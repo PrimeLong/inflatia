@@ -1,6 +1,6 @@
 # Озвучка книг полки
 
-На книжной полке профиля 9 книг, 42 отрывков, около 27 622 знаков. **Каждый отрывок —
+На книжной полке профиля 11 книг, 53 отрывков, около 34 618 знаков. **Каждый отрывок —
 отдельная запись**: его проще озвучить за раз, при правке текста переозвучить один отрывок, а не всю книгу.
 Когда записаны **все** отрывки книги, кнопка «Слушать книгу» играет их друг за другом: с перемоткой по всей
 книге, скоростью, «слушать с этого отрывка» и подсветкой отрывка, который звучит. Пока записаны не все —
@@ -9,7 +9,7 @@
 
 Этот файл и тексты отрывков пишет команда `npm run books:export` — править их руками не нужно.
 
-Записано отрывков: **42 из 42**.
+Записано отрывков: **42 из 53**.
 
 ## Как озвучить
 
@@ -118,6 +118,27 @@
 |---:|---|---|---|---:|---:|:---:|
 | 1 | Над всеми товарами | [above.txt](jevons-coal/above.txt) | `public/books/jevons-coal/above.mp3` | 346 | ≈ 33 с | ✓ |
 | 2 | Экономия, которая увеличивает расход | [paradox.txt](jevons-coal/paradox.txt) | `public/books/jevons-coal/paradox.mp3` | 577 | ≈ 55 с | ✓ |
+
+### Адам Смит, «Исследование о природе и причинах богатства народов: о заработной плате» — 5 отрывков
+
+| № | Отрывок | Текст | Файл записи | Знаков | Звучит | Записано |
+|---:|---|---|---|---:|---:|:---:|
+| 1 | Хозяева и работники | [masters.txt](smith-wages/masters.txt) | `public/books/smith-wages/masters.mp3` | 1 186 | ≈ 1 мин 53 с | — |
+| 2 | Не богатая, а богатеющая | [growth.txt](smith-wages/growth.txt) | `public/books/smith-wages/growth.mp3` | 536 | ≈ 51 с | — |
+| 3 | Щедрая плата за труд | [reward.txt](smith-wages/reward.txt) | `public/books/smith-wages/reward.mp3` | 769 | ≈ 1 мин 13 с | — |
+| 4 | Почему плата разная | [five.txt](smith-wages/five.txt) | `public/books/smith-wages/five.mp3` | 822 | ≈ 1 мин 18 с | — |
+| 5 | Человек как дорогая машина | [machine.txt](smith-wages/machine.txt) | `public/books/smith-wages/machine.mp3` | 529 | ≈ 50 с | — |
+
+### Бенджамин Франклин, «Путь к богатству и «Совет молодому торговцу»» — 6 отрывков
+
+| № | Отрывок | Текст | Файл записи | Знаков | Звучит | Записано |
+|---:|---|---|---|---:|---:|:---:|
+| 1 | Налоги, которые мы платим сами | [taxes.txt](franklin-wealth/taxes.txt) | `public/books/franklin-wealth/taxes.mp3` | 548 | ≈ 52 с | — |
+| 2 | Из чего соткана жизнь | [time.txt](franklin-wealth/time.txt) | `public/books/franklin-wealth/time.mp3` | 484 | ≈ 46 с | — |
+| 3 | Думать и о том, как сберечь | [saving.txt](franklin-wealth/saving.txt) | `public/books/franklin-wealth/saving.mp3` | 617 | ≈ 59 с | — |
+| 4 | Покупка раскаяния | [buy.txt](franklin-wealth/buy.txt) | `public/books/franklin-wealth/buy.mp3` | 509 | ≈ 48 с | — |
+| 5 | Долг и чёрный день | [debt.txt](franklin-wealth/debt.txt) | `public/books/franklin-wealth/debt.mp3` | 315 | ≈ 30 с | — |
+| 6 | Время — деньги | [money.txt](franklin-wealth/money.txt) | `public/books/franklin-wealth/money.mp3` | 681 | ≈ 1 мин 05 с | — |
 
 ## Полезно знать
 
