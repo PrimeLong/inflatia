@@ -188,8 +188,11 @@ function wordsExercises(lessonId, terms) {
     const other = terms.slice(k + 1).concat(terms.slice(0, k)).find((o) => ![...wordsOf(o.text)].some((w) => own.has(w)));
     if (!other) throw new Error(`Для плиток «${t.term}» нет слова без общих слов`);
     if (!t.tiles) throw new Error(`Плитки «${t.term}»: разметьте определение «/» (${lessonId})`);
+    const extra = (other.tiles || pairsOf(other.text)).slice(0, 2);
+    // «≈» — равносильное определение с лишней плиткой: каждая его плитка должна быть среди плиток задания
+    (t.also || []).forEach((o) => { const bad = o.find((x) => !t.tiles.includes(x) && !extra.includes(x)); if (bad) throw new Error(`Плитки «${t.term}»: «${bad}» после «≈» — нет среди плиток задания (${lessonId})`); });
     out.push({ id: `${lessonId}:tiles:${t.term}`, kind: 'tiles', prompt: parseBlocks(`Соберите из плиток определение: **${termName(t.term)}**.`), explain: null,
-      solution: t.tiles, extra: (other.tiles || pairsOf(other.text)).slice(0, 2), ...(t.orders ? { orders: t.orders } : {}) });
+      solution: t.tiles, extra, ...(t.orders || t.also ? { orders: [...(t.orders || []), ...(t.also || [])] } : {}) });
   });
   for (let k = 0; k + 4 <= terms.length; k += 4) {
     const group = terms.slice(k, k + 4).map((t) => termName(t.term));

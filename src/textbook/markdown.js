@@ -161,15 +161,18 @@ export function parseBlocks(text) {
         if (kind && !LESSON_KINDS.includes(kind)) throw new Error(`Неизвестный вид урока ${kind} в ${attrs.id}`);
         const wordLines = kind === 'words' ? body.filter((l) => /^-\s/.test(l.trim())) : [];
         // «- термин: определение | пример» — пример только на карточке колоды, не в плитках и парах.
-        // «/» в определении — границы плиток; «~ …» — другой верный порядок тех же плиток
+        // «/» в определении — границы плиток; «~ …» — другой верный порядок тех же плиток; «≈ …» — равносильное определение,
+        // в котором есть и лишняя плитка соседнего слова (жалоба ученика 16.11: «так это равносильные предложения»)
         const terms = wordLines.map((l) => {
           const t = l.trim().slice(2); const k = t.indexOf(':'); const def = t.slice(k + 1); const bar = def.indexOf('|');
           const term = t.slice(0, k).trim();
-          const orders = (bar < 0 ? def : def.slice(0, bar)).split(/\s~\s/).map((o) => o.split('/').map((x) => x.trim()).filter(Boolean));
+          const [main, ...alsoParts] = (bar < 0 ? def : def.slice(0, bar)).split(/\s≈\s/);
+          const also = alsoParts.map((o) => o.split('/').map((x) => x.trim()).filter(Boolean));
+          const orders = main.split(/\s~\s/).map((o) => o.split('/').map((x) => x.trim()).filter(Boolean));
           const key = (o) => [...o].sort().join('\n');
           if (orders.some((o) => key(o) !== key(orders[0]))) throw new Error(`В слове ${term}: порядки после «~» — из тех же плиток`);
           const tiled = orders[0].length > 1;
-          return { term, text: orders[0].join(' '), ...(tiled ? { tiles: orders[0], ...(orders.length > 1 ? { orders: orders.slice(1) } : {}) } : {}),
+          return { term, text: orders[0].join(' '), ...(tiled ? { tiles: orders[0], ...(orders.length > 1 ? { orders: orders.slice(1) } : {}), ...(also.length ? { also } : {}) } : {}),
             ...(bar < 0 ? {} : { example: def.slice(bar + 1).trim() }) };
         });
         blocks.push({ type: 'idea', id: attrs.id, title: title || '', chart: chart || null, attrs: chartAttrs, auto: split(auto), variants: split(variants), hard: split(hard),
