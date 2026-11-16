@@ -548,8 +548,9 @@ test('учебник: пока график едет за ползунком, п
   expect(errors).toEqual([]);
 });
 
-// пункт владельца 09.11: «хотелось бы, чтобы можно было нажать на картинку и она открылась на весь экран»
-test('картинка на весь экран: график учебника — целиком посередине, приближается кнопками, двойным касанием и колёсиком, двигается; Esc закрывает только его', async ({ page, isMobile }) => {
+// пункт владельца 09.11: «хотелось бы, чтобы можно было нажать на картинку и она открылась на весь экран»;
+// 16.11, вечер: «должно быть реально классно, современно, реальная числовая плоскость»
+test('график на весь экран — числовая плоскость: сетка мельчает при приближении, плоскость двигается, у линии — значения; Esc закрывает только её', async ({ page, isMobile }) => {
   const { errors } = await openApp(page);
   await openBook(page);
   await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
@@ -558,59 +559,60 @@ test('картинка на весь экран: график учебника �
   // ползунок работает как раньше и ничего не открывает
   const slider = chart.getByRole('slider').first();
   await slider.fill(await slider.getAttribute('max'));
-  await expect(page.getByTestId('zoom-view')).toHaveCount(0);
+  await expect(page.getByTestId('plane-view')).toHaveCount(0);
   const title = (await chart.locator('.ems-serif').first().textContent()).trim();
   await chart.getByTestId('tb-chart-zoom').click();
-  const zv = page.getByTestId('zoom-view');
-  await expect(zv).toBeVisible();
-  // сверху — название графика, снизу — подпись, как в главе
-  await expect(zv).toContainText(title);
-  await expect(zv.getByTestId('zoom-caption')).toBeVisible();
-  const level = zv.getByTestId('zoom-level');
+  const pv = page.getByTestId('plane-view');
+  await expect(pv).toBeVisible();
+  await expect(pv).toContainText(title);
+  await expect(pv.getByTestId('plane-caption')).toBeVisible();
+  const level = pv.getByTestId('plane-level');
   await expect(level).toHaveText('×1,0');
-  const content = zv.getByTestId('zoom-content');
-  const stage = await zv.getByTestId('zoom-stage').boundingBox();
-  const fit = await content.boundingBox();
-  // целиком, посередине и не крупнее, чем вдвое (подписи не раздуваются)
-  expect(fit.x).toBeGreaterThanOrEqual(stage.x - 1);
-  expect(fit.x + fit.width).toBeLessThanOrEqual(stage.x + stage.width + 1);
-  expect(fit.y).toBeGreaterThanOrEqual(stage.y - 1);
-  expect(fit.y + fit.height).toBeLessThanOrEqual(stage.y + stage.height + 1);
-  expect(Math.abs(fit.x + fit.width / 2 - (stage.x + stage.width / 2))).toBeLessThan(2);
-  expect(fit.width).toBeLessThanOrEqual(560 * 2 + 1);
-  await expect(zv.getByTestId('zoom-out')).toBeDisabled();
-  // «+» — крупнее; приближенный график двигается мышью или пальцем
-  await zv.getByTestId('zoom-in').click();
+  const st = pv.getByTestId('plane-stage');
+  const num = async (a) => Number(await st.getAttribute(a));
+  // во весь экран: плоскость занимает почти всё окно
+  const box = await st.boundingBox(); const vp = page.viewportSize();
+  expect(box.width).toBeGreaterThan(vp.width * 0.95); expect(box.height).toBeGreaterThan(vp.height * 0.6);
+  // кривые — линиями в точках экрана, деления — числами
+  await expect(st.locator('svg path').first()).toBeVisible();
+  const step0 = await num('data-step-x');
+  // «+» — ближе, и шаг сетки мельче (деления пересчитываются, а не растягиваются)
+  await pv.getByTestId('plane-in').click();
   await expect(level).toHaveText('×1,6');
-  const big = await content.boundingBox();
-  expect(big.width).toBeGreaterThan(fit.width * 1.55);
-  const cx = stage.x + stage.width / 2; const cy = stage.y + stage.height / 2;
-  await page.mouse.move(cx, cy);
-  await page.mouse.down();
-  await page.mouse.move(cx + 30, cy, { steps: 3 });
-  await page.mouse.move(cx + 60, cy, { steps: 3 });
-  await page.mouse.up();
-  await expect.poll(async () => (await content.boundingBox()).x).toBeGreaterThan(big.x + 40);
-  // «Вписать» — снова целиком
-  await zv.getByTestId('zoom-fit').click();
+  await pv.getByTestId('plane-in').click(); await pv.getByTestId('plane-in').click();
+  await expect.poll(() => num('data-step-x')).toBeLessThan(step0);
+  // тянем — плоскость едет
+  const x0 = await num('data-x0');
+  const cx = box.x + box.width / 2; const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 80, cy, { steps: 4 }); await page.mouse.up();
+  await expect.poll(() => num('data-x0')).toBeLessThan(x0);
+  // «Вписать» — снова весь график
+  await pv.getByTestId('plane-fit').click();
   await expect(level).toHaveText('×1,0');
-  // двойное касание — ×2,5 к этому месту, ещё раз — целиком
-  await zv.getByTestId('zoom-stage').dblclick({ position: { x: stage.width / 2, y: stage.height / 2 } });
-  await expect(level).toHaveText('×2,5');
   if (!isMobile) {
-    // колёсико — к курсору: прокрутили к себе — меньше
-    await page.mouse.move(cx, cy);
-    await page.mouse.wheel(0, 200);
-    await expect.poll(async () => Number((await level.textContent()).replace('×', '').replace(',', '.'))).toBeLessThan(2.4);
+    // наведение на линию — её точка и значения по обеим осям
+    const lineAt = await st.evaluate((el) => {
+      const p = [...el.querySelectorAll('svg path')].find((x) => x.getAttribute('fill') === 'none' && !x.getAttribute('stroke-dasharray'));
+      const q = p.getPointAtLength(p.getTotalLength() * 0.5); const r = el.getBoundingClientRect(); return { x: r.left + q.x, y: r.top + q.y };
+    });
+    await page.mouse.move(lineAt.x, lineAt.y + 3);
+    await expect(pv.getByTestId('plane-read')).toContainText(':');
+    await expect(pv.getByTestId('plane-cursor')).toBeVisible();
+    // колёсико — к курсору: прокрутили от себя — ближе
+    await page.mouse.wheel(0, -300);
+    await expect.poll(async () => Number((await level.textContent()).replace('×', '').replace(',', '.'))).toBeGreaterThan(1.3);
   }
-  // Esc закрывает только картинку: глава на месте
+  // двойное касание — вдвое ближе
+  await pv.getByTestId('plane-fit').click();
+  await st.dblclick({ position: { x: box.width / 2, y: box.height / 2 } });
+  await expect.poll(async () => Number((await level.textContent()).replace('×', '').replace(',', '.'))).toBeGreaterThan(1.9);
+  // Esc закрывает только плоскость: глава на месте; и крестиком
   await page.keyboard.press('Escape');
-  await expect(zv).toHaveCount(0);
+  await expect(pv).toHaveCount(0);
   await expect(page.getByTestId('chapter')).toBeVisible();
-  // и крестиком
   await chart.getByTestId('tb-chart-zoom').click();
-  await page.getByTestId('zoom-close').click();
-  await expect(page.getByTestId('zoom-view')).toHaveCount(0);
+  await page.getByTestId('plane-close').click();
+  await expect(page.getByTestId('plane-view')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

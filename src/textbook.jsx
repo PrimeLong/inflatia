@@ -522,7 +522,8 @@ export function ChartSvg({ scene }) {
     return { x: Math.min(W - M.r - 4, sx(p.x) + 6), y: Math.min(H - M.b - 8, Math.max(M.t + 12, sy(p.y) - 8)) };
   };
   // надпись с подложкой цвета фона: читается, даже если легла на линию
-  const halo = { stroke: COLOR.panel, strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
+  // подложка подписей — цвета фона под графиком: в теме урока — её фон (--chart-halo), а не белая (жалоба ученика 16.11)
+  const halo = { stroke: `var(--chart-halo, ${COLOR.panel})`, strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
   /* подписи не прыгают, пока график едет (src/lib/glide.js): место подписи скакнуло — она доезжает плавно.
      Считаем по левому краю надписи: смена выравнивания (у правого края поля) — тоже скачок. */
   const glide = React.useRef(null); if (!glide.current) glide.current = newGlide();
@@ -718,7 +719,7 @@ function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = 
       </div>
       {/* касание графика — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»); там — как выставлено ползунками */}
       <Zoomable title={def.title} testid="tb-chart-zoom" caption={caption ? <Inline nodes={fillVars(caption, captionVars(type, attrs, values))} ctx={ctx} /> : null}
-        view={() => <><ChartSvg scene={scene} />{def.legend && <ChartLegend items={def.legend(attrs, values)} />}</>}>
+        plane={() => scene}>
         <ChartSvg scene={scene} />
       </Zoomable>
       {def.legend && <ChartLegend items={def.legend(attrs, values)} />}

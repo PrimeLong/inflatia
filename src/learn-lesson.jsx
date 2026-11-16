@@ -169,7 +169,7 @@ function MiniChart({ type, attrs, values = null, tween = false, zoom = false }) 
   // картинка карточки: касание — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»)
   if (zoom) {
     return (
-      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} view={() => <><ChartSvg scene={scene} />{legend}</>}>
+      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} plane={() => scene}>
         <ChartSvg scene={scene} />{legend}
       </Zoomable>
     );
@@ -366,7 +366,9 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
       const curves = SHIFT_CURVES[inst.chart];
       const shown = fb ? inst.answer : resp;
       const ctl = shown ? CHARTS[inst.chart].controls(inst.chartAttrs).find((c) => c.id === curves[shown[0]].control) : null;
-      const values = ctl ? { [ctl.id]: Math.round(ctl.max / 2) * (shown[1] === '+' ? 1 : -1) } : null;
+      // сдвиг кривой — половина хода ползунка от нуля; у ставки (preview) — до края ползунка, иначе линия не двигается
+      const pv = shown && curves[shown[0]].preview ? curves[shown[0]].preview[shown[1]] : null;
+      const values = ctl ? { [ctl.id]: pv ? ctl[pv] : Math.round(ctl.max / 2) * (shown[1] === '+' ? 1 : -1) } : null;
       return (
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
