@@ -1087,9 +1087,16 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
     await view.getByTestId('people-next').click();
   }
   const who = view.getByTestId('people-who');
-  await expect(who.getByTestId('people-who-item')).toHaveCount(3);
+  // одна идея на экран, ответ — портрет (пункт владельца 15.11: прежний формат — стена кнопок с именами)
+  await expect(who.getByTestId('people-who-item')).toHaveCount(1);
+  await expect(who.getByTestId('people-who-opt')).toHaveCount(4);
+  await expect(who.getByTestId('people-who-opt').first().locator('.pp-who-face')).toBeVisible();
   await expect(view.getByTestId('people-next')).toBeDisabled();
-  for (let k = 0; k < 3; k += 1) await who.getByTestId('people-who-item').nth(k).locator('[data-testid=people-who-opt][data-ok]').click();
+  for (let k = 0; k < 3; k += 1) {
+    await expect(who.getByTestId('people-who-item')).toHaveAttribute('data-answered', 'false');
+    await who.locator('[data-testid=people-who-opt][data-ok]').click();
+    await expect(who.locator('.pp-who-dots i.ok')).toHaveCount(k + 1);
+  }
   await view.getByTestId('people-next').click();
   const res = view.getByTestId('extra-result');
   await expect(res).toHaveAttribute('data-won', 'true');

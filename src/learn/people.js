@@ -469,6 +469,8 @@ export function quizIdea(g) {
   // сдвиг 2k + 1: верный встаёт у каждой идеи на своё место (сдвиг k + 1 ставил бы его всегда последним)
   return g.people.map((p, k) => { const r = (2 * k + 1) % names.length; return { k, idea: p.idea, answer: p.name, options: [...names.slice(r), ...names.slice(0, r)] }; });
 }
+// человек по имени — для портретов в «Чья это идея?» (лишний вариант — из другой группы)
+export const personByName = (name) => { for (const g of PEOPLE) { const p = g.people.find((x) => x.name === name); if (p) return { p, g }; } return null; };
 // инициалы для медальона: «Джон Д. Рокфеллер» → «ДР»
 export const initialsOf = (name) => { const w = name.replace(/\b[А-ЯЁA-Z]\.\s*/g, '').split(/\s+/).filter(Boolean); return (w[0][0] + w[w.length - 1][0]).toUpperCase(); };
 // лента веков: доля положения года на шкале 1640–2030

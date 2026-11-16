@@ -10,7 +10,7 @@ import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check, Gem } from 'lucid
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
-import { PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf, quizIdea } from './learn/people.js';
+import { personByName, PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf, quizIdea } from './learn/people.js';
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
 import { finishLesson, markMet, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
@@ -82,8 +82,27 @@ export const PEOPLE_CSS = `
   .pp-ask-q { font: 700 18px/1.35 var(--ds-head); margin-bottom: 10px; }
   .pp-opts { display: grid; gap: 8px; }
   .pp-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; }
-  .pp-who-item { margin: 0 0 22px; }
-  .pp-who-idea { margin: 0 0 10px; padding: 12px 14px; border-radius: 14px; background: var(--ds-card); border: 1px solid var(--ds-rule2); font: 600 16.5px/1.45 var(--ds-sans); }
+  .pp-who-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .pp-who-dots { display: flex; gap: 6px; } .pp-who-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--ds-rule2); transition: background .2s, transform .2s; }
+  .pp-who-dots i.on { background: var(--pp); transform: scale(1.25); } .pp-who-dots i.ok { background: var(--ds-ok); } .pp-who-dots i.bad { background: var(--ds-bad); }
+  .pp-who-item { margin: 0 0 22px; animation: pp-in .4s cubic-bezier(.2,.9,.3,1) backwards; }
+  .pp-who-idea { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 16px; padding: 16px 18px; border-radius: 18px; background: var(--ds-card); border: 1px solid var(--ds-rule2);
+    border-left: 4px solid var(--pp); font: 600 18px/1.45 var(--ds-sans); }
+  .pp-who-idea svg { flex: none; margin-top: 3px; color: var(--ds-gold); }
+  .pp-who-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (min-width: 720px) { .pp-who-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .pp-who-pick { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px 10px; border-radius: 18px; border: 2px solid var(--ds-rule2);
+    background: var(--ds-card); color: var(--ds-ink); cursor: pointer; font: 700 14px/1.25 var(--ds-sans); text-align: center; transition: border-color .15s, transform .15s, opacity .2s; }
+  .pp-who-pick:hover:not(:disabled) { border-color: color-mix(in srgb, var(--pp) 60%, var(--ds-rule2)); transform: translateY(-2px); }
+  .pp-who-pick:disabled { cursor: default; }
+  .pp-who-pick.ok { border-color: var(--ds-ok); background: var(--ds-ok-bg); } .pp-who-pick.bad { border-color: var(--ds-bad); } .pp-who-pick.off { opacity: .5; }
+  .pp-who-face .pp-pic { width: 84px; height: 104px; border-radius: 42px 42px 10px 10px; overflow: hidden; }
+  .pp-who-face { display: block; width: 84px; height: 104px; border-radius: 42px 42px 10px 10px; overflow: hidden; }
+  .pp-who-face > * { width: 100%; height: 100%; }
+  .pp-who-mark { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+  .pp-who-mark.ok { background: var(--ds-ok); } .pp-who-mark.bad { background: var(--ds-bad); }
+  .pp-who-says { margin-top: 12px; font: 600 15px var(--ds-sans); } .pp-who-says.ok { color: var(--ds-ok); } .pp-who-says.bad { color: var(--ds-bad); }
+  @media (prefers-reduced-motion: reduce) { .pp-who-item, .pp-who-dots i, .pp-who-pick { animation: none; transition: none; } }
   .pp-opt { text-align: left; font: 500 15.5px/1.35 var(--ds-sans); padding: 13px 15px; border-radius: 14px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink); cursor: pointer; transition: border-color .15s, background .15s, transform .1s; }
   .pp-opt:hover:not(:disabled) { border-color: color-mix(in srgb, var(--pp) 60%, var(--ds-rule2)); }
   .pp-opt.ok { border-color: var(--ds-ok); background: var(--ds-ok-bg); }
@@ -204,25 +223,52 @@ function Era({ p }) {
 }
 
 /* Алмазный уровень: «Чья это идея?» — идея без имени, выбрать автора; ответ один раз, ошибка видна сразу */
-function WhoIdea({ items, picks, onPick }) {
+/* Алмаз «Персоналий»: «Чья это идея?» (пункт владельца 15.11: «мне не нравится формат теста в персоналиях на алмазном
+   уровне» — была стена из трёх идей с одними и теми же четырьмя кнопками-именами). Теперь — одна идея на экран, ответ —
+   касание портрета: трое людей урока и один лишний из другой группы. Ответили — рамка верного портрета зелёная (ошибка —
+   красная у выбранного), через мгновение — следующая идея; сверху — точки: какие идеи уже взяты. */
+function WhoIdea({ items, picks, onPick, color }) {
+  const reduced = useReducedMotion();
+  const first = items.findIndex((it) => picks[it.k] == null);
+  const [at, setAt] = useState(first < 0 ? items.length - 1 : first);
+  const it = items[at];
+  const mine = picks[it.k];
+  useEffect(() => {
+    if (mine == null || at >= items.length - 1) return undefined;
+    const t = setTimeout(() => setAt(at + 1), reduced ? 500 : 1100);
+    return () => clearTimeout(t);
+  }, [mine, at, items.length, reduced]);
   return (
     <div className="pp-page" data-testid="people-who">
-      <div className="pp-ask-q" style={{ fontSize: 22 }}>Чья это идея?</div>
-      <div className="ds-sub" style={{ fontSize: 15, margin: '0 0 16px' }}>Алмазный уровень: у каждой идеи выберите автора. Алмаз — без единой ошибки.</div>
-      {items.map((it) => {
-        const mine = picks[it.k];
-        return (
-          <div key={it.k} className="pp-who-item" data-testid="people-who-item" data-answered={mine != null ? 'true' : 'false'}>
-            <div className="pp-who-idea"><Lightbulb size={18} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 6, color: 'var(--ds-gold)' }} />{it.idea}</div>
-            <div className="pp-opts" role="group" aria-label="Кто автор">
-              {it.options.map((o) => {
-                const st = mine == null ? '' : o === it.answer ? 'ok' : o === mine ? 'bad' : '';
-                return <button key={o} type="button" className={`pp-opt ${st}`} disabled={mine != null} data-testid="people-who-opt" data-ok={o === it.answer ? 'true' : undefined} onClick={() => onPick(it.k, o)}>{o}</button>;
-              })}
-            </div>
-          </div>
-        );
-      })}
+      <div className="pp-who-head">
+        <div className="pp-ask-q" style={{ fontSize: 22, margin: 0 }}>Чья это идея?</div>
+        <div className="pp-who-dots" aria-label={`Идея ${at + 1} из ${items.length}`}>
+          {items.map((x, n) => {
+            const p = picks[x.k];
+            return <i key={x.k} className={p == null ? (n === at ? 'on' : '') : p === x.answer ? 'ok' : 'bad'} />;
+          })}
+        </div>
+      </div>
+      <div className="ds-sub" style={{ fontSize: 15, margin: '4px 0 14px' }}>Алмазный уровень: коснитесь портрета автора. Алмаз — без единой ошибки.</div>
+      <div className="pp-who-item" key={it.k} data-testid="people-who-item" data-answered={mine != null ? 'true' : 'false'}>
+        <blockquote className="pp-who-idea"><Lightbulb size={20} aria-hidden="true" />{it.idea}</blockquote>
+        <div className="pp-who-grid" role="group" aria-label="Кто автор">
+          {it.options.map((o) => {
+            const who = personByName(o);
+            const st = mine == null ? '' : o === it.answer ? 'ok' : o === mine ? 'bad' : 'off';
+            return (
+              <button key={o} type="button" className={`pp-who-pick ${st}`} disabled={mine != null} data-testid="people-who-opt" data-ok={o === it.answer ? 'true' : undefined}
+                aria-label={o} onClick={() => onPick(it.k, o)}>
+                <span className="pp-who-face">{who ? <Portrait p={who.p} color={who.g.color || color} /> : null}</span>
+                <span className="pp-who-name">{o}</span>
+                {st === 'ok' && <span className="pp-who-mark ok" aria-hidden="true"><Check size={16} strokeWidth={3} /></span>}
+                {st === 'bad' && <span className="pp-who-mark bad" aria-hidden="true"><X size={16} strokeWidth={3} /></span>}
+              </button>
+            );
+          })}
+        </div>
+        {mine != null && <div className={`pp-who-says ${mine === it.answer ? 'ok' : 'bad'}`} role="status">{mine === it.answer ? `Верно: это ${it.answer}.` : `Это ${it.answer}.`}</div>}
+      </div>
     </div>
   );
 }
@@ -339,7 +385,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
       </div>
       <SpecialDesk learn={learn} />
       <ResumeNote shown={resumed && !finished} onRestart={restart} />
-      {!finished && whoStage ? <WhoIdea items={who} picks={whoPicks} onPick={pickWho} /> : !finished ? (
+      {!finished && whoStage ? <WhoIdea items={who} picks={whoPicks} onPick={pickWho} color={g.color} /> : !finished ? (
         <div className="pp-page pp-two" key={p.id} data-testid="people-page" data-person={p.id}>
           <div className="pp-col-l">
           <div className="pp-hero">
