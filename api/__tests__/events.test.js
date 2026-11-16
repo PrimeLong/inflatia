@@ -1,6 +1,6 @@
 /* Аналитика без персональных данных: только счётчики, без логина и адреса; отчёт — владельцам. */
 import { describe, it, expect } from 'vitest';
-import eventsHandler, { sanitizeEvent, counterKeys, FUNNEL, EVENTS, ACTIVITY, FEATURES, FUNNEL_LABEL, FEATURE_LABEL } from '../events.js';
+import eventsHandler, { sanitizeEvent, counterKeys, FUNNEL, EVENTS, ACTIVITY, FEATURES } from '../events.js';
 import accountHandler from '../account.js';
 import { readCounters } from '../_lib/store.js';
 
@@ -13,30 +13,14 @@ const ev = (body) => call(eventsHandler, body);
 
 describe('события', () => {
   it('воронка — только разовые события (первый урок — first_lesson_*); уроки и ответы — активность; открытия разделов — отдельно', () => {
-    expect(FUNNEL).toEqual(['welcome_view', 'welcome_start', 'goal_done', 'first_lesson_start', 'first_lesson_done', 'register_done', 'return_d1', 'return_d7']);
-    expect(ACTIVITY).toEqual(['lesson_start', 'lesson_done', 'lesson_quit', 'ex_first_try_ok', 'ex_first_try_fail']);
+    expect(FUNNEL).toEqual(['welcome_start', 'goal_done', 'first_lesson_start', 'first_lesson_done', 'register_done', 'return_d1', 'return_d7']);
+    expect(ACTIVITY).toEqual(['lesson_start', 'lesson_done', 'ex_first_try_ok', 'ex_first_try_fail']);
     expect(FUNNEL.some((e) => ACTIVITY.includes(e))).toBe(false);
-    expect(FEATURES).toEqual(['world_open', 'textbook_open', 'shop_open', 'garden_open', 'league_open', 'tycoon_open', 'network_open',
-      'piggy_put', 'wardrobe_wear', 'rare_buy', 'antistress_open', 'halloween_claim']);
+    expect(FEATURES).toEqual(['world_open', 'textbook_open', 'shop_open', 'garden_open', 'league_open', 'tycoon_open', 'network_open']);
     // разовые события и открытия разделов считаются по дню и имени события — без урока и упражнения в ключе
     expect(sanitizeEvent({ event: 'first_lesson_start', lesson: 'sc-i1', login: 'anna' })).toEqual({ event: 'first_lesson_start', lesson: 'sc-i1' });
     expect(counterKeys({ event: 'first_lesson_start', lesson: 'sc-i1' }, Date.UTC(2026, 9, 5))).toEqual(['day:2026-10-05:first_lesson_start']);
     expect(counterKeys({ event: 'garden_open' }, Date.UTC(2026, 9, 5))).toEqual(['day:2026-10-05:garden_open']);
-  });
-  /* пункт владельца 13.11: показ приветствия, выход из урока с номером шага и использование фич (docs/roadmap-audit.md, раздел 1) */
-  it('welcome_view — первый шаг воронки; lesson_quit — с номером шага и без чего-либо ещё; события фич — по дню', () => {
-    expect(FUNNEL[0]).toBe('welcome_view');
-    expect(FUNNEL_LABEL.welcome_view).toBe('Открыли приветствие');
-    expect(sanitizeEvent({ event: 'welcome_view', login: 'anna', ua: 'x' })).toEqual({ event: 'welcome_view' });
-    expect(sanitizeEvent({ event: 'lesson_quit', lesson: 'sc-i1', step: 3, login: 'anna', answer: 'секрет' })).toEqual({ event: 'lesson_quit', lesson: 'sc-i1', step: 3 });
-    // шаг — только целое 1…99
-    for (const step of [0, -1, 100, 2.5, '3', null]) expect(sanitizeEvent({ event: 'lesson_quit', lesson: 'sc-i1', step })).toEqual({ event: 'lesson_quit', lesson: 'sc-i1' });
-    expect(counterKeys({ event: 'lesson_quit', lesson: 'sc-i1', step: 3 }, Date.UTC(2026, 10, 13))).toEqual(['day:2026-11-13:lesson_quit', 'lesson:sc-i1:quit', 'lesson:sc-i1:quit:3']);
-    for (const ev of ['piggy_put', 'wardrobe_wear', 'rare_buy', 'antistress_open', 'halloween_claim']) {
-      expect(sanitizeEvent({ event: ev, login: 'anna' })).toEqual({ event: ev });
-      expect(counterKeys({ event: ev }, Date.UTC(2026, 10, 13))).toEqual([`day:2026-11-13:${ev}`]);
-      expect(typeof FEATURE_LABEL[ev]).toBe('string');
-    }
   });
   it('принимает только известные события и только короткие id; лишние поля отбрасывает', () => {
     expect(EVENTS).toEqual(expect.arrayContaining(['welcome_start', 'goal_done', 'first_lesson_start', 'first_lesson_done', 'lesson_start', 'lesson_done', 'register_done', 'return_d1', 'return_d7', 'ex_first_try_ok', 'ex_first_try_fail', 'world_open', 'shop_open']));
@@ -90,11 +74,7 @@ describe('отчёт для владельцев', () => {
     await ev({ event: 'lesson_start', lesson: 'zz-l1' });
     await ev({ event: 'lesson_done', lesson: 'zz-l1', ms: 240000 });
     const r2 = await ev({ action: 'report', session: reg.data.token });
-    expect(r2.data.lessons.find((x) => x.id === 'zz-l1')).toEqual({ id: 'zz-l1', start: 2, done: 1, finish: 0.5, minutes: 4, quit: 0, quitStep: null, quitAtStep: 0 });
-    // где бросают урок: всего выходов и шаг, на котором выходят чаще всего
-    for (const step of [2, 5, 5, 5, 7]) await ev({ event: 'lesson_quit', lesson: 'zz-l1', step });
-    const rq = await ev({ action: 'report', session: reg.data.token });
-    expect(rq.data.lessons.find((x) => x.id === 'zz-l1')).toMatchObject({ quit: 5, quitStep: 5, quitAtStep: 3 });
+    expect(r2.data.lessons.find((x) => x.id === 'zz-l1')).toEqual({ id: 'zz-l1', start: 2, done: 1, finish: 0.5, minutes: 4 });
     expect(typeof r2.data.reports.fresh).toBe('number');
     delete process.env.OWNER_LOGINS;
   });

@@ -14,7 +14,7 @@ import { dayOf, longestStreak } from '../textbook/learn-state.js';
 import { leagueState, PLACE_COINS, PROMO_COINS, LEAGUES } from './league.js';
 import { RACE } from './friends.js';
 import { PLANT_BY_ID, GRADE_BY_ID, gradeOf } from './garden.js';
-import { UNITS } from './course-core.js';
+import { UNITS } from './course.js';
 
 export const DUPE_FINE = 'dupe-2026-11';
 /* второй проход (8 ноября 2026): у кого списание прошло, когда копилку ещё не трогали, а минус кошелька остался —
@@ -23,8 +23,8 @@ export const DUPE_PIGGY = 'dupe-2026-11-piggy';
 /* «долга нет» (8 ноября 2026, вечер): остаток минуса, который не покрыли ни копилка, ни покупки, прощается — раньше он
    прятался за нулём кошелька и съедал весь новый доход, даже выручку за урожай */
 export const DUPE_FORGIVE = 'dupe-2026-11-forgive';
-// за активный день — пять витрин по 2 монеты и шестая с микрофиброй (src/learn/dust.js, CLOTH); цель дня (до 20 минут → 20 монет) — по ключам g: или по максимуму
-export const DAY_CEILING = 12;
+// за активный день — пять витрин по 2 монеты; цель дня (до 20 минут → 20 монет) — по ключам g: или по максимуму
+export const DAY_CEILING = 10;
 const GOAL_MAX = goalCoins(20);
 // задание дня — по своей цене (QUEST_COINS), «все три» — COIN.allQuests; за день без записи заданий — все три по максимуму
 const QUEST_MAX = Math.max(...Object.values(QUEST_COINS)); const QUESTS_DAY = Object.values(QUEST_COINS).sort((a, b) => b - a).slice(0, 3).reduce((a, x) => a + x, 0);

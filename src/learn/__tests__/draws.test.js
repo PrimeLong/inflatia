@@ -37,7 +37,7 @@ describe('«Нарисуй сам»: содержание', () => {
     const pairs = { 'draw-sd': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]], 'draw-labor': [[[100, 200], [200, 100]], [[40, 100], [140, 200]]], 'draw-monopoly': [[[20, 80], [60, 40]], [[20, 60], [40, 20]]],
       'draw-revenue': [[[10, 800], [20, 1200]], [[30, 1200], [40, 800]]], 'draw-tax': [[[20, 40], [80, 10]], [[20, 10], [100, 30]]],
       'draw-money': [[[10, 5.5], [20, 3.7]]], 'draw-inflation': [[[1, 108], [5, 147]], [[1, 110], [5, 161]]], 'draw-budget': [[[0, 120], [60, 0]]],
-      'draw-product': [[[2, 20], [6, 108]]], 'draw-costs': [[[2, 8], [5, 35]]], 'draw-moncomp': [[[16, 90], [26, 60]], [[10, 78], [20, 18]]], 'draw-household': [[[0, 1000], [10, 1000]]] };
+      'draw-product': [[[2, 20], [6, 108]]], 'draw-costs': [[[2, 8], [5, 35]]], 'draw-moncomp': [[[16, 90], [26, 60]], [[10, 78], [20, 18]]] };
     DRAWS.forEach((d) => {
       const lines = d.tasks.filter((t) => t.do === 'line');
       lines.forEach((t, k) => { const [a, b] = pairs[d.id][k]; expect(checkTask(d, t, { a: { x: a[0], y: a[1] }, b: { x: b[0], y: b[1] } }).ok, `${d.id} ${t.el}`).toBe(true); });
@@ -58,9 +58,7 @@ describe('«Нарисуй сам»: содержание', () => {
     expect(at('draw-budget', 3)).toEqual([40, 0]); expect(at('draw-budget', 4)).toEqual([0, 150]);
     expect(at('draw-product', 1)).toEqual([4, 64]); expect(at('draw-product', 3)).toEqual([4, 80]);
     expect(at('draw-costs', 1)).toEqual([3, 11]); expect(at('draw-costs', 2)).toEqual([5, 35]);
-    expect(at('draw-moncomp', 3)).toEqual([16, 90]); expect(at('draw-moncomp', 6)).toEqual([10, 60]);
-    // «Сберкасса»: через десять лет под 10% — 2593,74 (в тексте задания — «около 2594»)
-    expect(at('draw-household', 2)).toEqual([10, 2593.74]);
+    expect(at('draw-moncomp', 3)).toEqual([16, 90]); expect(at('draw-moncomp', 5)).toEqual([10, 60]);
   });
 });
 

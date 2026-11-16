@@ -3,7 +3,6 @@
    (каждый урок сезона зажигает одну), «Забрать „Паутину“», когда собраны все; тыква и летучая
    мышь — значки для карточки и для дороги Пути. Карточка ночная в обеих темах. */
 import React, { useState } from 'react';
-import { trackDaily } from './lib/client.js';
 import { Button } from './ds.jsx';
 import { Mascot } from './mascot.jsx';
 import { Audio } from './MacroSimulator.jsx';
@@ -97,7 +96,6 @@ export function HalloweenCard({ learn, update, now = Date.now() }) {
     if (!r.ok) return;
     Audio.play('register');
     update(() => r.s, { settle: true });
-    trackDaily('halloween_claim');
     setJust(true);
   };
   const state = h.claimed ? 'claimed' : h.ready ? 'ready' : 'collect';

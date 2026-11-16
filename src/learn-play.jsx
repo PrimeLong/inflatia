@@ -20,7 +20,183 @@ import { Button } from './ds.jsx';
 import { evalExpr, fmtResult, pressRoot } from './learn/calc.js';
 import { powerModel, powerMc } from './learn/power-chart.js';
 
-export { PLAY_CSS } from './learn-styles.js';
+export const PLAY_CSS = `
+  .lp-chart { width: 100%; max-width: 380px; display: block; margin: 6px auto 10px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .lp-chart text { font: 700 12px var(--ds-mono); fill: var(--ds-ink2); }
+  .lp-hit { cursor: grab; }
+  .lp-hit:active { cursor: grabbing; }
+  .lp-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0; }
+  .lp-readout { text-align: center; font-size: 15px; margin: 4px 0 10px; min-height: 22px; }
+  .lp-readout b { font-family: var(--ds-mono); }
+  /* спрос и предложение в подписи — оттенки линий графика, но с контрастом не ниже 4,5:1 в обеих темах */
+  .lp-dem { color: #345E92; } .lp-sup { color: #9A4A1C; }
+  .ds-dark .lp-dem { color: #8FB3E0; } .ds-dark .lp-sup { color: #E39A6B; }
+  .lp-range { width: 100%; accent-color: var(--u); height: 32px; }
+  .lp-tiles { min-height: 64px; border: 1px dashed var(--ds-rule2); border-radius: 4px; padding: 8px; margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; background: var(--ds-card2); }
+  .lp-tile { font: 15px/1.2 var(--ds-head); padding: 9px 12px; border-radius: 2px; border: 1px solid var(--ds-rule2); border-bottom-width: 2px; background: var(--ds-card); color: var(--ds-ink); cursor: pointer; }
+  .lp-tile:active:not(:disabled) { transform: translateY(1px); }
+  .lp-timer { height: 8px; border-radius: 1px; background: var(--ds-card2); border: 1px solid var(--ds-rule2); overflow: hidden; margin: 4px 0 12px; }
+  .lp-timer > span { display: block; height: 100%; background: var(--u); transition: width .1s linear; }
+  .lp-timer.low > span { background: var(--ds-bad); }
+  .lp-card { position: relative; min-height: 150px; border-radius: 6px; border: 1px solid var(--ds-rule2); background: var(--ds-card);
+    box-shadow: inset 0 0 0 3px var(--ds-card), inset 0 0 0 4px var(--ds-rule), 0 2px 4px var(--ds-shade);
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 22px 18px; font: 700 20px/1.3 var(--ds-head); margin: 10px 0 14px; touch-action: pan-y; user-select: none; }
+  .lp-card.ok { border-color: var(--ds-ok); box-shadow: inset 0 0 0 3px var(--ds-card), inset 0 0 0 4px var(--ds-ok); }
+  .lp-card.bad { border-color: var(--ds-bad); box-shadow: inset 0 0 0 3px var(--ds-card), inset 0 0 0 4px var(--ds-bad); }
+  .lp-score { display: flex; justify-content: space-between; font: 700 13px var(--ds-mono); color: var(--ds-ink2); }
+  /* «Слова» — колода: сверху карточка слова, под ней край ещё не открытых. Значение сначала
+     закрыто: вспомнить — открыть — честно отметить «Знаю» или «Ещё раз». */
+  .lp-deck { position: relative; margin: 6px 0 14px; padding-bottom: 14px; }
+  .lp-deck-ghost { position: absolute; left: 12px; right: 12px; height: 40px; bottom: 6px; border: 1px solid var(--ds-rule2); border-radius: 6px; background: var(--ds-card2); }
+  .lp-deck-ghost.g2 { left: 24px; right: 24px; bottom: 0; opacity: .7; }
+  .lp-word { position: relative; z-index: 1; border: 1px solid var(--ds-rule2); border-radius: 6px; background: var(--ds-card); box-shadow: 0 3px 10px var(--ds-shade);
+    padding: 18px 18px 20px; min-height: 250px; display: flex; flex-direction: column; touch-action: pan-y; user-select: none;
+    transition: transform .26s ease-in, opacity .26s ease-in; border-top: 5px solid var(--u); transform-origin: 50% 100%; }
+  /* уходящая карточка — поверх колоды: плавно уезжает в сторону и гаснет (смахнули, «Дальше» или «Назад») */
+  .lp-word-out { position: absolute; left: 0; right: 0; top: 0; z-index: 2; pointer-events: none; animation: lp-word-out .32s cubic-bezier(.25, .6, .35, 1) forwards; }
+  @keyframes lp-word-out { from { transform: translateX(var(--x0, 0px)) rotate(var(--r0, 0deg)); opacity: 1 }
+    to { transform: translateX(calc(var(--x0, 0px) + var(--dir) * 70%)) rotate(calc(var(--dir) * 4deg)); opacity: 0 } }
+  /* появление — только «до» (backwards): после него карточкой двигает палец или мышь, а не анимация */
+  .lp-word.in { animation: lp-word-in .3s ease-out backwards; }
+  @keyframes lp-word-in { from { transform: translateX(var(--from, 0)) translateY(var(--rise, 14px)) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }
+  .lp-word.drag { cursor: grabbing; box-shadow: 0 10px 24px var(--ds-shade); }
+  .lp-swipe-tag { position: absolute; top: 46px; padding: 3px 10px; border: 2px solid var(--u); border-radius: 4px; font: 700 14px var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--u-ink); background: var(--ds-card); pointer-events: none; }
+  .lp-swipe-tag.next { right: 14px; transform: rotate(8deg); }
+  .lp-swipe-tag.prev { left: 14px; transform: rotate(-8deg); }
+  .lp-word-top { display: flex; align-items: center; gap: 8px; font: 700 12px var(--ds-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ds-ink3); }
+  .lp-word-term { font: 700 30px/1.15 var(--ds-head); color: var(--u-ink); margin: 18px 0 6px; text-align: center; }
+  .lp-word-rule { width: 56px; height: 2px; background: var(--u); opacity: .5; margin: 0 auto 16px; border-radius: 1px; }
+  .lp-word-def { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 18.5px; line-height: 1.45; }
+  .lp-word-def.open { animation: lp-def .35s ease-out both; }
+  .lp-word-ex { display: block; margin-top: 12px; font-size: 15px; line-height: 1.4; color: var(--ds-ink2); }
+  @keyframes lp-def { from { opacity: 0; transform: translateY(6px); filter: blur(3px) } to { opacity: 1; transform: none; filter: none } }
+  .lp-word-tip { margin-top: 14px; font-size: 13.5px; line-height: 1.4; color: var(--ds-ink3); text-align: center; }
+  .lp-word-hint .fine { display: none; }
+  @media (hover: hover) and (pointer: fine) { .lp-word-hint .fine { display: inline; } .lp-word-hint .touch { display: none; } .lp-word { cursor: grab; } }
+  .lp-word-dots { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+  .lp-word-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--ds-rule); }
+  .lp-word-dots i.know { background: var(--u); }
+  .lp-word-dots i.cur { box-shadow: 0 0 0 2px var(--ds-paper), 0 0 0 3.5px var(--u); }
+  .lp-calc { max-width: 340px; margin: 0 auto; }
+  .lp-calc-screen { display: flex; align-items: baseline; gap: 8px; border: 1px solid var(--ds-rule2); border-radius: 3px; background: var(--ds-card2); padding: 6px 10px; margin-bottom: 6px; min-height: 42px; }
+  .lp-calc-expr { flex: 1; min-width: 0; font-size: 16px; color: var(--ds-ink2); overflow-wrap: anywhere; }
+  .lp-calc-val { font-size: 21px; font-weight: 700; white-space: nowrap; }
+  .lp-calc-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .lp-calc-keys .ds-key { padding: 9px 0; font-size: 18px; }
+  .lp-calc-use { grid-column: span 3; min-height: 0; padding: 8px 6px; }
+  .lp-op { color: var(--u-ink); font-weight: 700; }
+  .lp-game-rules { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; font-size: 13.5px; margin-top: 4px; }
+  .lp-game-rules span { display: inline-flex; align-items: center; gap: 4px; }
+  /* «Как играть» перед стартом: три шага и пробный заголовок без таймера */
+  .lp-howto { border: 1px solid var(--ds-rule2); border-radius: 6px; background: var(--ds-card); padding: 12px 14px; margin: 10px 0; }
+  .lp-howto ol { margin: 6px 0 0; padding-left: 20px; font-size: 14.5px; line-height: 1.45; }
+  .lp-howto li { margin: 3px 0; }
+  .lp-trial { border: 1.5px dashed var(--ds-rule2); border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
+  .lp-trial-card { font: 700 17px/1.35 var(--ds-head); text-align: center; margin: 6px 0 10px; }
+  .lp-game-hud { display: flex; align-items: center; gap: 8px; margin: -4px 0 2px; }
+  .lp-game-score { font-size: 26px; font-weight: 700; color: var(--u-ink); min-width: 48px; }
+  .lp-combo { font: 700 14px var(--ds-mono); color: #fff; background: var(--u); border-radius: 999px; padding: 2px 9px; animation: lp-combo .35s ease-out; }
+  @keyframes lp-combo { 0% { transform: scale(.4); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+  .lp-game-stage { position: relative; }
+  .lp-game .lp-chart { margin: 0 auto 2px; max-width: 340px; }
+  /* что сдвинулось — строкой под графиком, а не поверх него: не закрывает цены и подписи */
+  .lp-effect-row { min-height: 26px; display: flex; justify-content: center; align-items: center; }
+  .lp-effect { font: 700 13px var(--ds-sans); background: var(--ds-card); border: 1.5px solid var(--u); color: var(--u-ink); border-radius: 3px; padding: 3px 8px;
+    animation: lp-effect 1.6s ease-out forwards; pointer-events: none; }
+  @keyframes lp-effect { 0% { opacity: 0; transform: translateY(6px); } 12% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
+  .lp-game-card { min-height: 104px; margin: 8px 0 10px; font-size: 19px; }
+  .lp-game-final { flex-direction: column; gap: 2px; min-height: 0; margin-top: 8px; }
+  .lp-pass { display: inline-flex; align-items: center; gap: 3px; font: 700 13px var(--ds-sans); padding: 2px 8px; border-radius: 10px; border: 1px dashed var(--ds-rule2); color: var(--ds-ink2); }
+  .lp-pass.ok { border-style: solid; border-color: var(--ds-ok); color: var(--ds-ok); background: color-mix(in srgb, var(--ds-ok) 10%, transparent); }
+  /* «Сбереги кошелёк» */
+  .lw-years { display: flex; gap: 6px; justify-content: center; margin: 0 0 8px; }
+  .lw-years i { width: 30px; height: 7px; border-radius: 99px; background: var(--ds-rule); transition: background .3s; }
+  .lw-years i.now { background: var(--u); }
+  .lw-years i.ok { background: var(--ds-ok); }
+  .lw-years i.bad { background: var(--ds-bad); }
+  .lw-purse { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .lw-purse > div { border: 1px solid var(--ds-rule2); border-radius: 10px; background: var(--ds-card); padding: 6px 4px 5px; text-align: center; transition: border-color .3s, background .3s; }
+  .lw-purse > div.hot { border-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 7%, var(--ds-card)); }
+  .lw-purse small { display: block; font: 600 12px var(--ds-sans); color: var(--ds-ink3); }
+  .lw-purse b { display: block; font: 700 21px/1.15 var(--ds-mono); color: var(--ds-ink); }
+  .lw-cups-wrap { position: relative; max-width: 320px; margin: 8px auto 2px; }
+  .lw-cups { display: block; width: 100%; }
+  .lw-cup { transition: opacity .35s; }
+  .lw-cup .b { fill: var(--u); transition: fill .35s; }
+  .lw-cup .h { fill: none; stroke: var(--u); stroke-width: 1.3; stroke-linecap: round; transition: stroke .35s; }
+  .lw-cup.off .b { fill: var(--ds-rule2); }
+  .lw-cup.off .h { stroke: var(--ds-rule2); }
+  .lw-cup.off { opacity: .55; }
+  .lw-more { position: absolute; right: -4px; top: -10px; font: 700 12px var(--ds-mono); color: #fff; background: var(--ds-ok); border-radius: 999px; padding: 1px 7px; }
+  .lw-paper { border: 1px solid var(--ds-rule2); background: var(--ds-card); padding: 8px 12px 10px; margin: 10px 0 4px; box-shadow: 0 2px 0 var(--ds-shade); animation: lw-paper .35s ease-out both; }
+  @keyframes lw-paper { from { opacity: 0; transform: translateY(8px) rotate(-.6deg); } to { opacity: 1; transform: none; } }
+  .lw-mast { font: 700 12px var(--ds-news); letter-spacing: .2em; text-transform: uppercase; border-bottom: 3px double var(--ds-ink2); padding-bottom: 4px; margin-bottom: 6px; color: var(--ds-ink2); text-align: center; }
+  .lw-head { font: 700 18px/1.28 var(--ds-news); text-align: center; }
+  .lw-fore { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 7px; font: 700 14.5px var(--ds-sans); color: var(--ds-bad); text-align: center; }
+  .lw-scale { display: block; max-width: 380px; margin: 2px auto 0; overflow: visible; }
+  .lw-scale .lw-band { fill: color-mix(in srgb, var(--ds-bad) 30%, transparent); stroke: var(--ds-bad); stroke-width: 1; }
+  .lw-tick { font: 600 12px var(--ds-mono); fill: var(--ds-ink3); }
+  .lw-rate { fill: #3E6FA8; }
+  .lw-rate-t { font: 700 12px var(--ds-sans); fill: #345E92; }
+  .ds-dark .lw-rate-t { fill: #8FB3E0; }
+  .lw-pi line { stroke: var(--ds-ink); }
+  .lw-pi text { font: 700 12px var(--ds-sans); fill: var(--ds-ink); }
+  .lw-opts { display: grid; gap: 7px; margin-top: 10px; }
+  .lw-opt { display: flex; align-items: center; gap: 11px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--ds-rule2); border-bottom-width: 3px;
+    background: var(--ds-card); cursor: pointer; color: var(--ds-ink); transition: transform .12s, border-color .15s; animation: lw-opt .3s ease-out both; }
+  .lw-opt:nth-child(2) { animation-delay: .05s; } .lw-opt:nth-child(3) { animation-delay: .1s; }
+  @keyframes lw-opt { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .lw-opt:hover { border-color: var(--u); }
+  .lw-opt:active { transform: scale(.98); }
+  .lw-opt:focus-visible { outline: 3px solid var(--u); outline-offset: 2px; }
+  .lw-opt .ic { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--ds-card2); color: var(--u-ink); flex-shrink: 0; }
+  .lw-opt b { display: block; font: 700 15.5px var(--ds-sans); }
+  .lw-opt .h { display: block; font-size: 13.5px; line-height: 1.3; color: var(--ds-ink3); margin-top: 1px; }
+  .lw-verdict { margin-top: 10px; border-radius: 12px; padding: 10px 12px 12px; border: 1.5px solid; animation: lw-paper .3s ease-out both; }
+  .lw-verdict.ok { border-color: color-mix(in srgb, var(--ds-ok) 55%, transparent); background: var(--ds-ok-bg); }
+  .lw-verdict.bad { border-color: color-mix(in srgb, var(--ds-sel-rule) 70%, transparent); background: color-mix(in srgb, var(--ds-sel-rule) 10%, var(--ds-card)); }
+  .lw-verdict-head { display: flex; align-items: center; gap: 6px; font: 700 16px var(--ds-head); }
+  .lw-verdict.ok .lw-verdict-head { color: var(--ds-ok-ink); }
+  .lw-verdict.bad .lw-verdict-head { color: var(--ds-sel-ink); }
+  .lw-verdict-text { font-size: 14.5px; line-height: 1.45; margin: 4px 0 8px; color: var(--ds-ink2); }
+  .lw-bars { display: grid; gap: 5px; }
+  .lw-bar-row { display: grid; grid-template-columns: 6.2em 1fr 4.2em; align-items: center; gap: 8px; font-size: 13.5px; }
+  .lw-bar-name { display: inline-flex; align-items: center; gap: 3px; color: var(--ds-ink2); }
+  .lw-bar-row.best .lw-bar-name { color: var(--ds-ok-ink); font-weight: 700; }
+  .lw-bar-row.picked .lw-bar-name { text-decoration: underline; text-underline-offset: 3px; }
+  .lw-bar-track { position: relative; height: 12px; border-radius: 99px; background: var(--ds-card2); }
+  .lw-bar-track::before { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1.5px; background: var(--ds-ink3); }
+  .lw-bar-track i { position: absolute; top: 0; bottom: 0; border-radius: 99px; animation: lw-bar .6s ease-out both; }
+  .lw-bar-track i.up { background: var(--ds-ok); }
+  .lw-bar-track i.down { background: var(--ds-bad); }
+  @keyframes lw-bar { from { clip-path: inset(0 50% 0 50%); } to { clip-path: inset(0 0 0 0); } }
+  .lw-bar-row b { font: 700 13.5px var(--ds-mono); text-align: right; }
+  .lw-final { align-items: stretch !important; text-align: center; }
+  .lw-final-num { font-size: 16px; }
+  .lw-final-num b { font-size: 38px; color: var(--u-ink); }
+  .lw-path { display: block; max-width: 380px; margin: 4px auto 0; }
+  .lw-path-100 { stroke: var(--ds-rule2); stroke-dasharray: 4 4; }
+  .lw-path-cash { fill: none; stroke: var(--ds-ink3); stroke-width: 2; stroke-dasharray: 5 4; }
+  .lw-path-best { fill: none; stroke: var(--ds-ok); stroke-width: 2; stroke-dasharray: 2 3; }
+  .lw-path-mine { fill: none; stroke: var(--u); stroke-width: 3.2; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 600; stroke-dashoffset: 600; animation: lm-draw 1.2s ease-out forwards; }
+  @keyframes lm-draw { to { stroke-dashoffset: 0; } }
+  .lw-path-dot { fill: var(--u); stroke: var(--ds-card); stroke-width: 1.5; }
+  .lw-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; margin: 2px 0 4px; }
+  .lw-legend span::before { content: ''; display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+  .lw-legend .mine::before { background: var(--u); }
+  .lw-legend .best::before { background: var(--ds-ok); }
+  .lw-legend .cash::before { background: var(--ds-ink3); }
+  @media (prefers-reduced-motion: reduce) { .lw-paper, .lw-opt, .lw-verdict, .lw-bar-track i, .lw-path-mine { animation: none !important; stroke-dashoffset: 0; } }
+  .lp-verdict { margin-top: 6px; font: 700 14.5px var(--ds-sans); color: var(--ds-bad); text-align: center; }
+  .lp-verdict.ok { color: var(--ds-ok); }
+  .lp-side { margin: 0; text-align: center; font-weight: 700; min-height: 52px; }
+  .lp-pop { position: absolute; left: 50%; top: 0; z-index: 2; font-size: 20px; font-weight: 700; color: var(--ds-ok); animation: lp-pop .7s ease-out forwards; pointer-events: none; }
+  @keyframes lp-pop { 0% { opacity: 0; transform: translate(-50%, 10px) scale(.8); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -26px) scale(1.15); } }
+  .lp-ticker { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; max-width: 340px; margin: 0 auto; }
+  .lp-ticker svg { width: 100%; height: 30px; display: block; }
+  .lp-bubble { position: relative; background: var(--ds-card); border: 1px solid var(--ds-rule2); border-radius: 4px; padding: 14px 16px; font-size: 17.5px; line-height: 1.5; margin-top: 12px; }
+  @media (prefers-reduced-motion: reduce) { .lp-word, .lp-timer > span { transition: none !important; } .lp-word.in, .lp-word-def.open { animation: none !important; } .lp-word-out { display: none; } .lp-combo, .lp-effect, .lp-pop { animation: none !important; } }
+`;
 
 /* ------------------------------ ГРАФИК РЫНКА ------------------------------ */
 const VW = 320; const VH = 232; const PL = 34; const PR = 14; const PT = 12; const PB = 28;

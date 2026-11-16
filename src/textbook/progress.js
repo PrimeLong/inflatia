@@ -18,7 +18,7 @@
    ответов показывает, можно ли себе доверять: 60% «уверенных» верных — повод перечитать главу.
    В той же таблице живут и вопросы на вспоминание в конце разделов («совпало / не совпало»):
    у них то же расписание повторения, но без оценки уверенности. */
-import { emptyLearn, normalizeLearn, mergeLearn, dayOf, countWorldQuarter } from './learn-state.js';
+import { emptyLearn, normalizeLearn, mergeLearn, dayOf } from './learn-state.js';
 
 export const TEXTBOOK_PROGRESS_KEY = 'ems-textbook-v1';
 export const REVIEW_DAYS = [2, 5, 12];
@@ -54,13 +54,6 @@ export function latestProgress(p) {
     if (raw) return normalizeTextbook(JSON.parse(raw));
   } catch { /* приватный режим — только копия в памяти */ }
   return p;
-}
-
-// квартал в «Мире» — в счётчик дня на Пути (редкое задание дня): пишет партия, вне экрана Пути
-export function noteWorldQuarter(now = Date.now()) {
-  const p = latestProgress(null); if (!p) return;
-  const learn = countWorldQuarter(p.learn, now);
-  if (learn !== p.learn) saveProgress({ ...p, learn });
 }
 
 export const markRead = (p, chapterId, now = Date.now()) => {

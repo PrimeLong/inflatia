@@ -10,7 +10,7 @@
    добавляет деталь (таблица MODEL_PARTS); открытые детали крутятся ползунками в любой момент,
    закрытые видны силуэтом «откроется в уроке …». Спрос модели — тот же, что ученик нашёл сам
    в первый день: Q = 120 − 3P. */
-import { LESSON_BY_ID, UNIT_BY_ID } from './course-core.js';
+import { LESSON_BY_ID, UNIT_BY_ID } from './course.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -183,8 +183,6 @@ export const VERBS = {
 };
 // глаголы урока: его шаги «Откройте сами» и свои упражнения (практика берёт «Домино» всегда)
 export function lessonVerbs(lesson) {
-  // лёгкие поля урока из указателя курса (kinds, discover — src/learn/course-core.js): шаги и упражнения до загрузки глав недоступны
-  const kinds = lesson.kinds ? [...Array.from({ length: lesson.discover || 0 }, () => 'discover'), ...lesson.kinds]
-    : [...lesson.inner.filter((c) => c.discover).map(() => 'discover'), ...lesson.exercises.filter((e) => !e.diamond).map((e) => e.kind)];
+  const kinds = [...lesson.inner.filter((c) => c.discover).map(() => 'discover'), ...lesson.exercises.filter((e) => !e.diamond).map((e) => e.kind)];
   return { verbs: [...new Set(kinds.map((k) => VERBS[k].verb))], model: kinds.some((k) => VERBS[k].model) };
 }

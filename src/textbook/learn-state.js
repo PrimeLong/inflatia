@@ -28,7 +28,7 @@ const MAX_SOLVED = 200;
    placement — вступительный тест: когда пройден и какие юниты открыл;
    topics — точность по урокам (первые попытки, окно ~20 последних): слабые темы;
    recent — последние 30 первых попыток строкой «1»/«0»: уровень сложности;
-   daily — счётчики дня для заданий дня: уроки (l), из них новые (n), без ошибок, верные, первые попытки (a), секунды, серия, игры, практика, кварталы в «Мире» (w);
+   daily — счётчики дня для заданий дня: уроки (l), из них новые (n), без ошибок, верные, первые попытки (a), секунды, серия, игры, практика;
    coins/spent — монеты по дням (заработано/потрачено), claimed — полученные награды (ключ → когда):
    одна награда не выдаётся дважды и на двух устройствах; owned — купленные вещи, wear — наряд Инфли;
    freezeBuy — старые разовые полисы «Страховки серии» по дням, frozen — дни, которые они спасли;
@@ -248,24 +248,9 @@ export function countAnswers(s, right, total, now = Date.now()) {
 }
 /* серия, с которой начинается урок: бессрочная run; у прогресса без run (до бессрочной серии) — сегодняшняя rc */
 export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n : dayEntry(s, dayOf(now)).rc);
-const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h', 'w'];
-const dayEntry = (s, day) => ({ l: 0, n: 0, p: 0, a: 0, c: 0, s: 0, r: 0, rc: 0, g: 0, pr: 0, h: 0, w: 0, ...(s.daily || {})[day] });
+const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h'];
+const dayEntry = (s, day) => ({ l: 0, n: 0, p: 0, a: 0, c: 0, s: 0, r: 0, rc: 0, g: 0, pr: 0, h: 0, ...(s.daily || {})[day] });
 export const dailyOf = (s, now = Date.now()) => dayEntry(s, dayOf(now));
-/* минуты занятия без «урока»: повтор особого урока («Персоналии», «Чтение», «Разбор графика», «Нарисуй сам»)
-   опыта и счёта уроков не даёт, но время в цель дня идёт (пункт владельца 15.11: «минуты в квадратных уроках
-   не считает»). Те же границы, что у урока: не больше 15 минут за раз и только время после полуночи (UTC). */
-export function addStudySeconds(s, seconds, now = Date.now()) {
-  const add = Math.max(0, Math.round(Math.min(900, seconds || 0, (now - dayStart(now)) / 1000)));
-  if (!add) return s;
-  const day = dayOf(now); const d = dayEntry(s, day);
-  return upd(s, { daily: { ...s.daily, [day]: { ...d, s: Math.min(86400, d.s + add) } } });
-}
-/* квартал, сыгранный в «Мире», — в счётчик дня (w): редкое задание дня «Сыграть два квартала в „Мире“»
-   (docs/mechanics.md, «Редкое задание дня»); больше 40 в день не считаем */
-export function countWorldQuarter(s, now = Date.now()) {
-  const day = dayOf(now); const d = dayEntry(s, day);
-  return d.w >= 40 ? s : upd(s, { daily: { ...s.daily, [day]: { ...d, w: d.w + 1 } } });
-}
 
 // ответы при регистрации — из них цель дня и задания; меняются в профиле
 export function setProfile(s, { goal, minutes, knows }, now = Date.now()) {
@@ -349,16 +334,14 @@ export const DIAMOND_ACCURACY = 80;
 /* extra — особый урок дороги (Персоналии, Чтение, Разбор графика): у него нет номера урока, но в
    заданиях дня он считается как урок (l, p), а пройденный впервые (extra.fresh) — и как новый урок
    на Пути (n). Раньше такие уроки не засчитывались ни как урок, ни как новый (жалоба). */
-export function finishLesson(s, lessonId, { xp, accuracy, now = Date.now(), count = true, seconds = 0, kind = null, mode = 'lesson', diamond = false, extra = null, held = false }) {
+export function finishLesson(s, lessonId, { xp, accuracy, now = Date.now(), count = true, seconds = 0, kind = null, mode = 'lesson', diamond = false, extra = null }) {
   const day = dayOf(now);
   const prev = s.lessons[lessonId];
   // урок впервые пройден сейчас: старые записи вступительного теста (runs: 0) не в счёт —
   // иначе у них оставалась давняя дата, и задание «Пройти новый урок» не засчитывалось
   const fresh = !!lessonId && !(prev && prev.runs > 0);
   const gem = (prev && prev.diamond) || (diamond && accuracy >= DIAMOND_ACCURACY ? now : 0);
-  const lessons = lessonId ? { ...s.lessons, [lessonId]: { at: fresh ? now : prev.at, runs: (prev ? prev.runs : 0) + 1, best: Math.max(prev ? prev.best : 0, Math.round(accuracy)), ...(gem ? { diamond: gem } : {}),
-    // held — монеты «За урок» придержаны: урок пройден наугад или на скорость (src/learn/rewards.js, fairRun); честный повтор снимает отметку
-    ...(held ? { held: 1 } : {}) } } : s.lessons;
+  const lessons = lessonId ? { ...s.lessons, [lessonId]: { at: fresh ? now : prev.at, runs: (prev ? prev.runs : 0) + 1, best: Math.max(prev ? prev.best : 0, Math.round(accuracy)), ...(gem ? { diamond: gem } : {}) } } : s.lessons;
   const d = dayEntry(s, day);
   // «Ранняя пташка» и «Сова» — по часам устройства (местное время), а не по UTC: утро у каждого своё
   const hour = new Date(now).getHours();
@@ -578,27 +561,13 @@ const dayMap = (v, hi) => {
   Object.keys(obj(v)).filter(isDay).sort().slice(-MAX_DAYS).forEach((k) => { const x = cnt(v[k], hi); if (x > 0) out[k] = x; });
   return out;
 };
-/* УРОК РАЗДЕЛЁН (docs/mechanics.md, «Первый урок — не больше четырёх новых идей»): первый урок «Знакомство» был
-   на семь идей; с 13 ноября 2026 последние три — отдельный урок sc-i1b. Кто ушёл дальше прежнего урока (прошёл
-   следующий, past), прошёл и их: новая часть засчитана ему с датой и точностью прежнего урока — иначе посреди
-   пройденного юнита появился бы непройденный урок, и Путь вернул бы ученика в начало. Кто прошёл только первый
-   урок, встретит вторую часть следующим уроком. */
-export const LESSON_SPLITS = [{ part: 'sc-i1b', from: 'sc-i1', past: 'sc-l1' }];
-const applySplits = (lessons) => {
-  LESSON_SPLITS.forEach(({ part, from, past }) => {
-    const src = lessons[from]; const next = lessons[past];
-    if (src && src.runs > 0 && next && next.runs > 0 && !lessons[part]) lessons[part] = { at: src.at, runs: 1, best: src.best };
-  });
-  return lessons;
-};
 export function normalizeLearn(raw) {
   const r = obj(raw); const e = emptyLearn();
   const lessons = {};
   Object.keys(obj(r.lessons)).filter(okKey).slice(0, MAX_KEYS).forEach((k) => {
     const l = obj(r.lessons[k]); const gem = cnt(l.diamond, 1e14);
-    lessons[k] = { at: cnt(l.at, 1e14), runs: cnt(l.runs, 1e5), best: cnt(l.best, 100), ...(gem ? { diamond: gem } : {}), ...(l.held ? { held: 1 } : {}) };
+    lessons[k] = { at: cnt(l.at, 1e14), runs: cnt(l.runs, 1e5), best: cnt(l.best, 100), ...(gem ? { diamond: gem } : {}) };
   });
-  applySplits(lessons);
   const units = {};
   Object.keys(obj(r.units)).filter(okKey).slice(0, MAX_KEYS).forEach((k) => { const u = obj(r.units[k]); const t = cnt(u.tested, 1e14); const ace = cnt(u.ace, 1e14); if (t) units[k] = { tested: t, ...(ace ? { ace } : {}) }; });
   // «Большое повторение» уровня: когда пройдено впервые, лучшая точность, когда уровень подтверждён (80%+)
@@ -782,9 +751,7 @@ export function mergeLearn(a, b) {
   Object.entries(y.lessons).forEach(([k, l]) => {
     const c = lessons[k];
     const gem = Math.min(c && c.diamond ? c.diamond : Infinity, l.diamond || Infinity);
-    lessons[k] = c ? { at: Math.min(c.at || l.at, l.at || c.at), runs: Math.max(c.runs, l.runs), best: Math.max(c.best, l.best), ...(gem < Infinity ? { diamond: gem } : {}),
-      // придержано, только если так на обоих устройствах: честный повтор на одном снимает отметку и на другом
-      ...(c.held && l.held ? { held: 1 } : {}) } : l;
+    lessons[k] = c ? { at: Math.min(c.at || l.at, l.at || c.at), runs: Math.max(c.runs, l.runs), best: Math.max(c.best, l.best), ...(gem < Infinity ? { diamond: gem } : {}) } : l;
   });
   const units = { ...x.units };
   Object.entries(y.units).forEach(([k, u]) => { const c = units[k] || {}; const ace = Math.max(c.ace || 0, u.ace || 0); units[k] = { tested: Math.max(c.tested || 0, u.tested), ...(ace ? { ace } : {}) }; });

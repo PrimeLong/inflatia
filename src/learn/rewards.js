@@ -5,8 +5,7 @@
    под ключом (claimed) — ни дважды, ни на двух устройствах. Экраны — src/learn.jsx. */
 import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf, diamondCount } from '../textbook/learn-state.js';
 import { plural } from '../lib/plural.js';
-import { isUnlocked } from './unlocks.js';
-import { LESSONS, UNITS } from './course-core.js';
+import { LESSONS, UNITS } from './course.js';
 import { halloweenOn, WEB_FRAME } from './halloween.js';
 export { plural };
 
@@ -65,16 +64,6 @@ export function runCoins({ mode, replay = false, accuracy = 0, pass = null, item
   if (mode === 'check') return pass ? COIN.check : 0;
   return 0;
 }
-/* ЧЕСТНАЯ РАБОТА (docs/mechanics.md, «Награды за урок: только за честную работу»): монеты «За урок» и печати не
-   выдаются, если точность с первой попытки ниже FAIR.accuracy или среднее время на вопрос меньше FAIR.speed нормы
-   (SECONDS в src/learn/course.js) — урок «прощёлкан». Урок при этом пройден, Путь открыт дальше; монеты за него
-   ждут честного повтора. ms — время урока, normMs — сумма норм его заданий. Ответ — почему нечестно, или null. */
-export const FAIR = { accuracy: 60, speed: 1 / 3 };
-export const fairRun = ({ accuracy = 0, ms = 0, normMs = 0, checkSpeed = true }) => (accuracy < FAIR.accuracy ? 'accuracy'
-  : checkSpeed && normMs > 0 && ms < normMs * FAIR.speed ? 'speed' : null);
-/* уроки, за которые монеты придержаны: пройдены с точностью ниже порога и «За урок» ещё не получено. Пока такие
-   есть, печати не выдаются: сначала — работа над ошибками и честный повтор */
-export const heldLessons = (s) => Object.keys((s && s.lessons) || {}).filter((id) => { const l = s.lessons[id]; return l.runs > 0 && l.held && !hasClaim(s, `l:${id}`); });
 // ключ награды: первое прохождение урока и первый алмаз — по разу
 export const runKey = ({ mode, lessonId, replay, diamond, gem, levelId = null, pass = false, confirmed = false }) => (mode === 'level' ? (pass ? `lvok:${levelId}` : confirmed ? null : `lv:${levelId}`)
   : mode !== 'lesson' ? null : diamond ? (gem ? null : `d:${lessonId}`) : replay ? null : `l:${lessonId}`);
@@ -426,7 +415,7 @@ export const REAL_RATE = 0.08;
 export const realCurve = (amount = 1000, years = 10) => Array.from({ length: years + 1 }, (_, y) => ({ year: y, value: Math.round(amount * (1 + REAL_RATE) ** y) }));
 
 /* ------------------------------ ЗАДАНИЯ ДНЯ ------------------------------
-   Три задания: одно про уроки, одно про ответы, одно про опыт или новый урок (изредка вместо него — редкое); какие именно —
+   Три задания: одно про уроки, одно про ответы, одно про опыт или новый урок; какие именно —
    решает дата, размер — цель дня в минутах. Минуты сами по себе — это цель дня (у неё своя
    награда), заданием их не дублируем. Всё считается только по сегодняшним занятиям.
    Выполнено — монеты сразу, все три — ещё бонус. */
@@ -438,33 +427,18 @@ const QUEST = {
   run: { coins: 15, target: (s, now) => (goalMinutes(s, now) >= 15 ? 10 : 6), have: (d) => d.r, title: (t) => `${t} верных ответов подряд` },
   xp: { coins: 10, target: (s, now) => goalMinutes(s, now) * 3, have: (d, s, day) => (s.xp || {})[day] || 0, title: (t) => `Набрать ${t} опыта` },
   fresh: { coins: 15, target: () => 1, have: (d, s, day) => Math.max(d.n || 0, newToday(s, day)), title: () => 'Пройти новый урок на Пути' },
-  // редкие (RARE_QUEST): не про уроки Пути — раз в несколько дней вместо третьего задания
-  world: { coins: 25, rare: true, target: () => 2, have: (d) => d.w || 0, title: () => 'Сыграть два квартала в «Мире»', open: (s, d) => isUnlocked(s, 'world') || d.w > 0 },
-  practice: { coins: 20, rare: true, target: () => 1, have: (d) => d.pr || 0, title: () => 'Пройти работу над ошибками', open: (s, d) => (s.mistakes || []).length > 0 || d.pr > 0 },
-};
-/* Редкое задание дня (пункт владельца: «редко какие-то интересные задания, типа сыграть пару кварталов
-   в мире»): примерно в один день из пяти третье задание — не про уроки. Какое — решает дата; если оно
-   ученику недоступно («Мир» ещё закрыт, ошибок для повтора нет) — берётся другое редкое, нет и его —
-   день обычный. */
-export const RARE_QUEST = { share: 0.2, ids: ['world', 'practice'] };
-export const rareQuestId = (s, now = Date.now()) => {
-  const day = dayOf(now);
-  if (mix01(`${day}:rare`) >= RARE_QUEST.share) return null;
-  const d = dailyOf(s, now); const k = Math.floor(mix01(`${day}:rare-id`) * RARE_QUEST.ids.length);
-  const order = [...RARE_QUEST.ids.slice(k), ...RARE_QUEST.ids.slice(0, k)];
-  return order.find((id) => QUEST[id].open(s, d)) || null;
 };
 // монеты за каждое задание дня — для проверки выплат (src/learn/audit.js)
 export const QUEST_COINS = Object.fromEntries(Object.entries(QUEST).map(([k, q]) => [k, q.coins]));
-export const QUEST_ICON = { lessons: 'map', perfect: 'check', correct: 'coins', run: 'flame', xp: 'spark', fresh: 'target', world: 'globe', practice: 'repeat' };
+export const QUEST_ICON = { lessons: 'map', perfect: 'check', correct: 'coins', run: 'flame', xp: 'spark', fresh: 'target' };
 export function questsFor(s, now = Date.now()) {
   const day = dayOf(now); const d = dailyOf(s, now);
   const pick = (list, salt) => list[Math.floor(mix01(`${day}:${salt}`) * list.length)];
-  const ids = [pick(['lessons', 'perfect'], 'a'), pick(['correct', 'run'], 'b'), rareQuestId(s, now) || pick(['xp', 'fresh'], 'c')];
+  const ids = [pick(['lessons', 'perfect'], 'a'), pick(['correct', 'run'], 'b'), pick(['xp', 'fresh'], 'c')];
   return ids.map((id) => {
     const q = QUEST[id]; const target = q.target(s, now); const have = Math.min(target, q.have(d, s, day));
     const key = `q:${day}:${id}`;
-    return { id, key, title: q.title(target), have, target, done: have >= target, claimed: hasClaim(s, key), coins: q.coins, ...(q.rare ? { rare: true } : {}) };
+    return { id, key, title: q.title(target), have, target, done: have >= target, claimed: hasClaim(s, key), coins: q.coins };
   });
 }
 
@@ -631,7 +605,7 @@ const SESSION_PAID = new Map();
 let guardHook = null;
 export const onCoinGuard = (fn) => { guardHook = fn; };
 export const resetCoinGuard = () => { SESSION_PAID.clear(); };
-export function settle(s, ctx, now = Date.now(), { seals = true } = {}) {
+export function settle(s, ctx, now = Date.now()) {
   const gains = [];
   const give = (t, n, key, title, kind) => {
     const paid = key ? SESSION_PAID.get(key) : null;
@@ -657,8 +631,7 @@ export function settle(s, ctx, now = Date.now(), { seals = true } = {}) {
   const m = monthChallenge(t, now);
   if (m.done) t = give(t, m.coins, m.key, `Испытание месяца: ${m.name}`, 'month');
   const full = { longest: longestStreak(t), ...ctx };
-  // печати — только за честную работу: не в уроке, пройденном наугад или на скорость, и пока такой урок не повторён
-  if (seals && !heldLessons(t).length) ACHIEVEMENTS.forEach((a) => { if (a.test(t, full)) t = give(t, a.coins, achievementKey(a.id), `Печать «${a.title}»`, 'achievement'); });
+  ACHIEVEMENTS.forEach((a) => { if (a.test(t, full)) t = give(t, a.coins, achievementKey(a.id), `Печать «${a.title}»`, 'achievement'); });
   return { s: t, gains };
 }
 /* Плашка выплаты вне урока (docs/mechanics.md, «Экономика наград»): settle выдал накопленное при действии

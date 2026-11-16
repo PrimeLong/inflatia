@@ -12,7 +12,6 @@ import {
 import { Audio } from './MacroSimulator.jsx';
 import { Inline } from './textbook.jsx';
 import { Mascot } from './mascot.jsx';
-import { D_INK, S_INK } from './learn-model-thumb.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { Button } from './ds.jsx';
 import { plural } from './lib/plural.js';
@@ -22,7 +21,101 @@ import {
   FACTOR_STEPS, FACTOR_WORDS, CEILING_STEPS, ELASTIC_STEPS,
 } from './learn/model.js';
 
-export { MODEL_CSS } from './learn-styles.js';
+export const MODEL_CSS = `
+  .lm-street { width: 100%; display: block; margin: 4px 0 8px; border: 1px solid var(--ds-rule2); border-radius: 4px; background: var(--ds-card); }
+  .lm-street text { font-family: var(--ds-head); }
+  .lm-chart { width: 100%; max-width: 380px; display: block; margin: 4px auto 6px; }
+  .lm-chart text { font: 700 12px var(--ds-mono); fill: var(--ds-ink2); }
+  .lm-chart .lm-ax { font: 600 12px var(--ds-sans); fill: var(--ds-ink3); }
+  .lm-range { width: 100%; accent-color: var(--u); height: 30px; }
+  .lm-read { font-size: 15px; text-align: center; min-height: 22px; margin: 2px 0 6px; }
+  .lm-read b { font-family: var(--ds-mono); }
+  .lm-days { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: center; font: 12.5px var(--ds-mono); color: var(--ds-ink2); margin: 2px 0 6px; }
+  .lm-say { display: flex; gap: 10px; align-items: center; border: 1px solid var(--u); border-radius: 6px; background: color-mix(in srgb, var(--u) 7%, var(--ds-card)); padding: 10px 12px; margin: 8px 0; font-size: 15.5px; line-height: 1.4; }
+  .lm-line { stroke-dasharray: 420; stroke-dashoffset: 420; animation: lm-draw 1.1s ease-out forwards; }
+  @keyframes lm-draw { to { stroke-dashoffset: 0; } }
+  /* живая модель */
+  .lm { position: relative; }
+  .lm-head { display: flex; align-items: flex-start; gap: 10px; }
+  .lm-title { font: 700 19px/1.25 var(--ds-head); margin-top: 2px; }
+  .lm-badge { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 3px 9px 3px 7px; border-radius: 999px; font: 700 12.5px var(--ds-sans);
+    color: var(--ds-ok-ink); background: var(--ds-ok-bg); border: 1px solid color-mix(in srgb, var(--ds-ok) 45%, transparent); }
+  .lm-ring { position: relative; width: 50px; height: 50px; flex-shrink: 0; }
+  .lm-ring svg { transform: rotate(-90deg); display: block; }
+  .lm-ring circle { fill: none; stroke-width: 3.5; }
+  .lm-ring .bg { stroke: var(--ds-rule); }
+  .lm-ring .fg { stroke: var(--u); stroke-linecap: round; transition: stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1); }
+  .lm-ring b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 14px var(--ds-mono); color: var(--u-ink); letter-spacing: -.06em; }
+  .lm-ring small { font-size: 12px; color: var(--ds-ink3); font-weight: 600; }
+  .lm-stage { margin: 10px 0 2px; border-radius: 10px; background: color-mix(in srgb, var(--ds-card2) 55%, var(--ds-card)); border: 1px solid var(--ds-rule); padding: 4px 4px 0; }
+  .lm-stage .lm-chart { max-width: 420px; margin: 0 auto; }
+  .lm-guide { fill: none; stroke: var(--ds-ink3); stroke-width: 1.2; stroke-dasharray: 3 4; opacity: .8; }
+  .lm-curve-name { font: 700 14px var(--ds-head) !important; }
+  .lm-tag rect { fill: var(--ds-ink); }
+  .lm-tag text { font: 700 11px var(--ds-mono) !important; fill: var(--ds-paper) !important; }
+  .lm-short { font: 700 11.5px var(--ds-sans) !important; fill: var(--ds-bad) !important; }
+  .lm-pulse { opacity: .16; transform-box: fill-box; transform-origin: center; animation: lm-pulse 2.2s ease-in-out infinite; }
+  @keyframes lm-pulse { 0%, 100% { transform: scale(.7); opacity: .22; } 50% { transform: scale(1.15); opacity: .08; } }
+  .lm-board { display: grid; gap: 6px; text-align: center; margin: 8px 0 6px; }
+  .lm-board > div { border: 1px solid var(--ds-rule2); border-radius: 8px; padding: 6px 4px 7px; background: var(--ds-card); display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .lm-board-label { font: 600 12px var(--ds-sans); color: var(--ds-ink3); }
+  .lm-board b { font: 700 21px/1.15 var(--ds-mono); color: var(--ds-ink); }
+  .lm-board .bad b { color: var(--ds-bad); }
+  .lm-delta { font: 700 12px var(--ds-mono); border-radius: 999px; padding: 1px 6px; }
+  .lm-delta.up { color: var(--ds-ok-ink); background: var(--ds-ok-bg); }
+  .lm-delta.down { color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 10%, var(--ds-card)); }
+  .lm-story { font-size: 15px; line-height: 1.45; padding: 9px 12px; border-radius: 8px; background: var(--ds-card2); color: var(--ds-ink2); margin-bottom: 10px; }
+  .lm-story.on { background: color-mix(in srgb, var(--u) 9%, var(--ds-card)); color: var(--ds-ink); border-left: 3px solid var(--u); padding-left: 10px; }
+  .lm-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 7px; }
+  .lm-tile { position: relative; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 7px 9px; text-align: left; cursor: pointer; border-radius: 10px;
+    border: 1.5px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink); transition: border-color .15s, background .15s, transform .12s; }
+  .lm-tile:active { transform: scale(.97); }
+  .lm-tile.on { border-color: var(--u); background: color-mix(in srgb, var(--u) 8%, var(--ds-card)); box-shadow: 0 2px 0 color-mix(in srgb, var(--u) 35%, transparent); }
+  .lm-tile.changed::after { content: ''; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--u); }
+  .lm-tile-ic { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--ds-card2); color: var(--u-ink); }
+  .lm-tile.on .lm-tile-ic { background: var(--u); color: #fff; }
+  .lm-tile-txt { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+  .lm-tile-txt b { font: 700 13.5px var(--ds-sans); }
+  .lm-tile-txt span { font-size: 12.5px; color: var(--ds-ink3); margin-top: 2px; }
+  .lm-tile.changed .lm-tile-txt span { color: var(--u-ink); font-weight: 700; }
+  .lm-panel { margin-top: 8px; padding: 10px 12px 12px; border-radius: 10px; border: 1.5px solid var(--u); background: var(--ds-card); animation: lm-panel .22s ease-out both; }
+  @keyframes lm-panel { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .lm-panel-text { font-size: 14.5px; line-height: 1.4; color: var(--ds-ink2); margin-bottom: 9px; }
+  .lm-caption { font-size: 13.5px; color: var(--ds-ink3); margin-top: 7px; text-align: center; }
+  .lm-caption b { color: var(--ds-ink); }
+  .lm-steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; border: 1.5px solid var(--ds-rule2); border-radius: 10px; overflow: hidden; background: var(--ds-card2); }
+  .lm-steps button { min-height: 42px; border: none; border-left: 1px solid var(--ds-rule2); background: none; color: var(--ds-ink2); font: 700 14px var(--ds-mono); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+  .lm-steps button:first-child { border-left: none; }
+  .lm-steps button[aria-checked="true"] { background: var(--u); color: #fff; }
+  .lm-steps button:focus-visible, .lm-tile:focus-visible, .lm-chip:focus-visible, .lm-news-btn:focus-visible, .lm-switch:focus-visible { outline: 3px solid var(--ds-focus, var(--u)); outline-offset: 2px; }
+  .lm-price .lm-scale { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; color: var(--ds-ink3); }
+  .lm-price .lm-scale b { font-size: 16px; color: var(--u-ink); }
+  .lm-news-list { display: grid; gap: 6px; }
+  .lm-news-btn { display: flex; align-items: center; gap: 8px; text-align: left; padding: 9px 11px; border-radius: 8px; border: 1.5px solid var(--ds-rule2); background: var(--ds-card); cursor: pointer;
+    font: 600 14px/1.3 var(--ds-news, var(--ds-head)); color: var(--ds-ink); }
+  .lm-news-btn[aria-pressed="true"] { border-color: var(--u); background: color-mix(in srgb, var(--u) 9%, var(--ds-card)); }
+  .lm-switch { display: flex; align-items: center; gap: 10px; background: none; border: none; padding: 4px 0; cursor: pointer; font: 600 14.5px var(--ds-sans); color: var(--ds-ink); }
+  .lm-switch .knob { position: relative; width: 40px; height: 24px; border-radius: 999px; background: var(--ds-rule2); transition: background .2s; flex-shrink: 0; }
+  .lm-switch .knob::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .2s; }
+  .lm-switch[aria-checked="true"] .knob { background: var(--u); }
+  .lm-switch[aria-checked="true"] .knob::after { transform: translateX(16px); }
+  .lm-chips-wrap { margin-top: 12px; }
+  .lm-chips-head { font: 700 12px var(--ds-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ds-ink3); margin-bottom: 6px; }
+  .lm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .lm-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 5px 11px; border-radius: 999px; border: 1px dashed var(--ds-rule2); background: none; cursor: pointer;
+    font: 600 13px var(--ds-sans); color: var(--ds-ink3); }
+  .lm-chip.got { border-style: solid; color: var(--ds-ok-ink); background: var(--ds-ok-bg); border-color: color-mix(in srgb, var(--ds-ok) 40%, transparent); }
+  .lm-chip.on { border-color: var(--u); color: var(--ds-ink); }
+  .lm-chip-note { margin-top: 7px; font-size: 14px; line-height: 1.4; color: var(--ds-ink2); padding: 8px 11px; border-radius: 8px; background: var(--ds-card2); animation: lm-panel .2s ease-out both; }
+  .lm-empty { display: flex; gap: 12px; align-items: center; margin: 10px 0 4px; }
+  .lm-ghost { width: 120px; flex-shrink: 0; }
+  .lm-thumb { flex-shrink: 0; border-radius: 6px; background: var(--ds-card2); }
+  .ln-fold-prog { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+  .ln-fold-bar { display: block; flex: 1; height: 5px; border-radius: 99px; background: var(--ds-rule); overflow: hidden; max-width: 140px; }
+  .ln-fold-bar i { display: block; height: 100%; background: var(--u); border-radius: 99px; }
+  @media (prefers-reduced-motion: reduce) { .lm-pulse, .lm-panel, .lm-chip-note { animation: none !important; } .lm-ring .fg { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .lm-line { animation: none !important; stroke-dashoffset: 0 !important; } }
+`;
 
 /* ------------------------------ УЛИЦА ------------------------------
    Улица у «Торговой»: вход в метро, «Зерно» посередине и две соседние кофейни (на рынке их
@@ -220,7 +313,7 @@ export function DiscoverDay({ card, onDone, body, foot }) {
 const PART_ICON = { demand: TrendingDown, income: Wallet, tea: Leaf, supply: Factory, grain: Wheat, ceiling: ArrowDownToLine, news: Newspaper, trace: Spline, board: LayoutGrid, seal: BadgeCheck, elastic: Gauge };
 const CONTROL = new Set(['income', 'tea', 'grain', 'ceiling', 'news', 'trace', 'elastic']);
 const isControl = (id, open) => CONTROL.has(id) || (id === 'demand' && !open.has('supply'));
-
+const D_INK = '#3E6FA8'; const S_INK = '#C0602A';
 const r1 = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 
 // плавный переход чисел: кривые и точка равновесия перетекают за ~0,4 с; «уменьшить движение» — сразу
@@ -529,7 +622,16 @@ export function MarketModel({ unitId, learn, testid = 'unit-model' }) {
 }
 
 /* Миниатюра модели для свёрнутой строки на Пути: кривые и точка — без чисел */
-export { ModelThumb } from './learn-model-thumb.jsx';
+export function ModelThumb({ supply = true, empty = false }) {
+  return (
+    <svg className="lm-thumb" viewBox="0 0 64 44" width="64" height="44" aria-hidden="true">
+      <path d="M6,4 V38 H60" fill="none" stroke="var(--ds-rule2)" strokeWidth="1.5" />
+      <path d="M10,8 L56,36" fill="none" stroke={D_INK} strokeWidth="3" strokeLinecap="round" strokeOpacity={empty ? 0.3 : 1} strokeDasharray={empty ? '4 4' : undefined} />
+      {supply && <path d="M10,34 L56,10" fill="none" stroke={S_INK} strokeWidth="3" strokeLinecap="round" strokeOpacity={empty ? 0.3 : 1} strokeDasharray={empty ? '4 4' : undefined} />}
+      {!empty && supply && <circle cx="33" cy="22" r="3.6" fill="var(--ds-ink)" stroke="var(--ds-card)" strokeWidth="1.2" />}
+    </svg>
+  );
+}
 
 /* ------------------------------ ДОМИНО ------------------------------
    Сверху новость «Вестника», ниже — сцена (график и улица), пустые звенья и колода. Ученик
@@ -537,7 +639,45 @@ export { ModelThumb } from './learn-model-thumb.jsx';
    стрелка цены или количества, люди на улице); неверное — домино падает с этого места, под
    цепочкой разбор, почему звено не следует из предыдущего, и ученик продолжает с верного места.
    Когда цепочка собрана, задание проверяется само (onSubmit). */
-export { DOMINO_CSS } from './learn-styles.js';
+export const DOMINO_CSS = `
+  /* сцена «Домино» прилипает к верху: выкладывая звенья внизу, ученик видит, что они делают */
+  .lm-scene { position: sticky; top: 0; z-index: 1; background: var(--ds-paper); padding-bottom: 2px; }
+  .lm-scene .lm-chart { max-width: 290px; margin-bottom: 0; }
+  .lm-scene .lm-street { max-width: 260px; margin: 0 auto 4px; }
+  .lm-news { border: 1px solid var(--ds-rule2); background: var(--ds-card); padding: 8px 12px 10px; text-align: center; margin-bottom: 8px; }
+  .lm-news-mast { font: 700 12px var(--ds-news); letter-spacing: .22em; text-transform: uppercase; border-bottom: 3px double var(--ds-ink2); padding-bottom: 4px; margin-bottom: 6px; color: var(--ds-ink2); }
+  .lm-news-head { font: 700 19px/1.25 var(--ds-news); }
+  .lm-chain { display: grid; gap: 6px; margin: 8px 0; counter-reset: dom; }
+  .lm-slot { position: relative; display: flex; align-items: stretch; min-height: 44px; border: 1.5px dashed var(--ds-rule2); border-radius: 5px; background: none; overflow: visible; }
+  .lm-slot .n { width: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font: 700 14px var(--ds-mono); color: var(--ds-ink3); border-right: 1.5px dashed var(--ds-rule2); }
+  .lm-slot .t { flex: 1; padding: 8px 10px; font-size: 15px; line-height: 1.35; color: var(--ds-ink3); display: flex; align-items: center; }
+  .lm-slot.on { border: 1.5px solid var(--ds-ink2); background: var(--ds-card); box-shadow: 0 2px 0 var(--ds-shade); }
+  .lm-slot.on .n { color: var(--u-ink); border-right: 1.5px solid var(--ds-ink2); }
+  .lm-slot.on .t { color: var(--ds-ink); }
+  .lm-slot.on.fresh { animation: lm-set .32s ease-out; }
+  @keyframes lm-set { from { transform: translateY(-8px) rotate(-2deg); opacity: .4 } to { transform: none; opacity: 1 } }
+  .lm-fall { position: absolute; inset: -1.5px; display: flex; align-items: center; border: 1.5px solid var(--ds-bad); border-radius: 5px; background: var(--ds-card); padding: 8px 10px 8px 44px; font-size: 15px;
+    transform-origin: 0% 100%; animation: lm-fall .7s ease-in forwards; pointer-events: none; z-index: 2; }
+  @keyframes lm-fall { 0% { transform: none; opacity: 1 } 45% { transform: rotate(-14deg) translateY(4px); opacity: 1 } 100% { transform: rotate(-70deg) translateY(30px); opacity: 0 } }
+  .lm-deck { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 6px; }
+  .lm-card { font: 14.5px/1.3 var(--ds-sans); text-align: left; padding: 9px 11px; border-radius: 4px; border: 1px solid var(--ds-rule2); border-bottom-width: 2px; background: var(--ds-card); color: var(--ds-ink); cursor: pointer; max-width: 100%; }
+  .lm-card:disabled { cursor: default; }
+  .lm-card.gone { text-decoration: line-through; color: var(--ds-ink3); background: none; border-style: dashed; }
+  .lm-done { border-left: 3px solid var(--ds-ok); background: var(--ds-ok-bg); color: var(--ds-ok-ink); font-weight: 700; padding: 8px 10px; font-size: 15px; margin: 6px 0; }
+  .lm-why { border-left: 3px solid var(--ds-sel-rule); background: color-mix(in srgb, var(--ds-sel-rule) 12%, var(--ds-card)); padding: 8px 10px; font-size: 14.5px; line-height: 1.4; margin: 6px 0; }
+  @media (prefers-reduced-motion: reduce) { .lm-slot.on.fresh, .lm-fall { animation: none !important; } .lm-fall { display: none; } }
+  /* домино на широком экране — в две колонки: слева сцена (график и улица), справа цепочка и колода.
+     В одну колонку урок с увеличением не влезал в экран 1920×1080 (отчёт mvmfcaud) */
+  @media (min-width: 1000px) {
+    .ln-inner:has(> .lm-dom) { max-width: 980px; }
+    .lm-dom { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); column-gap: 22px; align-items: start; }
+    .lm-dom > .lm-news, .lm-dom > .lm-dom-prompt { grid-column: 1 / -1; }
+    .lm-dom > .lm-scene { grid-column: 1; grid-row: span 4; position: sticky; top: 0; }
+    .lm-dom > .lm-chain, .lm-dom > .lm-done, .lm-dom > .lm-why, .lm-dom > .lm-deck { grid-column: 2; }
+    .lm-dom > .lm-chain { margin-top: 0; }
+    .lm-dom > .lm-deck { justify-content: flex-start; }
+  }
+`;
 // сцена «Домино»: что сделали звенья, выложенные до сих пор
 function dominoScene(inst, placed) {
   const effects = placed.flatMap((k) => (inst.deck.find((c) => c.key === k) || {}).effects || []);

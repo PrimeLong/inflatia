@@ -75,12 +75,8 @@ export function createAudioEngine(options = {}) {
   const testFiles = typeof window !== 'undefined' && window.__INFLATIA_TEST__ && Array.isArray(window.__INFLATIA_MUSIC_FILES__) ? window.__INFLATIA_MUSIC_FILES__ : [];
   const musicFiles = new Set(options.musicFiles || (options.context ? [] : [...MUSIC_FILES, ...testFiles]));
   const fetchMusic = options.fetchMusic || ((url) => fetch(url).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); }));
-  const fileBufs = {}; const fileBroken = {}; const fileReady = {};
-  let fileSrc = null; let fileEnd = 0; let fileFor = null; let fileToken = 0; let fileGain = null; let fileStart = 0; let fileFading = false; let xfades = 0;
-  /* переход между записями (пункт владельца 15.11: «треки заранее прогружались, чтобы не было тишины, плавно затухала
-     и плавно начиналась следующая»): следующая запись плейлиста грузится, пока играет эта; за XFADE секунд до конца
-     старая затухает, новая входит поверх неё */
-  const XFADE = 4;
+  const fileBufs = {}; const fileBroken = {};
+  let fileSrc = null; let fileEnd = 0; let fileFor = null; let fileToken = 0;
   const fileTrack = (id) => musicFiles.has(id) && !fileBroken[id];
   // уровень пьесы: поправка из замера громкости (scripts/loudness.mjs)
   const songLevel = (t) => (options.trackGain === false ? 1 : Math.pow(10, (TRACK_GAIN_DB[t.id] || 0) / 20));
@@ -867,37 +863,23 @@ export function createAudioEngine(options = {}) {
       fileBufs[id] = fetchMusic(`/music/${id}.mp3`).then((ab) => new Promise((res, rej) => {
         // старый Safari умеет decodeAudioData только с колбэками
         try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); } catch (err) { rej(err); }
-      })).then((buf) => { fileReady[id] = buf; return buf; });
-      fileBufs[id].catch(() => { fileBroken[id] = true; delete fileBufs[id]; });
+      }));
     }
     return fileBufs[id];
   };
-  // следующая пьеса плейлиста (без перехода к ней)
-  const peekNext = () => { const list = listOf(lockedMood || mood); return list[(playlistIdx + 1) % list.length]; };
-  // заранее — следующую запись: к концу этой она уже декодирована
-  const prefetchNext = () => { const id = peekNext(); if (id && fileTrack(id)) loadFile(id).catch(() => {}); };
   const stopFile = (at) => {
     fileToken += 1;
     if (fileSrc) { const src = fileSrc; try { src.stop(Math.max(now(), at || 0)); } catch { /* уже остановлена */ } }
-    fileSrc = null; fileFor = null; fileEnd = 0; fileGain = null;
-  };
-  // источник записи со своей громкостью: на переходах затухает он сам, а не общая шина пьесы
-  const playBuf = (buf, at, from = 1) => {
-    const src = ctx.createBufferSource(); src.buffer = buf;
-    const g = ctx.createGain(); g.gain.setValueAtTime(from, at);
-    src.connect(g); g.connect(songBus);
-    src.start(at);
-    return { src, g };
+    fileSrc = null; fileFor = null; fileEnd = 0;
   };
   const startFile = (id, t) => {
     stopFile(t);
     const token = fileToken; fileFor = id; fileEnd = Infinity;
     loadFile(id).then((buf) => {
       if (token !== fileToken || !running || !ctx || track.id !== id) return;
+      const src = ctx.createBufferSource(); src.buffer = buf; src.connect(songBus);
       const at = Math.max(now() + 0.05, t);
-      const { src, g } = playBuf(buf, at);
-      fileSrc = src; fileGain = g; fileStart = at; fileEnd = at + buf.duration; fileFading = false; notify();
-      prefetchNext();
+      src.start(at); fileSrc = src; fileEnd = at + buf.duration; notify();
     }).catch(() => {
       // файл не загрузился — та же пьеса синтезом, с начала такта
       fileBroken[id] = true; delete fileBufs[id];
@@ -927,28 +909,8 @@ export function createAudioEngine(options = {}) {
     }
     // запись этой пьесы ещё не идёт (музыку только включили, пьесу выбрали заново) — с начала
     if (fileFor !== track.id) { startFile(track.id, t + 0.06); return true; }
-    // конец записи: следующая запись уже загружена — входит поверх затухающей старой; иначе старая затухает к концу
-    const lead = Math.min(XFADE, Math.max(0.3, (fileEnd - (fileStart || 0)) / 4));
-    if (fileSrc && t > fileEnd - lead) {
-      const end = fileEnd; const old = fileSrc; const oldGain = fileGain;
-      const next = peekNext();
-      if (next && fileTrack(next) && fileReady[next] && next !== track.id) {
-        advancePlaylist(true); pending = null;
-        const at = t + 0.05; const dur = Math.max(0.5, end - at);
-        if (oldGain) { oldGain.gain.cancelScheduledValues(at); oldGain.gain.setValueAtTime(1, at); oldGain.gain.linearRampToValueAtTime(0.0001, at + dur); }
-        try { old.stop(at + dur + 0.1); } catch { /* уже остановлена */ }
-        setTrack(next);
-        fileToken += 1; fileFor = next;
-        const { src, g } = playBuf(fileReady[next], at, 0.0001);
-        g.gain.linearRampToValueAtTime(1, at + dur);
-        if (songBus) { songBus.gain.cancelScheduledValues(at); songBus.gain.setValueAtTime(Math.max(0.0001, songBus.gain.value), at); songBus.gain.linearRampToValueAtTime(songLevel(track), at + dur); }
-        fileSrc = src; fileGain = g; fileStart = at; fileEnd = at + fileReady[next].duration; xfades += 1;
-        notify(); prefetchNext();
-        return true;
-      }
-      if (oldGain && !fileFading) { fileFading = true; oldGain.gain.cancelScheduledValues(t); oldGain.gain.setValueAtTime(1, t); oldGain.gain.linearRampToValueAtTime(0.0001, end); }
-      if (t < end - 0.3) return true;
-      fileFading = false;
+    if (fileSrc && t > fileEnd - 0.3) {
+      const end = fileEnd;
       advancePlaylist(true);
       const id = pending; pending = null;
       nextTime = Math.max(t + 0.06, end);

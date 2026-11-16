@@ -7,7 +7,6 @@
    считается при сборке (scripts/voice-files-plugin.js). Модуль чистый: его читают урок
    (src/learn-feed.jsx), скрипт выгрузки и тесты. */
 import { speechText } from './voices.js';
-import { sayNumbers } from './say-numbers.js';
 import VOICE_FILES from 'virtual:voice-files';
 
 // FNV-1a, 32 бита
@@ -16,11 +15,8 @@ const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i += 1) {
 const norm = (text) => String(text).normalize('NFC').replace(/\s+/g, ' ').trim();
 // имя файла: герой и 7 знаков от текста (masha-0k3x9qa) — коротко, чтобы удобно было называть записи
 export const voiceId = (who, text) => `${who}-${fnv(`${who}\n${norm(text)}`).toString(36).padStart(7, '0')}`;
-/* текст для сервиса озвучки: «кр.» — «крон», без знаков ударения (их сервисы пишут по-своему), числа и знаки — словами
-   (src/learn/say-numbers.js; пункт владельца 15.11: нейросеть плохо читает цифры — «не 9, а девять») */
-export const ttsText = (text) => sayNumbers(speechText(norm(text)).say.replace(/\u0301/g, ''));
-// запись сделана по тексту с цифрами — её нужно перезаписать (сюжеты, уже перезаписанные, — в voice/rerecorded.txt)
-export const needsRerecord = (text, recorded, rerecorded = new Set(), id = '') => recorded && /\d/.test(text) && !rerecorded.has(id);
+// текст для сервиса озвучки: разряды склеены, «кр.» — «крон», без знаков ударения (их сервисы пишут по-своему)
+export const ttsText = (text) => speechText(norm(text)).say.replace(/\u0301/g, '');
 
 const RECORDED = new Set(VOICE_FILES);
 /* Автотест (Playwright) настоящих записей не слышит — у него голос браузера, как и без записей; со

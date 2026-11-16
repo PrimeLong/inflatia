@@ -5,8 +5,6 @@ import { defineConfig, devices } from '@playwright/test';
    рисуется, а на телефоне ничего не уезжает вбок. Тесты гоняются по
    собранному сайту (vite preview), как его увидит игрок. Серверных функций
    (api/) в preview нет — тесты подставляют ответы сами. */
-// порт сервера — 4173; другой (E2E_PORT) нужен, когда на этой машине уже идёт прогон другой копии репозитория
-const PORT = Number(process.env.E2E_PORT || 4173);
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.e2e\.js$/,
@@ -15,7 +13,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: `http://localhost:${PORT}`,
+    baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
     // service worker (офлайн) перехватывал бы подставленные ответы api — его проверяет свой тест
     serviceWorkers: 'block',
@@ -28,12 +26,12 @@ export default defineConfig({
     /* iPhone в WebKit (Safari): главные сценарии — вход, Путь и урок, навигация, партия. Нужен
        установленный WebKit (npx playwright install webkit); в CI ставится вместе с Chromium.
        Локально без него: npx playwright test --project=desktop --project=phone */
-    { name: 'webkit', use: { ...devices['iPhone 13'] }, testMatch: /(app|path|lesson|world)\.e2e\.js$/,
+    { name: 'webkit', use: { ...devices['iPhone 13'] }, testMatch: /smoke\.e2e\.js$/,
       grep: /меню открывается|навигация: у каждого экрана|путь: карточка урока|путь: повтор пройденного урока|одиночная партия: квартал проходит|вход: экраны до входа/ },
   ],
   webServer: {
-    command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
+    command: 'npm run build && npx vite preview --port 4173 --strictPort',
+    url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
   },

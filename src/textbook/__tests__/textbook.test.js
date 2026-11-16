@@ -172,10 +172,10 @@ describe('разметка методики: цели, итоги, вопрос�
 describe('оглавление', () => {
   it('микро и макро — все главы из программы; блок микро готов, кроме заготовок «в работе»', () => {
     expect(CHAPTERS.filter((c) => c.part === 'micro').map((c) => c.id))
-      .toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'household', 'market-failures']);
+      .toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures']);
     expect(CHAPTERS.filter((c) => c.part === 'macro').map((c) => c.id))
       .toEqual(['gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth', 'open-economy', 'public-debt', 'inequality']);
-    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'household', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
+    expect(READY.map((c) => c.id)).toEqual(['scarcity', 'supply-demand', 'consumer', 'elasticity', 'production', 'costs', 'competition-monopoly', 'monopolistic', 'oligopoly', 'labor', 'market-failures', 'gdp', 'money-banks', 'inflation', 'is-lm', 'ad-as', 'phillips', 'policy', 'growth']);
     // блок микро готов целиком: «Производство» (юнит «Завод») написано 5 ноября 2026
     expect(CHAPTERS.filter((c) => c.part === 'micro' && c.status !== 'ready').map((c) => c.id)).toEqual([]);
   });
@@ -373,13 +373,6 @@ describe('структура готовых глав', () => {
 /* Ответы пересчитаны здесь заново — формулой, а не копией числа из главы. Если в
    условии поменяют число, а ответ забудут, тест упадёт. */
 const INDEPENDENT = {
-  // «Доходы, расходы и сбережения» — остаток бюджета, срок накопления и сложный процент перебором по годам
-  'household-budget': () => { const save = 12000 - 8500 - 2000; let n = 0; let got = 0; while (got < 6000) { got += save; n += 1; } return [save, n]; },
-  'household-deposit': () => { let s = 1000; const out = []; for (let y = 0; y < 2; y += 1) { s += s / 10; out.push(s); } return out; },
-  'household-cushion': () => 7000 + 7000 + 7000,
-  'household-double': () => [10, 6].map((r) => Math.round(72 / r)),
-  'household-goal': () => { const save = 15000 - 10000 - 3500; return [9000 / save, 9000 / 3 - save]; },
-  'household-race': () => { let a = 1000; let ya = 0; while (a < 2000) { a *= 1.06; ya += 1; } let b = 1000; let yb = 0; while (b < 2000) { b += 120; yb += 1; } return [ya, yb]; },
   // производство (юнит «Завод») — по таблице цеха, функции Кобба — Дугласа и правилу K/L = w/r
   'production-mp': () => { const Q = [0, 10, 24, 36, 44]; return [Q[4] - Q[3], Q[4] / 4]; },
   'production-returns': () => [10 * Math.sqrt(4 * 9), 10 * Math.sqrt(8 * 18)],
@@ -1280,7 +1273,7 @@ const studySecRecall = (ch) => CHAPTER_SECTIONS[ch].find((x) => x.recall).recall
 
 describe('итоговая проверка и задачи вперемешку', () => {
   const micro = CHAPTERS.filter((c) => c.part === 'micro' && c.status === 'ready');
-  it('проверка «Микро»: по два типа задач из каждой главы блока (12 глав — 24 задачи), соседние — из разных глав', () => {
+  it('проверка «Микро»: по два типа задач из каждой главы блока (11 глав — 22 задачи), соседние — из разных глав', () => {
     const blocks = examSet('micro', 12345);
     expect(blocks.length).toBe(2 * micro.length);
     expect(new Set(blocks.map((b) => b.template)).size).toBe(blocks.length);

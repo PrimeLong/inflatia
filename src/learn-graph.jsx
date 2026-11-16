@@ -4,9 +4,6 @@
    Внизу — одна мысль простыми словами, «Назад» и «Дальше»; в конце — вопрос на понимание и «+10 опыта»
    (один раз). Открывается остановкой на дороге юнита и кнопкой «Разобрать график по шагам» на карточке
    урока с этим графиком — тогда без опыта (peek), поверх урока. При «уменьшить движение» — без анимаций. */
-import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
-import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
-import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
@@ -16,7 +13,7 @@ import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView, graphCloze } from './learn/graphs.js';
-import { finishLesson, markGraph, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
+import { finishLesson, markGraph, countAnswers, markGem, hasGem } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -151,25 +148,6 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
   const view = alsoShow || alsoHide ? { ...view0, shown: new Set([...view0.shown, ...(alsoShow || [])].filter((id) => !(alsoHide || []).includes(id))) } : view0;
   const defaults = useMemo(() => Object.fromEntries((def.controls ? def.controls(g.attrs) : []).map((c) => [c.id, c.def])), [def, g.attrs]);
   const vals = useTweenValues({ ...defaults, ...view.values, ...live }, reduced || !!live);
-  /* подписи не прыгают, пока график едет (src/lib/glide.js; жалоба graph-moncomp: «что-то странное произошло с текстом
-     MR, когда двинулся график»): место подписи выбирается заново на каждый кадр, и, когда лучшим становится другое
-     место, подпись раньше перескакивала туда разом. Теперь она доезжает плавно. */
-  const glide = useRef(null); if (!glide.current) glide.current = newGlide();
-  const [, bumpGlide] = useState(0); const glideLoop = useRef(0); const glideT = useRef(0); const glideUsed = useRef([]);
-  useEffect(() => {
-    if (reduced) return;
-    glideKeep(glide.current, glideUsed.current);
-    if (glide.current.off.size && !glideLoop.current) {
-      glideT.current = performance.now();
-      const tick = (now) => {
-        const alive = glideDecay(glide.current, now - glideT.current); glideT.current = now;
-        glideLoop.current = alive ? requestAnimationFrame(tick) : 0;
-        bumpGlide((n) => n + 1);
-      };
-      glideLoop.current = requestAnimationFrame(tick);
-    }
-  });
-  useEffect(() => () => { if (glideLoop.current) cancelAnimationFrame(glideLoop.current); glideLoop.current = 0; }, []);
   const scene = sceneInCrowns(def.build(g.attrs, vals));
   const [x0, x1] = scene.xDomain; const [y0, y1] = scene.yDomain;
   const sx = (x) => M.l + ((x - x0) / (x1 - x0)) * (W - M.l - M.r);
@@ -212,26 +190,14 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
       return [{ x: x + 6, y: y - 8, anchor: 'start' }, { x: x - 6, y: y - 8, anchor: 'end' }, { x: x + 6, y: y + 16, anchor: 'start' }];
     });
   };
-  const labelList = [
+  const spots = placeLabels([
     ...view.marks.map((m, i) => ({ m, i })).filter(({ m }) => m.t === 'pt').map(({ m, i }) => {
       const c = aroundPoint(sx(m.x), sy(m.y));
       return { id: `m${i}`, text: m.label, size: 12.5, cands: m.below ? [c[2], c[3], ...c] : c };
     }),
     ...shownPts.filter(({ p }) => p.label).map(({ p, id }) => ({ id, text: p.label, size: p.small ? 12 : 14, cands: aroundPoint(sx(p.x), sy(p.y)) })),
     ...curveLabels.map((c) => ({ id: `c:${c.id}`, text: c.label, size: 14, cands: along(c) })),
-  ];
-  const spots = placeLabels(labelList, { fixed: [...fixedText, ...xTicks.map((t) => t.box), ...yTicks.map((t) => t.box), ...dots], lines, bounds: { x0: M.l + 2, x1: W - 2, y0: 2, y1: H - M.b - 2 } });
-  if (!reduced) {
-    glideUsed.current = [];
-    labelList.forEach((l) => {
-      const at = spots[l.id]; if (!at) return;
-      // считаем по левому краю надписи: смена выравнивания — тоже скачок
-      const w = String(l.text).length * l.size * 0.56 * (at.anchor === 'end' ? 1 : at.anchor === 'middle' ? 0.5 : 0);
-      const p = glideAt(glide.current, l.id, at.x - w, at.y);
-      glideUsed.current.push(l.id);
-      spots[l.id] = { ...at, x: p.x + w, y: p.y };
-    });
-  }
+  ], { fixed: [...fixedText, ...xTicks.map((t) => t.box), ...yTicks.map((t) => t.box), ...dots], lines, bounds: { x0: M.l + 2, x1: W - 2, y0: 2, y1: H - M.b - 2 } });
   return (
     <svg viewBox={vb || `0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}>
       <defs><clipPath id={clip}><rect x={M.l} y={M.t - 6} width={W - M.l - M.r + 6} height={H - M.t - M.b + 6} /></clipPath></defs>
@@ -352,31 +318,21 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
 
 export default function GraphLesson({ id, learn, update, onClose, peek = false, gem = false }) {
   const g = GRAPH_BY_ID[id];
-  // вышли посреди разбора — продолжаем с того же шага (learn-special.jsx); подсказка из урока (peek) — без этого
-  const resume = useSpecialResume('graph', id, gem);
-  const was = peek ? null : resumedState(resume);
-  const [resumed, setResumed] = useState(!!was);
-  const run = useAnswerRun(was ? was.run || 0 : 0);
-  const [k, setK] = useState(() => (was ? was.k : 0));
+  const [k, setK] = useState(0);
   const [replay, setReplay] = useState(0);
-  const [phase, setPhase] = useState(() => (was ? was.phase : 'tour')); // tour → quiz → done
-  const [order] = useState(() => (was && was.order ? was.order : g ? g.quiz.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5) : []));
-  const [picked, setPicked] = useState(() => (was ? was.picked : null));
-  const firstOk = useRef(was ? was.firstOk : null);
-  const activeMs = useActiveMs(was ? was.ms || 0 : 0);
+  const [phase, setPhase] = useState('tour'); // tour → quiz → done
+  const [order] = useState(() => (g ? g.quiz.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5) : []));
+  const [picked, setPicked] = useState(null);
+  const firstOk = useRef(null);
+  const started = useRef(Date.now());
   const root = useRef(null);
   const [already] = useState(() => isGraphDone(learn, id));
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты (не при подсказке из урока — peek)
   /* алмазный уровень: в тексте шага пропущено выделенное слово или число — выбрать из трёх; ошибка остаётся видна,
      можно выбрать снова, но алмаз — без единой ошибки (docs/mechanics.md, «Особые уроки юнита») */
   const cloze = useMemo(() => (gem && g ? graphCloze(g) : []), [gem, g]);
-  const [cz, setCz] = useState(() => (was ? was.cz || {} : {})); // шаг → выбранные варианты по порядку
-  const czMiss = useRef(new Set(was ? was.czMiss || [] : []));
-  useEffect(() => {
-    if (peek) return;
-    if (phase === 'done') { resume.drop(); return; }
-    if (k > 0 || phase !== 'tour' || Object.keys(cz).length) resume.save({ pos: k, k, phase, order, picked, firstOk: firstOk.current, cz, czMiss: [...czMiss.current], run: run.current(), ms: activeMs() });
-  }, [k, phase, picked, cz]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [cz, setCz] = useState({}); // шаг → выбранные варианты по порядку
+  const czMiss = useRef(new Set());
   // ПК с мышью: поля по бокам разбора — черновик, как в уроке (learn-sketch.jsx)
   const sketch = useMedia(SKETCH_QUERY);
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [k, phase]);
@@ -392,20 +348,15 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
     if (cOk) return;
     const ok = o === cq.term;
     if (!ok) czMiss.current.add(k);
-    run.answer(ok);
     Audio.play(ok ? 'coin' : 'down');
     setCz((m) => ({ ...m, [k]: [...(m[k] || []), o] }));
   };
   const pick = (i) => {
     if (answered) return;
     const ok = !!order[i].ok;
-    if (firstOk.current == null) { firstOk.current = ok; run.answer(ok); }
+    if (firstOk.current == null) firstOk.current = ok;
     Audio.play(ok ? 'coin' : 'down');
     setPicked(i);
-  };
-  const restart = () => {
-    Audio.play('paper'); resume.restart(); setResumed(false);
-    firstOk.current = null; czMiss.current = new Set(); setCz({}); setPicked(null); setPhase('tour'); setK(0);
   };
   const finish = () => {
     Audio.play('register');
@@ -416,14 +367,14 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       const qs = cloze.filter(Boolean).length;
       const ok = qs - czMiss.current.size + (firstOk.current ? 1 : 0); const all = qs + 1;
       const won = ok === all; const had = hasGem(learn, id);
-      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: Math.min(900, activeMs() / 1000), kind: 'graph', extra: { fresh: false } }), id) : addStudySeconds(t, activeMs() / 1000); };
+      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: false } }), id) : t; };
       const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy: (ok / all) * 100 });
-      setResult({ xp: won && !had ? GRAPH_XP : 0, right: ok, total: all, ms: activeMs(), diamond: true, won, replay: won && had, ...pay });
+      setResult({ xp: won && !had ? GRAPH_XP : 0, right: ok, total: all, ms: Date.now() - started.current, diamond: true, won, replay: won && had, ...pay });
     } else if (!peek && update) {
       const right = firstOk.current ? 1 : 0; const accuracy = firstOk.current ? 100 : 60;
-      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? addStudySeconds(t, activeMs() / 1000) : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, activeMs() / 1000), kind: 'graph', extra: { fresh: true } }), id); };
+      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? t : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, (Date.now() - started.current) / 1000), kind: 'graph', extra: { fresh: true } }), id); };
       const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy });
-      setResult({ xp: already ? 0 : GRAPH_XP, right, total: 1, accuracy, ms: activeMs(), replay: already, ...pay });
+      setResult({ xp: already ? 0 : GRAPH_XP, right, total: 1, accuracy, ms: Date.now() - started.current, replay: already, ...pay });
     }
     setPhase('done');
   };
@@ -441,7 +392,6 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
         <IconButton label="Закрыть" icon={X} data-testid="graph-close" onClick={() => { Audio.play('paper'); onClose(); }} />
         <div className="gl-title"><small>Разбор графика</small>{g.title}</div>
         {gem && <span className="gl-gem-tag" data-testid="graph-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
-        {!peek && <SpecialRun n={run.n} mood={run.mood} />}
         {/* «Ошибка?» — флажок с подписью (серый значок не замечали): шаг (или вопрос) и его текст уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({
           screen: 'graph', lesson: id, unit: g.unitId, kind: 'graph',
@@ -452,8 +402,6 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       </div>
       <div className="gl-bar" aria-hidden="true">{[...g.steps, null].map((_, i) => <i key={i} className={phase !== 'tour' || i <= k ? 'on' : ''} />)}</div>
       </div>
-      {!peek && <SpecialDesk learn={learn} />}
-      {!peek && <ResumeNote shown={resumed && phase !== 'done'} onRestart={restart} />}
       {phase === 'tour' && (
         <div className="gl-page">
           <div className="gl-stage">
@@ -523,6 +471,6 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       </div>
     </div>
   );
-  return peek ? body : <SpecialShell learn={learn}>{body}</SpecialShell>;
+  return body;
 }
 

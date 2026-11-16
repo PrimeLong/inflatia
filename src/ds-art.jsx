@@ -225,22 +225,6 @@ const B = {
       <path d="M70,89 q4,-2.4 8,0 t8,0 t8,0 t8,0 t8,0 t8,0" fill="none" stroke="currentColor" strokeWidth=".6" opacity=".7" />
     </>
   ),
-  // сберкасса (юнит «Доходы, расходы и сбережения»): дом с фронтоном и часами, крыльцо, вывеска-копилка с монетой
-  savings: (h) => (
-    <>
-      <rect x="22" y="40" width="76" height="42" fill={h.body} stroke="currentColor" strokeWidth="1.1" />
-      <path d="M16,42 L60,18 L104,42 Z" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth="1.1" />
-      <circle cx="60" cy="32" r="6" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".9" />
-      <path d="M60,28 L60,32 L63,33" fill="none" stroke="currentColor" strokeWidth=".8" />
-      {[28, 44, 70, 86].map((x) => <rect key={x} x={x - 4} y="48" width="10" height="12" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".7" />)}
-      <rect x="52" y="60" width="16" height="22" fill={h.hatch} stroke="currentColor" strokeWidth=".9" />
-      <path d="M46,82 L74,82 L71,78 L49,78 Z" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth=".8" />
-      <ellipse cx="38" cy="70" rx="8" ry="5.5" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".9" />
-      <path d="M33,74 L33,77 M43,74 L43,77" stroke="currentColor" strokeWidth=".9" />
-      <rect x="36" y="63" width="4" height="1.6" fill="currentColor" />
-      <circle cx="38" cy="59" r="2.4" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".7" />
-    </>
-  ),
   store: (h) => (
     <>
       <rect x="18" y="30" width="84" height="52" fill={h.body} stroke="currentColor" strokeWidth="1.1" />

@@ -20,22 +20,7 @@ export const REASONS = {
   visual: 'Что-то выглядит не так',
   broken: 'Не работает',
   filter: 'Фильтр не пропустил имя',
-  crash: 'Сбой экрана',
 };
-/* Сбой экрана (docs/mechanics.md, «Ошибки экрана»): страница сама сообщает о необработанной ошибке — без сессии, логина
-   и ника. Одинаковые сбои одной сборки складываются в одно сообщение со счётчиком n. С одного адреса — не больше
-   CRASH_PER_HOUR в час. */
-export const CRASH_PER_HOUR = 10;
-export const CRASH_KINDS = ['boundary', 'error', 'promise'];
-export function sanitizeCrash(body) {
-  const message = str(body.message, 300);
-  if (!message) return null;
-  const kind = CRASH_KINDS.includes(body.kind) ? body.kind : 'error';
-  const context = {};
-  [['screen', 80], ['build', 60], ['device', 200], ['viewport', 30]].forEach(([k, max]) => { const v = str(body[k], max); if (v) context[k] = v; });
-  const stack = str(body.stack, 1500);
-  return { reason: 'crash', kind, comment: stack ? `${message}\n${stack}` : message, context, sig: `${context.build || ''}|${message}|${stack.split('\n')[1] || ''}`.slice(0, 400) };
-}
 export const REPORTS_PER_HOUR = 20;
 const clientIp = (req) => String((req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || 'local').split(',')[0].trim();
 export const ownerLogins = () => String(process.env.OWNER_LOGINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -76,17 +61,6 @@ async function handleRequest(req, res) {
     const entry = { id: `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`, at: Date.now(), login: login || '—', name: name || '—', status: 'new',
       reason: 'filter', comment: 'Фильтр грубых слов не пропустил имя или логин — проверьте, не ошибка ли', context: { screen: str(body.screen, 60) || 'register' } };
     await setReport(entry);
-    return res.status(200).json({ ok: true });
-  }
-
-  if (action === 'crash') {
-    if (await hit(`crash:${clientIp(req)}`, 3600) > CRASH_PER_HOUR) return res.status(429).json({ error: 'Слишком часто' });
-    const c = sanitizeCrash(body);
-    if (!c) return res.status(400).json({ error: 'Пустое сообщение' });
-    // тот же сбой той же сборки — одно сообщение: счётчик и время последнего
-    const same = (await getReports()).find((r) => r.reason === 'crash' && r.sig === c.sig && r.status !== 'done');
-    if (same) await setReport({ ...same, n: (same.n || 1) + 1, at: Date.now() });
-    else await setReport({ id: `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`, at: Date.now(), login: '—', name: '—', status: 'new', n: 1, ...c });
     return res.status(200).json({ ok: true });
   }
 

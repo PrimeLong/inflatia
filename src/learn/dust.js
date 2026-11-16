@@ -8,49 +8,25 @@
    кистью. Чистая клетка — пыли меньше DUST.thr; витрина засчитана (монеты), когда чистых DUST.clean, а «Блестит!» —
    когда чистое всё стекло: дотереть до 100% можно по желанию. За один
    проход середина ещё мутная — нужно пройтись дважды: в этом и есть «тереть». Модуль чистый. */
-import { earn, hasClaim, shopDay, balance } from './rewards.js';
+import { earn, hasClaim, shopDay } from './rewards.js';
 import { dayOf } from '../textbook/learn-state.js';
 
 // 2 монеты за витрину, до пяти витрин в день (было 3 × 3) — docs/mechanics.md, «Лавка»
 export const DUST = { coins: 2, perDay: 5, clean: 0.9, wipe: 0.65, thr: 0.25 };
 
 export const dustKey = (day, n) => `dust:${day}:${n}`;
-
-/* УЛУЧШЕНИЕ «МИКРОФИБРА» (пункт владельца 15.11: «одно улучшение на твой выбор, чтобы купить и через какое-то
-   время окупить временем или производительностью»). Покупается один раз за CLOTH.price монет и даёт два плюса:
-   тряпка шире (CLOTH.rag — радиус мазка) и стирает сильнее (CLOTH.wipe) — витрина протирается быстрее; и одна
-   оплачиваемая витрина в день сверх пяти — +DUST.coins монет в день. Окупается за CLOTH.price / DUST.coins = 12
-   дней, когда протираешь все витрины дня; что уже вернула — clothReturn (монеты за шестые витрины). */
-export const CLOTH = { id: 'dust-cloth', price: 24, extra: 1, rag: 1.45, wipe: 0.8 };
-export const hasCloth = (s) => !!((s && s.owned) || {})[CLOTH.id];
-export const dustPerDay = (s) => DUST.perDay + (hasCloth(s) ? CLOTH.extra : 0);
-// мазок: радиус (доля ширины стекла) и сила
-export const dustRag = (s) => (hasCloth(s) ? { r: 0.085 * CLOTH.rag, wipe: CLOTH.wipe } : { r: 0.085, wipe: DUST.wipe });
-export const clothPaybackDays = () => Math.ceil(CLOTH.price / (DUST.coins * CLOTH.extra));
-// сколько монет микрофибра уже вернула: оплаченные витрины сверх пяти в день, начиная с покупки
-export function clothReturn(s) {
-  const at = ((s && s.owned) || {})[CLOTH.id]; if (!at) return 0;
-  return Object.keys(s.claimed || {}).filter((k) => { const m = /^dust:\d{4}-\d{2}-\d{2}:(\d+)$/.exec(k); return m && Number(m[1]) > DUST.perDay; }).length * DUST.coins;
-}
-export function buyCloth(s, now = Date.now()) {
-  if (hasCloth(s)) return { s, ok: false, reason: 'Микрофибра уже куплена' };
-  if (balance(s) < CLOTH.price) return { s, ok: false, reason: `Не хватает ${CLOTH.price - balance(s)} мон.` };
-  const day = dayOf(now);
-  return { s: { ...s, spent: { ...s.spent, [day]: ((s.spent || {})[day] || 0) + CLOTH.price }, owned: { ...s.owned, [CLOTH.id]: now } }, ok: true, price: CLOTH.price };
-}
-
 // сколько витрин уже оплачено сегодня и сколько ещё можно
 export function dustDone(s, now = Date.now()) {
   const day = dayOf(now);
   let n = 0;
-  for (let k = 1; k <= dustPerDay(s); k += 1) if (hasClaim(s, dustKey(day, k))) n += 1;
+  for (let k = 1; k <= DUST.perDay; k += 1) if (hasClaim(s, dustKey(day, k))) n += 1;
   return n;
 }
-export const dustLeft = (s, now = Date.now()) => dustPerDay(s) - dustDone(s, now);
+export const dustLeft = (s, now = Date.now()) => DUST.perDay - dustDone(s, now);
 // монеты за протёртую витрину — в первый свободный слот дня; все заняты — ничего
 export function dustClaim(s, now = Date.now()) {
   const day = dayOf(now);
-  for (let k = 1; k <= dustPerDay(s); k += 1) if (!hasClaim(s, dustKey(day, k))) return earn(s, DUST.coins, dustKey(day, k), now);
+  for (let k = 1; k <= DUST.perDay; k += 1) if (!hasClaim(s, dustKey(day, k))) return earn(s, DUST.coins, dustKey(day, k), now);
   return s;
 }
 // что под пылью: n-я витрина дня — n-я вещь витрины дня; всё уже куплено — Инфля без обновки

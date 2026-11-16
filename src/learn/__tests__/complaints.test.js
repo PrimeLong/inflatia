@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseBlocks } from '../../textbook/markdown.js';
 import { EXERCISES, LESSONS, instantiate, check } from '../course.js';
-import { makeVariant, TEMPLATES, seeded } from '../../textbook/variants.js';
+import { makeVariant } from '../../textbook/variants.js';
 
 // все строки-тексты разобранного узла: формулы ($…$) в них уже вынесены в узлы math
 const texts = (x, out = []) => {
@@ -12,55 +12,6 @@ const texts = (x, out = []) => {
 };
 
 describe('жалобы', () => {
-  it('«Нарисуй сам»: прибыль кофейни — между двумя отмеченными точками; новая ATC названа прямо (draw-moncomp, draw-costs)', async () => {
-    const { DRAW_BY_ID } = await import('../draws.js');
-    const { CHARTS, chartDefaults } = await import('../../textbook/charts.js');
-    const mon = DRAW_BY_ID['draw-moncomp'];
-    const k = mon.tasks.findIndex((t) => t.do === 'area');
-    // перед областью — шаг «отметьте ATC над 16 чашками»: нижний край прямоугольника виден
-    expect(mon.tasks[k - 1]).toMatchObject({ do: 'point', at: { x: 16, y: 51 } });
-    expect(mon.tasks[k].text).toMatch(/между двумя вашими точками/);
-    // 51 — и правда ATC модели при 16 чашках
-    const scene = CHARTS.moncomp.build(mon.attrs, chartDefaults('moncomp', mon.attrs));
-    const atc = scene.curves.find((c) => c.id === 'ATC').points;
-    const near = atc.reduce((b, p) => (Math.abs(p.x - 16) < Math.abs(b.x - 16) ? p : b));
-    expect(Math.abs(near.y - 51)).toBeLessThan(1.5);
-    const costs = DRAW_BY_ID['draw-costs'].tasks[3];
-    expect(costs.text).toMatch(/новой\*\* ATC/); expect(costs.text).toMatch(/бледной/);
-  });
-  it('pr-radio-robot: из условия ясно, что сборщикам не хватало рам, — ответ «поднимет» однозначен («не сказано, хватает ли станков»)', () => {
-    const ex = EXERCISES['pr-radio-robot'];
-    const all = `${ex.context} ${texts(ex.prompt).join(' ')}`;
-    expect(all).toMatch(/простаивали/);
-    expect(all).toMatch(/рам (не хватало|теперь хватает|хватает)/);
-    expect(texts(ex.explain).join(' ')).toMatch(/Если бы рам и раньше хватало/);
-  });
-  it('«Чтение» и «Персоналии»: вопрос не ссылается на график, которого на странице нет (read-brand, Сраффа: «каком графике»)', async () => {
-    const { READINGS } = await import('../reading.js');
-    const { PEOPLE_SETS } = await import('../people.js').then((m) => ({ PEOPLE_SETS: m.PEOPLE_SETS || m.PEOPLE || [] }));
-    const prompts = [];
-    READINGS.forEach((r) => r.pages.forEach((p) => prompts.push([`${r.id}: ${p.author}`, p.ask.prompt])));
-    (Array.isArray(PEOPLE_SETS) ? PEOPLE_SETS : []).forEach((g) => (g.people || []).forEach((p) => { if (p.ask) prompts.push([`${g.id}: ${p.name}`, p.ask.prompt]); }));
-    expect(prompts.length).toBeGreaterThan(20);
-    // «на графике» без пояснения, о каком графике речь (чей он или чего), — как будто он нарисован рядом
-    prompts.forEach(([who, q]) => expect(q, who).not.toMatch(/(^|\s)(на|На|по|По) (этом )?графике(?! фирмы| спроса| предложения| издержек| рынка| [А-ЯЁ])/));
-  });
-  it('расчёт-вариант на Пути: в условии, решении и ловушках нет «{,}» вне формул (ct-l1, var:v-costs-mcavg — «13{,}5 кр.»)', () => {
-    // так Путь заводит «трудные» расчёты уроков и проверки юнита (hard="var:…")
-    const vars = TEMPLATES.filter((t) => t.gen(seeded(1)).parts.length === 1).map((t) => ({ id: `var:${t.id}`, kind: 'calc', variant: t.id, lesson: null, unitId: t.chapter }));
-    expect(vars.length).toBeGreaterThan(30);
-    expect(vars.some((e) => e.variant === 'v-costs-mcavg')).toBe(true);
-    vars.forEach((e) => {
-      for (let seed = 1; seed <= 6; seed += 1) {
-        const inst = instantiate(e, seeded(seed));
-        const all = [...texts(inst.prompt), ...texts(inst.explain), ...inst.traps.map((t) => t.why)].join(' ');
-        expect(all, `${e.id} #${seed}`).not.toContain('{,}');
-      }
-    });
-    // у этой задачи решение — по шагам: откуда берётся ответ
-    const mc = instantiate(vars.find((e) => e.variant === 'v-costs-mcavg'), seeded(3));
-    expect(texts(mc.explain).join(' ')).toMatch(/На один дополнительный круассан/);
-  });
   it('«|» внутри формулы варианта — модуль, а не разделитель объяснения (el-q1-type)', () => {
     const [ex] = parseBlocks(':::ex choice id=t\nВопрос?\n+ Неэластичный: $|E| = 0{,}3 < 1$\n- Эластичный | Потому что $3/10$\n:::');
     expect(ex.options[0].text.find((n) => n.t === 'math').v).toBe('|E| = 0{,}3 < 1');
