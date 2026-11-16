@@ -92,9 +92,9 @@ describe('учебник по уровням курса: выше нынешне
     const { emptyLearn } = await import('../../textbook/learn-state.js');
     expect([...openBookLevels(emptyLearn())]).toEqual(['start']);
     expect([...openBookLevels(null)]).toEqual(['start']);
-    // Начальный — это «Ограниченность» и «Рынок труда»: сдан проверкой целиком — открыт Базовый
+    // Начальный — это «Ограниченность», «Рынок труда» и «Доходы, расходы и сбережения»: сдан проверкой целиком — открыт Базовый
     expect([...openBookLevels({ ...emptyLearn(), units: { scarcity: { tested: 1 } } })]).toEqual(['start']);
-    const passed = { ...emptyLearn(), units: { scarcity: { tested: 1 }, labor: { tested: 1 } } };
+    const passed = { ...emptyLearn(), units: { scarcity: { tested: 1 }, labor: { tested: 1 }, household: { tested: 1 } } };
     expect([...openBookLevels(passed)]).toEqual(['start', 'basic']);
     // открытое не закрывается: урок Базового пройден до выхода «Рынка труда» — Базовый открыт, хотя Путь вернулся в Начальный
     const before = { ...emptyLearn(), units: { scarcity: { tested: 1 } }, lessons: { 'sd-i1': { at: 1, runs: 1, best: 90 } } };
