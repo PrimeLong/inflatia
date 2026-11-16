@@ -1302,3 +1302,17 @@ test('«Нарисуй сам» — остановка за графиком ю�
   expect(await page.evaluate(() => !!JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.draws['draw-labor'])).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('новая сборка во время занятия: часть приложения не загрузилась — страница один раз перезагружается и открывается', async ({ page }) => {
+  // жалоба ученика 16.11, вечер: «Failed to fetch dynamically imported module: …/assets/learn-Mk-1KRoX.js» — экран падал
+  let blocked = 0; const reports = [];
+  await page.route(/\/assets\/learn-[\w-]+\.js$/, (r) => { if (blocked === 0) { blocked += 1; return r.abort(); } return r.continue(); });
+  page.on('request', (r) => { if (r.url().includes('/api/reports')) reports.push(r.postData()); });
+  let loads = 0; page.on('load', () => { loads += 1; });
+  await openApp(page, '/', '{}', { tab: 'path' });
+  await expect(page.getByTestId('bottom-nav')).toBeVisible({ timeout: 15000 });
+  expect(blocked).toBe(1);
+  expect(loads).toBeGreaterThanOrEqual(2);
+  await expect(page.getByText('Экран не открылся')).toHaveCount(0);
+  expect(reports.filter((p) => p && p.includes('"crash"'))).toEqual([]);
+});

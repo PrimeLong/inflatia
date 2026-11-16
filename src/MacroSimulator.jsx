@@ -16,6 +16,7 @@ import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './li
 import { router, useHistoryLayer } from './lib/route.js';
 import { TRACK } from './learn/track.js';
 import { reportCrash } from './lib/crash.js';
+import { isChunkError, reloadOnce } from './lib/chunk-reload.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -1103,14 +1104,18 @@ function CrashScreen({ error, onMenu }) {
 
 class ScreenErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(error) { return { error }; }
+  // на сайт выложили новую сборку, а старой части приложения уже нет — один раз перезагружаемся (src/lib/chunk-reload.js)
+  static getDerivedStateFromError(error) { return { error, reloading: isChunkError(error) && reloadOnce() }; }
   // сбой экрана — и владельцам, обезличенно (src/lib/crash.js)
-  componentDidCatch(error, info) { console.error('Экран упал:', error, info); reportCrash(error, 'boundary'); }
+  componentDidCatch(error, info) { if (this.state.reloading) return; console.error('Экран упал:', error, info); reportCrash(error, 'boundary'); }
   componentDidUpdate(prev) {
     // сменили экран — пробуем снова: ошибка была у того, который уже закрыт
-    if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null });
+    if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null, reloading: false });
   }
   render() {
+    if (this.state.error && this.state.reloading) {
+      return <div className="ems-root ems-hero-bg" role="status" data-testid="chunk-reloading" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: COLOR.muted, fontSize: 14 }}>Вышло обновление — открываем новую версию…</div>;
+    }
     if (this.state.error) return <CrashScreen error={this.state.error} onMenu={this.props.onMenu} />;
     return this.props.children;
   }

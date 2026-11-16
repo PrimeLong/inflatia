@@ -5,6 +5,8 @@
 
    Частота: не больше CRASH_PER_SESSION сообщений за одно открытие страницы и одна и та же ошибка — один раз;
    на сервере — свой предел по адресу. Ошибка в самом отчёте о сбое проглатывается: он не должен мешать учёбе. */
+import { isChunkError } from './chunk-reload.js';
+
 export const CRASH_PER_SESSION = 3;
 export const CRASH_API = '/api/reports';
 
@@ -69,6 +71,7 @@ export function reportCrash(error, kind = 'error') {
 export function installCrashHandlers(win = typeof window !== 'undefined' ? window : null) {
   if (!win || win.__emsCrash) return;
   win.__emsCrash = true;
-  win.addEventListener('error', (ev) => { if (ev && (ev.error || ev.message)) reportCrash(ev.error || { message: ev.message, stack: `${ev.filename || ''}:${ev.lineno || 0}` }, 'error'); });
-  win.addEventListener('unhandledrejection', (ev) => { reportCrash(ev && ev.reason, 'promise'); });
+  // новая сборка на сайте (старой части приложения уже нет) — не сбой: страница перезагрузится сама (src/lib/chunk-reload.js)
+  win.addEventListener('error', (ev) => { if (ev && (ev.error || ev.message) && !isChunkError(ev.error || ev.message)) reportCrash(ev.error || { message: ev.message, stack: `${ev.filename || ''}:${ev.lineno || 0}` }, 'error'); });
+  win.addEventListener('unhandledrejection', (ev) => { if (!isChunkError(ev && ev.reason)) reportCrash(ev && ev.reason, 'promise'); });
 }
