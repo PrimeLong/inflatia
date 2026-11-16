@@ -4,11 +4,11 @@
    Внизу — одна мысль простыми словами, «Назад» и «Дальше»; в конце — вопрос на понимание и «+10 опыта»
    (один раз). Открывается остановкой на дороге юнита и кнопкой «Разобрать график по шагам» на карточке
    урока с этим графиком — тогда без опыта (peek), поверх урока. При «уменьшить движение» — без анимаций. */
-import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
+import { SpecialShell, SpecialDesk, SpecialHead, SpecialLabel, useAnswerRun, useSpecialResume, resumedState } from './learn-special.jsx';
 import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw, Gem } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion, useMedia } from './ds-art.jsx';
@@ -355,7 +355,6 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
   // вышли посреди разбора — продолжаем с того же шага (learn-special.jsx); подсказка из урока (peek) — без этого
   const resume = useSpecialResume('graph', id, gem);
   const was = peek ? null : resumedState(resume);
-  const [resumed, setResumed] = useState(!!was);
   const run = useAnswerRun(was ? was.run || 0 : 0);
   const [k, setK] = useState(() => (was ? was.k : 0));
   const [replay, setReplay] = useState(0);
@@ -403,10 +402,6 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
     Audio.play(ok ? 'coin' : 'down');
     setPicked(i);
   };
-  const restart = () => {
-    Audio.play('paper'); resume.restart(); setResumed(false);
-    firstOk.current = null; czMiss.current = new Set(); setCz({}); setPicked(null); setPhase('tour'); setK(0);
-  };
   const finish = () => {
     Audio.play('register');
     // ответ на вопрос разбора — в задание дня «N верных ответов», и при повторе (docs/mechanics.md)
@@ -437,23 +432,22 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
     <div className="gl" ref={root} role="dialog" aria-label={`Разбор графика: ${g.title}`} data-testid="graph-lesson" data-id={id} data-phase={phase}>
       <style>{GRAPH_CSS}</style>
       <div className="gl-head">
-      <div className="gl-top">
-        <IconButton label="Закрыть" icon={X} data-testid="graph-close" onClick={() => { Audio.play('paper'); onClose(); }} />
-        <div className="gl-title"><small>Разбор графика</small>{g.title}</div>
-        {gem && <span className="gl-gem-tag" data-testid="graph-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
-        {!peek && <SpecialRun n={run.n} mood={run.mood} />}
-        {/* «Ошибка?» — флажок с подписью (серый значок не замечали): шаг (или вопрос) и его текст уходят в жалобу */}
+      {/* шапка как у урока: «✕», полоса прогресса по шагам и вопросу, молния «верно подряд» и Инфля (learn-special.jsx);
+         подсказка из урока (peek) — без серии */}
+      <SpecialHead closeLabel="Закрыть" closeTestid="graph-close" onClose={() => { Audio.play('paper'); onClose(); }} run={peek ? null : run}
+        total={n + 1}
+        answers={[...Array.from({ length: phase === 'tour' ? k : n }, (_, i) => !czMiss.current.has(i)), ...(firstOk.current != null ? [firstOk.current] : [])]} />
+      <SpecialLabel kind="Разбор графика" title={g.title} gem={gem} gemTestid="graph-gem-tag">
+        {/* «Сообщить об ошибке»: шаг (или вопрос) и его текст уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({
           screen: 'graph', lesson: id, unit: g.unitId, kind: 'graph',
           step: (phase === 'tour' ? `шаг ${k + 1} из ${n}` : phase === 'quiz' ? 'вопрос' : 'итог') + (gem ? ' (алмаз)' : ''),
           prompt: (phase === 'tour' ? g.steps[k].text : `${g.quiz.q} — ${g.quiz.options.map((o) => o.text).join(' / ')}`).replace(/\*\*/g, '').slice(0, 1500),
           answer: phase === 'quiz' && picked != null ? order[picked].text : '',
         })} />
-      </div>
-      <div className="gl-bar" aria-hidden="true">{[...g.steps, null].map((_, i) => <i key={i} className={phase !== 'tour' || i <= k ? 'on' : ''} />)}</div>
+      </SpecialLabel>
       </div>
       {!peek && <SpecialDesk learn={learn} />}
-      {!peek && <ResumeNote shown={resumed && phase !== 'done'} onRestart={restart} />}
       {phase === 'tour' && (
         <div className="gl-page">
           <div className="gl-stage">

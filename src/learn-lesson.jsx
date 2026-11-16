@@ -31,6 +31,7 @@ import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars, answerSound } from '.
 import { pickPhrase, situation, endKind } from './learn/voice.js';
 import { lessonOpts, weakLessons, courseCtx } from './learn/program.js';
 import { GainsList } from './learn-rewards.jsx';
+import { StreakFlame } from './learn-flame.jsx';
 import { saveResume, dropResume } from './learn/resume.js';
 import { Mascot } from './mascot.jsx';
 import { markTerms, termTitle, termText, termFormula, isWorldTerm } from './learn/terms.js';
@@ -660,37 +661,6 @@ function newPlan(run, learn) {
   if (run.mode === 'fix') return { items: buildFix(learn, run.unitId).items, cards: {} };
   return { items: buildPractice(practiceIds(learn), Math.random, { weak: weakLessons(learn).map((w) => w.id) }).items, cards: {} };
 }
-/* Верные ответы подряд — молния в шапке урока (огонёк — только серия дней, docs/mechanics.md, «Экономика
-   наград»). С третьего верного подряд: «⚡ 3» — значок и число, без подписи; серия бессрочная. Каждый новый верный ответ раздувает число и
-   выпускает «+1» (опыт за верные подряд); на 5, 10, 15… — вспышка искр. Ошибка — молния сереет, качается и
-   гаснет. plus — показывать «+1» (на повторе урока опыт почти не идёт). */
-function StreakFlame({ n, plus = true }) {
-  const [gone, setGone] = useState(0);
-  /* «+1» и искры — только когда серия выросла за ответ в этом уроке: урок, открытый с уже идущей серией дня,
-     показывает молнию с числом без «+1» (раньше «+1» выпрыгивал при открытии урока) */
-  const [grewTo, setGrewTo] = useState(null);
-  const prev = useRef(n);
-  useEffect(() => {
-    const was = prev.current; prev.current = n;
-    if (n > was) setGrewTo(n);
-    if (was >= XP.streakFrom && n === 0) { setGone(was); const t = setTimeout(() => setGone(0), 900); return () => clearTimeout(t); }
-    return undefined;
-  }, [n]);
-  const on = n >= XP.streakFrom;
-  if (!on && !gone) return null;
-  const shown = on ? n : gone;
-  const grew = grewTo === n;
-  const milestone = on && grew && n % 5 === 0;
-  return (
-    <span className={`ln-fire${on ? '' : ' out'}${milestone ? ' big' : ''}`} data-testid="lesson-streak" data-streak={shown} role="status" aria-label={`${shown} подряд верно`}>
-      <Zap size={15} className="ln-fire-ic" aria-hidden="true" />
-      <b key={shown}>{shown}</b>
-      {on && plus && grew && <span key={`p${n}`} className="ln-fire-plus" data-testid="lesson-streak-plus" aria-hidden="true">+1</span>}
-      {milestone && <span key={`s${n}`} className="ln-fire-sparks" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} style={{ '--a': `${i * 45}deg` }} />)}</span>}
-    </span>
-  );
-}
-
 function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false, backRef = { current: null } }) {
   const rs = run.resume || null;
   const [plan] = useState(() => (rs ? rs.plan : newPlan(run, learn)));

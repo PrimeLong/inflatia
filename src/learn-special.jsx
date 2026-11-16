@@ -4,12 +4,17 @@
    «Разбора графика» и «Нарисуй сам»:
      SpecialShell — тема урока из лавки (фон, палитра, отклик на ответ), как у урока;
      SpecialDesk  — украшение урока (гирлянда, мобиле — полосой под шапкой; колыбель — на подставке сбоку);
-     useAnswerRun + SpecialRun — серия верных ответов подряд с Инфлей в шапке (первая попытка каждого вопроса);
-     useSpecialResume — продолжить с того места, где вышли (сутки, на этом устройстве, как урок). */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Zap } from 'lucide-react';
-import { DsRoot } from './ds.jsx';
-import { InflaMeter, useMedia } from './ds-art.jsx';
+     useAnswerRun + SpecialHead — шапка как у обычного урока (пункт владельца 16.11: «структура особых уроков всё ещё не
+       обычная — по оформлению, по молнии и Инфле»): «✕», полоса прогресса из отрезков (верно — зелёный, ошибка — красный),
+       молния «верно подряд» с третьего ответа и Инфля; SpecialLabel — над заданием вид урока и флажок «Сообщить об ошибке»,
+       как «Выбор ответа» в уроке;
+     useSpecialResume — продолжить с того места, где вышли (сутки, на этом устройстве, как урок); «Продолжить» — кнопкой
+       в карточке урока, как у обычного урока, без полосы «Продолжаем…» внутри. */
+import { useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
+import { DsRoot, IconButton } from './ds.jsx';
+import { InflaMeter, ProgressChart, useMedia } from './ds-art.jsx';
+import { StreakFlame } from './learn-flame.jsx';
 import { LessonSkin, SKINS, SKIN_CSS, skinTheme, skinVars } from './learn-skins.jsx';
 import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer, DESK_QUERY } from './learn-decor.jsx';
 import { themeOf, deskOf } from './learn/rewards.js';
@@ -21,17 +26,15 @@ const CSS = `
   .sp-shell.sk-on > .pp-root, .sp-shell.sk-on > .rd-root, .sp-shell.sk-on > .gl { background: transparent; }
   .sp-shell.sk-on .pp-top, .sp-shell.sk-on .rd-top { background: color-mix(in srgb, var(--ds-paper) 72%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
   .sp-desk { max-width: 640px; width: 100%; margin: 0 auto; padding: 0 14px; }
-  /* шапка не становится выше: Инфля с ниткой шарика свисает за строку, а не раздвигает её (на телефоне иначе низ графика уезжал под кнопки) */
-  .sp-run { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 40px; overflow: visible; }
+  /* шапка — как у урока (.ln-head из src/learn.jsx): колонка 592 px по центру; при прокрутке остаётся сверху */
+  .sp-top { position: sticky; top: 0; z-index: 3; background: color-mix(in srgb, var(--ds-paper) 90%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .sp-top .ln-head { padding-bottom: 6px; }
+  .sp-run { display: inline-flex; align-items: center; flex: none; height: 40px; overflow: visible; }
   .sp-run > :last-child { max-height: 40px; }
-  .sp-run b { display: inline-flex; align-items: center; gap: 2px; min-width: 26px; padding: 3px 7px; border-radius: 999px; font: 800 13px var(--ds-sans); font-variant-numeric: tabular-nums;
-    color: #7A4A00; background: #FFE08A; box-shadow: 0 0 0 1px rgba(122,74,0,.18); transition: transform .2s; }
-  .sp-run b.grew { animation: sp-pop .45s cubic-bezier(.3,1.6,.5,1); }
-  @keyframes sp-pop { 0% { transform: scale(.7) } 60% { transform: scale(1.2) } 100% { transform: none } }
-  .sp-resume { max-width: 640px; margin: 8px auto 0; padding: 8px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    border-radius: 14px; font: 14px/1.35 var(--ds-sans); color: var(--ds-ink2); background: color-mix(in srgb, var(--ds-gold, #B8860B) 12%, var(--ds-card)); }
-  .sp-resume button { border: none; background: none; padding: 4px 2px; font: 700 14px var(--ds-sans); color: var(--ds-accent, var(--ds-ink)); text-decoration: underline; cursor: pointer; }
-  @media (prefers-reduced-motion: reduce) { .sp-run b.grew { animation: none; } }
+  /* вид урока над заданием — как «Выбор ответа» в уроке */
+  .sp-label { max-width: 592px; margin: 6px auto 0; padding: 0 14px; display: flex; align-items: center; gap: 8px; }
+  .sp-label > span { flex: 1; min-width: 0; font: 800 11.5px/1.3 var(--ds-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ds-accent, var(--ds-ok)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sp-label .sp-gem { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; font: 800 11px var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: #fff; background: #3A8FB7; }
 `;
 
 // тема урока из лавки — как у обычного урока (learn-lesson.jsx); без темы — как было
@@ -56,30 +59,46 @@ export function SpecialDesk({ learn }) {
   return <div className="sp-desk" data-testid="special-desk"><style>{CSS}</style><DeskDecor id={desk} height={48} /></div>;
 }
 
-/* серия верных ответов подряд в этом уроке: засчитывается первая попытка вопроса; ошибка обнуляет. Ответ
-   слышат и украшение, и тема (tellAnswer) — колыбель щёлкает, гирлянда колышется, тема вспыхивает */
-export function useAnswerRun(start = 0) {
+/* серия верных ответов подряд в этом уроке: засчитывается первая попытка вопроса; ошибка обнуляет. log — первые попытки по
+   порядку (отрезки полосы прогресса). Ответ слышат и украшение, и тема (tellAnswer) — колыбель щёлкает, гирлянда
+   колышется, тема вспыхивает */
+export function useAnswerRun(start = 0, startLog = []) {
   const [n, setN] = useState(start);
   const [mood, setMood] = useState('hello');
-  const nRef = useRef(start);
+  const [log, setLog] = useState(() => (Array.isArray(startLog) ? startLog.map(Boolean) : []));
+  const nRef = useRef(start); const logRef = useRef(log);
   const answer = (ok) => {
     nRef.current = ok ? nRef.current + 1 : 0;
-    setN(nRef.current); setMood(ok ? 'joy' : 'cheer');
+    logRef.current = [...logRef.current, !!ok];
+    setN(nRef.current); setLog(logRef.current); setMood(ok ? 'joy' : 'cheer');
     tellAnswer(ok);
   };
-  return { n, mood, answer, current: () => nRef.current };
+  return { n, mood, log, answer, current: () => nRef.current, currentLog: () => logRef.current };
 }
 
-export function SpecialRun({ n, mood = 'hello' }) {
-  const prev = useRef(n);
-  const grew = n > prev.current;
-  useEffect(() => { prev.current = n; }, [n]);
+/* шапка особого урока — та же, что у урока: «✕», полоса прогресса (answers — верно/неверно по пройденным шагам, total — всего
+   шагов), молния «верно подряд» и Инфля. Без серии (подсказка из урока — peek) — только «✕» и полоса */
+export function SpecialHead({ closeLabel = 'Выйти из урока', closeTestid, onClose, answers = [], total, run = null }) {
   return (
-    <span className="sp-run" data-testid="special-run" data-n={n} aria-label={`Верных ответов подряд: ${n}`}>
+    <div className="sp-top" data-testid="special-head">
       <style>{CSS}</style>
-      {n > 0 && <b key={n} className={grew ? 'grew' : ''}><Zap size={12} aria-hidden="true" />{n}</b>}
-      <InflaMeter streak={n} mood={mood} size={30} />
-    </span>
+      <div className="ln-head">
+        <IconButton label={closeLabel} icon={X} data-testid={closeTestid} data-nav="back" onClick={onClose} />
+        <ProgressChart answers={answers} total={total} testid="special-progress" />
+        {run && <StreakFlame n={run.n} plus={false} />}
+        {run && <span className="sp-run" data-testid="special-run" data-n={run.n} aria-label={`Верных ответов подряд: ${run.n}`}><InflaMeter streak={run.n} mood={run.mood} size={34} /></span>}
+      </div>
+    </div>
+  );
+}
+// над заданием: вид урока и название («ЧТЕНИЕ · НАУКА О ВЫБОРЕ»), отметка «алмаз» и флажок «Сообщить об ошибке» справа
+export function SpecialLabel({ kind, title, gem = false, gemTestid, children = null }) {
+  return (
+    <div className="sp-label" data-testid="special-label">
+      <span>{kind} · {title}</span>
+      {gem && <b className="sp-gem" data-testid={gemTestid}>алмаз</b>}
+      {children}
+    </div>
   );
 }
 
@@ -98,16 +117,5 @@ export function useSpecialResume(kind, id, gem = false) {
 }
 // state = сохранённые данные урока или null
 export const resumedState = (r) => (r.saved && r.saved.special) || null;
-
-export function ResumeNote({ shown, onRestart }) {
-  if (!shown) return null;
-  return (
-    <div className="sp-resume" data-testid="special-resumed" role="status">
-      <style>{CSS}</style>
-      Продолжаем с того места, где вы остановились.
-      <button type="button" onClick={onRestart} data-testid="special-restart">Начать заново</button>
-    </div>
-  );
-}
 
 export const SPECIAL_CSS = CSS;

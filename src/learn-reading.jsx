@@ -2,12 +2,12 @@
    Страница книги: печать-монограмма автора, годы, книга и год, цитата антиквой — слова проступают, как
    чернила; ниже — контекст и вопрос. «Найдите в цитате»: слова цитаты нажимаются, верное место
    подчёркивается маркером. В конце — полка: прочитанная подборка встаёт книгой к остальным. */
-import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
+import { SpecialShell, SpecialDesk, SpecialHead, SpecialLabel, useAnswerRun, useSpecialResume, resumedState } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Check, BookOpen, ArrowRight, Gem } from 'lucide-react';
+import { Check, ArrowRight, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Button, IconButton } from './ds.jsx';
+import { Button } from './ds.jsx';
 import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho } from './learn/reading.js';
@@ -218,7 +218,6 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   // вышли посреди чтения — продолжаем с той же страницы, с теми же ответами (learn-special.jsx)
   const resume = useSpecialResume('read', id, gem);
   const was = resumedState(resume);
-  const [resumed, setResumed] = useState(!!was);
   const run = useAnswerRun(was ? was.run || 0 : 0);
   const [idx, setIdx] = useState(() => (was ? was.idx : 0));
   const [answers, setAnswers] = useState(() => (was ? was.answers : []));
@@ -254,7 +253,6 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     run.answer(!!a.ok);
     setAnswers((list) => { const next = [...list]; next[idx] = a; return next; });
   };
-  const restart = () => { Audio.play('paper'); resume.restart(); setResumed(false); setAnswers([]); setPicks({}); setWhoStage(false); setIdx(0); toTop(); };
   const next = () => {
     Audio.play('paper');
     if (idx + 1 < r.pages.length) { setIdx(idx + 1); toTop(); return; }
@@ -291,23 +289,20 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     <SpecialShell learn={learn}>
     <div className="rd-root" role="dialog" aria-modal="true" aria-label={`Чтение: ${r.title}`} data-testid="reading" data-id={r.id} data-gem={gem ? 'true' : undefined} style={style}>
       <style>{CSS + REPORT_CSS}</style>
-      <div className="rd-top">
-        <IconButton label="Закрыть чтение" icon={X} data-testid="reading-close" onClick={() => { Audio.play('paper'); onClose(); }} />
-        <BookOpen size={18} color="var(--rd)" aria-hidden="true" />
-        <span className="rd-title">Чтение · {r.title}</span>
-        {gem && <span className="rd-gem-tag" data-testid="reading-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
-        {!done && <span className="rd-marks" aria-label={`Страница ${whoStage ? r.pages.length + 1 : idx + 1} из ${r.pages.length + (gem ? 1 : 0)}`}>{[...r.pages, ...(gem ? [null] : [])].map((_, k) => <i key={k} className={k <= idx || (whoStage && k === r.pages.length) ? 'on' : ''} />)}</span>}
-        <SpecialRun n={run.n} mood={run.mood} />
-        {/* «Ошибка?» — подборка, страница, вопрос и ответ уходят в жалобу */}
+      {/* шапка как у урока: «✕», полоса прогресса по страницам, молния «верно подряд» и Инфля (learn-special.jsx) */}
+      <SpecialHead closeLabel="Закрыть чтение" closeTestid="reading-close" onClose={() => { Audio.play('paper'); onClose(); }} run={run}
+        total={r.pages.length + (gem ? 1 : 0)}
+        answers={[...answers.filter(Boolean).map((a) => !!a.ok), ...(whoDone ? [who.every((it, k) => picks[k] === it.answer)] : [])]} />
+      <SpecialLabel kind="Чтение" title={r.title} gem={gem} gemTestid="reading-gem-tag">
+        {/* «Сообщить об ошибке» — подборка, страница, вопрос и ответ уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в чтении? Цитата, вопрос и устройство приложатся сами." context={() => ({
           screen: 'reading', lesson: r.id, unit: r.unitId, kind: 'read',
           step: done ? 'полка' : whoStage ? 'алмаз: «Кто это сказал?»' : `страница ${idx + 1} из ${r.pages.length}: ${page.author}, ${page.book}${gem ? ' (алмаз)' : ''}`,
           prompt: done ? r.title : `${page.quote} — ${page.ask.prompt}`.slice(0, 1500),
           answer: !done && answered ? `${page.ask.kind === 'choice' ? ((page.ask.options || []).find((o) => o.k === answered.pick) || {}).text || '' : `слово ${answered.pick}`} — ${answered.ok ? 'верно' : 'неверно'}` : '',
         })} />
-      </div>
+      </SpecialLabel>
       <SpecialDesk learn={learn} />
-      <ResumeNote shown={resumed && !done} onRestart={restart} />
       {!done ? (
         <div className="rd-page">
           {whoStage ? <WhoPage items={who} picks={picks} onPick={pick} /> : <Page key={idx} p={page} i={idx} n={r.pages.length} answered={answered} onAnswer={answer} gem={gem} />}

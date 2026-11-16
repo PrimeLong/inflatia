@@ -3,12 +3,12 @@
    медальон с инициалами), имя крупно, кто он, годы жизни на ленте веков с отметкой главного года,
    рассказ, главная идея, «Знаете ли вы» и вопрос. В конце — стена галереи: три портрета
    повисают в рамах, опыт — один раз. Отдельный ленивый чанк. */
-import { SpecialShell, SpecialDesk, SpecialRun, useAnswerRun, useSpecialResume, resumedState, ResumeNote } from './learn-special.jsx';
+import { SpecialShell, SpecialDesk, SpecialHead, SpecialLabel, useAnswerRun, useSpecialResume, resumedState } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check, Gem } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Button, IconButton } from './ds.jsx';
+import { Button } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { personByName, PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf, quizIdea } from './learn/people.js';
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
@@ -283,7 +283,6 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
   const [picked, setPicked] = useState(() => (was ? was.picked : {}));
   const [order] = useState(() => (was && was.order ? was.order : g.people.map((p) => p.ask.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5))));
   const run = useAnswerRun(was ? was.run || 0 : 0);
-  const [resumed, setResumed] = useState(!!was);
   const [finished, setFinished] = useState(false);
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   // алмазный уровень: после людей — «Чья это идея?»; алмаз — без единой ошибки
@@ -329,10 +328,6 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
     if (finished) { resume.drop(); return; }
     if (Object.keys(picked).length || k > 0 || whoStage) resume.save({ pos: k, k, picked, order, whoStage, whoPicks, firstOk: firstOk.current, run: run.current(), ms: activeMs() });
   }, [k, picked, whoStage, whoPicks, finished]); // eslint-disable-line react-hooks/exhaustive-deps
-  const restart = () => {
-    Audio.play('paper'); resume.restart(); setResumed(false);
-    firstOk.current = {}; setPicked({}); setWhoPicks({}); setWhoStage(false); setK(0);
-  };
   const next = () => {
     Audio.play('paper');
     if (k < g.people.length - 1) { setK(k + 1); return; }
@@ -367,14 +362,11 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
     <SpecialShell learn={learn}>
     <div className="pp-root" ref={root} style={style} data-testid="people" data-id={id} role="dialog" aria-label={`Персоналии: ${g.title}`}>
       <style>{PEOPLE_CSS + REPORT_CSS}</style>
-      <div className="pp-top">
-        <IconButton label="Закрыть" icon={X} data-testid="people-close" onClick={() => { Audio.play('paper'); onClose(); }} />
-        <div className="pp-title"><small>Персоналии</small>{g.title}</div>
-        {gem && <span className="pp-gem-tag" data-testid="people-gem-tag"><Gem size={12} aria-hidden="true" />алмаз</span>}
-        <div className="pp-pips" aria-hidden="true">
-          {g.people.map((x, i) => <i key={x.id} className={finished || i < k ? 'ok' : i === k ? 'on' : ''}>{finished || i < k ? <Check size={13} strokeWidth={3} /> : i + 1}</i>)}
-        </div>
-        <SpecialRun n={run.n} mood={run.mood} />
+      {/* шапка как у урока: «✕», полоса прогресса по людям, молния «верно подряд» и Инфля (learn-special.jsx) */}
+      <SpecialHead closeLabel="Закрыть" closeTestid="people-close" onClose={() => { Audio.play('paper'); onClose(); }} run={run}
+        total={g.people.length + (gem ? 1 : 0)}
+        answers={[...g.people.map((_, i) => firstOk.current[i]).filter((v) => v !== undefined), ...(whoDone ? [who.every((it) => whoPicks[it.k] === it.answer)] : [])]} />
+      <SpecialLabel kind="Персоналии" title={g.title} gem={gem} gemTestid="people-gem-tag">
         {/* «Сообщить об ошибке» — как в любом уроке: человек, вопрос и выбранный ответ уходят в жалобу */}
         <ReportFlag context={() => ({
           screen: 'people', lesson: id, unit: g.unitId, kind: 'people',
@@ -382,9 +374,8 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
           prompt: finished ? g.title : whoStage ? `Чья это идея? ${who.map((it) => it.idea).join(' / ')}`.slice(0, 1500) : `${p.ask.prompt} — ${p.ask.options.map((o) => o.text).join(' / ')}`.slice(0, 1500),
           answer: finished ? '' : whoStage ? who.map((it) => whoPicks[it.k] || '—').join(' / ') : choice != null ? order[k][choice].text : '',
         })} />
-      </div>
+      </SpecialLabel>
       <SpecialDesk learn={learn} />
-      <ResumeNote shown={resumed && !finished} onRestart={restart} />
       {!finished && whoStage ? <WhoIdea items={who} picks={whoPicks} onPick={pickWho} color={g.color} /> : !finished ? (
         <div className="pp-page pp-two" key={p.id} data-testid="people-page" data-person={p.id}>
           <div className="pp-col-l">

@@ -28,6 +28,14 @@ test('особые уроки как обычный: тема и украшен�
   // тема урока из лавки — и в «Чтении»; украшение — на ПК и планшете
   await expect(page.getByTestId('special-skin')).toHaveAttribute('data-skin', 'aurora');
   await expect(page.getByTestId('special-desk')).toHaveCount(isMobile ? 0 : 1);
+  // шапка — как у урока (пункт владельца 16.11): «✕», полоса прогресса из отрезков со счётом «0/3», Инфля; молния — с трёх верных подряд;
+  // вид урока и название — над заданием, а не в шапке
+  const head = page.getByTestId('reading').getByTestId('special-head');
+  await expect(head.locator('.ln-head')).toHaveCount(1);
+  await expect(head.getByTestId('special-progress')).toContainText('0/3');
+  await expect(head).not.toContainText('Чтение');
+  await expect(head.getByTestId('lesson-streak')).toHaveCount(0);
+  await expect(page.getByTestId('reading').getByTestId('special-label')).toContainText('Чтение · ');
   // серия верных ответов с Инфлей в шапке
   const run = page.getByTestId('reading').getByTestId('special-run');
   await expect(run).toHaveAttribute('data-n', '0');
@@ -35,19 +43,22 @@ test('особые уроки как обычный: тема и украшен�
   if (await p.getAttribute('data-kind') === 'mark') await p.locator('[data-testid=reading-word][data-hit="1"]').first().click();
   else await p.locator('[data-testid=reading-opt][data-ok]').click();
   await expect(run).toHaveAttribute('data-n', '1');
+  await expect(head.getByTestId('special-progress')).toContainText('1/3');
   await page.getByTestId('reading-next').click();
   await expect(p).toHaveAttribute('data-page', '2');
   // вышли посреди чтения — при входе продолжаем со второй страницы, серия та же
   await page.getByTestId('reading-close').click();
   await expect(page.getByTestId('reading')).toHaveCount(0);
-  await open();
-  await expect(page.getByTestId('special-resumed')).toBeVisible();
+  // в карточке — «Продолжить», как у обычного урока (пункт владельца 16.11); внутри — без полосы «Продолжаем…»
+  const card = page.locator('[data-testid=path-extra][data-id="read-choice"]');
+  await card.scrollIntoViewIfNeeded(); await card.click();
+  await expect(page.getByTestId('extra-sheet').getByTestId('extra-start')).toHaveText('Продолжить');
+  await expect(page.getByTestId('extra-sheet').getByTestId('extra-resume-note')).toContainText('сохранён');
+  await page.getByTestId('extra-sheet').getByTestId('extra-start').click();
+  await expect(page.getByTestId('reading')).toBeVisible();
+  await expect(page.getByTestId('special-resumed')).toHaveCount(0);
   await expect(page.getByTestId('reading-page')).toHaveAttribute('data-page', '2');
   await expect(page.getByTestId('reading').getByTestId('special-run')).toHaveAttribute('data-n', '1');
-  // «Начать заново» — с первой страницы
-  await page.getByTestId('special-restart').click();
-  await expect(page.getByTestId('reading-page')).toHaveAttribute('data-page', '1');
-  await expect(page.getByTestId('special-resumed')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -1159,6 +1170,8 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
   const ink = g.getByTestId('draw-ink');
+  // шапка теперь как у урока (с подписью вида урока) — график ниже: прокручиваем его в середину экрана
+  await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
     const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x + 40, Math.max(30, y - 40)]);
     await page.mouse.click(cx, cy);

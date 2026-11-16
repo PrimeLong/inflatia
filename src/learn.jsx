@@ -1003,6 +1003,8 @@ function unitGems(st, learn) {
 }
 function ExtraSheet({ x, onStart, onClose }) {
   const info = extraInfo(x);
+  // незаконченный особый урок — сохранён на сутки, как урок (src/learn-special.jsx, useSpecialResume)
+  const resume = ['read', 'people', 'graph', 'draw'].includes(x.type) ? getResume(`${x.type}:${x.id}`) : null;
   if (!info) return null;
   const Icon = EXTRA_ICON[x.type] || BookOpen;
   const pl = placeOf(info.unitId);
@@ -1034,7 +1036,9 @@ function ExtraSheet({ x, onStart, onClose }) {
             </div>
           </>
         )}
-        <Button wide variant={x.done && EXTRA_GEM[x.type] ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+        {/* вышли посреди — «Продолжить», как у обычного урока (пункт владельца 16.11); внутри урока полосы «Продолжаем…» нет */}
+        <Button wide variant={x.done && EXTRA_GEM[x.type] && !resume ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{resume ? 'Продолжить' : x.done ? 'Открыть снова' : 'Начать'}</Button>
+        {resume && <div className="ds-faint" style={{ fontSize: 13, textAlign: 'center', marginTop: 2 }} data-testid="extra-resume-note">Урок сохранён с того места, где вы вышли.</div>}
       </div>
     </Sheet>
   );
