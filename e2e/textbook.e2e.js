@@ -123,6 +123,43 @@ test('музыка: в панели нет «Заставок событий» �
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 16.11: «включил музыку в обучении, гуляешь по сайту, а мини-плашки нигде нет, как с аудиокнигой»
+test('музыка в обучении: мини-плашка над вкладками на всех вкладках — пауза, следующая, лайк, «×» выключает; в уроке скрыта', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await expect(page.getByTestId('music-dock')).toHaveCount(0);
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  await page.getByTestId('prof-music').click();
+  await expect(page.getByTestId('prof-music')).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  const dock = page.getByTestId('music-dock');
+  for (const tab of ['path', 'shop', 'profile']) {
+    await openTab(page, tab);
+    await expect(dock, tab).toBeVisible();
+    // над нижней панелью, не на ней
+    const d = await dock.boundingBox(); const nav = await page.getByTestId('bottom-nav').boundingBox();
+    expect(d.y + d.height, tab).toBeLessThanOrEqual(nav.y + 1);
+  }
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  await expect(dock.getByTestId('music-dock-title')).not.toHaveText('');
+  // в обучении — «Волна»: начинается со спокойной пьесы
+  await expect(dock).toContainText('«Волна»');
+  // пауза — плашка остаётся, музыка выключена; снова «играть»
+  await dock.getByTestId('music-dock-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'paused');
+  expect(await page.evaluate(() => localStorage.getItem('ems-learn-music'))).toBe(null);
+  await dock.getByTestId('music-dock-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  await dock.getByTestId('music-dock-like').click();
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(1);
+  await dock.getByTestId('music-dock-next').click();
+  // «×» — музыка выключена и в настройках обучения, плашки нет
+  await dock.getByTestId('music-dock-close').click();
+  await expect(dock).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('ems-learn-music'))).toBe(null);
+  expect(errors).toEqual([]);
+});
+
 test('учебник: оглавление, формулы KaTeX, график с ползунком, задача и повторение, без внешних запросов', async ({ page }) => {
   const { errors, external } = await openApp(page);
   await openBook(page);

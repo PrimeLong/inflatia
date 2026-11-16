@@ -19,7 +19,7 @@ import { reportCrash } from './lib/crash.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
-  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike,
+  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike, MOOD_TINT,
 } from './ds-tokens.js';
 import { DsRoot, Tabs } from './ds.jsx';
 import {
@@ -487,8 +487,6 @@ export function useExclusiveDropdown(width) {
 /* Проигрыватель (пункт владельца 15.11: «переделай управление музыкой, сделай современный, приятный дизайн, убери
    описание песен»): обложка цвета настроения с «эквалайзером», пока играет; круглые кнопки; плейлист строками;
    переключатели вместо «вкл/выкл». Цвет обложки — по настроению пьесы. */
-const MOOD_TINT = { calm: '#3E7C6B', boom: '#C2780B', slump: '#4D5D86', stag: '#8A6A3C', crisis: '#B03A2E', frost: '#3E86A8', war: '#6B4A3A',
-  campaign: '#B0466B', stabilization: '#3F6E9E', authoritarian: '#5B4A7A', totalitarian: '#4A4A4A', wave: '#6A5AC0' };
 /* Стили проигрывателя — функцией, а не строкой при загрузке: цвета COLOR меняются с темой (светлая и тёмная тема обучения,
    оформление «Мира»), а строка, собранная при загрузке модуля, навсегда оставалась светлой — в тёмной теме название пьесы
    и подписи переключателей были тёмными на тёмной панели (пункт владельца 16.11: «плашка музыки ужасно в тёмной теме»). */

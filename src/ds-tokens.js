@@ -150,6 +150,9 @@ export const setLearnSfx = (on) => store.set('ems-learn-sfx', on ? null : '0');
 // прежнее «выключено» ('0') и отсутствие записи — выключено.
 export const worldMusic = () => store.get('ems-world-music') === '1';
 export const setWorldMusic = (on) => store.set('ems-world-music', on ? '1' : null);
+// цвет настроения музыки — обложка проигрывателя и мини-плашка музыки
+export const MOOD_TINT = { calm: '#3E7C6B', boom: '#C2780B', slump: '#4D5D86', stag: '#8A6A3C', crisis: '#B03A2E', frost: '#3E86A8', war: '#6B4A3A',
+  campaign: '#B0466B', stabilization: '#3F6E9E', authoritarian: '#5B4A7A', totalitarian: '#4A4A4A', wave: '#6A5AC0' };
 /* лайки пьес (docs/mechanics.md, «Музыка: „Волна“»): «Волна» ставит их чаще; помнит устройство */
 export const musicLikes = () => { try { const v = JSON.parse(store.get('ems-music-likes') || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 200) : []; } catch { return []; } };
 export const toggleMusicLike = (id) => {

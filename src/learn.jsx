@@ -19,6 +19,7 @@ import {
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
 import { BookDock } from './learn-bookdock.jsx';
+import { MusicDock } from './learn-musicdock.jsx';
 // огонёк серии на итогах — общий с итогами особых уроков
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
@@ -2053,6 +2054,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {people && <Lazy><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
+      {/* музыка включена в обучении — мини-плашка над вкладками (пункт владельца 16.11), над плашкой книги, если звучит и она */}
+      {!run && <MusicDock />}
       {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
       {extraSheet && <ExtraSheet x={extraSheet} onStart={openExtra} onClose={() => setExtraSheet(null)} />}
       {extraLocked && (
