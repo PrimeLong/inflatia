@@ -1212,16 +1212,20 @@ const savingsChart = {
     const years = Array.from({ length: p.n + 1 }, (_, t) => t);
     const dep = years.map((t) => ({ x: t, y: savedAfter(p.s0, v.r, v.add, t) }));
     const box = years.map((t) => ({ x: t, y: savedAfter(p.s0, 0, v.add, t) }));
-    // ось — с запасом под самый высокий вклад, какой дают ползунки при этом взносе (линия не уходит за край)
-    const top = num(A, 'max', Math.ceil((savedAfter(p.s0, 20, v.add, p.n) * 1.08) / 500) * 500);
+    /* ось — по данным, а не под самый высокий процент ползунка: прежде при 10% годовых шкала шла до 7000, а линия занимала
+       нижнюю треть графика (жалоба ученика 16.11: «отвратительно выглядящий график»). Запас — под процент в полтора раза
+       выше заданного; ползунок выше — ось растёт вместе с линией */
+    const topRate = Math.max(v.r, p.r * 1.5);
+    const top = num(A, 'max', Math.ceil((savedAfter(p.s0, topRate, v.add, p.n) * 1.1) / 500) * 500);
     const moved = v.r !== p.r || v.add !== p.add;
     const end = dep[dep.length - 1]; const endBox = box[box.length - 1];
     return {
       xDomain: [0, p.n], yDomain: [0, top], xLabel: 'годы', yLabel: 'кроны',
       curves: [
         ...(moved ? [{ id: 'V0', points: years.map((t) => ({ x: t, y: savedAfter(p.s0, p.r, p.add, t) })), ghost: true, color: 'gold' }] : []),
-        { id: 'M', label: 'в копилке', labelPos: 0.15, points: box, color: 'teal', dashed: true },
-        { id: 'V', label: 'на вкладе', labelPos: 0.75, points: dep, color: 'gold' },
+        // подписи — те же слова, что в заданиях: «линия вклада», «копилка» (жалоба ученика: «КАКАЯ ЛИНИЯ»)
+        { id: 'M', label: 'копилка', labelPos: 0.3, points: box, color: 'teal', dashed: true },
+        { id: 'V', label: 'вклад', labelPos: 0.7, points: dep, color: 'gold' },
       ],
       polys: end.y - endBox.y > 1 ? [{ points: [...box, ...[...dep].reverse()], label: 'проценты', tone: 'gold' }] : [],
       points: [

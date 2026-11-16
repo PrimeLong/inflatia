@@ -6,7 +6,7 @@ import katex from 'katex';
 import { parseChapter, collectBlocks } from '../src/textbook/markdown.js';
 import { TRACKS } from '../src/audio/tracks.js';
 import {
-  openApp, openTab, openTasks, openBook, bookBack, toToc, expectNoSidewaysScroll, testWav, withTestFlag, showUnit, installHooks,
+  openApp, openTab, openTasks, openBook, bookBack, toToc, expectNoSidewaysScroll, testWav, withTestFlag, showUnit, installHooks, pathNode,
 } from './helpers.js';
 
 installHooks();
@@ -16,7 +16,7 @@ test('музыка: у пьесы есть запись в public/music — иг
   await withTestFlag(page);
   await page.addInitScript((ids) => { window.__INFLATIA_MUSIC_FILES__ = ids; }, Object.keys(TRACKS));
   const asked = [];
-  const wav = testWav();
+  const wav = testWav(8);
   await page.route('**/music/*.mp3', (route) => { asked.push(new URL(route.request().url()).pathname); return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: wav }); });
   const { errors } = await openApp(page);
   await openBook(page);
@@ -37,6 +37,15 @@ test('музыка: у пьесы есть запись в public/music — иг
   await expect(now).not.toContainText('BPM');
   await expect(panel.locator('.mp-cover')).toBeVisible();
   for (const b of ['music-prev', 'music-play', 'music-next']) expect((await panel.getByTestId(b).boundingBox()).height).toBeGreaterThanOrEqual(40);
+  // пауза и снова «Играть» — запись продолжается с того же места, а не с начала (пункт владельца 16.11, вечер)
+  const pos = async () => Number(await page.evaluate(() => window.__inflatiaAudioPos && window.__inflatiaAudioPos()));
+  await expect.poll(pos, { timeout: 10000 }).toBeGreaterThan(1);
+  await panel.getByTestId('music-play').click();
+  const stopped = await pos();
+  await page.waitForTimeout(700);
+  await panel.getByTestId('music-play').click();
+  await page.waitForTimeout(300);
+  expect(await pos()).toBeGreaterThan(stopped - 0.2);
   // «Волна» выбирает следующую пьесу заранее — её запись уже загружается
   const nextId = await now.getAttribute('data-next');
   expect(nextId).toBeTruthy();
@@ -150,9 +159,36 @@ test('музыка в обучении: мини-плашка над вклад�
   expect(await page.evaluate(() => localStorage.getItem('ems-learn-music'))).toBe(null);
   await dock.getByTestId('music-dock-play').click();
   await expect(dock).toHaveAttribute('data-state', 'playing');
-  await dock.getByTestId('music-dock-like').click();
+  // лайк: на ПК — в плашке; на узком телефоне плашка без него — он в развёрнутом проигрывателе
+  if (await dock.getByTestId('music-dock-like').isVisible()) await dock.getByTestId('music-dock-like').click();
+  else { await dock.getByTestId('music-dock-open').click(); await page.getByTestId('music-panel').getByTestId('music-like').click(); await page.getByTestId('music-panel').getByRole('button', { name: 'Закрыть' }).click(); }
   await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(1);
+  // пункт владельца 16.11, вечер: переключение видно — кнопка вздрагивает, название въезжает; есть «назад»
+  const title0 = await dock.getByTestId('music-dock-title').textContent();
   await dock.getByTestId('music-dock-next').click();
+  await expect(dock.getByTestId('music-dock-next')).toHaveAttribute('data-kick', 'true');
+  await expect(dock.getByTestId('music-dock-title')).not.toHaveText(title0);
+  await expect(dock.getByTestId('music-dock-title')).toHaveClass(/in-next/);
+  await dock.getByTestId('music-dock-prev').click();
+  await expect(dock.getByTestId('music-dock-prev')).toHaveAttribute('data-kick', 'true');
+  await expect(dock.getByTestId('music-dock-title')).toHaveText(title0);
+  // касание названия разворачивает полный проигрыватель над плашкой
+  await dock.getByTestId('music-dock-title-btn').click();
+  const full = page.getByTestId('music-panel');
+  await expect(full).toBeVisible();
+  expect((await full.boundingBox()).y + (await full.boundingBox()).height).toBeLessThanOrEqual((await dock.boundingBox()).y + 2);
+  await full.getByRole('button', { name: 'Закрыть' }).click();
+  // в уроке плашки нет, но в шапке урока — своя кнопка музыки (пункт владельца 16.11: «в уроке нигде нет переключения музыки»)
+  await openTab(page, 'path');
+  await pathNode(page, 'sc-i1').click();
+  await page.getByTestId('lesson-start').click();
+  await expect(page.getByTestId('lesson')).toBeVisible();
+  await expect(dock).toHaveCount(0);
+  await page.getByTestId('lesson').getByTestId('lesson-music').click();
+  await expect(page.getByTestId('music-panel')).toBeVisible();
+  await page.getByTestId('music-panel').getByRole('button', { name: 'Закрыть' }).click();
+  await page.getByTestId('lesson').getByRole('button', { name: 'Выйти из урока' }).click();
+  await expect(dock).toBeVisible();
   // «×» — музыка выключена и в настройках обучения, плашки нет
   await dock.getByTestId('music-dock-close').click();
   await expect(dock).toHaveCount(0);
@@ -512,8 +548,9 @@ test('учебник: пока график едет за ползунком, п
   expect(errors).toEqual([]);
 });
 
-// пункт владельца 09.11: «хотелось бы, чтобы можно было нажать на картинку и она открылась на весь экран»
-test('картинка на весь экран: график учебника — целиком посередине, приближается кнопками, двойным касанием и колёсиком, двигается; Esc закрывает только его', async ({ page, isMobile }) => {
+// пункт владельца 09.11: «хотелось бы, чтобы можно было нажать на картинку и она открылась на весь экран»;
+// 16.11, вечер: «должно быть реально классно, современно, реальная числовая плоскость»
+test('график на весь экран — числовая плоскость: сетка мельчает при приближении, плоскость двигается, у линии — значения; Esc закрывает только её', async ({ page, isMobile }) => {
   const { errors } = await openApp(page);
   await openBook(page);
   await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
@@ -522,59 +559,60 @@ test('картинка на весь экран: график учебника �
   // ползунок работает как раньше и ничего не открывает
   const slider = chart.getByRole('slider').first();
   await slider.fill(await slider.getAttribute('max'));
-  await expect(page.getByTestId('zoom-view')).toHaveCount(0);
+  await expect(page.getByTestId('plane-view')).toHaveCount(0);
   const title = (await chart.locator('.ems-serif').first().textContent()).trim();
   await chart.getByTestId('tb-chart-zoom').click();
-  const zv = page.getByTestId('zoom-view');
-  await expect(zv).toBeVisible();
-  // сверху — название графика, снизу — подпись, как в главе
-  await expect(zv).toContainText(title);
-  await expect(zv.getByTestId('zoom-caption')).toBeVisible();
-  const level = zv.getByTestId('zoom-level');
+  const pv = page.getByTestId('plane-view');
+  await expect(pv).toBeVisible();
+  await expect(pv).toContainText(title);
+  await expect(pv.getByTestId('plane-caption')).toBeVisible();
+  const level = pv.getByTestId('plane-level');
   await expect(level).toHaveText('×1,0');
-  const content = zv.getByTestId('zoom-content');
-  const stage = await zv.getByTestId('zoom-stage').boundingBox();
-  const fit = await content.boundingBox();
-  // целиком, посередине и не крупнее, чем вдвое (подписи не раздуваются)
-  expect(fit.x).toBeGreaterThanOrEqual(stage.x - 1);
-  expect(fit.x + fit.width).toBeLessThanOrEqual(stage.x + stage.width + 1);
-  expect(fit.y).toBeGreaterThanOrEqual(stage.y - 1);
-  expect(fit.y + fit.height).toBeLessThanOrEqual(stage.y + stage.height + 1);
-  expect(Math.abs(fit.x + fit.width / 2 - (stage.x + stage.width / 2))).toBeLessThan(2);
-  expect(fit.width).toBeLessThanOrEqual(560 * 2 + 1);
-  await expect(zv.getByTestId('zoom-out')).toBeDisabled();
-  // «+» — крупнее; приближенный график двигается мышью или пальцем
-  await zv.getByTestId('zoom-in').click();
+  const st = pv.getByTestId('plane-stage');
+  const num = async (a) => Number(await st.getAttribute(a));
+  // во весь экран: плоскость занимает почти всё окно
+  const box = await st.boundingBox(); const vp = page.viewportSize();
+  expect(box.width).toBeGreaterThan(vp.width * 0.95); expect(box.height).toBeGreaterThan(vp.height * 0.6);
+  // кривые — линиями в точках экрана, деления — числами
+  await expect(st.locator('svg path').first()).toBeVisible();
+  const step0 = await num('data-step-x');
+  // «+» — ближе, и шаг сетки мельче (деления пересчитываются, а не растягиваются)
+  await pv.getByTestId('plane-in').click();
   await expect(level).toHaveText('×1,6');
-  const big = await content.boundingBox();
-  expect(big.width).toBeGreaterThan(fit.width * 1.55);
-  const cx = stage.x + stage.width / 2; const cy = stage.y + stage.height / 2;
-  await page.mouse.move(cx, cy);
-  await page.mouse.down();
-  await page.mouse.move(cx + 30, cy, { steps: 3 });
-  await page.mouse.move(cx + 60, cy, { steps: 3 });
-  await page.mouse.up();
-  await expect.poll(async () => (await content.boundingBox()).x).toBeGreaterThan(big.x + 40);
-  // «Вписать» — снова целиком
-  await zv.getByTestId('zoom-fit').click();
+  await pv.getByTestId('plane-in').click(); await pv.getByTestId('plane-in').click();
+  await expect.poll(() => num('data-step-x')).toBeLessThan(step0);
+  // тянем — плоскость едет
+  const x0 = await num('data-x0');
+  const cx = box.x + box.width / 2; const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 80, cy, { steps: 4 }); await page.mouse.up();
+  await expect.poll(() => num('data-x0')).toBeLessThan(x0);
+  // «Вписать» — снова весь график
+  await pv.getByTestId('plane-fit').click();
   await expect(level).toHaveText('×1,0');
-  // двойное касание — ×2,5 к этому месту, ещё раз — целиком
-  await zv.getByTestId('zoom-stage').dblclick({ position: { x: stage.width / 2, y: stage.height / 2 } });
-  await expect(level).toHaveText('×2,5');
   if (!isMobile) {
-    // колёсико — к курсору: прокрутили к себе — меньше
-    await page.mouse.move(cx, cy);
-    await page.mouse.wheel(0, 200);
-    await expect.poll(async () => Number((await level.textContent()).replace('×', '').replace(',', '.'))).toBeLessThan(2.4);
+    // наведение на линию — её точка и значения по обеим осям
+    const lineAt = await st.evaluate((el) => {
+      const p = [...el.querySelectorAll('svg path')].find((x) => x.getAttribute('fill') === 'none' && !x.getAttribute('stroke-dasharray'));
+      const q = p.getPointAtLength(p.getTotalLength() * 0.5); const r = el.getBoundingClientRect(); return { x: r.left + q.x, y: r.top + q.y };
+    });
+    await page.mouse.move(lineAt.x, lineAt.y + 3);
+    await expect(pv.getByTestId('plane-read')).toContainText(':');
+    await expect(pv.getByTestId('plane-cursor')).toBeVisible();
+    // колёсико — к курсору: прокрутили от себя — ближе
+    await page.mouse.wheel(0, -300);
+    await expect.poll(async () => Number((await level.textContent()).replace('×', '').replace(',', '.'))).toBeGreaterThan(1.3);
   }
-  // Esc закрывает только картинку: глава на месте
+  // двойное касание — вдвое ближе
+  await pv.getByTestId('plane-fit').click();
+  await st.dblclick({ position: { x: box.width / 2, y: box.height / 2 } });
+  await expect.poll(async () => Number((await level.textContent()).replace('×', '').replace(',', '.'))).toBeGreaterThan(1.9);
+  // Esc закрывает только плоскость: глава на месте; и крестиком
   await page.keyboard.press('Escape');
-  await expect(zv).toHaveCount(0);
+  await expect(pv).toHaveCount(0);
   await expect(page.getByTestId('chapter')).toBeVisible();
-  // и крестиком
   await chart.getByTestId('tb-chart-zoom').click();
-  await page.getByTestId('zoom-close').click();
-  await expect(page.getByTestId('zoom-view')).toHaveCount(0);
+  await page.getByTestId('plane-close').click();
+  await expect(page.getByTestId('plane-view')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

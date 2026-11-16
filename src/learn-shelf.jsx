@@ -9,16 +9,17 @@
    рамах: знакомые — в цвете, остальные — силуэтом; касание знакомого — карточка с главной идеей.
    Отдельный ленивый чанк: тексты книг не грузятся, пока профиль не открыт. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw, Volume1, Volume2, VolumeX, ArrowUp } from 'lucide-react';
+import { X, Lock, BookOpen, Lightbulb, Check, Play, Pause, RotateCcw, RotateCw, Volume1, Volume2, VolumeX, ArrowUp, ArrowLeft, ChevronRight } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Card, IconButton, Sheet, Button } from './ds.jsx';
+import { Card, IconButton, Sheet, Button, TopBar } from './ds.jsx';
 import { shelfBooks, BOOK_BY_ID, wordsIn, bookReadAt, bookSpeech, speechSeconds, readLockSeconds } from './learn/shelf.js';
 import { useBookPlayer, MiniPlayer, MINI_CSS, clock, rateText, Bars } from './learn-bookdock.jsx';
 import { bookPlayer, getState as getBookState, canSetVolume } from './learn/book-player.js';
 import { plural } from './lib/plural.js';
 import { markBook, XP } from './textbook/learn-state.js';
 import { fullDate } from './learn/collections.js';
-import { galleryOf } from './learn/people.js';
+import { galleryOf, PEOPLE } from './learn/people.js';
+import { UNIT_BY_ID } from './learn/course-core.js';
 import { READING_BY_UNIT } from './learn/reading.js';
 import { PEOPLE_BY_UNIT } from './learn/people.js';
 import { placeOf } from './ds-tokens.js';
@@ -32,7 +33,8 @@ const CSS = `
   .lb-book { position: relative; flex: none; width: var(--w, 40px); height: var(--h, 140px); border: 0; border-radius: 4px 4px 2px 2px; cursor: pointer; color: #fff; padding: 0;
     display: flex; align-items: center; justify-content: center; transform-origin: bottom center; transition: transform .2s cubic-bezier(.3, 1.4, .5, 1);
     background: linear-gradient(90deg, rgba(0,0,0,.2), transparent 18%, transparent 80%, rgba(0,0,0,.25)), var(--b); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12), 0 2px 0 rgba(0,0,0,.08); }
-  .lb-book:hover:not(.locked) { transform: translateY(-8px) rotate(-2deg); }
+  .lb-slot { flex: none; width: var(--w, 40px); height: var(--h, 140px); }
+  .lb-slot:hover .lb-book:not(.locked), .lb-book:focus-visible:not(.locked) { transform: translateY(-8px) rotate(-2deg); }
   .lb-book span { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 12.5px var(--ds-head); letter-spacing: .03em; white-space: nowrap; max-height: calc(var(--h, 140px) - 34px); overflow: hidden; text-overflow: ellipsis; }
   .lb-book::before, .lb-book::after { content: ''; position: absolute; left: 4px; right: 4px; height: 2px; background: rgba(255,255,255,.5); }
   .lb-book::before { top: 12px; } .lb-book::after { bottom: 12px; }
@@ -59,13 +61,54 @@ const CSS = `
   .lb-stamp small { font: 600 13px var(--ds-sans); letter-spacing: 0; text-transform: none; opacity: .85; }
   @keyframes lb-stamp { from { transform: rotate(-3deg) scale(1.8); opacity: 0 } }
   /* галерея — одной лентой: сначала знакомые, дальше силуэты; листается вбок */
-  .lb-gal { display: grid; grid-auto-flow: column; grid-auto-columns: 86px; gap: 10px; margin-top: 10px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; scroll-snap-type: x proximity; }
-  .lb-gal > * { scroll-snap-align: start; }
-  .lb-p { border: 0; background: none; padding: 0; cursor: pointer; text-align: center; color: var(--ds-ink); font: 600 12px/1.25 var(--ds-sans); }
-  .lb-p .pp-frame { width: 78px; height: 96px; border-radius: 39px 39px 10px 10px; padding: 4px; margin: 0 auto 6px; }
-  .lb-p .pp-frame > .pp-pic { border-radius: 35px 35px 7px 7px; }
-  .lb-p.locked { cursor: default; color: var(--ds-ink3); }
-  .lb-p.locked .pp-frame { filter: grayscale(1) opacity(.45); }
+  /* ГАЛЕРЕЯ ПЕРСОНАЛИЙ — альбом марок (пункт владельца 16.11, вечер: «людей много — нужна настоящая галерея, как с марками»).
+     В профиле — четыре марки и «ещё», как у других коллекций; «Все» открывает альбом: лист на каждый юнит, марки-портреты
+     с перфорацией в «кляссерах», не встреченные — пустые ячейки с силуэтом. */
+  .lb-gal-head { display: flex; align-items: center; gap: 8px; }
+  .lb-gal-head .ds-h3 { flex: 1; }
+  .lb-all { display: inline-flex; align-items: center; gap: 2px; height: 32px; padding: 0 6px 0 12px; border: 0; border-radius: 999px; background: none; color: var(--ds-ink2); font: 700 14px var(--ds-sans); cursor: pointer; }
+  .lb-all:hover { background: var(--ds-card2); }
+  .lb-gal-track { height: 6px; border-radius: 3px; background: var(--ds-card2); margin: 8px 0 12px; overflow: hidden; }
+  .lb-gal-track i { display: block; height: 100%; border-radius: 3px; background: #8A5A2B; }
+  .lb-gal { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 42px; gap: 6px; align-items: start; }
+  .lb-gal-more { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 90px; height: 100%; border: 2px dashed var(--ds-rule2); border-radius: 14px;
+    background: none; color: var(--ds-ink2); font: 700 13px var(--ds-sans); cursor: pointer; }
+  .lb-gal-more:hover { background: var(--ds-card2); }
+  .lb-ps { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 4px 0; border: 0; background: none; cursor: pointer; color: var(--ds-ink); font: 700 12px/1.2 var(--ds-head); text-align: center; }
+  .lb-ps > * { transition: transform .18s ease; }
+  .lb-ps:hover > .lb-ps-st { transform: translateY(-2px) rotate(var(--tilt, 0deg)); }
+  .lb-ps > b { max-width: 100%; overflow-wrap: break-word; hyphens: auto; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .lb-ps > small { font: 500 11.5px var(--ds-mono); color: var(--ds-ink3); margin-top: -3px; }
+  .lb-ps-st { display: block; transform: rotate(var(--tilt, 0deg)); filter: drop-shadow(0 1px 1px rgba(40, 25, 10, .3)) drop-shadow(0 3px 5px rgba(40, 25, 10, .12)); }
+  .lb-ps-perf { display: block; padding: 4px; background: #FFFBF1;
+    -webkit-mask: radial-gradient(circle at center, #0000 2.1px, #000 2.6px) -3.5px -3.5px / 7px 7px round, linear-gradient(#000 0 0) content-box;
+    mask: radial-gradient(circle at center, #0000 2.1px, #000 2.6px) -3.5px -3.5px / 7px 7px round, linear-gradient(#000 0 0) content-box; }
+  .lb-ps-fr { display: block; width: 64px; height: 78px; padding: 4px; background: color-mix(in srgb, var(--u) 14%, #FFFBF1);
+    box-shadow: inset 0 0 0 1.5px var(--u), inset 0 0 0 3px #FFFBF1, inset 0 0 0 3.7px color-mix(in srgb, var(--u) 50%, #FFFBF1); }
+  .lb-ps-fr .pp-pic { width: 100%; height: 100%; border-radius: 2px; overflow: hidden; position: relative; background: var(--ds-card2); }
+  .lb-ps-fr .pp-pic img, .lb-ps-fr .pp-pic svg { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ds-dark .lb-ps-perf { background: #EFE6D2; }
+  .lb-ps[data-met="false"] { color: var(--ds-ink3); }
+  .lb-ps[data-met="false"] .lb-ps-st { filter: none; }
+  .lb-ps[data-met="false"] .lb-ps-perf { background: var(--ds-card2); }
+  .lb-ps[data-met="false"] .lb-ps-fr { background: var(--ds-card2); box-shadow: inset 0 0 0 1.5px var(--ds-rule2), inset 0 0 0 3px var(--ds-card2), inset 0 0 0 3.7px var(--ds-rule); }
+  .lb-ps[data-met="false"] .pp-pic { opacity: .4; filter: grayscale(1); }
+  .lb-ps.big .lb-ps-fr { width: 92px; height: 112px; padding: 5px; }
+  /* альбом: лист на юнит — «кляссер» с полосами-кармашками, в которых стоят марки */
+  .lb-alb-top { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; }
+  .lb-alb-sheet { position: relative; margin: 16px 0 0; padding: 12px 12px 6px; border-radius: 16px; background: var(--ds-card); border: 1px solid var(--ds-rule);
+    box-shadow: 0 1px 0 var(--ds-rule), 0 8px 18px -12px var(--ds-shade); animation: lb-sheet-in .4s cubic-bezier(.2,.9,.3,1) both; animation-delay: calc(min(var(--i, 0), 8) * 50ms); }
+  @keyframes lb-sheet-in { from { opacity: 0; transform: translateY(10px); } }
+  .lb-alb-h { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1.5px solid color-mix(in srgb, var(--u) 45%, var(--ds-rule)); }
+  .lb-alb-h i { flex: none; width: 10px; height: 34px; border-radius: 3px; background: var(--u); }
+  .lb-alb-h div { flex: 1; min-width: 0; }
+  .lb-alb-h b { display: block; font: 700 17px/1.2 var(--ds-head); color: color-mix(in srgb, var(--u) 70%, var(--ds-ink)); }
+  .lb-alb-h small { display: block; font-size: 12.5px; color: var(--ds-ink3); margin-top: 1px; }
+  .lb-alb-h span { font: 700 13px var(--ds-mono); color: var(--ds-ink2); white-space: nowrap; }
+  .ds-dark .lb-alb-h b { color: color-mix(in srgb, var(--u) 45%, #fff); }
+  .lb-alb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 10px 6px; padding: 6px 0;
+    background: repeating-linear-gradient(to bottom, transparent 0 168px, color-mix(in srgb, var(--u) 22%, transparent) 168px 170px, transparent 170px 178px); }
+  @media (prefers-reduced-motion: reduce) { .lb-alb-sheet, .lb-ps > * { animation: none !important; transition: none !important; } }
   .lb-reader { position: fixed; inset: 0; z-index: 320; overflow-y: auto; overscroll-behavior: contain; background: var(--ds-paper); color: var(--ds-ink); }
   .lb-top { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: color-mix(in srgb, var(--ds-paper) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--ds-rule2); }
   .lb-top b { flex: 1; min-width: 0; font: 700 15px var(--ds-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -376,6 +419,55 @@ const unlockHint = (b) => {
   return `Откроется, когда пройдёте ${parts.join(' или ')} в юните «${placeOf(b.unitId).place}».`;
 };
 
+const TILT = [-1.4, 0.8, -0.5, 1.2, -0.9, 0.4];
+// марка-портрет: встреченный — фото или медальон в рамке цвета группы, не встреченный — серый силуэт и «???»
+function PersonStamp({ p, i = 0, big = false, onOpen }) {
+  return (
+    <button type="button" className={`lb-ps${big ? ' big' : ''}`} data-testid="gallery-person" data-person={p.id} data-met={String(p.met)}
+      style={{ '--u': p.group.color, '--tilt': `${TILT[i % TILT.length]}deg` }}
+      aria-label={p.met ? `${p.name}, ${p.years}` : `${p.name} — откроется в «Персоналиях» юнита`} onClick={() => { Audio.play(p.met ? 'paper' : 'tick'); onOpen(p); }}>
+      <span className="lb-ps-st"><span className="lb-ps-perf"><span className="lb-ps-fr"><Portrait p={p} color={p.group.color} hidden={!p.met} /></span></span></span>
+      <b>{p.met ? p.name : '???'}</b>
+      {big && <small>{p.met ? p.years : '—'}</small>}
+    </button>
+  );
+}
+
+/* весь альбом поверх профиля: лист на каждый юнит, в листе — его люди; «назад» — в профиль */
+function PeopleAlbum({ people, onOpen, onBack, under }) {
+  const met = people.filter((p) => p.met).length;
+  useEffect(() => {
+    const el = document.querySelector('[data-testid="people-album"]'); if (el) el.scrollTop = 0;
+    const onKey = (e) => { if (e.key === 'Escape' && !under) onBack(); };
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
+  }, [onBack, under]);
+  return (
+    <div className={`nt-page${under ? ' nt-under' : ''}`} data-testid="people-album" role="dialog" aria-label="Галерея персоналий" inert={under}>
+      <div className="nt-page-in">
+        <TopBar back={<IconButton label="Назад, в профиль" icon={ArrowLeft} data-nav="back" data-testid="people-album-back" onClick={() => { Audio.play('paper'); onBack(); }} />} title="Галерея персоналий" />
+        <div className="ds-sub" style={{ fontSize: 14.5 }}>Экономисты, предприниматели и политики из «Персоналий» юнитов. Лист на каждый юнит; знакомство вклеивает марку.</div>
+        <div className="lb-alb-top">
+          <span className="ds-num" style={{ font: '700 28px var(--ds-head)' }} data-testid="people-album-count">{met}</span>
+          <span className="ds-sub">из {people.length} {plural(people.length, 'марки', 'марок', 'марок')}</span>
+        </div>
+        <div className="lb-gal-track" aria-hidden="true"><i style={{ width: `${Math.round((met / Math.max(1, people.length)) * 100)}%` }} /></div>
+        {PEOPLE.map((g, gi) => {
+          const list = people.filter((p) => p.group.id === g.id);
+          if (!list.length) return null;
+          const unit = UNIT_BY_ID[g.unitId];
+          return (
+            <section key={g.id} className="lb-alb-sheet" style={{ '--u': g.color, '--i': gi }} data-testid="people-album-sheet" data-group={g.id}>
+              <div className="lb-alb-h"><i aria-hidden="true" /><div><b>{g.title}</b>{unit && <small>Юнит «{unit.title}»</small>}</div>
+                <span data-testid="people-album-sheet-count">{list.filter((p) => p.met).length} из {list.length}</span></div>
+              <div className="lb-alb-grid">{list.map((p, i) => <PersonStamp key={p.id} p={p} i={i + gi} big onOpen={onOpen} />)}</div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Library({ learn, update = null }) {
   const books = shelfBooks(learn);
   // знакомые — первыми
@@ -383,6 +475,9 @@ export default function Library({ learn, update = null }) {
   const [reading, setReading] = useState(null);
   const [locked, setLocked] = useState(null);
   const [person, setPerson] = useState(null);
+  const [lockedPerson, setLockedPerson] = useState(null);
+  const [album, setAlbum] = useState(false);
+  const openPerson = (p) => (p.met ? setPerson(p) : setLockedPerson(p));
   const [fresh, setFresh] = useState(null);
   const open = books.filter((b) => b.open).length;
   const done = books.filter((b) => b.read).length;
@@ -401,30 +496,46 @@ export default function Library({ learn, update = null }) {
           {books.map((b) => {
             const h = 112 + (wordsIn(b) % 5) * 8; const w = 36 + Math.min(6, b.passages.length - 1) * 4;
             return (
-              <button key={b.id} type="button" role="listitem" className={`lb-book${b.open ? '' : ' locked'}${b.open && b.read ? ' read' : ''}${fresh === b.id ? ' fresh' : ''}`} style={{ '--b': b.color, '--h': `${h}px`, '--w': `${w}px` }}
+              /* наведение ловит неподвижное гнездо, а приподнимается книга в нём: раньше приподнималась сама кнопка — курсор у
+                 нижнего края оказывался под ней, книга опускалась, снова попадала под курсор и дёргалась (пункт владельца 16.11) */
+              <div key={b.id} role="listitem" className="lb-slot" data-testid="shelf-slot" style={{ '--h': `${h}px`, '--w': `${w}px` }}>
+              <button type="button" className={`lb-book${b.open ? '' : ' locked'}${b.open && b.read ? ' read' : ''}${fresh === b.id ? ' fresh' : ''}`} style={{ '--b': b.color, '--h': `${h}px`, '--w': `${w}px` }}
                 data-testid="shelf-book" data-book={b.id} data-open={String(b.open)} data-read={String(b.read)} aria-label={`${b.author}, «${b.short}», ${b.year}${b.open ? (b.read ? ' — прочитана' : '') : ' — закрыта'}`}
                 onClick={() => { Audio.play(b.open ? 'paper' : 'tick'); if (b.open) setReading(b.id); else setLocked(b); }}>
                 <span>{b.short}</span>{!b.open && <Lock size={13} aria-hidden="true" />}
                 {b.open && b.read && <><i className="lb-ribbon" aria-hidden="true" /><i className="lb-tick" aria-hidden="true"><Check size={13} strokeWidth={3} /></i></>}
               </button>
+              </div>
             );
           })}
         </div>
         <div className="lb-plank" aria-hidden="true" />
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-          <div className="ds-h3" style={{ flex: 1 }}>Галерея персоналий</div>
+        <div className="lb-gal-head" style={{ marginTop: 6 }}>
+          <div className="ds-h3">Галерея персоналий</div>
           <span className="ds-num ds-faint" style={{ fontSize: 13 }} data-testid="gallery-count">{met} из {people.length}</span>
+          <button type="button" className="lb-all" data-testid="gallery-all" onClick={() => { Audio.play('paper'); setAlbum(true); }}>Все<ChevronRight size={17} aria-hidden="true" /></button>
         </div>
-        <div className="lb-gal" data-testid="prof-gallery" role="region" aria-label="Галерея знакомств" tabIndex={0}>
-          {people.map((p) => (
-            <button key={p.id} type="button" className={`lb-p${p.met ? '' : ' locked'}`} data-testid="gallery-person" data-person={p.id} data-met={String(p.met)} disabled={!p.met}
-              aria-label={p.met ? p.name : `${p.name} — откроется в «Персоналиях» юнита`} onClick={() => { Audio.play('paper'); setPerson(p); }}>
-              <div className="pp-frame" style={{ '--pp': p.group.color }}><Portrait p={p} color={p.group.color} hidden={!p.met} /></div>
-              {p.met ? p.name : '???'}
+        <div className="lb-gal-track" aria-hidden="true"><i style={{ width: `${Math.round((met / Math.max(1, people.length)) * 100)}%` }} /></div>
+        <div className="lb-gal" data-testid="prof-gallery" role="group" aria-label="Галерея знакомств">
+          {people.slice(0, 4).map((p, i) => <PersonStamp key={p.id} p={p} i={i} onOpen={openPerson} />)}
+          {people.length > 4 && (
+            <button type="button" className="lb-gal-more" data-testid="gallery-more" aria-label={`Ещё ${people.length - 4}: открыть альбом`} onClick={() => { Audio.play('paper'); setAlbum(true); }}>
+              <b>+{people.length - 4}</b><ChevronRight size={18} aria-hidden="true" />
             </button>
-          ))}
+          )}
         </div>
       </Card>
+      {album && <PeopleAlbum people={people} onOpen={openPerson} onBack={() => setAlbum(false)} under={!!person || !!lockedPerson} />}
+      {lockedPerson && (
+        <Sheet label={lockedPerson.group.title} onClose={() => setLockedPerson(null)} testid="gallery-locked">
+          <div style={{ textAlign: 'center', '--u': lockedPerson.group.color }}>
+            <div className="lb-ps big" style={{ cursor: 'default', margin: '0 auto' }} data-met="false"><span className="lb-ps-st"><span className="lb-ps-perf"><span className="lb-ps-fr"><Portrait p={lockedPerson} color={lockedPerson.group.color} hidden /></span></span></span></div>
+            <div className="ds-h3" style={{ marginTop: 10 }}>Пустая ячейка альбома</div>
+            <div className="ds-sub" style={{ fontSize: 15, marginTop: 6 }}>Марка вклеится, когда пройдёте «{lockedPerson.group.title}» — «Персоналии» юнита{UNIT_BY_ID[lockedPerson.group.unitId] ? ` «${UNIT_BY_ID[lockedPerson.group.unitId].title}»` : ''}.</div>
+            <Button wide style={{ marginTop: 14 }} onClick={() => setLockedPerson(null)}>Понятно</Button>
+          </div>
+        </Sheet>
+      )}
       {reading && <Reader id={reading} onClose={() => setReading(null)} readAt={bookReadAt(learn, reading)} onRead={markRead} />}
       {locked && (
         <Sheet label={locked.short} onClose={() => setLocked(null)} testid="shelf-locked">

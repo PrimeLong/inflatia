@@ -53,7 +53,9 @@ export const PROFILE_CSS = `
   .pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 14px 8px; }
   .pf-item { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; padding: 4px 2px; border: none; background: none; cursor: pointer; font: inherit; color: inherit;
     border-radius: 14px; animation: pf-in .4s ease-out both; animation-delay: calc(min(var(--i, 0), 12) * 40ms); transition: transform .15s ease; }
-  .pf-item:hover { transform: translateY(-2px); }
+  /* приподнимается рисунок и подпись, а не сама кнопка: иначе у нижнего края она уходила из-под курсора и дёргалась */
+  .pf-item > * { transition: transform .15s ease; }
+  .pf-item:hover > * { transform: translateY(-2px); }
   .pf-item:active { transform: scale(.94); }
   .pf-item > b { font: 700 12px/1.2 var(--ds-head); text-align: center; overflow-wrap: break-word; hyphens: auto; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pf-item[data-got="false"] > b { color: var(--ds-ink2); font-weight: 600; }

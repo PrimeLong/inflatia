@@ -723,22 +723,27 @@ const MOOD_PLAYLISTS = {
 };
 /* «ВОЛНА» — музыка обучения, где экономики нет (docs/mechanics.md, «Музыка: „Волна“»). Как настоящая радиоволна: пьесы
    выбираются случайно, а не по списку; плейлиста в панели нет. Правила:
+   — в волне — все неагрессивные пьесы саундтрека (WAVE_MOODS), а не только плейлисты настроений: раньше треть пьес
+     («Гимн», «Первый урок», «Открытие торгов», «Стабилизация»…) в ней не звучала (пункт владельца 16.11, вечер);
    — начинается всегда со спокойной пьесы — не с бодрой и не с тревожной;
    — переходы плавные: у настроения есть «энергия» (WAVE_ENERGY), следующая пьеса — другого настроения и отличается
-     по энергии не больше чем на ступень: после спокойной не грянет «Стагфляция», волна поднимается и опускается;
-   — недавние пьесы (WAVE_RECENT) не повторяются;
-   — пьесы с лайком выпадают чаще (вес WAVE_LIKE_WEIGHT). */
-export const WAVE_MOODS = ['calm', 'frost', 'slump', 'boom', 'stag'];
-export const WAVE_ENERGY = { calm: 1, frost: 1, slump: 2, boom: 3, stag: 3 };
+     по энергии не больше чем на ступень;
+   — сначала звучат пьесы, которых в этой волне ещё не было: пока есть не звучавшие подходящие, повторов нет; когда все
+     прозвучали — берётся та, что звучала давнее всего (пункт владельца 16.11: «музыка часто повторяется»);
+   — пьесы с лайком — вне очереди: могут прозвучать снова, не дожидаясь круга, и выпадают втрое чаще (WAVE_LIKE_WEIGHT);
+   — шесть последних пьес не повторяются никогда (WAVE_RECENT). */
+export const WAVE_MOODS = ['calm', 'frost', 'slump', 'stabilization', 'boom', 'campaign', 'stag'];
+export const WAVE_ENERGY = { calm: 1, frost: 1, slump: 2, stabilization: 2, boom: 3, campaign: 3, stag: 3 };
 export const WAVE_START = 'calm';
 export const WAVE_RECENT = 6;
 export const WAVE_LIKE_WEIGHT = 3;
 // все пьесы «Волны» — то, из чего она выбирает (в панели не показывается)
-MOOD_PLAYLISTS.wave = WAVE_MOODS.flatMap((m) => MOOD_PLAYLISTS[m]);
+MOOD_PLAYLISTS.wave = Object.keys(TRACKS).filter((id) => WAVE_MOODS.includes(TRACKS[id].mood));
 export function waveNext(history = [], { likes = [], rnd = Math.random } = {}) {
   const liked = new Set(likes);
   const prev = history.length ? TRACKS[history[history.length - 1]] : null;
   const recent = new Set(history.slice(-WAVE_RECENT));
+  const lastAt = new Map(history.map((id, i) => [id, i]));
   const fits = (id, strict) => {
     const m = TRACKS[id].mood;
     if (!prev) return m === WAVE_START;
@@ -746,14 +751,19 @@ export function waveNext(history = [], { likes = [], rnd = Math.random } = {}) {
     if (Math.abs(WAVE_ENERGY[m] - WAVE_ENERGY[prev.mood]) > 1) return false;
     return !strict || !recent.has(id);
   };
-  // недавние исключаются, пока есть из чего выбирать; иначе — лишь бы не та же пьеса и не то же настроение
   let pool = MOOD_PLAYLISTS.wave.filter((id) => fits(id, true));
   if (!pool.length) pool = MOOD_PLAYLISTS.wave.filter((id) => fits(id, false));
+  // очередь: не звучавшие и с лайком; нет таких — половина, звучавшая давнее всего
+  let eligible = pool.filter((id) => !lastAt.has(id) || liked.has(id));
+  if (!eligible.length) {
+    const byAge = [...pool].sort((a, b) => lastAt.get(a) - lastAt.get(b));
+    eligible = byAge.slice(0, Math.max(1, Math.ceil(byAge.length / 2)));
+  }
   const weight = (id) => (liked.has(id) ? WAVE_LIKE_WEIGHT : 1);
-  const total = pool.reduce((a, id) => a + weight(id), 0);
+  const total = eligible.reduce((a, id) => a + weight(id), 0);
   let r = rnd() * total;
-  for (const id of pool) { r -= weight(id); if (r < 0) return id; }
-  return pool[pool.length - 1];
+  for (const id of eligible) { r -= weight(id); if (r < 0) return id; }
+  return eligible[eligible.length - 1];
 }
 const MOOD_LABEL = { calm: 'Спокойствие', boom: 'Подъём', slump: 'Спад', stag: 'Стагфляция', crisis: 'Кризис', frost: 'Дефляция',
   war: 'Война', campaign: 'Предвыборная кампания', stabilization: 'Стабилизация', authoritarian: 'Ручное управление',

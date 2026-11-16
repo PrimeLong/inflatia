@@ -44,8 +44,8 @@ const CSS = `
 
 const fmtZoom = (z) => `×${(Math.round(z * 10) / 10).toFixed(1).replace('.', ',')}`;
 
-// корень темы (.ds) — его CSS-переменные нужны слою в body
-function themeOf(el) {
+// корень темы (.ds) — его CSS-переменные нужны слою в body (и числовой плоскости, src/plane-view.jsx)
+export function themeOf(el) {
   const root = el && el.closest ? el.closest('.ds') : null;
   if (!root) return { className: '', style: null };
   const style = {};
@@ -206,8 +206,10 @@ export function ZoomViewer({ title, caption = null, width = 560, from = null, on
   );
 }
 
-/* Обёртка картинки: касание или Enter — на весь экран. view() — что показать там (по умолчанию — то же самое) */
-export function Zoomable({ title, caption = null, width = 560, view = null, testid = 'zoom-open', className = '', style = null, badge = 'tr', children }) {
+/* Обёртка картинки: касание или Enter — на весь экран. view() — что показать там (по умолчанию — то же самое);
+   plane() — сцена графика: тогда на весь экран открывается не картинка, а числовая плоскость (src/plane-view.jsx) */
+const PlaneViewer = React.lazy(() => import('./plane-view.jsx').then((m) => ({ default: m.PlaneViewer })));
+export function Zoomable({ title, caption = null, width = 560, view = null, plane = null, testid = 'zoom-open', className = '', style = null, badge = 'tr', children }) {
   const [open, setOpen] = useState(false);
   const self = useRef(null);
   const go = (e) => {
@@ -225,7 +227,8 @@ export function Zoomable({ title, caption = null, width = 560, view = null, test
         {children}
         <span className={`zv-badge ${badge}`} aria-hidden="true"><Expand size={14} /></span>
       </div>
-      {open && <ZoomViewer title={title} caption={caption} width={width} from={self.current} onClose={() => setOpen(false)}>{view ? view() : children}</ZoomViewer>}
+      {open && plane && <React.Suspense fallback={null}><PlaneViewer title={title} caption={caption} scene={plane()} from={self.current} onClose={() => setOpen(false)} /></React.Suspense>}
+      {open && !plane && <ZoomViewer title={title} caption={caption} width={width} from={self.current} onClose={() => setOpen(false)}>{view ? view() : children}</ZoomViewer>}
     </>
   );
 }

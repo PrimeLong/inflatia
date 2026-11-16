@@ -17,9 +17,12 @@ import '@fontsource/fragment-mono/400.css';
 import './index.css';
 import App from './App.jsx';
 import { installCrashHandlers } from './lib/crash.js';
+import { installChunkReload } from './lib/chunk-reload.js';
 
 // необработанные ошибки страницы — владельцам, обезличенно (docs/mechanics.md, «Ошибки экрана»)
 installCrashHandlers();
+// вышла новая сборка, а открытая страница просит старую часть приложения — перезагрузиться один раз (src/lib/chunk-reload.js)
+installChunkReload();
 
 // офлайн для приложения на телефоне (public/sw.js); в разработке не мешает горячей перезагрузке
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

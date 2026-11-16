@@ -83,6 +83,9 @@ export function createAudioEngine(options = {}) {
   const fetchMusic = options.fetchMusic || ((url) => fetch(url).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); }));
   const fileBufs = {}; const fileBroken = {}; const fileReady = {};
   let fileSrc = null; let fileEnd = 0; let fileFor = null; let fileToken = 0; let fileGain = null; let fileStart = 0; let fileFading = false; let xfades = 0;
+  /* пауза — не «стоп» (пункт владельца 16.11: «ставлю на паузу и включаю снова, а она с самого начала»): запоминаем, где
+     остановились — секунду записи или шаг синтеза, — и «Играть» продолжает ту же пьесу с этого места */
+  let paused = null;
   /* переход между записями (пункт владельца 15.11: «треки заранее прогружались, чтобы не было тишины, плавно затухала
      и плавно начиналась следующая»): следующая запись плейлиста грузится, пока играет эта; за XFADE секунд до конца
      старая затухает, новая входит поверх неё */
@@ -902,11 +905,11 @@ export function createAudioEngine(options = {}) {
     fileSrc = null; fileFor = null; fileEnd = 0; fileGain = null;
   };
   // источник записи со своей громкостью: на переходах затухает он сам, а не общая шина пьесы
-  const playBuf = (buf, at, from = 1) => {
+  const playBuf = (buf, at, from = 1, offset = 0) => {
     const src = ctx.createBufferSource(); src.buffer = buf;
     const g = ctx.createGain(); g.gain.setValueAtTime(from, at);
     src.connect(g); g.connect(songBus);
-    src.start(at);
+    src.start(at, offset);
     return { src, g };
   };
   const startFile = (id, t) => {
@@ -915,8 +918,12 @@ export function createAudioEngine(options = {}) {
     loadFile(id).then((buf) => {
       if (token !== fileToken || !running || !ctx || track.id !== id) return;
       const at = Math.max(now() + 0.05, t);
-      const { src, g } = playBuf(buf, at);
-      fileSrc = src; fileGain = g; fileStart = at; fileEnd = at + buf.duration; fileFading = false; notify();
+      // после паузы — с того же места записи, мягким входом
+      const off = paused && paused.id === id && paused.offset > 0 && paused.offset < buf.duration - 1 ? paused.offset : 0;
+      paused = null;
+      const { src, g } = playBuf(buf, at, off ? 0.0001 : 1, off);
+      if (off) g.gain.linearRampToValueAtTime(1, at + 0.35);
+      fileSrc = src; fileGain = g; fileStart = at - off; fileEnd = at + buf.duration - off; fileFading = false; notify();
       prefetchNext();
     }).catch(() => {
       // файл не загрузился — та же пьеса синтезом, с начала такта
@@ -1226,7 +1233,9 @@ export function createAudioEngine(options = {}) {
     // file — сейчас звучит запись (а не синтез): в панели у пьесы пометка «запись»
     nowPlaying: () => ({ id: track.id, name: track.name, subtitle: track.subtitle, mood: track.mood,
       moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood,
-      file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), next: peekNext() }),
+      file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), next: peekNext(),
+      // секунда записи сейчас (для паузы и проверки «продолжить с места»); на паузе — где остановились
+      position: fileSrc && fileFor === track.id ? Math.max(0, now() - fileStart) : paused && paused.id === track.id && paused.file ? paused.offset : 0 }),
     // у «Волны» плейлиста нет — она выбирает пьесы сама
     playlist: () => (isWave() ? [] : listOf(lockedMood || mood).map((id) => ({ id, name: TRACKS[id].name, current: id === track.id, file: fileTrack(id) }))),
     // лайки: пьесы, которые «Волна» ставит чаще (хранит экран — ems-music-likes)
@@ -1267,7 +1276,9 @@ export function createAudioEngine(options = {}) {
     startMusic() {
       if (!ensure()) return; resume();
       if (running || !opts.music) return;
-      running = true; stepIdx = 0; nextTime = now() + 0.2;
+      // та же пьеса после паузы — синтез продолжает с того же такта; другая — с начала
+      running = true; stepIdx = paused && paused.id === track.id && !paused.file ? paused.step : 0; nextTime = now() + 0.2;
+      if (paused && paused.id !== track.id) paused = null;
       if (musicBus) musicBus.gain.setTargetAtTime(0.55, now(), 1.5);
       // пьеса-запись после паузы играет с начала: её запускает первый же такт планировщика (fileTick)
       timer = setInterval(() => {
@@ -1276,6 +1287,8 @@ export function createAudioEngine(options = {}) {
       notify();
     },
     stopMusic() {
+      // где остановились: секунда записи (если звучала запись этой пьесы) или шаг синтеза
+      if (running) paused = fileSrc && fileFor === track.id ? { id: track.id, file: true, offset: Math.max(0, now() - fileStart) } : { id: track.id, file: false, step: stepIdx - (stepIdx % 16) };
       running = false;
       if (timer !== null) { clearInterval(timer); timer = null; }
       if (musicBus) musicBus.gain.setTargetAtTime(0.0001, now(), 0.3);
@@ -1361,6 +1374,8 @@ export function createAudioEngine(options = {}) {
 }
 
 export const Audio = createAudioEngine();
+// в автотесте — секунда звучащей записи (проверка «пауза продолжает с места»)
+if (typeof window !== 'undefined' && window.__INFLATIA_TEST__) window.__inflatiaAudioPos = () => Audio.nowPlaying().position;
 
 /* Длительность одного прохода формы пьесы в секундах (без учёта модуляции темпа). */
 export const trackSeconds = (id) => {

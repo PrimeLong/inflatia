@@ -30,8 +30,8 @@ export const GRAPH_CSS = `
   .ds-dark .gl, .gl.dark { --g-blue: #8DB6F2; --g-rust: #F29A6E; --g-teal: #5ED3C4; --g-gold: #E9C25A; }
   /* шапка с полоской шагов — одним липким блоком: полоска не прилипает к кромке шапки и не уезжает
      под неё при прокрутке (на телефоне она стояла вплотную к «потолку») */
-  .gl-head { position: sticky; top: 0; z-index: 3; padding-top: env(safe-area-inset-top);
-    background: color-mix(in srgb, var(--ds-paper) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--ds-rule2); }
+  /* шапка особого урока сама себе фон (learn-special.jsx, .sp-top) — у обёртки ни подложки, ни черты: иначе сверху две плашки */
+  .gl-head { position: sticky; top: 0; z-index: 3; padding-top: env(safe-area-inset-top); }
   .gl-top { display: flex; align-items: center; gap: 10px; padding: 10px 14px 8px; max-width: 760px; margin: 0 auto; }
   .gl-title { flex: 1; min-width: 0; font: 700 15px var(--ds-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gl-title small { display: block; font: 700 10.5px var(--ds-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ds-ink2); }
@@ -191,7 +191,7 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
   const gv = (v, lo, hi) => (hi - lo >= 20 ? String(Math.round(v)) : fmt(v));
   const fixedText = [
     textBox(scene.xLabel, W - M.r, H - 4, 13, 'end'), textBox(scene.yLabel, M.l - 34, M.t + 2, 13, 'start'),
-    ...guides.flatMap(({ p }) => [textBox(gv(p.x, x0, x1), sx(p.x), H - M.b + 28, 12, 'middle'), textBox(gv(p.y, y0, y1), M.l + 4, sy(p.y) - 5, 12, 'start')]),
+    ...guides.flatMap(({ p }) => [textBox(gv(p.x, x0, x1), sx(p.x), H - M.b + 15, 12, 'middle'), textBox(gv(p.y, y0, y1), M.l + 4, sy(p.y) - 5, 12, 'start')]),
     ...view.marks.flatMap((m) => (m.t === 'x' ? [{ x0: sx(m.x) - 30, x1: sx(m.x) + 30, y0: H - M.b + 18, y1: H - M.b + 35 }]
       : m.t === 'y' ? [textBox(m.label, M.l + 4, sy(m.y) - 5, 12, 'start')]
         : m.t === 'seg' ? [textBox(m.label, (sx(m.x0) + sx(m.x1)) / 2, sy(m.y) - 9, 12.5, 'middle')] : [])),
@@ -240,7 +240,9 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
       <g className={`g-axes${view.focus.has('axes') ? ' on' : ''}`} data-testid="graph-el" data-el="axes" data-on={String(view.focus.has('axes'))}>
         <line x1={M.l} x2={W - M.r} y1={H - M.b} y2={H - M.b} stroke="var(--ds-ink2)" strokeWidth="1.6" />
         <line x1={M.l} x2={M.l} y1={M.t} y2={H - M.b} stroke="var(--ds-ink2)" strokeWidth="1.6" />
-        {xTicks.map(({ t }) => <text key={`tx${t}`} x={sx(t)} y={H - M.b + 15} fontSize="12" fill="var(--ds-ink3)" textAnchor="middle">{fmt(t)}</text>)}
+        {/* значение пунктира («10») встаёт в строку делений, а не под неё: там оно налезало на подпись оси «годы»
+           (жалоба ученика 16.11); деление рядом с ним не рисуем */}
+        {xTicks.filter(({ t }) => guides.every(({ p }) => Math.abs(sx(t) - sx(p.x)) > 22)).map(({ t }) => <text key={`tx${t}`} x={sx(t)} y={H - M.b + 15} fontSize="12" fill="var(--ds-ink3)" textAnchor="middle">{fmt(t)}</text>)}
         {yTicks.map(({ t }) => <text key={`ty${t}`} x={M.l - 6} y={sy(t) + 4} fontSize="12" fill="var(--ds-ink3)" textAnchor="end">{fmt(t)}</text>)}
         <text x={W - M.r} y={H - 4} fontSize="13" fill="var(--ds-ink2)" textAnchor="end" fontStyle="italic">{scene.xLabel}</text>
         <text x={M.l - 34} y={M.t + 2} fontSize="13" fill="var(--ds-ink2)" fontStyle="italic">{scene.yLabel}</text>
@@ -289,7 +291,7 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
           <g key={`${id}-${isIn(id) ? k : 0}`} className={`${cls(id)}${isIn(id) ? ' g-in' : ''}`} data-testid="graph-el" data-el={id} data-on={String(view.focus.has(id))}>
             <line className="draw" pathLength="1" x1={sx(p.x)} x2={sx(p.x)} y1={sy(p.y)} y2={H - M.b} stroke="var(--ds-ink3)" strokeWidth="1.4" strokeDasharray="4 4" />
             <line className="draw" pathLength="1" x1={sx(p.x)} x2={M.l} y1={sy(p.y)} y2={sy(p.y)} stroke="var(--ds-ink3)" strokeWidth="1.4" strokeDasharray="4 4" />
-            <text className="fade" x={sx(p.x)} y={H - M.b + 28} fontSize="12" fontWeight="700" fill="var(--ds-ink)" textAnchor="middle" stroke="var(--ds-card)" strokeWidth="4" paintOrder="stroke">{gv(p.x, x0, x1)}</text>
+            <text className="fade" x={sx(p.x)} y={H - M.b + 15} fontSize="12" fontWeight="700" fill="var(--ds-ink)" textAnchor="middle" stroke="var(--ds-card)" strokeWidth="4" paintOrder="stroke">{gv(p.x, x0, x1)}</text>
             <text className="fade" x={M.l + 4} y={sy(p.y) - 5} fontSize="12" fontWeight="700" fill="var(--ds-ink)" stroke="var(--ds-card)" strokeWidth="4" paintOrder="stroke">{gv(p.y, y0, y1)}</text>
           </g>
         );
@@ -439,7 +441,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
          подсказка из урока (peek) — без серии */}
       <SpecialHead closeLabel="Закрыть" closeTestid="graph-close" onClose={() => { Audio.play('paper'); onClose(); }} run={peek ? null : run}
         total={n + 1}
-        answers={[...Array.from({ length: phase === 'tour' ? k : n }, (_, i) => !czMiss.current.has(i)), ...(firstOk.current != null ? [firstOk.current] : [])]} />
+        answers={[...Array.from({ length: phase === 'tour' ? k : n }, (_, i) => !czMiss.current.has(i)), ...(firstOk.current != null ? [firstOk.current] : [])]} >
       <SpecialLabel kind="Разбор графика" title={g.title} gem={gem} gemTestid="graph-gem-tag">
         {/* «Сообщить об ошибке»: шаг (или вопрос) и его текст уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({
@@ -449,6 +451,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
           answer: phase === 'quiz' && picked != null ? order[picked].text : '',
         })} />
       </SpecialLabel>
+      </SpecialHead>
       </div>
       {!peek && <SpecialDesk learn={learn} />}
       {phase === 'tour' && (

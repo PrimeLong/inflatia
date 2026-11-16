@@ -135,3 +135,30 @@ describe('«Нарисуй сам»: ровная сетка (08.11, вечер)
   });
 });
 
+
+/* жалоба ученика 16.11 (draw-household, шаг 4 из 4): «было бы прикольно её реально нарисовать» — область не нажимают,
+   а закрашивают кистью */
+describe('«Нарисуй сам»: закрасить область', () => {
+  it('одного касания мало; закрашено больше половины и почти ничего снаружи — засчитано; чужая область — нет', async () => {
+    const { paintCoverage, PAINT_MIN } = await import('../draws.js');
+    let big = 0;
+    for (const d of DRAWS) for (const t of d.tasks.filter((x) => x.do === 'area')) {
+      const sol = solveTask(d, t);
+      expect(sol.paint.length, `${d.id}`).toBeGreaterThan(1);
+      expect(checkTask(d, t, sol).ok, `${d.id}: «как надо» засчитано`).toBe(true);
+      expect(paintCoverage(d, t, sol.paint).inside, d.id).toBeGreaterThanOrEqual(PAINT_MIN);
+      // одно касание в середине — мало: «закрасьте целиком» (если область больше самой кисти)
+      const mid = [sol.paint[Math.floor(sol.paint.length / 2)]];
+      if (paintCoverage(d, t, mid).inside < PAINT_MIN) expect(checkTask(d, t, { paint: mid }).why, `${d.id}: одно касание`).toMatch(/Закрашено \d+%/);
+      // старый ответ касанием больше не принимается
+      expect(checkTask(d, t, { p: sol.paint[0] }).ok).toBe(false);
+      big += paintCoverage(d, t, mid).inside < PAINT_MIN ? 1 : 0;
+    }
+    // у большинства областей одного касания мало
+    expect(big).toBeGreaterThanOrEqual(4);
+    // проценты вклада: закрасили поле над линией вклада — «лишнее»/«не та область»
+    const hh = DRAWS.find((x) => x.id === 'draw-household'); const t = hh.tasks.find((x) => x.do === 'area');
+    const above = Array.from({ length: 30 }, (_, i) => ({ x: 1 + (i % 10) * 0.9, y: 5000 + Math.floor(i / 10) * 400 }));
+    expect(checkTask(hh, t, { paint: above }).ok).toBe(false);
+  });
+});

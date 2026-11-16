@@ -665,7 +665,8 @@ function MarketScreen({ economy, prev, history, book, onTrade }) {
 
   return (
     <div style={{ padding: '0 18px 18px' }}>
-      <LiveTicker economy={economy} prev={prev} />
+      {/* у инвестора бегущая строка — внутри терминала (src/trading.jsx) */}
+      {!book && <LiveTicker economy={economy} prev={prev} />}
 
       {book && (
         <div style={{ marginBottom: 12 }}>

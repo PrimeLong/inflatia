@@ -6,7 +6,8 @@
                     el — кривая, на которой они лежат: она появляется, когда отмечены все;
          'point' — отметить точку: el = 'pt:<подпись>' точки графика или at = { x, y };
          'shift' — сдвинуть кривую: ползунок модели control до target;
-         'area'  — нажать внутрь площади el ('rect:0' или 'poly:<подпись>');
+         'area'  — закрасить площадь el ('rect:0' или 'poly:<подпись>') кистью: засчитано, когда закрашено не меньше
+                    PAINT_MIN её площади и почти ничего снаружи (жалоба ученика 16.11: «было бы прикольно её реально нарисовать»);
      values — положения ползунков модели на этом шаге; add — что появляется на графике после верного ответа;
      show — что видно, пока шаг решают (бледная прежняя линия при сдвиге), hide — что прячется с этого шага
      (прежнее равновесие: иначе точка E поехала бы за кривой и подсказала ответ); mark — пометка точки, у которой
@@ -100,7 +101,7 @@ export const DRAWS = [
         hint: 'Поднимитесь от выпуска 40 вертикально до линии спроса D.',
         done: 'Цена — **60 крон**: по ней покупатели берут ровно 40 штук.' },
       { do: 'area', el: 'poly:DWL', add: ['poly:DWL'],
-        text: 'Где на графике **безвозвратные потери** монополии? Нажмите внутрь этой области.',
+        text: 'Где на графике **безвозвратные потери** монополии? Закрасьте её — проведите по области, как кистью.',
         hint: 'Это треугольник между спросом и MC — от выпуска монополиста до выпуска при конкуренции.',
         done: 'Треугольник от 40 до 80 штук между спросом и MC — сделки, которые были бы выгодны и покупателям, и продавцу, но не состоялись.' },
     ],
@@ -174,7 +175,7 @@ export const DRAWS = [
         hint: 'Ищите пересечение спроса и предложения.',
         done: '**60 чашек по 20 крон**.' },
       { do: 'area', el: 'poly:покупатели', add: ['poly:покупатели'],
-        text: 'Где на графике **излишек покупателей**? Нажмите внутрь этой области.',
+        text: 'Где на графике **излишек покупателей**? Закрасьте её — проведите по области, как кистью.',
         hint: 'Это треугольник между спросом и ценой 20 — от вертикальной оси до 60 чашек.',
         done: '½ · 60 · 30 = **900 крон** — выгода гостей сверх того, что они платят.' },
       { do: 'point', el: 'pt:Pd', values: { t: 6 }, hide: ['pt:E', 'guide:E', 'poly:покупатели'], add: ['pt:Pd', 'pt:Ps'],
@@ -182,7 +183,7 @@ export const DRAWS = [
         hint: 'Над 52 чашками поднимитесь до спроса.',
         done: 'Гости платят **24** кроны, кофейням остаётся **18**: налог поделили, 4 кроны из 6 — на покупателях.' },
       { do: 'area', el: 'poly:DWL', values: { t: 6 }, add: ['poly:DWL'],
-        text: 'Где **безвозвратные потери** налога? Нажмите внутрь этой области.',
+        text: 'Где **безвозвратные потери** налога? Закрасьте её — проведите по области, как кистью.',
         hint: 'Это маленький треугольник между спросом и предложением — от 52 до 60 чашек.',
         done: '½ · 6 · 8 = **24 кроны**: сделки, выгодные и гостям, и кофейням, которых не стало.' },
     ],
@@ -243,7 +244,7 @@ export const DRAWS = [
         hint: 'Всё на яблоки — 120 яблок (точка на вертикальной оси), всё на булочки — 60 булочек (на горизонтальной).',
         done: 'Это бюджетная линия: 2X + Y = 120 — все наборы, на которые уходит весь доход.' },
       { do: 'area', el: 'poly:доступные наборы', add: ['poly:доступные наборы'],
-        text: 'Где наборы, которые **по карману**? Нажмите внутрь этой области.',
+        text: 'Где наборы, которые **по карману**? Закрасьте её — проведите по области, как кистью.',
         hint: 'На наборы под линией денег хватает, над линией — нет.',
         done: 'Под линией и на ней — **доступные наборы**.' },
       { do: 'point', at: { x: 20, y: 80 }, mark: { t: 'pt', x: 20, y: 80, label: '20 и 80' },
@@ -334,7 +335,7 @@ export const DRAWS = [
         hint: 'От 16 чашек поднимитесь вертикально до кривой ATC.',
         done: '**51 крона** за чашку: это ниже цены — с каждой чашки остаётся 39 крон.' },
       { do: 'area', el: 'rect:0', add: ['rect:0'],
-        text: 'Где **прибыль** «Зерна»? Это прямоугольник между двумя вашими точками: сверху — цена 90, снизу — издержки 51, слева — ось, справа — 16 чашек. Нажмите внутрь него.',
+        text: 'Где **прибыль** «Зерна»? Это прямоугольник между двумя вашими точками: сверху — цена 90, снизу — издержки 51, слева — ось, справа — 16 чашек. Закрасьте его, как кистью.',
         hint: 'Прибыль — прямоугольник между ценой 90 и средними издержками 51, от оси до 16 чашек.',
         done: '(90 − 51) × 16 = **624** кроны.' },
       { do: 'point', el: 'pt:касание: P = ATC', values: { A: 90 }, show: ['D0'], hide: ['rect:0', 'pt:выбор фирмы', 'guide:выбор фирмы'], add: ['D0', 'pt:касание: P = ATC'],
@@ -361,7 +362,7 @@ export const DRAWS = [
         hint: 'Найдите 10 лет на горизонтальной оси и поднимитесь до золотой линии.',
         done: 'Около **2594 крон** — в два с половиной раза больше, чем в копилке.' },
       { do: 'area', el: 'poly:проценты', add: ['poly:проценты'],
-        text: 'Где на графике то, что **принесли проценты**? Нажмите внутрь этой области.',
+        text: 'Где на графике то, что **принесли проценты**? Закрасьте её — проведите по области, как кистью.',
         hint: 'Проценты — разница между вкладом и копилкой: область между двумя линиями.',
         done: 'Проценты принесли около **1594 крон** — больше, чем Тимур положил.' },
     ],
@@ -405,6 +406,44 @@ function inPoly(p, pts) {
   return inside;
 }
 
+/* ЗАКРАСИТЬ ОБЛАСТЬ: кисть — круг радиуса PAINT_BRUSH в долях осей; область считается закрашенной по сетке 24×24 внутри
+   её рамки: клетка закрашена, если до неё дотянулась кисть. Снаружи — доля мазков, центр которых лежит вне области дальше
+   радиуса кисти от её края (у края кисть всегда немного вылезает — это не ошибка). */
+export const PAINT_BRUSH = 0.045;
+export const PAINT_MIN = 0.55;
+export const PAINT_OUT = 0.3;
+function areaShape(sc, el) {
+  if (el.startsWith('rect:')) { const r = (sc.rects || [])[Number(el.slice(5))]; return r ? [{ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y0 }, { x: r.x1, y: r.y1 }, { x: r.x0, y: r.y1 }] : null; }
+  return ((sc.polys || []).find((q) => q.label === el.slice(5)) || {}).points || null;
+}
+// расстояние от точки до границы многоугольника (в долях осей)
+function edgeDist(p, shape, n) {
+  let best = Infinity;
+  for (let i = 0; i < shape.length; i += 1) {
+    const a = shape[i]; const b = shape[(i + 1) % shape.length];
+    const ax = a.x / n.dx; const ay = a.y / n.dy; const bx = b.x / n.dx; const by = b.y / n.dy; const px = p.x / n.dx; const py = p.y / n.dy;
+    const L = (bx - ax) ** 2 + (by - ay) ** 2; const u = L ? Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / L)) : 0;
+    best = Math.min(best, Math.hypot(px - (ax + u * (bx - ax)), py - (ay + u * (by - ay))));
+  }
+  return best;
+}
+// сколько области закрашено (0…1) и какая доля мазков легла снаружи (0…1)
+export function paintCoverage(d, t, paint) {
+  const sc = drawScene(d, t.values || {}); const n = norm(sc);
+  const shape = areaShape(sc, t.el); if (!shape || !paint || !paint.length) return { inside: 0, outside: 0 };
+  const xs = shape.map((q) => q.x); const ys = shape.map((q) => q.y);
+  const [ax, bx, ay, by] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  let cells = 0; let hit = 0;
+  for (let i = 0; i < 24; i += 1) for (let j = 0; j < 24; j += 1) {
+    const c = { x: ax + ((i + 0.5) / 24) * (bx - ax), y: ay + ((j + 0.5) / 24) * (by - ay) };
+    if (!inPoly(c, shape)) continue;
+    cells += 1;
+    if (paint.some((p) => Math.hypot((p.x - c.x) / n.dx, (p.y - c.y) / n.dy) <= PAINT_BRUSH)) hit += 1;
+  }
+  const out = paint.filter((p) => !inPoly(p, shape) && edgeDist(p, shape, n) > PAINT_BRUSH).length;
+  return { inside: cells ? hit / cells : 0, outside: out / paint.length };
+}
+
 /* Проверка ответа ученика: для линии — две точки { a, b }, для таблицы — { ps: [точки] }, для точки и площади — { p }, для сдвига — { v }.
    Ответ — { ok, why } (why — что не так, коротко; подробнее — hint задания). */
 export function checkTask(d, t, ans) {
@@ -442,10 +481,11 @@ export function checkTask(d, t, ans) {
     return Math.abs(v - t.target) <= d.snap[0] ? { ok: true } : { ok: false, why: Math.abs(v) < Math.abs(t.target) ? 'Сдвиг маловат.' : 'Сдвиг великоват.' };
   }
   if (t.do === 'area') {
-    if (!ans || !ans.p) return { ok: false, why: 'Нажмите внутрь области.' };
-    const shape = t.el.startsWith('rect:') ? (() => { const r = (sc.rects || [])[Number(t.el.slice(5))]; return r && [{ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y0 }, { x: r.x1, y: r.y1 }, { x: r.x0, y: r.y1 }]; })()
-      : ((sc.polys || []).find((q) => q.label === t.el.slice(5)) || {}).points;
-    return shape && inPoly(ans.p, shape) ? { ok: true } : { ok: false, why: 'Это не та область.' };
+    if (!ans || !Array.isArray(ans.paint) || !ans.paint.length) return { ok: false, why: 'Закрасьте область — проведите по ней, как кистью.' };
+    const cov = paintCoverage(d, t, ans.paint);
+    if (cov.outside > PAINT_OUT) return { ok: false, why: cov.inside < 0.2 ? 'Это не та область.' : 'Закрашено лишнее — за пределами области.' };
+    if (cov.inside < PAINT_MIN) return { ok: false, why: `Закрашено ${Math.round(cov.inside * 100)}% — закрасьте область целиком.` };
+    return { ok: true };
   }
   return { ok: false, why: '' };
 }
@@ -466,10 +506,15 @@ export function solveTask(d, t) {
   if (t.do === 'point') return { p: taskTarget(d, t, values) };
   if (t.do === 'shift') return { v: t.target };
   if (t.do === 'area') {
-    const shape = t.el.startsWith('rect:') ? (() => { const r = (sc.rects || [])[Number(t.el.slice(5))]; return [{ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y1 }]; })()
-      : ((sc.polys || []).find((q) => q.label === t.el.slice(5)) || {}).points;
-    const cx = shape.reduce((s, q) => s + q.x, 0) / shape.length; const cy = shape.reduce((s, q) => s + q.y, 0) / shape.length;
-    return { p: { x: cx, y: cy } };
+    // «как надо» — мазки сеткой внутри области, через полтора радиуса кисти: закрашивают её почти целиком
+    const n = norm(sc); const shape = areaShape(sc, t.el);
+    const xs = shape.map((q) => q.x); const ys = shape.map((q) => q.y);
+    const [ax, bx, ay, by] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    // маленькая область — шаг мельче, чтобы мазков было несколько
+    const stepX = Math.min(PAINT_BRUSH * 1.4 * n.dx, (bx - ax) / 3); const stepY = Math.min(PAINT_BRUSH * 1.4 * n.dy, (by - ay) / 3); const paint = [];
+    for (let x = ax + stepX / 2; x <= bx; x += stepX) for (let y = ay + stepY / 2; y <= by; y += stepY) if (inPoly({ x, y }, shape)) paint.push({ x, y });
+    if (!paint.length) paint.push({ x: xs.reduce((a, b) => a + b, 0) / xs.length, y: ys.reduce((a, b) => a + b, 0) / ys.length });
+    return { paint };
   }
   return null;
 }

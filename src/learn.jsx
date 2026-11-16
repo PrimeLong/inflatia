@@ -324,6 +324,8 @@ export const CSS = `
   .ln-peek-verdict { margin-top: 12px; padding: 10px 12px; border-radius: 12px; font-size: 15.5px; line-height: 1.45; border-left: 4px solid var(--ds-ok); background: var(--ds-ok-bg); color: var(--ds-ok-ink); }
   .ln-peek-verdict.bad { border-left-color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 10%, var(--ds-card)); color: var(--ds-ink); }
   @media (prefers-reduced-motion: reduce) { .ln-peek { animation: none; } }
+  .ln-head .ln-music { flex: none; width: 36px; height: 36px; min-width: 36px !important; min-height: 36px !important; padding: 0 !important; border-radius: 50% !important; border: 1px solid var(--ds-rule2) !important; background: transparent !important; box-shadow: none !important; color: var(--ds-ink2); cursor: pointer; }
+  .ln-head .ln-music:hover { color: var(--ds-ink); border-color: var(--ds-ink2) !important; }
   .ln-head { display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 14px 4px; max-width: 592px; width: 100%; margin: 0 auto; }
   /* молния с числом — верные ответы подряд, бессрочная серия (огонёк — только серия дней) */
   .ln-fire { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 10px 0 7px; border-radius: 999px;

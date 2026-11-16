@@ -134,6 +134,10 @@ test('обучение: хаб и программа курса открываю
   for (let i = 0; i < 3; i++) await page.getByRole('button', { name: /^Далее/ }).click();
   await expect(page.getByText('Тест: своё дело')).toBeVisible();
   await expectNoSidewaysScroll(page);
+  // доступность терминала: без серьёзных нарушений axe
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -247,6 +251,10 @@ test('карта: соседние страны на месте, Минфин з
   await openMap();
   await expect(page.getByText(/^ещё \d+ кв\.$/)).toBeVisible();
   await expectNoSidewaysScroll(page);
+  // доступность терминала: без серьёзных нарушений axe
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -265,6 +273,10 @@ test('общество: после квартала видны группы, к�
   await expect(page.getByTestId('poverty')).toContainText('Абсолютная бедность');
   await page.screenshot({ path: `test-results/society-${isMobile ? 'phone' : 'desktop'}.png`, fullPage: true });
   await expectNoSidewaysScroll(page);
+  // доступность терминала: без серьёзных нарушений axe
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -404,6 +416,10 @@ test('своё дело: дерево технологий, команда и с
   await page.getByRole('button', { name: 'Сохранить сюда' }).first().click();
   await expect.poll(() => saved && saved.kind).toBe('tycoon');
   await expectNoSidewaysScroll(page);
+  // доступность терминала: без серьёзных нарушений axe
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -500,6 +516,10 @@ test('своё дело: конкуренты — доля рынка, карт�
   await page.getByRole('button', { name: /^Купить/ }).first().click();
   await expect(page.getByText('куплен вами')).toBeVisible();
   await expectNoSidewaysScroll(page);
+  // доступность терминала: без серьёзных нарушений axe
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -603,6 +623,10 @@ test('лаборатория: один рычаг, четыре графика �
   await expect(casino.getByTestId('lab-casino-binary')).toContainText('−7,5%');
   await expect(casino.getByRole('button', { name: /ставк/i })).toHaveCount(0);
   await expectNoSidewaysScroll(page);
+  // доступность терминала: без серьёзных нарушений axe
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -785,5 +809,54 @@ test('первый экран партии: компас ставки, Тейл�
   await expect(page.getByTestId('summary-risks')).toBeVisible();
   await expect(page.getByTestId('advanced-later')).toHaveCount(0);
   await expect(page.getByTestId('book-link').filter({ hasText: 'IS-LM' }).first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+// пункт владельца 16.11, вечер: «сделай интерфейс частного инвестора не хуже, чем на фото — не один в один, современно, приятно»
+test('частный инвестор: тёмный терминал — бегущая строка, карточки счёта, список со спарклайнами, свечи с периодами, заявка с быстрыми суммами', async ({ page, isMobile }) => {
+  const { errors } = await openApp(page);
+  await startSoloGame(page, 'Частный инвестор');
+  const t = page.getByTestId('trader-terminal');
+  await expect(t).toBeVisible();
+  // тёмная панель в любой теме; старая строка «ТОРГИ» над терминалом не дублирует бегущую строку внутри
+  expect(await t.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(10, 14, 19)');
+  await expect(page.getByText('ТОРГИ', { exact: true })).toHaveCount(0);
+  await expect(t.getByTestId('tt-tape').locator('.tt-tick').first()).toBeVisible();
+  await expect(t.getByTestId('tt-stat')).toHaveCount(5);
+  await expect(t.locator('[data-testid=tt-row] .tt-spark').first()).toBeVisible();
+  // «Сейчас»: свечи из живых котировок набираются сами
+  await expect(t.locator('[data-testid=tt-tf][data-tf="live"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => Number(await t.getByTestId('tt-chart').getAttribute('data-candles')), { timeout: 15000 }).toBeGreaterThanOrEqual(2);
+  // выбор инструмента в списке — шапка и цена
+  await t.locator('[data-testid=tt-row][data-id="eq_banks"]').click();
+  await expect(t.getByTestId('tt-name')).toHaveText('Банки (ETF)');
+  await expect(t.locator('[data-testid=tt-row][data-id="eq_banks"]')).toHaveAttribute('aria-pressed', 'true');
+  // быстрая сумма и «Макс»
+  await t.getByTestId('tt-quick').filter({ hasText: /^2$/ }).click();
+  await expect(t.getByTestId('tt-amount')).toHaveValue('2');
+  await t.getByTestId('tt-max').click();
+  expect(Number(await t.getByTestId('tt-amount').inputValue())).toBeGreaterThan(9);
+  await t.getByTestId('tt-quick').filter({ hasText: /^1$/ }).click();
+  await expect(t.getByTestId('tt-submit')).toHaveText(/Купить BNK на 1,00\s*млн/);
+  await t.getByTestId('tt-submit').click();
+  await expect(t.getByTestId('tt-trades')).toContainText('BNK');
+  await expect(t.getByTestId('tt-position')).toContainText('лонг');
+  // квартальные свечи: идущий квартал — последняя свеча; сделка отмечена треугольником; вид «Линия»
+  await t.locator('[data-testid=tt-tf][data-tf="all"]').click();
+  await expect(t.getByTestId('tt-candle').first()).toBeVisible();
+  await expect(t.locator('[data-testid=tt-mark][data-side="buy"]')).toHaveCount(1);
+  await t.locator('[data-testid=tt-mode][data-mode="line"]').click();
+  await expect(t.getByTestId('tt-chart')).toHaveAttribute('data-mode', 'line');
+  await expect(t.getByTestId('tt-candle')).toHaveCount(0);
+  // раскладка: на ПК — три колонки рядом, на телефоне — друг под другом
+  const box = async (sel) => t.locator(sel).boundingBox();
+  const [list, main, order] = [await box('.tt-list'), await box('.tt-main'), await box('.tt-order')];
+  if (isMobile) { expect(main.y).toBeGreaterThan(list.y); expect(order.y).toBeGreaterThan(main.y); }
+  else { expect(main.x).toBeGreaterThan(list.x + list.width - 2); expect(order.x).toBeGreaterThan(main.x + main.width - 2); expect(list.height).toBeLessThan(main.height + 40); }
+  await expectNoSidewaysScroll(page);
+  // доступность терминала: без серьёзных нарушений axe
+  const { default: AxeBuilder } = await import('@axe-core/playwright');
+  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });

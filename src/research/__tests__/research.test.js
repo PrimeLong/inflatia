@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { FIELDS, FORBIDDEN, TABLES, ARMS, PROTOCOL_VERSION, STUDY_STATUS, MODULE_LESSONS, forbiddenField } from '../dictionary.js';
 import { cleanRecord, participantCode, normalizeCode, isParticipantCode, CODE_ALPHABET } from '../record.js';
-import { allocate, emptyAllocation, seededRandom, stratumOf, newBlock } from '../randomize.js';
+import { allocationSequence, armAt, seededRandom, stratumOf, newBlock } from '../randomize.js';
 import { tCdf, tQuantile, normCdf, welch, hedgesG, mannWhitney, fisherExact, diffProportions, ancova, kr20, holm, mean } from '../stats.js';
 import { analyze, toMarkdown } from '../analyze.js';
 
@@ -13,7 +13,7 @@ const code = participantCode(() => 0);
 
 describe('исследование: документы', () => {
   it('семь документов на месте; протокол — черновик той же версии, что и код; сбор не начат', () => {
-    for (const f of ['protocol.md', 'data-dictionary.md', 'methodology.md', 'analysis-plan.md', 'participant-information.md', 'retention-policy.md', 'results.md']) {
+    for (const f of ['protocol.md', 'references.md', 'data-dictionary.md', 'methodology.md', 'analysis-plan.md', 'participant-information.md', 'retention-policy.md', 'results.md']) {
       expect(existsSync(new URL(`../../../research/${f}`, import.meta.url)), f).toBe(true);
     }
     expect(STUDY_STATUS).toBe('draft');
@@ -27,6 +27,35 @@ describe('исследование: документы', () => {
     for (const id of MODULE_LESSONS) { expect(chapter, id).toMatch(new RegExp(`:::idea id=${id} `)); expect(method, id).toContain(`\`${id}\``); }
     expect(MODULE_LESSONS).toHaveLength(8);
     expect(MODULE_LESSONS).not.toContain('hh-radio'); expect(MODULE_LESSONS).not.toContain('hh-g');
+  });
+  /* замечания владельца 16.11 к черновику 0.1 */
+  it('информация для участника: провайдеры видят IP и строку браузера; ясный срок отзыва; без обещаний анонимности и гарантированной пользы', () => {
+    const pi = doc('participant-information.md');
+    expect(pi).toMatch(/IP\) адрес/); expect(pi).toMatch(/User-Agent/); expect(pi).toMatch(/Vercel/); expect(pi).toMatch(/Upstash/);
+    expect(pi).toContain('До какого момента можно отозвать участие');
+    expect(pi).toMatch(/49 дней от записи/);
+    expect(pi).toContain('не обещаем полной анонимности');
+    expect(pi).toContain('Прямой пользы для вас мы не гарантируем');
+    expect(pi).not.toMatch(/никто не узнает/i);
+    expect(doc('retention-policy.md')).toMatch(/после неё отзыв невозможен/);
+  });
+  it('обзор литературы: источники с DOI, на них ссылаются протокол и план анализа; методика — внешняя проверка содержания и ограничения форм', () => {
+    const refs = doc('references.md');
+    expect((refs.match(/doi:10\./g) || []).length).toBeGreaterThanOrEqual(25);
+    expect(refs).toContain('Sailer M., Homner L.');
+    expect(doc('protocol.md')).toContain('references.md');
+    expect(doc('analysis-plan.md')).toContain('множественная импутация');
+    expect(doc('analysis-plan.md')).toMatch(/дельта-поправка/);
+    const m = doc('methodology.md');
+    expect(m).toContain('Внешняя проверка содержания');
+    expect(m).toContain('Ограничения параллельных форм');
+  });
+  it('в базе нет точного времени: единственная дата — служебная, днём, не выгружается; словарь это говорит', async () => {
+    const { exportRecord } = await import('../record.js');
+    expect(FIELDS.participants.enrolled_on).toMatchObject({ type: 'date', service: true });
+    expect(exportRecord('participants', { participant_code: code, enrolled_on: '2027-02-01', arm: 'game' })).toEqual({ participant_code: code, arm: 'game' });
+    expect(doc('data-dictionary.md')).toContain('`enrolled_on`');
+    expect(doc('data-dictionary.md')).toMatch(/Точного времени записи в базе нет/);
   });
   it('словарь данных в документе и в коде совпадает: каждое поле и каждый запрет описаны, и у каждого поля есть «зачем»', () => {
     const dd = doc('data-dictionary.md');
@@ -76,18 +105,21 @@ describe('исследование: словарь и записи', () => {
 });
 
 describe('исследование: распределение по группам', () => {
-  it('блоки по 2 и 4: в каждом группы поровну; внутри слоя разница численностей не больше 2; последовательность воспроизводится по зерну', () => {
+  it('блоки по 2 и 4: в каждом группы поровну; в слое разница численностей не больше 2; вся последовательность задана зерном', () => {
     const rnd = seededRandom(7);
     for (let i = 0; i < 50; i += 1) { const b = newBlock(rnd); expect([2, 4]).toContain(b.length); expect(b.filter((a) => a === 'game').length).toBe(b.length / 2); }
-    const run = (seed) => {
-      let st = emptyAllocation(); const r = seededRandom(seed); const out = [];
-      for (let i = 0; i < 101; i += 1) { const s = i % 3 ? 'low' : 'high'; const a = allocate(st, s, r); st = a.state; out.push(a.arm);
-        for (const k of ['low', 'high']) expect(Math.abs(st.strata[k].n.game - st.strata[k].n.plain)).toBeLessThanOrEqual(2); }
-      return out;
-    };
-    expect(run(42)).toEqual(run(42));
-    expect(run(42)).not.toEqual(run(43));
-    expect(new Set(run(1))).toEqual(new Set(ARMS));
+    for (const st of ['low', 'high']) {
+      const seq = allocationSequence('зерно-1', st, 101);
+      let g = 0; let pl = 0;
+      seq.forEach((a) => { if (a === 'game') g += 1; else pl += 1; expect(Math.abs(g - pl)).toBeLessThanOrEqual(2); });
+      // n-я группа — одна и та же, сколько бы ни считали до неё
+      expect(seq.map((_, i) => armAt('зерно-1', st, i))).toEqual(seq);
+    }
+    expect(allocationSequence(42, 'low', 50)).toEqual(allocationSequence(42, 'low', 50));
+    expect(allocationSequence(42, 'low', 50)).not.toEqual(allocationSequence(43, 'low', 50));
+    // слои — независимые последовательности
+    expect(allocationSequence(42, 'low', 50)).not.toEqual(allocationSequence(42, 'high', 50));
+    expect(new Set(allocationSequence(1, 'high', 20))).toEqual(new Set(ARMS));
     expect(stratumOf(6, 12)).toBe('high'); expect(stratumOf(5, 12)).toBe('low');
   });
 });
@@ -132,7 +164,7 @@ describe('исследование: статистика', () => {
 describe('исследование: анализ и отчёт', () => {
   // искусственный набор: 8 участников, модуль из двух уроков
   const lessons = ['hh-i1', 'hh-l1'];
-  const people = Array.from({ length: 8 }, (_, i) => ({ participant_code: participantCode(() => i + 1), arm: i < 4 ? 'game' : 'plain', stage: i % 4 === 3 ? 'posttest' : 'delayed', protocol_version: '0.1', consent_version: '0.1', adult_confirmed: true, period: '2027-02', stratum: 'low' }));
+  const people = Array.from({ length: 8 }, (_, i) => ({ participant_code: participantCode(() => i + 1), arm: i < 4 ? 'game' : 'plain', stage: i % 4 === 3 ? 'posttest' : 'delayed', protocol_version: '0.1', consent_version: '0.2', adult_confirmed: true, period: '2027-02', stratum: 'low', form_order: 'AB' }));
   const events = people.flatMap((p, i) => lessons.slice(0, i < 4 ? 2 : 1 + (i % 2)).map((l, k) => ({ participant_code: p.participant_code, event_type: 'lesson_done', lesson_id: l, study_day: k, active_seconds: 300 })));
   const test = (p, kind, score, dayN) => Array.from({ length: 4 }, (_, j) => ({ participant_code: p.participant_code, test_kind: kind, form: 'A', item_id: `q${j}`, correct: j < score, study_day: dayN }));
   const tests = people.flatMap((p, i) => [...test(p, 'pre', 1 + (i % 2), 0), ...test(p, 'post', 2 + (i % 3 === 0 ? 1 : 0), 1), ...(p.stage === 'delayed' ? test(p, 'delayed', 2 + (i < 4 ? 1 : 0) - (i % 2 ? 1 : 0), 29) : [])]);

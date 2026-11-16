@@ -45,6 +45,27 @@ const MICRO = 'МОНЕТНЫЙ ДВОР ИНФЛЯЦИИ · ';
 const TICKER = 'НФТ ▲ 2,31% · ЗРН ▼ 0,84% · КФЕ ▲ 1,12% · СТЛ ▲ 0,40% · КРН/МОН 1,04 · ИНФЛ 4,1% · СТАВКА 2,0% · ЗЛТ ▲ 0,95% · ХЛБ ▼ 0,22% · ';
 
 export const SKIN_CSS = `
+  /* ПОВЕРХНОСТИ В ТЕМЕ (жалобы учеников 16.11, вечер: «плашка итогов не соответствует теме урока», «дизайн разбора графика не
+     соответствует теме»). Тема перекрашивала варианты и кнопки, а карточки — итоги урока, график и текст шага разбора, лист
+     «Чтения», задание и таблица «Нарисуй сам» — оставались нейтральными. Теперь у каждой темы своя поверхность: фон, рамка,
+     скругление, шрифт и акцент; и подложка подписей графика — цвета фона темы (--chart-halo). */
+  .sk-on { --sk-surface: var(--ds-card); --sk-edge: var(--ds-rule2); --sk-radius: 18px; --sk-accent: var(--ds-ok); --chart-halo: var(--ds-paper); }
+  .sk-on[data-skin="exchange"] { --sk-surface: rgba(8,26,18,.92); --sk-edge: #1E5A3E; --sk-radius: 8px; --sk-accent: #19C37D; --chart-halo: #0A1B13; }
+  .sk-on[data-skin="aurora"] { --sk-surface: rgba(16,22,52,.74); --sk-edge: rgba(140,200,255,.22); --sk-radius: 22px; --sk-accent: #2BE3A0; --chart-halo: #10163A; }
+  .sk-on[data-skin="blueprint"] { --sk-surface: rgba(14,58,102,.9); --sk-edge: rgba(255,255,255,.5); --sk-radius: 4px; --sk-accent: #FFD166; --chart-halo: #0E3A66; }
+  .sk-on[data-skin="mint"] { --sk-surface: #FFFBF0; --sk-edge: #D9C48F; --sk-radius: 14px; --sk-accent: #9A7413; --chart-halo: #FFFBF0; }
+  .sk-on :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task, .dl-table, .pp-frame) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); }
+  .sk-on[data-skin="aurora"] :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 18px 40px -24px rgba(0,0,0,.7); }
+  .sk-on[data-skin="blueprint"] :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task) { border-style: dashed; border-width: 1.5px; }
+  .sk-on[data-skin="exchange"] :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task) { box-shadow: 0 0 0 1px rgba(25,195,125,.08), 0 0 30px rgba(25,195,125,.06); }
+  .sk-on[data-skin="exchange"] :is(.ds-card .ds-h1, .ds-card .ds-h2, .gl-text, .ds-eyebrow, .sp-label > span) { font-family: var(--ds-mono); }
+  .sk-on :is(.ds-eyebrow, .sp-label > span, .gl-step) { color: var(--sk-accent); }
+  .sk-on .gl-text b { background: linear-gradient(transparent 60%, color-mix(in srgb, var(--sk-accent) 30%, transparent) 60%); }
+  /* итоги урока: реплика и счётчики — акцентом темы, не розовым и не золотым по умолчанию */
+  .sk-on [data-testid="lesson-result"] [data-testid="result-say"] { color: var(--sk-accent) !important; }
+  .sk-on [data-testid="lesson-result"] .ln-tickets > div { background: transparent; border-color: var(--sk-edge); border-radius: calc(var(--sk-radius) * .7); }
+  .sk-on [data-testid="lesson-result"] .ds-card > svg:first-of-type { filter: hue-rotate(var(--sk-hue, 0deg)); opacity: .8; }
+  .sk-on[data-skin="exchange"] { --sk-hue: 200deg; } .sk-on[data-skin="aurora"] { --sk-hue: 120deg; }
   .ln-skin { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
   .ln-skin-fx { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
 
@@ -351,10 +372,11 @@ function Backdrop({ k, preview = false }) {
       <div className="sk-au-band a" /><div className="sk-au-band b" /><div className="sk-au-band c" />
       {!preview && <div className="sk-au-veil" />}
       {!preview && (
-        <svg className="sk-au-hills" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
-          <defs><linearGradient id="sk-au-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2BE3A0" stopOpacity=".2" /><stop offset=".08" stopColor="#0B1235" stopOpacity="1" /></linearGradient></defs>
-          <path d="M0 70 L40 48 L70 62 L110 30 L150 58 L190 40 L230 66 L270 34 L310 56 L350 44 L400 64 V120 H0 Z" fill="#0B1235" opacity=".9" />
-          <path d="M0 92 L30 80 L60 88 L95 72 L130 90 L170 78 L210 94 L250 80 L290 90 L330 76 L370 88 L400 82 V120 H0 Z" fill="url(#sk-au-rim)" />
+        /* холмы — плавные, сплошного цвета: прежние ломаные с бирюзовой «кромкой»-градиентом, растянутые на ширину экрана, давали
+           на вершинах странные бирюзовые треугольники (пункт владельца 16.11, вечер) */
+        <svg className="sk-au-hills" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true" data-testid="skin-au-hills">
+          <path d="M0 66 C30 52 52 46 84 50 C118 54 132 34 168 38 C204 42 222 60 256 54 C290 48 312 36 346 42 C372 46 388 56 400 58 V120 H0 Z" fill="#0B1235" opacity=".9" />
+          <path d="M0 88 C40 78 70 82 104 86 C140 90 166 76 204 80 C240 84 262 92 298 88 C334 84 362 78 400 84 V120 H0 Z" fill="#080D29" />
         </svg>
       )}
       {!preview && [6, 14, 22, 78, 86, 94].map((x, i) => (

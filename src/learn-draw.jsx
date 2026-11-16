@@ -13,7 +13,7 @@ import { Audio } from './MacroSimulator.jsx';
 import { Button } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
-import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour } from './learn/draws.js';
+import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour, paintCoverage, PAINT_BRUSH } from './learn/draws.js';
 import { finishLesson, markDraw, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
@@ -27,6 +27,7 @@ const CSS = `
   .dl-lead { margin: 0 0 8px; color: var(--ds-ink2); font-size: 15px; }
   .dl-how { display: block; margin-top: 6px; font: 600 13px var(--ds-sans); color: var(--ds-ink3); }
   .dl-wrap { position: relative; max-width: 560px; margin: 0 auto; }
+  .dl-paint-chip { position: absolute; right: 10px; top: 10px; padding: 3px 10px; border-radius: 999px; font: 700 12.5px var(--ds-sans); font-variant-numeric: tabular-nums; color: var(--ds-ink); background: color-mix(in srgb, var(--g-blue) 14%, var(--ds-card)); border: 1px solid color-mix(in srgb, var(--g-blue) 35%, var(--ds-rule2)); pointer-events: none; }
   .dl-wrap .dl-ink { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; touch-action: none; cursor: crosshair;
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
@@ -121,6 +122,8 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const [i, setI] = useState(() => (was ? was.i : 0));
   const [phase, setPhase] = useState('task'); // task → done
   const [pts, setPts] = useState([]);
+  // «закрасить область»: pts — точки мазков подряд, strokes — с какой точки начинается каждый мазок (для «Отменить»)
+  const strokes = useRef([]);
   const [v, setV] = useState(0);
   const [hover, setHover] = useState(null);
   const [tries, setTries] = useState(0);
@@ -231,11 +234,15 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const ctl = t.do === 'shift' ? CHARTS[d.chart].controls(d.attrs).find((c) => c.id === t.control) : null;
   const clampV = (x) => (ctl ? Math.max(ctl.min, Math.min(ctl.max, Math.round(x / d.snap[0]) * d.snap[0])) : x);
   // сколько точек ставит ученик: линия — две, таблица — по строке, точка и площадь — одну
-  const maxPts = t.do === 'line' ? 2 : t.do === 'points' ? t.at.length : 1;
+  const maxPts = t.do === 'line' ? 2 : t.do === 'points' ? t.at.length : t.do === 'area' ? Infinity : 1;
   // ответ ученика в виде, который понимает checkTask
   const answer = t.do === 'line' ? (pts.length === 2 ? { a: pts[0], b: pts[1] } : null) : t.do === 'points' ? (pts.length === maxPts ? { ps: pts } : null)
-    : t.do === 'shift' ? { v } : pts.length ? { p: pts[0] } : null;
-  const ready = t.do === 'shift' ? v !== 0 : pts.length === maxPts;
+    : t.do === 'shift' ? { v } : t.do === 'area' ? (pts.length ? { paint: pts } : null) : pts.length ? { p: pts[0] } : null;
+  const ready = t.do === 'shift' ? v !== 0 : t.do === 'area' ? pts.length > 0 : pts.length === maxPts;
+  // сколько области уже закрашено — подпись под графиком
+  const cov = t.do === 'area' && pts.length ? paintCoverage(d, t, pts) : null;
+  // кисть на экране: радиус в долях осей → в точках поля (по ширине и по высоте)
+  const brushPx = PAINT_BRUSH * Math.min(W - M.l - M.r, H - M.t - M.b);
   const z = vbZoom(vb, W);
   const zoomed = z > 1.01;
   const hand = handOn && zoomed;
@@ -280,6 +287,8 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     e.preventDefault();
     touch();
     if (t.do === 'shift') { drag.current = { x: raw.x, v }; return; }
+    // закрасить область: новый мазок с этой точки
+    if (t.do === 'area') { strokes.current = [...strokes.current, pts.length]; setPts([...pts, raw]); drag.current = { paint: true, before: pts }; return; }
     const p = place(raw);
     // касание прямо в поставленную точку: отпустили, не сдвинув, — точка убирается; потянули — едет за пальцем
     const near = pts.map((q, k) => ({ k, dd: Math.hypot(sx(q.x) - sx(raw.x), sy(q.y) - sy(raw.y)) })).sort((a, b) => a.dd - b.dd)[0];
@@ -305,6 +314,11 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     const raw = toData(e); if (!raw) return;
     if (!drag.current) { if (e.pointerType === 'mouse' && !resolved && !hand && t.do !== 'shift') setHover(place(raw)); return; }
     if (t.do === 'shift') { setV(clampV(drag.current.v + (raw.x - drag.current.x))); return; }
+    // мазок кистью: точка — когда кисть ушла хотя бы на пятую часть своего радиуса
+    if (drag.current.paint) {
+      setPts((prev) => { const last = prev[prev.length - 1]; if (last && Math.hypot((raw.x - last.x) / (x1 - x0), (raw.y - last.y) / (y1 - y0)) < PAINT_BRUSH / 5) return prev; return [...prev, raw]; });
+      return;
+    }
     // от касания точки — в перетаскивание, только когда палец сдвинулся заметно
     if (drag.current.tap) { if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) < 6) return; drag.current = { k: drag.current.k, before: drag.current.before }; }
     const p = place(raw); const k = drag.current.k;
@@ -360,15 +374,15 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const next = () => {
     if (i >= n - 1) { finish(); return; }
     Audio.play('paper');
-    setI(i + 1); setPts([]); setV(0); setTries(0); setRes(null); setHover(null); setVb(fullVb(W, H)); setHand(false);
+    setI(i + 1); setPts([]); strokes.current = []; setV(0); setTries(0); setRes(null); setHover(null); setVb(fullVb(W, H)); setHand(false);
   };
-  const reset = () => { Audio.play('tick'); setPts([]); setV(0); touch(); };
+  const reset = () => { Audio.play('tick'); setPts([]); strokes.current = []; setV(0); touch(); };
 
   // что видно на графике: решено — шаг вперёд (новое появляется), иначе — как было плюс то, что нужно шагу
   const k = phase === 'done' ? n : i + (resolved ? 1 : 0);
   const sol = res && res.shown ? solveTask(d, t) : null;
-  const solveView = sol ? (sol.ps || (sol.a ? [sol.a, sol.b] : sol.p ? [sol.p] : [])).map((q) => [Math.round(sx(q.x) * 10) / 10, Math.round(sy(q.y) * 10) / 10]) : [];
-  const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : { pts: (s.ps || (s.a ? [s.a, s.b] : [s.p])).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
+  const solveView = sol && !sol.paint ? (sol.ps || (sol.a ? [sol.a, sol.b] : sol.p ? [sol.p] : [])).map((q) => [Math.round(sx(q.x) * 10) / 10, Math.round(sy(q.y) * 10) / 10]) : [];
+  const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : s.paint ? { pts: s.paint.map((q) => [sx(q.x), sy(q.y)]) } : { pts: (s.ps || (s.a ? [s.a, s.b] : [s.p])).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
   const mine = res && res.shown ? 'var(--g-rust)' : 'var(--g-blue)';
   const coordLabel = (q) => `${fmt(q.x)}; ${fmt(q.y)}`;
   // поставить точку в q — как касание (линия и таблица: следующая или ближняя, если все стоят)
@@ -380,10 +394,15 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
       const near = pts.map((r, k) => ({ k, dd: Math.hypot(sx(r.x) - sx(p.x), sy(r.y) - sy(p.y)) })).sort((a, b) => a.dd - b.dd)[0];
       const k = near && pts.length >= maxPts ? near.k : pts.length;
       const next = [...pts]; next[k] = p; setPts(next);
-    } else setPts([p]);
+    } else if (t.do === 'area') { strokes.current = [...strokes.current, pts.length]; setPts([...pts, q]); } else setPts([p]);
     Audio.play('tick');
   };
-  const undoPt = () => { if (resolved || !pts.length) return; Audio.play('tick'); touch(); setPts(pts.slice(0, -1)); };
+  const undoPt = () => {
+    if (resolved || !pts.length) return; Audio.play('tick'); touch();
+    // закрашивание — отменяется весь последний мазок
+    if (t.do === 'area') { const from = strokes.current.pop() ?? 0; setPts(pts.slice(0, from)); return; }
+    setPts(pts.slice(0, -1));
+  };
   const dropPt = (k) => { if (resolved) return; Audio.play('tick'); touch(); setPts(pts.filter((_, j) => j !== k)); };
   // клавиатура на весь экран: стрелки — курсор по сетке (Shift — ×5), Enter или пробел — точка, Ctrl+Z — отменить
   const onKeys = (e) => {
@@ -441,7 +460,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
       <div className="gl-head">
         {/* шапка как у урока: «✕», полоса прогресса по шагам, молния «верно подряд» и Инфля (learn-special.jsx) */}
         <SpecialHead closeLabel="Закрыть" closeTestid="draw-close" onClose={() => { Audio.play('paper'); onClose(); }} run={run}
-          total={n} answers={run.log.slice(0, n)} />
+          total={n} answers={run.log.slice(0, n)} >
         <SpecialLabel kind="Нарисуй сам" title={d.title} gem={gem} gemTestid="draw-gem-tag">
           <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в задании? Шаг, его текст и устройство приложатся сами." context={() => ({
             screen: 'draw', lesson: id, unit: d.unitId, kind: 'draw',
@@ -450,6 +469,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
             answer: answer ? JSON.stringify(answer).slice(0, 300) : '',
           })} />
         </SpecialLabel>
+        </SpecialHead>
       </div>
       <SpecialDesk learn={learn} />
       {phase === 'task' && (
@@ -507,11 +527,28 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 {hover && !drag.current && pts.length < maxPts && (
                   <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', coordLabel(hover))}</g>
                 )}
-                {!res?.ok && pts.map((q, j) => pin(q, `p${j}`, mine, t.do === 'area' ? null : coordLabel(q)))}
+                {/* закрашивание — мазки кистью: полупрозрачные полосы цвета ответа, по краю поля обрезаны */}
+                {t.do === 'area' && pts.length > 0 && (
+                  <g clipPath={`url(#dlc${id})`} pointerEvents="none" data-testid="draw-paint" data-coverage={cov ? Math.round(cov.inside * 100) : 0}>
+                    {[...strokes.current, pts.length].slice(0, -1).map((from, si) => {
+                      const to = strokes.current[si + 1] ?? pts.length; const seg = pts.slice(from, to);
+                      return seg.length === 1 ? <circle key={si} cx={sx(seg[0].x)} cy={sy(seg[0].y)} r={brushPx} fill={res?.ok ? 'var(--ds-ok)' : mine} fillOpacity=".32" />
+                        : <polyline key={si} points={seg.map((q) => `${sx(q.x)},${sy(q.y)}`).join(' ')} fill="none" stroke={res?.ok ? 'var(--ds-ok)' : mine} strokeOpacity=".32" strokeWidth={brushPx * 2} strokeLinecap="round" strokeLinejoin="round" />;
+                    })}
+                  </g>
+                )}
+                {!res?.ok && t.do !== 'area' && pts.map((q, j) => pin(q, `p${j}`, mine, coordLabel(q)))}
+                {sol && sol.paint && (
+                  <g clipPath={`url(#dlc${id})`} pointerEvents="none" data-testid="draw-solution">
+                    {sol.paint.map((q, j) => <circle key={j} cx={sx(q.x)} cy={sy(q.y)} r={brushPx} fill="var(--ds-ok)" fillOpacity=".22" />)}
+                  </g>
+                )}
                 {solveView.length > 0 && t.do !== 'line' && t.do !== 'shift' && solveView.map(([cx, cy], j) => (
                   <circle key={`s${j}`} cx={cx} cy={cy} r={9 * pz} fill="none" stroke="var(--ds-ok)" strokeWidth={3 * pz} data-testid="draw-solution" />
                 ))}
               </svg>
+              {/* сколько области закрашено — пока шаг не решён */}
+              {cov && !resolved && <div className="dl-paint-chip" data-testid="draw-coverage" aria-live="polite">Закрашено {Math.round(cov.inside * 100)}%</div>}
             </div>
             </div>
             {t.do === 'shift' && ctl && (
