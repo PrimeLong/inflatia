@@ -271,21 +271,21 @@ test('нижняя панель: «Мир» без учебных карточе
   // итоговая проверка: без подсказок и решений до конца, в конце — счёт по темам
   await page.getByTestId('practice-exam').click();
   const exam = page.getByTestId('exam');
-  await expect(exam.getByTestId('exam-problem')).toHaveCount(22);
+  await expect(exam.getByTestId('exam-problem')).toHaveCount(24);
   await expect(exam.getByRole('button', { name: /^Подсказка/ })).toHaveCount(0);
   await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(0);
-  // заведомо неверный ответ: «1» бывал верным (задача «Рынка труда» с ответом 1 — «Верно 1 из 22»)
+  // заведомо неверный ответ: «1» бывал верным (задача «Рынка труда» с ответом 1 — «Верно 1 из 24»)
   await exam.getByRole('textbox', { name: 'Проверка, ответ к задаче 1' }).or(exam.getByRole('textbox', { name: 'Проверка, задача 1, шаг а)' })).first().fill('98765');
   await exam.getByRole('button', { name: 'Завершить проверку' }).click();
-  await expect(exam.getByTestId('exam-result')).toContainText('Верно 0 из 22');
+  await expect(exam.getByTestId('exam-result')).toContainText('Верно 0 из 24');
   await expect(exam.getByTestId('exam-weak')).toContainText('Слабое место');
-  await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(22);
+  await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(24);
   await expectNoSidewaysScroll(page);
   // пересдача — те же темы, новые числа
   const before = await exam.getByTestId('exam-problem').allInnerTexts();
   await exam.getByRole('button', { name: 'Пересдать с новыми числами' }).click();
   await expect(exam.getByTestId('exam-result')).toHaveCount(0);
-  await expect(exam.getByTestId('exam-problem')).toHaveCount(22);
+  await expect(exam.getByTestId('exam-problem')).toHaveCount(24);
   const after = await exam.getByTestId('exam-problem').allInnerTexts();
   expect(after.filter((t, i) => t === before[i]).length).toBeLessThan(3);
   await exam.getByRole('button', { name: 'Завершить проверку' }).click();

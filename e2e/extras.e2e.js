@@ -286,7 +286,7 @@ test('«Персоналии» — урок на дороге юнита: три
   const shelf = page.getByTestId('prof-shelf');
   await shelf.scrollIntoViewIfNeeded();
   // в каждом юните «Персоналии» (пункт 2 от 08.11): «Люди отдачи» в «Заводе» — ещё трое
-  await expect(page.getByTestId('gallery-count')).toHaveText('3 из 35');
+  await expect(page.getByTestId('gallery-count')).toHaveText('3 из 36');
   await expect(shelf.locator('[data-testid=gallery-person][data-met="true"]')).toHaveCount(3);
   await expect(page.getByTestId('shelf-count')).toHaveText('2 из 9');
   await expect(page.getByTestId('shelf-read')).toHaveCount(0);

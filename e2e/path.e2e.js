@@ -18,14 +18,14 @@ test('путь: карточка урока, «Знакомство» шагам
   await expect(page.getByTestId('bottom-nav').getByRole('button', { name: 'Теория' })).toHaveCount(0);
   await expect(page.getByTestId('streak')).toHaveText('0');
   await expect(page.getByTestId('streak-chip')).toHaveAttribute('data-today', 'false');
-  // на Пути — юниты одного уровня: Начальный, в нём «Мастерская» (14 уроков) и «Биржа труда» (10); плашка
+  // на Пути — юниты одного уровня: Начальный, в нём «Мастерская» (14 уроков), «Биржа труда» (10) и «Сберкасса» (10); плашка
   // «Уровень 1 из 5», назад некуда, следующий уровень закрыт; будущих уровней на экране нет
-  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor']);
+  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household']);
   await expect(path.getByTestId('level-switch')).toContainText('Уровень 1 из 5');
   await expect(path.getByTestId('level-switch')).toContainText('Начальный');
   await expect(path.getByTestId('level-prev')).toBeDisabled();
   await expect(path.getByTestId('level-next')).toHaveAttribute('data-locked', 'true');
-  await expect(path.getByTestId('path-lesson')).toHaveCount(25);
+  await expect(path.getByTestId('path-lesson')).toHaveCount(35);
   await expect(path.getByTestId('path-level')).toContainText('основные термины');
   // глав «в планах» в Начальном больше нет — «Рынок труда» вышел
   await expect(path.getByTestId('path-soon')).toHaveCount(0);
@@ -725,7 +725,7 @@ test('путь: юнит «Биржа труда» (рынок труда) — �
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   // «Биржа труда» — в Начальном уровне, сразу после «Мастерской»
   const unit = await showUnit(page, 'labor');
-  expect(await page.getByTestId('path').getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor']);
+  expect(await page.getByTestId('path').getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household']);
   await expect(unit.getByTestId('path-lesson')).toHaveCount(10);
   expect(await unit.getByTestId('path-lesson').evaluateAll((els) => els.map((e) => e.dataset.kind)))
     .toEqual(['intro', 'practice', 'intro', 'practice', 'words', 'story', 'listen', 'game', 'review', 'summary']);
@@ -833,7 +833,7 @@ test('Путь: открывается на рекомендованном ур�
   // у узкого экрана название не наезжает на значки; «Уроки» разворачивает
   await path.getByTestId('level-prev').click();
   const sc = path.locator('[data-testid=path-unit][data-unit="scarcity"]');
-  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor']);
+  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household']);
   await expect(sc).toHaveAttribute('data-folded', 'true');
   expect((await sc.boundingBox()).height).toBeLessThan(80);
   const titleBox = await sc.locator('.ln-mini-title').boundingBox();
@@ -877,7 +877,7 @@ test('Путь: открывается на рекомендованном ур�
   // свёрнутый юнит касанием места на карте раскрывается
   await expect(path.locator('[data-testid=path-unit][data-unit="scarcity"]')).toHaveAttribute('data-folded', 'false');
   // на карте 25 мест — по пять на уровень: юниты и места под будущие юниты
-  await expect(path.getByTestId('atlas-soon')).toHaveCount(3);
+  await expect(path.getByTestId('atlas-soon')).toHaveCount(2);
   await expect(path.locator('[data-testid=atlas-place], [data-testid=atlas-soon]')).toHaveCount(25);
   // повторное касание вкладки «Путь» — снова текущий уровень и рекомендованный урок
   await page.getByTestId('bottom-nav').locator('[data-tab="path"]').click();
@@ -1285,7 +1285,7 @@ test('Путь: наверху — уровень знаний маленьки�
   await expect(page.getByTestId('course-gain')).toHaveText('+3');
   await expect(grade).toContainText('Уровень знаний');
   await expect(grade).toContainText('Начальный уровень курса');
-  await expect(page.getByTestId('course-next')).toHaveText('Пройдено уроков уровня: 5 из 25');
+  await expect(page.getByTestId('course-next')).toHaveText('Пройдено уроков уровня: 5 из 35');
   await expect(grade.locator('.ln-know-steps i')).toHaveCount(5);
   await expect(grade.locator('.ln-know-steps i.on')).toHaveText('1');
   await expect(grade).not.toContainText(/условн|из 1000|\b[ABC][12]\b/);

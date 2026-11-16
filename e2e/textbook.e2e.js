@@ -92,7 +92,7 @@ test('учебник: оглавление, формулы KaTeX, график �
   // главы — по уровням курса; недописанные — свёрнутым списком «Готовятся» в конце
   await expect(toc.getByTestId('tb-level-group')).toHaveCount(5);
   await expect(toc.getByText('Уровень 2 · Базовый')).toBeVisible();
-  await expect(toc.locator('[data-status="ready"]')).toHaveCount(19);
+  await expect(toc.locator('[data-status="ready"]')).toHaveCount(20);
   await expect(toc.getByTestId('tb-planned')).toContainText('ещё 3 главы');
   await expectNoSidewaysScroll(page);
 
@@ -234,7 +234,7 @@ test('учебник: оглавление, формулы KaTeX, график �
   await page.getByRole('button', { name: 'Мельче текст' }).click();
 
   await toToc(page);
-  await expect(page.getByTestId('tb-stats')).toContainText('Глав прочитано: 1 из 19');
+  await expect(page.getByTestId('tb-stats')).toContainText('Глав прочитано: 1 из 20');
   // уверенные ответы — на странице «Мой прогресс»: два из трёх верны (включая задачу в несколько шагов; ответ
   // без отметки в счёт не идёт), неуверенный — верен; у задачи на графике вместо уверенности прогноз
   await page.getByTestId('tb-stats-link').click();
