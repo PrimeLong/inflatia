@@ -37,16 +37,44 @@ test('музыка: у пьесы есть запись в public/music — иг
   await expect(now).not.toContainText('BPM');
   await expect(panel.locator('.mp-cover')).toBeVisible();
   for (const b of ['music-prev', 'music-play', 'music-next']) expect((await panel.getByTestId(b).boundingBox()).height).toBeGreaterThanOrEqual(40);
-  const rows = panel.getByTestId('music-row');
-  const ids = await rows.evaluateAll((els) => els.map((e) => e.dataset.track));
-  const nextId = ids[(ids.indexOf(id) + 1) % ids.length];
+  // «Волна» выбирает следующую пьесу заранее — её запись уже загружается
+  const nextId = await now.getAttribute('data-next');
+  expect(nextId).toBeTruthy();
   await expect.poll(() => asked.includes(`/music/${nextId}.mp3`), { timeout: 10000 }).toBe(true);
-  // в списке пьес у записей — значок «запись»
+  // у «Волны» плейлиста нет; у настроения он есть — и у записей в нём значок «запись»
+  await expect(panel.getByTestId('music-row')).toHaveCount(0);
+  await panel.getByTestId('music-what').selectOption('calm');
   await expect(panel.locator('[data-testid=music-row] .mp-rec[title="запись"]').first()).toBeVisible();
   expect(errors).toEqual([]);
 });
 
 // панель музыки (пункты владельца 08.11): без «Заставок событий» и справки о числе пьес
+// пункт владельца 16.11: «плашка музыки выглядит ужасно в тёмной теме» — название и подписи были тёмными на тёмной панели
+test('музыка в тёмной теме: панель тёмная, название пьесы, подписи и кнопки читаются (контраст ≥ 4,5)', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('ems-learn-dark', '1'); } catch { /* нет хранилища */ } });
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
+  await page.getByTestId('tb-reader-bar').getByTestId('music-btn').click();
+  const panel = page.getByTestId('music-panel');
+  await expect(panel).toBeVisible();
+  const report = await panel.evaluate((el) => {
+    const rgb = (c) => (c.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    const lum = ([r, g, b]) => { const f = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+    // фон панели — сплошной цвет под градиентом блика
+    const bg = rgb(getComputedStyle(el).backgroundColor);
+    const pick = (sel) => [...el.querySelectorAll(sel)].map((n) => ({ sel, ratio: ratio(rgb(getComputedStyle(n).color), bg) }));
+    const btnBg = [...el.querySelectorAll('.mp-b:not(.main), .mp-x')].map((n) => lum(rgb(getComputedStyle(n).backgroundColor)));
+    return { panelLum: lum(bg), texts: [...pick('.mp-title'), ...pick('.mp-sw-row > span'), ...pick('.mp-what select'), ...pick('.mp-row.cur .mp-name')], btnBg };
+  });
+  expect(report.panelLum, 'панель тёмная').toBeLessThan(0.08);
+  for (const t of report.texts) expect(t.ratio, t.sel).toBeGreaterThanOrEqual(4.5);
+  // круглые кнопки «назад / вперёд» и «закрыть» — не белые пятна на тёмной панели
+  for (const l of report.btnBg) expect(l).toBeLessThan(0.2);
+  expect(errors).toEqual([]);
+});
+
 test('музыка: в панели нет «Заставок событий» и справки о числе пьес; в учебнике — «Волна»; размер текста одной рамкой', async ({ page }) => {
   const { errors } = await openApp(page);
   await openBook(page);
@@ -65,7 +93,17 @@ test('музыка: в панели нет «Заставок событий» �
   await expect(what).toHaveValue('wave');
   await expect(what.locator('option[value="auto"]')).toHaveCount(0);
   await expect(what.locator('option[value="wave"]')).toContainText('Волна');
-  await expect(panel.getByTestId('music-wave-hint')).toContainText('сменяют друг друга сами');
+  // «Волна» — без плейлиста (пункт владельца 16.11): пьесы подбираются сами, спокойное начало, лайки
+  await expect(panel.getByTestId('music-wave-hint')).toContainText('подбирает пьесы сама');
+  await expect(panel.getByTestId('music-row')).toHaveCount(0);
+  // лайк — пьесе, которая звучит; помнит устройство. Пьеса могла смениться сразу после включения — сверяем с тем, что сохранено
+  const like = panel.getByTestId('music-like');
+  await expect(like).toHaveAttribute('aria-pressed', 'false');
+  await like.click();
+  const liked = await page.evaluate(() => JSON.parse(localStorage.getItem('ems-music-likes')));
+  expect(liked).toHaveLength(1);
+  await expect.poll(async () => (await panel.getByTestId('music-now').getAttribute('data-track')) === liked[0]
+    ? await like.getAttribute('aria-pressed') : 'true').toBe('true');
   // выбрали настроение — играет оно; «Волна» — снова первая строка
   await what.selectOption('calm');
   await expect(what).toHaveValue('calm');
@@ -82,6 +120,43 @@ test('музыка: в панели нет «Заставок событий» �
   await openTab(page, 'profile');
   await page.getByTestId('prof-settings-open').click();
   await expect(page.getByTestId('prof-music')).toHaveAttribute('aria-checked', 'true');
+  expect(errors).toEqual([]);
+});
+
+// пункт владельца 16.11: «включил музыку в обучении, гуляешь по сайту, а мини-плашки нигде нет, как с аудиокнигой»
+test('музыка в обучении: мини-плашка над вкладками на всех вкладках — пауза, следующая, лайк, «×» выключает; в уроке скрыта', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await expect(page.getByTestId('music-dock')).toHaveCount(0);
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  await page.getByTestId('prof-music').click();
+  await expect(page.getByTestId('prof-music')).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  const dock = page.getByTestId('music-dock');
+  for (const tab of ['path', 'shop', 'profile']) {
+    await openTab(page, tab);
+    await expect(dock, tab).toBeVisible();
+    // над нижней панелью, не на ней
+    const d = await dock.boundingBox(); const nav = await page.getByTestId('bottom-nav').boundingBox();
+    expect(d.y + d.height, tab).toBeLessThanOrEqual(nav.y + 1);
+  }
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  await expect(dock.getByTestId('music-dock-title')).not.toHaveText('');
+  // в обучении — «Волна»: начинается со спокойной пьесы
+  await expect(dock).toContainText('«Волна»');
+  // пауза — плашка остаётся, музыка выключена; снова «играть»
+  await dock.getByTestId('music-dock-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'paused');
+  expect(await page.evaluate(() => localStorage.getItem('ems-learn-music'))).toBe(null);
+  await dock.getByTestId('music-dock-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  await dock.getByTestId('music-dock-like').click();
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(1);
+  await dock.getByTestId('music-dock-next').click();
+  // «×» — музыка выключена и в настройках обучения, плашки нет
+  await dock.getByTestId('music-dock-close').click();
+  await expect(dock).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('ems-learn-music'))).toBe(null);
   expect(errors).toEqual([]);
 });
 

@@ -159,6 +159,22 @@ describe.each(PATH)('юнит %s', (unitId) => {
   });
 });
 
+/* жалоба ученика 16.11 (pr-w, «Соберите из плиток определение: производственная функция»): «весь выпуск» (лишняя плитка
+   соседнего слова) + «из данных труда и капитала» — «так это равносильные предложения». Такое определение засчитывается,
+   если автор назвал его после «≈»; остальные сборки с лишней плиткой — нет. */
+describe('плитки: равносильное определение после «≈»', () => {
+  it('«весь выпуск из данных труда и капитала» засчитано; «весь выпуск» без конца — нет', () => {
+    const ex = EXERCISES['pr-w:tiles:prodfunc'];
+    const inst = instantiate(ex, () => 0.5);
+    const key = (text) => inst.tiles.find((t) => t.text === text).key;
+    expect(check(inst, [key('весь выпуск'), key('из данных труда и капитала')]).ok).toBe(true);
+    expect(check(inst, [key('весь выпуск'), key('можно получить'), key('из данных труда и капитала')]).ok).toBe(true);
+    expect(check(inst, inst.solution).ok).toBe(true);
+    expect(check(inst, [key('весь выпуск')]).ok).toBe(false);
+    expect(check(inst, [key('сколько продукции'), key('весь выпуск')]).ok).toBe(false);
+  });
+});
+
 describe('упражнения: ровно один верный ответ', () => {
   const all = Object.values(EXERCISES);
   it.each(all.map((e) => [e.id, e]))('%s', (_, ex) => {

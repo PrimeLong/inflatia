@@ -701,16 +701,20 @@ test('сообщить об ошибке: флажок на упражнении
   expect(errors).toEqual([]);
 });
 
-// «Мир»: выключенная музыка остаётся выключенной после перезагрузки страницы
+// «Мир»: музыка по умолчанию выключена (пункт владельца 16.11); включённая и выключенная — такими и остаются после перезагрузки
 test('мир: выключенная музыка не включается после перезагрузки', async ({ page }) => {
   const { errors } = await openApp(page);
   const soundBtn = page.locator('button[title^="Музыка"]');
   await soundBtn.click();
-  // переключатель «Музыка» в проигрывателе (пункт владельца 15.11)
+  // переключатель «Музыка» в проигрывателе (пункт владельца 15.11): по умолчанию выключен
   const sw = page.getByTestId('music-panel').getByRole('switch', { name: 'Музыка' });
-  await expect(sw).toHaveAttribute('aria-checked', 'true');
-  await sw.click();
   await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await sw.click();
+  await expect(sw).toHaveAttribute('aria-checked', 'true');
+  await gotoApp(page);
+  await page.locator('button[title^="Музыка"]').click();
+  await expect(page.getByTestId('music-panel').getByRole('switch', { name: 'Музыка' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByTestId('music-panel').getByRole('switch', { name: 'Музыка' }).click();
   await gotoApp(page);
   await page.locator('button[title^="Музыка"]').click();
   await expect(page.getByTestId('music-panel').getByRole('switch', { name: 'Музыка' })).toHaveAttribute('aria-checked', 'false');

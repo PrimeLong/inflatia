@@ -1,10 +1,11 @@
 /* БРАУЗЕРНЫЕ СЦЕНАРИИ — особые уроки: «Персоналии», «Чтение», «Разбор графика», «Нарисуй сам», книжная полка.
    Общие помощники — e2e/helpers.js. Запуск одного раздела: npx playwright test e2e/extras.e2e.js */
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
 import { BOOK_BY_ID, bookSpeech, passageAt, passageStart } from '../src/learn/shelf.js';
 import { PEOPLE } from '../src/learn/people.js';
 import { listPeoplePhotos, readPhotoCredits } from '../scripts/voice-files-plugin.js';
-import { openApp, openTab, pathNode, installHooks } from './helpers.js';
+import { openApp, openTab, pathNode, installHooks, showUnit } from './helpers.js';
 
 installHooks();
 
@@ -28,6 +29,14 @@ test('особые уроки как обычный: тема и украшен�
   // тема урока из лавки — и в «Чтении»; украшение — на ПК и планшете
   await expect(page.getByTestId('special-skin')).toHaveAttribute('data-skin', 'aurora');
   await expect(page.getByTestId('special-desk')).toHaveCount(isMobile ? 0 : 1);
+  // шапка — как у урока (пункт владельца 16.11): «✕», полоса прогресса из отрезков со счётом «0/3», Инфля; молния — с трёх верных подряд;
+  // вид урока и название — над заданием, а не в шапке
+  const head = page.getByTestId('reading').getByTestId('special-head');
+  await expect(head.locator('.ln-head')).toHaveCount(1);
+  await expect(head.getByTestId('special-progress')).toContainText('0/3');
+  await expect(head).not.toContainText('Чтение');
+  await expect(head.getByTestId('lesson-streak')).toHaveCount(0);
+  await expect(page.getByTestId('reading').getByTestId('special-label')).toContainText('Чтение · ');
   // серия верных ответов с Инфлей в шапке
   const run = page.getByTestId('reading').getByTestId('special-run');
   await expect(run).toHaveAttribute('data-n', '0');
@@ -35,19 +44,22 @@ test('особые уроки как обычный: тема и украшен�
   if (await p.getAttribute('data-kind') === 'mark') await p.locator('[data-testid=reading-word][data-hit="1"]').first().click();
   else await p.locator('[data-testid=reading-opt][data-ok]').click();
   await expect(run).toHaveAttribute('data-n', '1');
+  await expect(head.getByTestId('special-progress')).toContainText('1/3');
   await page.getByTestId('reading-next').click();
   await expect(p).toHaveAttribute('data-page', '2');
   // вышли посреди чтения — при входе продолжаем со второй страницы, серия та же
   await page.getByTestId('reading-close').click();
   await expect(page.getByTestId('reading')).toHaveCount(0);
-  await open();
-  await expect(page.getByTestId('special-resumed')).toBeVisible();
+  // в карточке — «Продолжить», как у обычного урока (пункт владельца 16.11); внутри — без полосы «Продолжаем…»
+  const card = page.locator('[data-testid=path-extra][data-id="read-choice"]');
+  await card.scrollIntoViewIfNeeded(); await card.click();
+  await expect(page.getByTestId('extra-sheet').getByTestId('extra-start')).toHaveText('Продолжить');
+  await expect(page.getByTestId('extra-sheet').getByTestId('extra-resume-note')).toContainText('сохранён');
+  await page.getByTestId('extra-sheet').getByTestId('extra-start').click();
+  await expect(page.getByTestId('reading')).toBeVisible();
+  await expect(page.getByTestId('special-resumed')).toHaveCount(0);
   await expect(page.getByTestId('reading-page')).toHaveAttribute('data-page', '2');
   await expect(page.getByTestId('reading').getByTestId('special-run')).toHaveAttribute('data-n', '1');
-  // «Начать заново» — с первой страницы
-  await page.getByTestId('special-restart').click();
-  await expect(page.getByTestId('reading-page')).toHaveAttribute('data-page', '1');
-  await expect(page.getByTestId('special-resumed')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -288,7 +300,7 @@ test('«Персоналии» — урок на дороге юнита: три
   // в каждом юните «Персоналии» (пункт 2 от 08.11): «Люди отдачи» в «Заводе» — ещё трое
   await expect(page.getByTestId('gallery-count')).toHaveText('3 из 36');
   await expect(shelf.locator('[data-testid=gallery-person][data-met="true"]')).toHaveCount(3);
-  await expect(page.getByTestId('shelf-count')).toHaveText('2 из 9');
+  await expect(page.getByTestId('shelf-count')).toHaveText('2 из 11');
   await expect(page.getByTestId('shelf-read')).toHaveCount(0);
   await shelf.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
   const book = page.getByTestId('book-reader');
@@ -1159,6 +1171,8 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
   const ink = g.getByTestId('draw-ink');
+  // шапка теперь как у урока (с подписью вида урока) — график ниже: прокручиваем его в середину экрана
+  await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
     const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x + 40, Math.max(30, y - 40)]);
     await page.mouse.click(cx, cy);
@@ -1168,6 +1182,39 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await expect(g.getByTestId('draw-solution').first()).toBeVisible();
   await expect(g.getByTestId('draw-next')).toBeVisible();
   await g.getByTestId('draw-close').click();
+  expect(errors).toEqual([]);
+});
+
+/* жалоба ученика 14.11 («Нарисуй сам: монополия», шаг 1 из 5: «Тут нет этого»): в условии «на графике уже есть MC = 20», а
+   линии не было — горизонтальную линию прятала маска анимации с рамкой нулевой высоты. Проверяем пиксели снимка. */
+test('«Нарисуй сам: монополия»: данная линия MC видна с первого шага (горизонтальные линии не пропадают)', async ({ page }) => {
+  const ids = fs.readdirSync('src/textbook/chapters').flatMap((f) => [...fs.readFileSync(`src/textbook/chapters/${f}`, 'utf8').matchAll(/:::idea id=(\S+)/g)].map((m) => m[1]));
+  await page.addInitScript((list) => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(list.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  }, ids);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'competition-monopoly');
+  const stop = page.locator('[data-testid=path-extra][data-id="draw-monopoly"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-sheet').getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  const mc = g.locator('[data-testid=graph-el][data-el="MC"] path.c');
+  await expect(mc).toHaveCount(1);
+  await page.waitForTimeout(1500);
+  // маска анимации — на всё поле, а не по рамке линии
+  for (const m of await g.locator('mask').all()) expect(await m.getAttribute('maskUnits')).toBe('userSpaceOnUse');
+  // точки на линии MC (в координатах экрана) — среди них есть рыжие пиксели самой линии
+  const pts = await mc.evaluate((el) => { const L = el.getTotalLength(); const m = el.getScreenCTM(); return [0.3, 0.45, 0.6, 0.75].map((f) => { const q = el.getPointAtLength(L * f).matrixTransform(m); return [Math.round(q.x), Math.round(q.y)]; }); });
+  const shot = (await page.screenshot()).toString('base64');
+  const rust = await page.evaluate(async ([b64, list]) => {
+    const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
+    const k = img.width / window.innerWidth;
+    return list.map(([x, y]) => { let hit = false; for (let dy = -2; dy <= 2; dy += 1) { const [r, gg, b] = ctx.getImageData(Math.round(x * k), Math.round((y + dy) * k), 1, 1).data; if (r > gg + 40 && r > b + 40) hit = true; } return hit; });
+  }, [shot, pts]);
+  expect(rust).toEqual([true, true, true, true]);
   expect(errors).toEqual([]);
 });
 

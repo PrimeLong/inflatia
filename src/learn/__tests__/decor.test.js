@@ -79,6 +79,32 @@ describe('физика вещиц', () => {
       expect(settle(m, H), 'после ошибки').toBeLessThan(calmBy);
     });
   }));
+  /* пункт владельца 16.11: «гирлянда флажков — слишком агрессивная физика». Взятый флажок раньше вставал под палец
+     одним кадром (скачок 25 px), а струна хлестала соседей со скоростью до 800 px/с. */
+  it('гирлянда мягкая: взятый флажок тянется к руке плавно, соседи не хлещут, отпустили — затихает за 3,5 с', async () => {
+    const { holdBunting, releaseBunting, BUNTING } = await import('../../learn-decor.jsx');
+    const H = 56; const m = decorModel('desk-bunting', 700, H);
+    settle(m, H);
+    const q = m.pts[8]; const y0 = q.y; const x0 = q.x;
+    holdBunting(q, x0 + 10, y0 + 25, H);
+    let prev = m.pts.map((p) => [p.x, p.y]); let jump = 0; let fast = 0;
+    for (let k = 0; k < 60; k += 1) {
+      m.t += 1 / 60; decorStep(m, 1 / 60, H);
+      m.pts.forEach((p, i) => { jump = Math.max(jump, Math.hypot(p.x - prev[i][0], p.y - prev[i][1])); fast = Math.max(fast, Math.hypot(p.vx, p.vy)); });
+      prev = m.pts.map((p) => [p.x, p.y]);
+    }
+    expect(jump, 'за кадр — не больше 5 px').toBeLessThanOrEqual(5);
+    expect(fast).toBeLessThanOrEqual(BUNTING.maxV);
+    // через секунду флажок у руки (рука далеко — не дальше BUNTING.reach от места покоя)
+    expect(Math.abs(q.y - Math.min(y0 + 25, q.ry + BUNTING.reach, H - 22))).toBeLessThan(2);
+    releaseBunting(q);
+    expect(settle(m, H)).toBeLessThan(3.5);
+    // верный ответ — лёгкое колыхание, а не рывок
+    kick(m, true);
+    let off = 0; const rest = m.pts.map((p) => p.y);
+    for (let k = 0; k < 120; k += 1) { m.t += 1 / 60; decorStep(m, 1 / 60, H); m.pts.forEach((p, i) => { off = Math.max(off, Math.abs(p.y - rest[i])); }); }
+    expect(off).toBeLessThan(6);
+  });
   it('гирлянда в покое провисает посередине, а не лежит на дне полосы', () => {
     const H = 48; const m = decorModel('desk-bunting', 560, H);
     settle(m, H);

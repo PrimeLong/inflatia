@@ -145,9 +145,21 @@ export const learnMusic = () => store.get('ems-learn-music') === '1';
 export const setLearnMusic = (on) => store.set('ems-learn-music', on ? '1' : null);
 export const learnSfx = () => store.get('ems-learn-sfx') !== '0';
 export const setLearnSfx = (on) => store.set('ems-learn-sfx', on ? null : '0');
-// звук «Мира»: выключенная музыка (и звуки, громкость) остаётся выключенной после перезагрузки
-export const worldMusic = () => store.get('ems-world-music') !== '0';
-export const setWorldMusic = (on) => store.set('ems-world-music', on ? null : '0');
+// звук «Мира»: выключенная музыка (и звуки, громкость) остаётся выключенной после перезагрузки.
+// Музыка по умолчанию выключена — и в «Мире», и в обучении: её включают сами (пункт владельца 16.11). Включённая — '1';
+// прежнее «выключено» ('0') и отсутствие записи — выключено.
+export const worldMusic = () => store.get('ems-world-music') === '1';
+export const setWorldMusic = (on) => store.set('ems-world-music', on ? '1' : null);
+// цвет настроения музыки — обложка проигрывателя и мини-плашка музыки
+export const MOOD_TINT = { calm: '#3E7C6B', boom: '#C2780B', slump: '#4D5D86', stag: '#8A6A3C', crisis: '#B03A2E', frost: '#3E86A8', war: '#6B4A3A',
+  campaign: '#B0466B', stabilization: '#3F6E9E', authoritarian: '#5B4A7A', totalitarian: '#4A4A4A', wave: '#6A5AC0' };
+/* лайки пьес (docs/mechanics.md, «Музыка: „Волна“»): «Волна» ставит их чаще; помнит устройство */
+export const musicLikes = () => { try { const v = JSON.parse(store.get('ems-music-likes') || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 200) : []; } catch { return []; } };
+export const toggleMusicLike = (id) => {
+  const cur = musicLikes(); const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+  store.set('ems-music-likes', next.length ? JSON.stringify(next) : null);
+  return next;
+};
 export const worldSfx = () => store.get('ems-world-sfx') !== '0';
 export const setWorldSfx = (on) => store.set('ems-world-sfx', on ? null : '0');
 export const worldVolume = () => { const v = parseFloat(store.get('ems-world-volume')); return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.6; };

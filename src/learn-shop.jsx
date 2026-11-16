@@ -24,7 +24,8 @@ import {
   policyInfo, takePolicy, cancelPolicy, PREMIUM, coinsWord, plural, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate,
   yearGrowth, rewardInfo,
 } from './learn/rewards.js';
-import { DUST, dustDone, dustItem } from './learn/dust.js';
+import { Rag } from './learn-rag.jsx';
+import { DUST, dustDone, dustItem, dustPerDay, CLOTH, hasCloth, buyCloth, clothReturn, clothPaybackDays } from './learn/dust.js';
 import { dayOf, addDays, dayStart, ownedFreezes, rolloverLocal } from './textbook/learn-state.js';
 
 
@@ -231,8 +232,48 @@ const DUST_CSS = `
   @media (max-width: 420px) { .sh-dust { flex-wrap: wrap; } .sh-dust .ds-btn { width: 100%; } }
   @media (prefers-reduced-motion: reduce) { .sh-dust-win > div::after { animation: none; } }
 `;
+const CLOTH_CSS = `
+  .dg-cloth { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 14px; border-radius: 18px; text-align: left; font: 14px/1.4 var(--ds-sans, sans-serif);
+    background: color-mix(in srgb, #3B8DB0 12%, var(--ds-card)); border: 1px solid color-mix(in srgb, #3B8DB0 35%, var(--ds-rule2)); color: var(--ds-ink); }
+  .dg-cloth b { font-weight: 800; }
+  .dg-cloth[data-owned="true"] { background: color-mix(in srgb, var(--ds-ok, #2B8A5E) 12%, var(--ds-card)); border-color: color-mix(in srgb, var(--ds-ok, #2B8A5E) 40%, var(--ds-rule2)); }
+  .dg-cloth-ico { flex: none; width: 46px; } .dg-cloth-ico svg { width: 46px; height: auto; }
+  .dg-cloth-msg { margin-top: 4px; color: var(--ds-bad, #B03A2E); font-size: 13px; }
+  .dg-cloth .ds-btn { flex: none; width: auto; }
+`;
+
+/* улучшение «Микрофибра» (src/learn/dust.js, CLOTH): купить — шире тряпка и шестая витрина в день; куплено — сколько
+   уже вернула из цены. Стоит на вкладке «Протереть», под карточкой пыльной витрины, а не в окне игры (пункт владельца 16.11) */
+function ClothCard({ learn, update }) {
+  const [msg, setMsg] = useState(null);
+  const own = hasCloth(learn);
+  const back = clothReturn(learn);
+  const buy = () => {
+    let r = null;
+    update((s) => { r = buyCloth(s, Date.now()); return r.ok ? r.s : s; });
+    if (r && !r.ok) setMsg(r.reason); else { Audio.play('register'); setMsg(null); }
+  };
+  return (
+    <div className="dg-cloth" data-testid="dust-cloth" data-owned={String(own)}>
+      <div className="dg-cloth-ico" aria-hidden="true"><Rag /></div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <b>Микрофибра</b>
+        {own ? (
+          <div data-testid="dust-cloth-return">Тряпка шире, витрин в день — {dustPerDay(learn)}. Вернула {back} из {CLOTH.price} мон.{back >= CLOTH.price ? ' — окупилась.' : '.'}</div>
+        ) : (
+          <div>Тряпка шире и чище трёт, а в день оплачивается шестая витрина: +{DUST.coins} мон. в день. Окупится за {clothPaybackDays()} дней.</div>
+        )}
+        {msg && <div className="dg-cloth-msg" role="alert">{msg}</div>}
+      </div>
+      {!own && <Button variant="secondary" onClick={buy} data-testid="dust-cloth-buy">{CLOTH.price} мон.</Button>}
+    </div>
+  );
+}
+
 function DustCard({ learn, onOpen }) {
   const done = dustDone(learn);
+  // полосок — сколько витрин оплачивается в день: с микрофиброй шесть (пункт владельца 16.11: «всё ещё 5 показывает»)
+  const per = dustPerDay(learn);
   const item = dustItem(learn, dayOf(Date.now()), done);
   return (
     <div className="sh-dust" data-testid="shop-dust" data-done={done}>
@@ -240,9 +281,9 @@ function DustCard({ learn, onOpen }) {
       <div className="sh-dust-win" aria-hidden="true"><div><Mascot mood="hello" size={44} outfit={item ? { [OUTFIT_BY_ID[item].slot]: item } : outfitOf(learn)} /></div></div>
       <div className="sh-dust-t">
         <b>Пыльная витрина</b>
-        <span>{done < DUST.perDay ? `Протрите стекло — под пылью новинка дня. За витрину — ${DUST.coins} ${coinsWord(DUST.coins)}.` : 'Монеты за сегодня собраны. Протирать можно и просто так.'}</span>
-        <div className="sh-dust-dots" aria-label={`Сегодня протёрто ${Math.min(done, DUST.perDay)} из ${DUST.perDay}`} role="img">
-          {Array.from({ length: DUST.perDay }, (_, k) => <i key={k} className={k < done ? 'on' : ''} />)}
+        <span>{done < per ? `Протрите стекло — под пылью новинка дня. За витрину — ${DUST.coins} ${coinsWord(DUST.coins)}.` : 'Монеты за сегодня собраны. Протирать можно и просто так.'}</span>
+        <div className="sh-dust-dots" aria-label={`Сегодня протёрто ${Math.min(done, per)} из ${per}`} role="img" data-testid="dust-dots" data-total={per}>
+          {Array.from({ length: per }, (_, k) => <i key={k} className={k < done ? 'on' : ''} />)}
         </div>
       </div>
       <Button small variant="warm" onClick={() => { Audio.play('paper'); onOpen(); }} data-testid="dust-open">Протереть</Button>
@@ -407,8 +448,10 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
           </>}
 
           {tab === 'dust' && <>
-            <Heading level={3} title="Пыльная витрина" sub={`Мини-игра: ночью в лавке пыль — протрите стекло тряпкой, под ним новинка витрины дня. За витрину — ${DUST.coins} ${coinsWord(DUST.coins)}, до ${DUST.perDay} витрин в день.`} />
+            <Heading level={3} title="Пыльная витрина" sub={`Мини-игра: ночью в лавке пыль — протрите стекло тряпкой, под ним новинка витрины дня. За витрину — ${DUST.coins} ${coinsWord(DUST.coins)}, до ${dustPerDay(learn)} витрин в день.`} />
             <div style={{ marginTop: 10 }}><DustCard learn={learn} onOpen={() => setDust(true)} /></div>
+            <style>{CLOTH_CSS}</style>
+            <ClothCard learn={learn} update={update} />
           </>}
 
           {tab === 'lesson' && <>

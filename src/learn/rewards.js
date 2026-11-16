@@ -6,7 +6,7 @@
 import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf, diamondCount } from '../textbook/learn-state.js';
 import { plural } from '../lib/plural.js';
 import { isUnlocked } from './unlocks.js';
-import { LESSONS, UNITS } from './course-core.js';
+import { LESSONS, UNITS, pathState } from './course-core.js';
 import { halloweenOn, WEB_FRAME } from './halloween.js';
 export { plural };
 
@@ -457,10 +457,16 @@ export const rareQuestId = (s, now = Date.now()) => {
 // монеты за каждое задание дня — для проверки выплат (src/learn/audit.js)
 export const QUEST_COINS = Object.fromEntries(Object.entries(QUEST).map(([k, q]) => [k, q.coins]));
 export const QUEST_ICON = { lessons: 'map', perfect: 'check', correct: 'coins', run: 'flame', xp: 'spark', fresh: 'target', world: 'globe', practice: 'repeat' };
+/* Есть ли на Пути новый урок, который можно пройти: открытый непройденный урок или особый урок, которого ждёт дорога.
+   «Большое повторение» уровня новым уроком не считается. Нет — задание «Пройти новый урок» не выпадает (docs/mechanics.md). */
+export const freshOpen = (s) => pathState({ lessons: {}, ...s }).some((st) => st.current && !st.current.done && st.current.extra !== 'level-review');
 export function questsFor(s, now = Date.now()) {
   const day = dayOf(now); const d = dailyOf(s, now);
   const pick = (list, salt) => list[Math.floor(mix01(`${day}:${salt}`) * list.length)];
-  const ids = [pick(['lessons', 'perfect'], 'a'), pick(['correct', 'run'], 'b'), rareQuestId(s, now) || pick(['xp', 'fresh'], 'c')];
+  let third = rareQuestId(s, now) || pick(['xp', 'fresh'], 'c');
+  // новый урок сегодня уже засчитан — задание остаётся; иначе без нового урока на Пути — опыт
+  if (third === 'fresh' && !(d.n > 0) && !freshOpen(s)) third = 'xp';
+  const ids = [pick(['lessons', 'perfect'], 'a'), pick(['correct', 'run'], 'b'), third];
   return ids.map((id) => {
     const q = QUEST[id]; const target = q.target(s, now); const have = Math.min(target, q.have(d, s, day));
     const key = `q:${day}:${id}`;

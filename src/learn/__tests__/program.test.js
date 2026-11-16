@@ -364,6 +364,24 @@ describe('задания дня, сундук, печати, испытание 
     expect(r.gains.some((g) => g.key === q[2].key)).toBe(true);
     expect(questsFor(r.s, t + 180e3)[2].claimed).toBe(true);
   });
+  /* пункт владельца 16.11: «у меня задание пройти новый урок на пути, когда у меня все уроки пройдены» */
+  it('«Пройти новый урок на Пути» не выпадает, когда новых уроков нет: вместо него — опыт; начатое сегодня — остаётся', async () => {
+    const { freshOpen } = await import('../rewards.js');
+    const { LESSONS, UNITS } = await import('../course-core.js');
+    const { LEVELS } = await import('../../textbook/levels.js');
+    const { finishLesson } = await import('../../textbook/learn-state.js');
+    const days = Array.from({ length: 60 }, (_, d) => T + d * 86400e3);
+    // новичку новый урок есть — задание бывает
+    expect(freshOpen(emptyLearn())).toBe(true);
+    expect(days.some((t) => questsFor(emptyLearn(), t)[2].id === 'fresh')).toBe(true);
+    // весь курс пройден (уроки, особые уроки, повторения уровней) — нового урока нет ни в какой день
+    let all = emptyLearn();
+    for (const l of LESSONS) all = finishLesson(all, l.id, { xp: 10, accuracy: 100, now: T - 86400e3 * 5 });
+    const done = { ...all, units: Object.fromEntries(UNITS.map((u) => [u.id, { tested: 1 }])), levels: Object.fromEntries(LEVELS.map((l) => [l.id, { at: T }])) };
+    expect(freshOpen(done)).toBe(false);
+    for (const t of days) expect(questsFor(done, t)[2].id, new Date(t).toISOString()).not.toBe('fresh');
+    expect(days.some((t) => questsFor(done, t)[2].id === 'xp')).toBe(true);
+  });
   it('три задания: про уроки, про ответы, про опыт или новый урок; размер — от цели в минутах; набор одинаков весь день', () => {
     const s = setProfile(emptyLearn(), { minutes: 15 }, T);
     const q = questsFor(s, T);

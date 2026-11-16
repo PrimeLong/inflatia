@@ -9,11 +9,14 @@
    (кроме коротких звуков интерфейса — их, опоздавших, лучше пропустить). AudioContext
    создаётся сразу внутри клика: Safari на iPhone разрешает звук только контексту,
    запущенному прямо в жесте, а движок потом подхватывает его (adopt). */
-const opts = { music: true, sfx: true, volume: 0.6 };
+// музыка до первой настройки экрана — выключена: по умолчанию её включают сами (docs/mechanics.md, «Музыка»)
+const opts = { music: false, sfx: true, volume: 0.6 };
 let real = null;
 let meta = null;
 let loading = null;
 let earlyCtx = null;
+// лайки пьес — ждут движка, не загружая его
+let likes = [];
 const queue = [];
 const listeners = new Set();
 const notify = () => listeners.forEach((f) => { try { f(); } catch { /* подписчик сам разберётся */ } });
@@ -27,6 +30,7 @@ function load() {
     // настройки, выставленные до загрузки, переезжают в движок
     real.setVolume(opts.volume); real.setSfx(opts.sfx);
     if (!opts.music) real.setMusic(false);
+    real.setLikes(likes);
     listeners.forEach((f) => real.onChange(f));
     queue.splice(0).forEach(([name, args]) => { try { real[name](...args); } catch { /* тихо */ } });
     notify();
@@ -77,6 +81,7 @@ export const Audio = {
   setMusic(v) { opts.music = v; if (real) real.setMusic(v); else if (v) { queue.push(['setMusic', [v]]); load(); } notify(); },
   nowPlaying() { return real ? real.nowPlaying() : { name: 'Саундтрек загрузится по первому клику', subtitle: '', moodLabel: '', bpm: '—', locked: null }; },
   playlist() { return real ? real.playlist() : []; },
+  setLikes(ids) { likes = Array.isArray(ids) ? [...ids] : []; if (real) real.setLikes(likes); notify(); },
   onChange(fn) {
     listeners.add(fn);
     const off = real ? real.onChange(fn) : null;

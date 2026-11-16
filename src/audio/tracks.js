@@ -721,22 +721,40 @@ const MOOD_PLAYLISTS = {
   authoritarian: ['decree', 'corridors'],
   totalitarian: ['ironmarch', 'parade', 'curfew'],
 };
-/* «Волна» — для учебника, где экономики нет: настроения по кругу, одно за другим, два одинаковых подряд не звучат */
-const WAVE_MOODS = ['calm', 'boom', 'slump', 'frost', 'stag'];
-// каждый раз — настроение, где пьес осталось больше всех, кроме только что звучавшего (и по кругу — кроме первого)
-MOOD_PLAYLISTS.wave = (() => {
-  const left = Object.fromEntries(WAVE_MOODS.map((m) => [m, [...MOOD_PLAYLISTS[m]]]));
-  const out = []; let prev = null;
-  while (WAVE_MOODS.some((m) => left[m].length)) {
-    const last = WAVE_MOODS.reduce((a, m) => a + left[m].length, 0) === 1;
-    const first = out.length ? TRACKS[out[0]].mood : null;
-    const pick = WAVE_MOODS.filter((m) => left[m].length && m !== prev && !(last && m === first))
-      .sort((x, y) => left[y].length - left[x].length)[0];
-    if (!pick) break;
-    out.push(left[pick].shift()); prev = pick;
-  }
-  return out;
-})();
+/* «ВОЛНА» — музыка обучения, где экономики нет (docs/mechanics.md, «Музыка: „Волна“»). Как настоящая радиоволна: пьесы
+   выбираются случайно, а не по списку; плейлиста в панели нет. Правила:
+   — начинается всегда со спокойной пьесы — не с бодрой и не с тревожной;
+   — переходы плавные: у настроения есть «энергия» (WAVE_ENERGY), следующая пьеса — другого настроения и отличается
+     по энергии не больше чем на ступень: после спокойной не грянет «Стагфляция», волна поднимается и опускается;
+   — недавние пьесы (WAVE_RECENT) не повторяются;
+   — пьесы с лайком выпадают чаще (вес WAVE_LIKE_WEIGHT). */
+export const WAVE_MOODS = ['calm', 'frost', 'slump', 'boom', 'stag'];
+export const WAVE_ENERGY = { calm: 1, frost: 1, slump: 2, boom: 3, stag: 3 };
+export const WAVE_START = 'calm';
+export const WAVE_RECENT = 6;
+export const WAVE_LIKE_WEIGHT = 3;
+// все пьесы «Волны» — то, из чего она выбирает (в панели не показывается)
+MOOD_PLAYLISTS.wave = WAVE_MOODS.flatMap((m) => MOOD_PLAYLISTS[m]);
+export function waveNext(history = [], { likes = [], rnd = Math.random } = {}) {
+  const liked = new Set(likes);
+  const prev = history.length ? TRACKS[history[history.length - 1]] : null;
+  const recent = new Set(history.slice(-WAVE_RECENT));
+  const fits = (id, strict) => {
+    const m = TRACKS[id].mood;
+    if (!prev) return m === WAVE_START;
+    if (id === prev.id || m === prev.mood) return false;
+    if (Math.abs(WAVE_ENERGY[m] - WAVE_ENERGY[prev.mood]) > 1) return false;
+    return !strict || !recent.has(id);
+  };
+  // недавние исключаются, пока есть из чего выбирать; иначе — лишь бы не та же пьеса и не то же настроение
+  let pool = MOOD_PLAYLISTS.wave.filter((id) => fits(id, true));
+  if (!pool.length) pool = MOOD_PLAYLISTS.wave.filter((id) => fits(id, false));
+  const weight = (id) => (liked.has(id) ? WAVE_LIKE_WEIGHT : 1);
+  const total = pool.reduce((a, id) => a + weight(id), 0);
+  let r = rnd() * total;
+  for (const id of pool) { r -= weight(id); if (r < 0) return id; }
+  return pool[pool.length - 1];
+}
 const MOOD_LABEL = { calm: 'Спокойствие', boom: 'Подъём', slump: 'Спад', stag: 'Стагфляция', crisis: 'Кризис', frost: 'Дефляция',
   war: 'Война', campaign: 'Предвыборная кампания', stabilization: 'Стабилизация', authoritarian: 'Ручное управление',
   totalitarian: 'Тоталитаризм', wave: 'Волна' };

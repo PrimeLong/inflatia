@@ -19,6 +19,7 @@ import {
 import { unitStops, EXTRA_KIND } from './learn/stops.js';
 import { PEOPLE_BY_ID, MET_XP } from './learn/people.js';
 import { BookDock } from './learn-bookdock.jsx';
+import { MusicDock } from './learn-musicdock.jsx';
 // огонёк серии на итогах — общий с итогами особых уроков
 import { preloadPhotos } from './learn/portraits.js';
 import { STATS_CSS } from './learn-stats.jsx';
@@ -1002,6 +1003,8 @@ function unitGems(st, learn) {
 }
 function ExtraSheet({ x, onStart, onClose }) {
   const info = extraInfo(x);
+  // незаконченный особый урок — сохранён на сутки, как урок (src/learn-special.jsx, useSpecialResume)
+  const resume = ['read', 'people', 'graph', 'draw'].includes(x.type) ? getResume(`${x.type}:${x.id}`) : null;
   if (!info) return null;
   const Icon = EXTRA_ICON[x.type] || BookOpen;
   const pl = placeOf(info.unitId);
@@ -1033,7 +1036,9 @@ function ExtraSheet({ x, onStart, onClose }) {
             </div>
           </>
         )}
-        <Button wide variant={x.done && EXTRA_GEM[x.type] ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{x.done ? 'Открыть снова' : 'Начать'}</Button>
+        {/* вышли посреди — «Продолжить», как у обычного урока (пункт владельца 16.11); внутри урока полосы «Продолжаем…» нет */}
+        <Button wide variant={x.done && EXTRA_GEM[x.type] && !resume ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{resume ? 'Продолжить' : x.done ? 'Открыть снова' : 'Начать'}</Button>
+        {resume && <div className="ds-faint" style={{ fontSize: 13, textAlign: 'center', marginTop: 2 }} data-testid="extra-resume-note">Урок сохранён с того места, где вы вышли.</div>}
       </div>
     </Sheet>
   );
@@ -2053,6 +2058,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       {people && <Lazy><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
+      {/* музыка включена в обучении — мини-плашка над вкладками (пункт владельца 16.11), над плашкой книги, если звучит и она */}
+      {!run && <MusicDock />}
       {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
       {extraSheet && <ExtraSheet x={extraSheet} onStart={openExtra} onClose={() => setExtraSheet(null)} />}
       {extraLocked && (
