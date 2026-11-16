@@ -78,6 +78,11 @@ export const PARTS = [
           { book: 'mankiwPrinciples', chapter: '«Рынки факторов производства» (The Markets for the Factors of Production) и «Заработки и дискриминация» (Earnings and Discrimination)' },
           { book: 'varian', chapter: '«Рынки факторов» (Factor Markets)' },
         ] },
+      { id: 'household', title: 'Доходы, расходы и сбережения', status: 'ready',
+        summary: 'Доход и его источники, обязательные и необязательные расходы, бюджет семьи, сбережения и подушка безопасности, вклад и сложный процент, деньги в копилке и инфляция.',
+        refs: [
+          { book: 'mankiwPrinciples', chapter: '«Основные инструменты финансов» (The Basic Tools of Finance)' },
+        ] },
       { id: 'market-failures', title: 'Провалы рынка и налоги', status: 'ready',
         summary: 'Излишки потребителя и производителя, налог и его бремя, безвозвратные потери, внешние эффекты и налог Пигу, общественные блага, асимметрия информации.',
         cards: ['laffer'],

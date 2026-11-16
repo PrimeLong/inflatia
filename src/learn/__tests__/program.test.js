@@ -6,11 +6,11 @@ import { skillLevel, levelNote, weakLessons, recommend, courseCtx, lessonOpts, t
 import { evalExpr, fmtResult, pressRoot } from '../calc.js';
 import {
   balance, earn, courseIncome, runCoins, rateOn, rateHistory, priceOf, buy, setWear, outfitOf, FREEZE, BOOST, OUTFITS, shopDay, SHOWCASE_SIZE, DEAL_OFF, boostActive, questsFor, openChest, chestCoins, chestKey,
-  settle, monthChallenge, fixMonth, achievementsOf, hash01, COIN, goalCoins,
+  settle, monthChallenge, fixMonth, achievementsOf, hash01, COIN, goalCoins, rareQuestId,
 } from '../rewards.js';
 import {
   emptyLearn, recordAttempt, finishLesson, setProfile, setPlacement, passUnit, normalizeLearn, mergeLearn, streak, applyFreezes, ownedFreezes,
-  dayOf, addDays, weekDots, dailyOf, MAX_FREEZES, goalToday, goalMinutes, pendingGoal, studyWeeks,
+  dayOf, addDays, weekDots, dailyOf, MAX_FREEZES, goalToday, goalMinutes, pendingGoal, studyWeeks, countWorldQuarter, addMistake,
 } from '../../textbook/learn-state.js';
 
 const at = (day, h = 12) => { const [y, m, d] = day.split('-').map(Number); return new Date(y, m - 1, d, h).getTime(); };
@@ -148,12 +148,12 @@ describe('слабые темы и «рекомендуем сейчас»', () 
   const done = (ids) => ids.reduce((s, id) => lessonOn(s, id, '2026-09-27'), emptyLearn());
   const topics = (s, map) => ({ ...s, topics: Object.fromEntries(Object.entries(map).map(([id, [ok, n]]) => [id, { ok, n }])) });
   it('слабая тема — пройденный урок с точностью ниже 70% (от четырёх попыток), слабейшие первыми', () => {
-    const s = topics(done(['sc-i1', 'sc-l1', 'sc-l2']), { 'sc-i1': [9, 10], 'sc-l1': [2, 6], 'sc-l2': [3, 5], 'sc-l3': [0, 5] });
+    const s = topics(done(['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2']), { 'sc-i1': [9, 10], 'sc-l1': [2, 6], 'sc-l2': [3, 5], 'sc-l3': [0, 5] });
     expect(weakLessons(s).map((w) => w.id)).toEqual(['sc-l1', 'sc-l2']);
     expect(lessonOpts(s).weak).toEqual(['sc-l1', 'sc-l2']);
   });
   it('рекомендуем: всегда следующая непройденная остановка; слабое место (ниже 60%) — отдельно, без отметки над пройденным уроком', () => {
-    const base = done(['sc-i1', 'sc-l1', 'sc-l2']);
+    const base = done(['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2']);
     const cur = pathState(base).find((x) => x.current).current.id;
     expect(recommend(base)).toEqual({ lessonId: cur, why: 'next' });
     expect(recommend(topics(base, { 'sc-l2': [3, 5] }))).toEqual({ lessonId: cur, why: 'next' });
@@ -193,9 +193,9 @@ describe('вступительный тест', () => {
     plan.items.forEach((it) => expect(['swipe', 'rush']).not.toContain(it.kind));
   });
   it('юнит открыт, если в пятёрке не больше одной ошибки; первая проваленная пятёрка останавливает', () => {
-    expect(placementOpened(plan.items, answer({}))).toEqual(['scarcity', 'labor', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
-    expect(placementOpened(plan.items, answer({ 'supply-demand': 1 }))).toEqual(['scarcity', 'labor', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
-    expect(placementOpened(plan.items, answer({ 'supply-demand': 2 }))).toEqual(['scarcity', 'labor']);
+    expect(placementOpened(plan.items, answer({}))).toEqual(['scarcity', 'labor', 'household', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
+    expect(placementOpened(plan.items, answer({ 'supply-demand': 1 }))).toEqual(['scarcity', 'labor', 'household', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
+    expect(placementOpened(plan.items, answer({ 'supply-demand': 2 }))).toEqual(['scarcity', 'labor', 'household']);
     expect(placementOpened(plan.items, answer({ scarcity: 2 }))).toEqual([]);
     const first = answer({ scarcity: 2 });
     expect(placementFailed(plan.items, first, 'scarcity')).toBe(true);
@@ -341,6 +341,29 @@ describe('лавка и заморозки', () => {
 });
 
 describe('задания дня, сундук, печати, испытание месяца', () => {
+  it('редкое задание дня: примерно в один день из пяти — «Мир» или работа над ошибками, только доступное; кварталы «Мира» считаются и оплачиваются', () => {
+    // новичку («Мир» закрыт, ошибок нет) редкое не выпадает
+    const days = Array.from({ length: 200 }, (_, d) => T + d * 86400e3);
+    expect(days.filter((t) => rareQuestId(emptyLearn(), t)).length).toBe(0);
+    // «Мир» уже открыт (сегодня в нём играли) и есть ошибки — редкие дни есть, но их немного, и бывают оба задания
+    const ready = (t) => addMistake(countWorldQuarter(emptyLearn(), t), 'x', t);
+    const rare = days.map((t) => rareQuestId(ready(t), t)).filter(Boolean);
+    expect(rare.length).toBeGreaterThan(20); expect(rare.length).toBeLessThan(60);
+    expect(new Set(rare)).toEqual(new Set(['world', 'practice']));
+    // в редкий день оно стоит третьим, первые два — обычные
+    const t = days.find((x) => rareQuestId(ready(x), x) === 'world');
+    let s = ready(t);
+    let q = questsFor(s, t);
+    expect(q[2]).toMatchObject({ id: 'world', rare: true, have: 1, target: 2, done: false });
+    expect(q[0].rare).toBeUndefined();
+    // второй квартал — задание выполнено, монеты выдаёт settle
+    s = countWorldQuarter(s, t + 60e3);
+    q = questsFor(s, t + 60e3);
+    expect(q[2].done).toBe(true);
+    const r = settle(s, {}, t + 120e3);
+    expect(r.gains.some((g) => g.key === q[2].key)).toBe(true);
+    expect(questsFor(r.s, t + 180e3)[2].claimed).toBe(true);
+  });
   it('три задания: про уроки, про ответы, про опыт или новый урок; размер — от цели в минутах; набор одинаков весь день', () => {
     const s = setProfile(emptyLearn(), { minutes: 15 }, T);
     const q = questsFor(s, T);
@@ -572,5 +595,14 @@ describe('корень как на обычном калькуляторе', () 
     expect(pressRoot('')).toBe('√');
     expect(pressRoot('5+')).toBe('5+√');
     expect(evalExpr(`${pressRoot('5+')}9`)).toBe(8);
+  });
+});
+
+describe('плашка «Редкое» у задания дня — свой класс (полный прогон e2e 16.11)', () => {
+  it('не переопределяет плашки лавки .rw-rare: у тех шрифт и положение свои', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../learn-rewards.jsx', import.meta.url), 'utf8');
+    expect(src).toContain('className="rw-quest-rare"');
+    expect(src.match(/^\s*\.rw-rare \{/gm)).toHaveLength(1);
   });
 });

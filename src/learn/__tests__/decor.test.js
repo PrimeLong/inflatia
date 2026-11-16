@@ -135,6 +135,24 @@ describe('колыбель: несколько шариков сразу', () =>
     expect(out3).toBeGreaterThan(0.25);
   });
 
+  it('оттянули крайний влево и повели вправо — остальные стоят, пока он до них не долетел (пункт владельца 15.11)', async () => {
+    const { holdCradle, releaseCradle } = await import('../../learn-decor.jsx');
+    const H = 170; const m = decorModel('desk-cradle', 400, H);
+    expect(holdCradle(m, 0, -m.L * 0.5)).toBe(1);
+    for (let k = 0; k < 60; k += 1) decorStep(m, 1 / 60, H);
+    expect(m.balls[0].a).toBeLessThan(-0.4);
+    // рука ушла вправо: в руке — только взятый шарик
+    expect(holdCradle(m, 0, m.L * 0.4)).toBe(1);
+    decorStep(m, 1 / 60, H); decorStep(m, 1 / 60, H);
+    expect(m.balls[0].a).toBeLessThan(-0.2); // ещё далеко
+    m.balls.slice(1).forEach((b) => { expect(b.a).toBe(0); expect(b.w).toBe(0); });
+    // долетел — толкает всех перед собой
+    for (let k = 0; k < 90; k += 1) decorStep(m, 1 / 60, H);
+    m.balls.forEach((b) => expect(b.a).toBeGreaterThan(0.25));
+    releaseCradle(m);
+    expect(m.hold).toBeNull();
+  });
+
   it('правый крайний толкнули влево — уходят все пять, отпустили — качаются все вместе', async () => {
     const { holdCradle, releaseCradle } = await import('../../learn-decor.jsx');
     const H = 48; const m = decorModel('desk-cradle', 400, H);

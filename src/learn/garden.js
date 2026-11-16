@@ -123,8 +123,11 @@ export function wetTime(g, now = Date.now()) {
 /* Растения не одинаковые (docs/mechanics.md, «Сад»): рост 0,84–1,16, наклон до 5° и сторона — от момента посадки,
    поэтому одно и то же растение всегда выглядит так же, а соседние пионы — по-разному. */
 const look01 = (at, salt) => { let h = (Math.floor(Number(at) || 0) ^ salt) >>> 0; h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0; h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-export function plantLook(at) {
-  return { k: Math.round((0.84 + look01(at, 0x9e37) * 0.32) * 100) / 100, tilt: Math.round((look01(at, 0x85eb) * 10 - 5) * 10) / 10, flip: look01(at, 0xc2b2) < 0.5 ? -1 : 1 };
+// дерево стоит прямо: наклонённый на пять градусов ствол выглядел так, будто дерево падает (пункт владельца 15.11)
+export const STRAIGHT_PLANTS = ['moneytree'];
+export function plantLook(at, plantId = null) {
+  const straight = STRAIGHT_PLANTS.includes(plantId);
+  return { k: Math.round((0.84 + look01(at, 0x9e37) * 0.32) * 100) / 100, tilt: straight ? 0 : Math.round((look01(at, 0x85eb) * 10 - 5) * 10) / 10, flip: look01(at, 0xc2b2) < 0.5 ? -1 : 1 };
 }
 export function growth(g, now = Date.now()) {
   const total = growMs(g.plant);

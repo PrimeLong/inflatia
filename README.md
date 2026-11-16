@@ -85,7 +85,8 @@ src/
                        гость (guest.js), клиент API (client.js)
 api/                   serverless-функции: аккаунт, комнаты, вызов дня, рекорды, сообщения
                        об ошибках, аналитика без персональных данных (events.js)
-e2e/                   smoke.e2e.js — сценарии; screens.e2e.js — все экраны + axe + размер шрифта;
+e2e/                   сценарии по разделам (app, world, textbook, path, lesson, extras, rewards) и helpers.js;
+                       screens.e2e.js — все экраны + axe + размер шрифта;
                        visual.e2e.js — эталоны десяти ключевых экранов
 docs/                  библия мира, словарь механик, вопросы юристу
 scripts/               стенд баланса, иконки, плагины сборки (service worker, разделы учебника)

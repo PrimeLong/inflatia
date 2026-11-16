@@ -32,12 +32,13 @@ export function rememberTeam(login, isTeam) {
     else { s.removeItem(TEAM_KEY); s.removeItem(TRACK_KEY); }
   } catch { /* приватный режим */ }
 }
-// переключить курс (только команда видит переключатель) и перезапустить приложение
+// переключить курс (только команда видит переключатель) и перезапустить приложение — с Пути нового курса:
+// перезагрузка восстановила бы экран по адресу (настройки в профиле), а курс сменился
 export function switchTrack(next, login) {
   const s = store();
   if (!s) return;
   try {
     if (next === 'politics') { s.setItem(TEAM_KEY, lower(login)); s.setItem(TRACK_KEY, 'politics'); } else s.removeItem(TRACK_KEY);
   } catch { /* приватный режим */ }
-  if (typeof window !== 'undefined' && window.location) window.location.reload();
+  if (typeof window !== 'undefined' && window.location) window.location.assign('/');
 }

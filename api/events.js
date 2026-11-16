@@ -14,21 +14,26 @@ import { isOwner } from './reports.js';
 
 /* шаги воронки — в том порядке, в каком их проходит ученик; каждый шаг — разовое событие, не больше раза с
    устройства (docs/mechanics.md, «Аналитика»), поэтому шаги сравнимы между собой */
-export const FUNNEL = ['welcome_start', 'goal_done', 'first_lesson_start', 'first_lesson_done', 'register_done', 'return_d1', 'return_d7'];
+export const FUNNEL = ['welcome_view', 'welcome_start', 'goal_done', 'first_lesson_start', 'first_lesson_done', 'register_done', 'return_d1', 'return_d7'];
 // активность — на каждый урок и каждый ответ; в воронку не входит
-export const ACTIVITY = ['lesson_start', 'lesson_done', 'ex_first_try_ok', 'ex_first_try_fail'];
+// lesson_quit — вышли из урока, не дойдя до конца; step — номер шага (задания), на котором вышли
+export const ACTIVITY = ['lesson_start', 'lesson_done', 'lesson_quit', 'ex_first_try_ok', 'ex_first_try_fail'];
 // открытия разделов — не чаще раза в день с устройства
-export const FEATURES = ['world_open', 'textbook_open', 'shop_open', 'garden_open', 'league_open', 'tycoon_open', 'network_open'];
+/* и использование фич внутри разделов — той же формы (docs/roadmap-audit.md, раздел 1): положили в копилку, надели вещь,
+   купили редкую вещь у ювелира, тронули окошко антистресса, забрали «Паутину» Хеллоуина */
+export const FEATURES = ['world_open', 'textbook_open', 'shop_open', 'garden_open', 'league_open', 'tycoon_open', 'network_open',
+  'piggy_put', 'wardrobe_wear', 'rare_buy', 'antistress_open', 'halloween_claim'];
 // защита монет (docs/mechanics.md, «Защита монет»): предохранитель остановил повторную выплату — без логина и имени
 // защита монет: предохранитель выплат и разовое списание монет дюпа (src/learn/audit.js)
 export const SAFETY = ['coins_guard', 'coins_clawback'];
 export const EVENTS = [...FUNNEL, ...ACTIVITY, ...FEATURES, ...SAFETY];
 export const FUNNEL_LABEL = {
-  welcome_start: 'Нажали «Начать»', goal_done: 'Выбрали цель', first_lesson_start: 'Начали первый урок', first_lesson_done: 'Прошли первый урок',
+  welcome_view: 'Открыли приветствие', welcome_start: 'Нажали «Начать»', goal_done: 'Выбрали цель', first_lesson_start: 'Начали первый урок', first_lesson_done: 'Прошли первый урок',
   register_done: 'Создали аккаунт', return_d1: 'Вернулись на следующий день', return_d7: 'Вернулись через неделю',
 };
 export const FEATURE_LABEL = {
   world_open: 'Мир', textbook_open: 'Учебник', shop_open: 'Лавка', garden_open: 'Сад Инфли', league_open: 'Лиги', tycoon_open: 'Своё дело', network_open: 'Сетевая партия',
+  piggy_put: 'Копилка: положили', wardrobe_wear: 'Гардероб: надели вещь', rare_buy: 'Ювелир: купили', antistress_open: 'Антистресс: пользовались', halloween_claim: 'Хеллоуин: забрали «Паутину»',
 };
 const ID_RE = /^[a-z0-9][a-z0-9_:.-]{0,79}$/i;
 const today = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
@@ -42,6 +47,8 @@ export function sanitizeEvent(body) {
   if (typeof body.exercise === 'string' && ID_RE.test(body.exercise)) out.exercise = body.exercise;
   if (typeof body.ok === 'boolean') out.ok = body.ok;
   if (Number.isFinite(body.ms) && body.ms >= 0 && body.ms < 3600000) out.ms = Math.round(body.ms);
+  // номер шага урока — только целое от 1 до 99: ничего, кроме места в уроке, в нём нет
+  if (Number.isInteger(body.step) && body.step >= 1 && body.step <= 99) out.step = body.step;
   return out;
 }
 // какие счётчики увеличить
@@ -53,6 +60,8 @@ export function counterKeys(e, now = Date.now()) {
   }
   // по уроку: сколько раз начали и сколько дошли до конца
   if (e.lesson && (e.event === 'lesson_start' || e.event === 'lesson_done')) keys.push(`lesson:${e.lesson}:${e.event === 'lesson_start' ? 'start' : 'done'}`);
+  // вышли из урока: всего и на каком шаге
+  if (e.lesson && e.event === 'lesson_quit') { keys.push(`lesson:${e.lesson}:quit`); if (e.step) keys.push(`lesson:${e.lesson}:quit:${e.step}`); }
   return keys;
 }
 // суммы: секунды пройденного урока — для «сколько минут занимает урок»
@@ -75,10 +84,14 @@ export async function report(now = Date.now()) {
   const features = FEATURES.map((ev) => ({ event: ev, label: FEATURE_LABEL[ev], ...stat(ev), month: sumDays(c, days, ev) }));
   // уроки: начали, дошли до конца, сколько минут в среднем
   const lessonIds = await setMembers('lessons');
-  const lc = await readCounters(lessonIds.flatMap((id) => [`lesson:${id}:start`, `lesson:${id}:done`, `lesson:${id}:sec`]));
+  const QUIT_STEPS = Array.from({ length: 20 }, (_, k) => k + 1);
+  const lc = await readCounters(lessonIds.flatMap((id) => [`lesson:${id}:start`, `lesson:${id}:done`, `lesson:${id}:sec`, `lesson:${id}:quit`, ...QUIT_STEPS.map((n) => `lesson:${id}:quit:${n}`)]));
   const lessons = lessonIds.map((id) => {
     const start = lc[`lesson:${id}:start`] || 0; const done = lc[`lesson:${id}:done`] || 0; const sec = lc[`lesson:${id}:sec`] || 0;
-    return { id, start, done, finish: start ? Math.min(1, done / start) : null, minutes: done ? sec / done / 60 : null };
+    // где бросают: шаг, на котором выходили чаще всего (среди первых двадцати)
+    const quit = lc[`lesson:${id}:quit`] || 0;
+    const worst = QUIT_STEPS.map((n) => [n, lc[`lesson:${id}:quit:${n}`] || 0]).sort((a, b) => b[1] - a[1])[0];
+    return { id, start, done, finish: start ? Math.min(1, done / start) : null, minutes: done ? sec / done / 60 : null, quit, quitStep: worst && worst[1] ? worst[0] : null, quitAtStep: worst ? worst[1] : 0 };
   }).filter((x) => x.start > 0).sort((a, b) => b.start - a.start).slice(0, 40);
   // сообщения об ошибках: новые по причинам
   const fresh = (await getReports()).filter((r) => r.status !== 'done');
@@ -109,7 +122,7 @@ async function handleRequest(req, res) {
   const sums = counterSums(e);
   if (sums.length) await addCounters(sums);
   if (e.exercise && e.event.startsWith('ex_first_try')) await addToSet('exercises', e.exercise);
-  if (e.lesson && (e.event === 'lesson_start' || e.event === 'lesson_done')) await addToSet('lessons', e.lesson);
+  if (e.lesson && (e.event === 'lesson_start' || e.event === 'lesson_done' || e.event === 'lesson_quit')) await addToSet('lessons', e.lesson);
   return res.status(200).json({ ok: true });
 }
 

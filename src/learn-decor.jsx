@@ -104,15 +104,28 @@ export const CRADLE_PULL = { k: 110, zeta: 0.8, maxW: 7 };
 export function holdCradle(m, idx, dx) {
   const L = m.L; const lim = L * Math.sin(CRADLE_MAX); const d = Math.max(-lim, Math.min(lim, dx));
   m.lift = null;
-  const { group } = cradleGroup(m, idx, d);
-  const a = Math.asin(d / L);
-  m.balls.forEach((b) => { const held = group.includes(b); b.drag = held; b.pull = held ? a : null; });
-  return group.length;
+  m.hold = { idx, a: Math.asin(d / L) };
+  return cradleReach(m);
+}
+/* Кого сейчас ведёт рука: сам взятый шарик и те соседи, которых он уже толкает, — они касаются его (по цепочке)
+   и рука тянет дальше них. Раньше в руку сразу попадали все шарики со стороны, куда показывает рука: оттянул
+   крайний влево, повёл вправо — и остальные четыре уезжали вправо, хотя он до них ещё не долетел (пункт
+   владельца 15.11: «шарики начинают отталкиваться от него, хотя он ещё даже не коснулся их»). */
+const CRADLE_TOUCH = 1.2;
+function cradleReach(m) {
+  const h = m.hold; if (!h) return 0;
+  const B = m.balls; const near = (p, q) => Math.abs(ballPos(m, q).x - ballPos(m, p).x) <= m.r * 2 + CRADLE_TOUCH;
+  const held = new Set([h.idx]);
+  for (let j = h.idx + 1; j < B.length && near(B[j - 1], B[j]) && h.a > B[j].a - 0.03; j += 1) held.add(j);
+  for (let j = h.idx - 1; j >= 0 && near(B[j], B[j + 1]) && h.a < B[j].a + 0.03; j -= 1) held.add(j);
+  B.forEach((b, k) => { const on = held.has(k); b.drag = on; b.pull = on ? h.a : null; });
+  return held.size;
 }
 // отпустили: шарики уходят с той скоростью, с какой летели к руке (не больше предела)
 export function releaseCradle(m) {
   const lim = CRADLE_PULL.maxW;
   m.balls.forEach((b) => { if (b.drag && b.pull != null) b.w = Math.max(-lim, Math.min(lim, b.w)); b.drag = false; b.pull = null; });
+  m.hold = null;
 }
 /* затухание колыбели — в секунду, а не за шаг расчёта: прежние 0,2% за подшаг гасили размах вдвое
    за полторы секунды. Теперь размах уменьшается вдвое примерно за 4–5 секунд: заметно качается
@@ -131,6 +144,8 @@ function stepCradle(m, dt) {
   }
   const k = CRADLE_PULL.k; const c = 2 * CRADLE_PULL.zeta * Math.sqrt(k);
   for (let s = 0; s < sub; s += 1) {
+    // рука ведёт только тех, до кого взятый шарик уже дотянулся
+    if (m.hold) cradleReach(m);
     m.balls.forEach((b) => {
       // в руке: тянется к руке пружиной с затуханием — догоняет без рывка и почти без перелёта
       if (b.drag) {
