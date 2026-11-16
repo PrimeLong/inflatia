@@ -9,7 +9,8 @@
    (кроме коротких звуков интерфейса — их, опоздавших, лучше пропустить). AudioContext
    создаётся сразу внутри клика: Safari на iPhone разрешает звук только контексту,
    запущенному прямо в жесте, а движок потом подхватывает его (adopt). */
-const opts = { music: true, sfx: true, volume: 0.6 };
+// музыка до первой настройки экрана — выключена: по умолчанию её включают сами (docs/mechanics.md, «Музыка»)
+const opts = { music: false, sfx: true, volume: 0.6 };
 let real = null;
 let meta = null;
 let loading = null;
