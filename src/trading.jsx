@@ -78,7 +78,7 @@ function benchValues(book, economy) {
    строка состояния. Ширину раскладка берёт у самого терминала (container queries): в обучении он уже, чем на «Рынке». */
 const TT_CSS = `
   .tt { --tt-bg: #0A0E13; --tt-panel: #10151C; --tt-card: #151B24; --tt-card2: #1B2330; --tt-line: #222B37; --tt-line2: #2C3746;
-    --tt-ink: #E9EEF4; --tt-ink2: #A2AEBD; --tt-ink3: #6B7787; --tt-up: #26C281; --tt-down: #F0546A; --tt-acc: #F2B84B; --tt-blue: #5EA2FF;
+    --tt-ink: #E9EEF4; --tt-ink2: #A2AEBD; --tt-ink3: #818D9C; --tt-up: #26C281; --tt-down: #F0546A; --tt-acc: #F2B84B; --tt-blue: #5EA2FF;
     container: tt / inline-size; position: relative; background: var(--tt-bg); color: var(--tt-ink); border-radius: 16px; overflow: hidden;
     border: 1px solid var(--tt-line); box-shadow: 0 18px 40px -24px rgba(0,0,0,.55); font-size: 13px; line-height: 1.4; }
   .tt button { font: inherit; color: inherit; }
@@ -136,7 +136,7 @@ const TT_CSS = `
   .tt-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) 44px 72px; align-items: center; gap: 9px; width: 100%; padding: 8px 12px; border: 0; border-left: 2px solid transparent;
     background: none; text-align: left; cursor: pointer; transition: background .15s; }
   .tt-row:hover { background: var(--tt-card); }
-  .tt-row[aria-selected="true"] { background: var(--tt-card2); border-left-color: var(--tt-acc); }
+  .tt-row[aria-pressed="true"] { background: var(--tt-card2); border-left-color: var(--tt-acc); }
   .tt-row .nm { min-width: 0; } .tt-row .nm b { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tt-row .nm small { display: block; font-size: 11.5px; color: var(--tt-ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tt-row .px { text-align: right; } .tt-row .px b { display: block; font-size: 13px; font-weight: 700; } .tt-row .px small { font-size: 11.5px; }
@@ -306,10 +306,10 @@ function CandleChart({ candles, mode, avg, marks, bench, height = 300, unitLabel
         {grid.map((g) => (
           <g key={g}>
             <line x1={8} x2={w - AX} y1={y(g)} y2={y(g)} stroke="#1A222C" strokeWidth={1} />
-            <text x={w - AX + 8} y={y(g) + 4} fontSize={11} fill="#6B7787" className="tt-mono">{ruNum(g, dec)}</text>
+            <text x={w - AX + 8} y={y(g) + 4} fontSize={11} fill="#818D9C" className="tt-mono">{ruNum(g, dec)}</text>
           </g>
         ))}
-        {candles.map((k, i) => (i % labEvery === 0 && k.label && !k.open ? <text key={`l${i}`} x={x(i)} y={H - 7} fontSize={10.5} fill="#6B7787" textAnchor="middle">{k.label}</text> : null))}
+        {candles.map((k, i) => (i % labEvery === 0 && k.label && !k.open ? <text key={`l${i}`} x={x(i)} y={H - 7} fontSize={10.5} fill="#818D9C" textAnchor="middle">{k.label}</text> : null))}
         {hover != null && <line x1={x(hover)} x2={x(hover)} y1={T - 6} y2={H - B} stroke="#3A4656" strokeDasharray="3 3" />}
         {benchD && <path d={benchD} fill="none" stroke="#8C98A8" strokeWidth={1.4} strokeDasharray="5 4" data-testid="tt-bench" />}
         {mode === 'line' ? (
@@ -588,7 +588,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
               ))}
             </div>
           </div>
-          <div className="tt-rows" role="listbox" aria-label="Список инструментов">
+          <div className="tt-rows" role="group" aria-label="Список инструментов">
             {visibleRows.length === 0 && (
               <div className="tt-empty">{onlyMine ? 'Открытых позиций нет — снимите фильтр «Мои», чтобы увидеть весь список.' : 'Ничего не найдено по этому запросу.'}</div>
             )}
@@ -600,7 +600,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
               return (
                 <React.Fragment key={i.id}>
                   {groupHeader && <div className="tt-grp">{i.group}</div>}
-                  <button type="button" role="option" className="tt-row" aria-selected={sel === i.id} data-testid="tt-row" data-id={i.id} onClick={() => pick(i.id)}>
+                  <button type="button" className="tt-row" aria-pressed={sel === i.id} data-testid="tt-row" data-id={i.id} onClick={() => pick(i.id)}>
                     <span className="tt-badge" style={{ '--c': i.color }} aria-hidden="true">{i.ticker.replace('F-', '').slice(0, 4)}</span>
                     <span className="nm"><b>{i.name}</b><small className={has && q < 0 ? 'tt-down' : ''}>{i.ticker} · {sub}</small></span>
                     <Spark values={sparkOf(i.key)} w={44} />

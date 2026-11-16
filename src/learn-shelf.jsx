@@ -516,7 +516,7 @@ export default function Library({ learn, update = null }) {
           <button type="button" className="lb-all" data-testid="gallery-all" onClick={() => { Audio.play('paper'); setAlbum(true); }}>Все<ChevronRight size={17} aria-hidden="true" /></button>
         </div>
         <div className="lb-gal-track" aria-hidden="true"><i style={{ width: `${Math.round((met / Math.max(1, people.length)) * 100)}%` }} /></div>
-        <div className="lb-gal" data-testid="prof-gallery" role="list" aria-label="Галерея знакомств">
+        <div className="lb-gal" data-testid="prof-gallery" role="group" aria-label="Галерея знакомств">
           {people.slice(0, 4).map((p, i) => <PersonStamp key={p.id} p={p} i={i} onOpen={openPerson} />)}
           {people.length > 4 && (
             <button type="button" className="lb-gal-more" data-testid="gallery-more" aria-label={`Ещё ${people.length - 4}: открыть альбом`} onClick={() => { Audio.play('paper'); setAlbum(true); }}>
