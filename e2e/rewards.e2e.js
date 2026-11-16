@@ -695,8 +695,9 @@ test('лавка: младше 16 — без «−30%» и «ещё N дней, 
   expect(errors).toEqual([]);
 });
 
-// пункт владельца 15.11: «в „Протереть“ одно улучшение на твой выбор, чтобы купить и через какое-то время окупить»
-test('«Пыльная витрина»: микрофибра — купить за 24 монеты; тряпка шире, шестая витрина в день, видно, сколько вернула', async ({ page }) => {
+// пункт владельца 15.11: «в „Протереть“ одно улучшение на твой выбор, чтобы купить и через какое-то время окупить»;
+// 16.11: «улучшение микрофибры должно быть в „Протереть“, на пыльной витрине, а не в самой игре; полосок всё ещё 5»
+test('«Пыльная витрина»: микрофибра — на вкладке «Протереть», 24 монеты; тряпка шире, шесть полосок и шесть витрин в день', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
@@ -704,25 +705,38 @@ test('«Пыльная витрина»: микрофибра — купить �
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
   await page.getByTestId('shop-tabs').locator('[data-tab="dust"]').click();
-  await page.getByTestId('shop-dust').getByTestId('dust-open').click();
-  const game = page.getByTestId('dust-game');
-  const cloth = game.getByTestId('dust-cloth');
+  const shop = page.getByTestId('shop');
+  // карточка улучшения — на вкладке, под пыльной витриной; в окне игры её нет
+  const cloth = shop.getByTestId('dust-cloth');
   await expect(cloth).toHaveAttribute('data-owned', 'false');
   await expect(cloth).toContainText('Окупится за 12 дней');
-  await expect(game.getByTestId('dust-hint')).toContainText('из 5');
-  // одна и та же полоса до покупки и после: с микрофиброй стёрто заметно больше
-  const glass = game.getByTestId('dust-glass');
-  const swipe = async (y) => { const b = await glass.boundingBox(); await page.mouse.move(b.x + 6, b.y + b.height * y); await page.mouse.down(); await page.mouse.move(b.x + b.width - 6, b.y + b.height * y, { steps: 14 }); await page.mouse.up(); };
-  const pct = async () => Number(await game.getByTestId('dust-percent').getAttribute('data-value'));
-  await swipe(0.2); const p1 = await pct();
-  await game.getByTestId('dust-cloth-buy').click();
+  await expect(shop.getByTestId('dust-dots')).toHaveAttribute('data-total', '5');
+  await expect(shop.getByTestId('dust-dots').locator('i')).toHaveCount(5);
+  const glassSwipe = async (y) => {
+    await shop.getByTestId('dust-open').click();
+    const game = page.getByTestId('dust-game');
+    await expect(game.getByTestId('dust-cloth')).toHaveCount(0);
+    const glass = game.getByTestId('dust-glass');
+    const b = await glass.boundingBox(); await page.mouse.move(b.x + 6, b.y + b.height * y); await page.mouse.down(); await page.mouse.move(b.x + b.width - 6, b.y + b.height * y, { steps: 14 }); await page.mouse.up();
+    const p = Number(await game.getByTestId('dust-percent').getAttribute('data-value'));
+    const hint = await game.getByTestId('dust-hint').textContent();
+    await game.getByTestId('dust-close').click();
+    return { p, hint };
+  };
+  const before = await glassSwipe(0.3);
+  expect(before.hint).toContain('из 5');
+  await cloth.getByTestId('dust-cloth-buy').click();
   await expect(cloth).toHaveAttribute('data-owned', 'true');
   await expect(cloth).toContainText('Вернула 0 из 24');
-  await expect(game.getByTestId('dust-hint')).toContainText('из 6');
+  // полосок — шесть: столько витрин теперь оплачивается в день
+  await expect(shop.getByTestId('dust-dots')).toHaveAttribute('data-total', '6');
+  await expect(shop.getByTestId('dust-dots').locator('i')).toHaveCount(6);
   const spent = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('ems-textbook-v1')).learn.spent || {}).reduce((a, x) => a + x, 0));
   expect(spent).toBe(24);
-  await swipe(0.7); const p2 = (await pct()) - p1;
-  expect(p2).toBeGreaterThan(p1 * 1.25);
+  // та же полоса на свежем стекле — с микрофиброй стёрто заметно больше
+  const after = await glassSwipe(0.3);
+  expect(after.hint).toContain('из 6');
+  expect(after.p).toBeGreaterThan(before.p * 1.25);
   expect(errors).toEqual([]);
 });
 

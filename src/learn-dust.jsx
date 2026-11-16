@@ -9,8 +9,9 @@ import { X, Sparkles, RotateCcw, Store, Coins } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Mascot } from './mascot.jsx';
 import { Button } from './ds.jsx';
+import { Rag } from './learn-rag.jsx';
 import { CoinShower, useReducedMotion } from './ds-art.jsx';
-import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent, dustCounted, CLOTH, hasCloth, dustPerDay, dustRag, buyCloth, clothReturn, clothPaybackDays } from './learn/dust.js';
+import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent, dustCounted, dustPerDay, dustRag } from './learn/dust.js';
 import { OUTFIT_BY_ID, priceOf, coinsWord, outfitOf } from './learn/rewards.js';
 import { dayOf } from './textbook/learn-state.js';
 
@@ -55,13 +56,6 @@ const CSS = `
   .dg-fx { pointer-events: none; }
   .dg-rag { position: absolute; left: 0; top: 0; width: 60px; height: 46px; margin: -22px 0 0 -30px; pointer-events: none; opacity: 0; transition: opacity .15s; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
   .dg-rag.on { opacity: 1; }
-  .dg-cloth { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px; border-radius: 18px; text-align: left; font: 14px/1.4 var(--ds-sans, sans-serif);
-    background: rgba(59,141,176,.14); border: 1px solid rgba(159,211,232,.38); }
-  .dg-cloth b { font-weight: 800; }
-  .dg-cloth[data-owned="true"] { background: rgba(43,180,120,.12); border-color: rgba(120,220,170,.4); }
-  .dg-cloth-ico { flex: none; width: 46px; } .dg-cloth-ico svg { width: 46px; height: auto; }
-  .dg-cloth-msg { margin-top: 4px; color: #FFB4A8; font-size: 13px; }
-  .dg-cloth .ds-btn { flex: none; width: auto; }
   .dg-shine { position: absolute; top: -20%; bottom: -20%; left: -60%; width: 38%; pointer-events: none; transform: skewX(-18deg);
     background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent); animation: dg-sweep 1.1s cubic-bezier(.4, 0, .2, 1) forwards; }
   @keyframes dg-sweep { to { left: 130%; } }
@@ -158,43 +152,6 @@ function star(ctx, x, y, s) {
   ctx.beginPath();
   for (let i = 0; i < 8; i += 1) { const a = (i * Math.PI) / 4; const l = i % 2 ? s * 0.32 : s; ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); }
   ctx.closePath(); ctx.fill();
-}
-
-const Rag = () => (
-  <svg viewBox="0 0 60 46" width="60" height="46" aria-hidden="true">
-    <path d="M6 12 Q3 4 12 4 L46 3 Q57 3 56 13 L55 33 Q55 43 45 42 L13 43 Q4 43 5 33 Z" fill="#3B8DB0" />
-    <path d="M10 10 L50 9 L49 36 L12 37 Z" fill="none" stroke="#9FD3E8" strokeWidth="1.2" strokeDasharray="3 2.5" opacity=".8" />
-    <path d="M14 18 Q28 13 46 17 M13 27 Q30 23 47 28" fill="none" stroke="#2A6F8E" strokeWidth="2.2" strokeLinecap="round" opacity=".7" />
-    <path d="M8 13 Q10 7 18 7" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" opacity=".45" />
-  </svg>
-);
-
-/* улучшение «Микрофибра» (src/learn/dust.js, CLOTH): купить — шире тряпка и шестая витрина в день; куплено — сколько
-   уже вернула из цены */
-function ClothCard({ learn, update }) {
-  const [msg, setMsg] = useState(null);
-  const own = hasCloth(learn);
-  const back = clothReturn(learn);
-  const buy = () => {
-    let r = null;
-    update((s) => { r = buyCloth(s, Date.now()); return r.ok ? r.s : s; });
-    if (r && !r.ok) setMsg(r.reason); else { Audio.play('register'); setMsg(null); }
-  };
-  return (
-    <div className="dg-cloth" data-testid="dust-cloth" data-owned={String(own)}>
-      <div className="dg-cloth-ico" aria-hidden="true"><Rag /></div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <b>Микрофибра</b>
-        {own ? (
-          <div data-testid="dust-cloth-return">Тряпка шире, витрин в день — {dustPerDay(learn)}. Вернула {back} из {CLOTH.price} мон.{back >= CLOTH.price ? ' — окупилась.' : '.'}</div>
-        ) : (
-          <div>Тряпка шире и чище трёт, а в день оплачивается шестая витрина: +{DUST.coins} мон. в день. Окупится за {clothPaybackDays()} дней.</div>
-        )}
-        {msg && <div className="dg-cloth-msg" role="alert">{msg}</div>}
-      </div>
-      {!own && <Button variant="secondary" onClick={buy} data-testid="dust-cloth-buy">{CLOTH.price} мон.</Button>}
-    </div>
-  );
 }
 
 export default function DustGame({ learn, update, onClose, onShowcase = null }) {
@@ -396,7 +353,6 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
               : <>Монеты за сегодня собраны — завтра витрины снова запылятся. А протирать можно и просто так.</>}
           </div>
         )}
-        <ClothCard learn={learn} update={update} />
         {phase === 'done' && (
           <div className="dg-res" data-testid="dust-result" data-paid={paid}>
             <Sparkles size={26} color="#F3D98E" aria-hidden="true" />
