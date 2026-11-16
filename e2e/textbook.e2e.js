@@ -47,6 +47,32 @@ test('музыка: у пьесы есть запись в public/music — иг
 });
 
 // панель музыки (пункты владельца 08.11): без «Заставок событий» и справки о числе пьес
+// пункт владельца 16.11: «плашка музыки выглядит ужасно в тёмной теме» — название и подписи были тёмными на тёмной панели
+test('музыка в тёмной теме: панель тёмная, название пьесы, подписи и кнопки читаются (контраст ≥ 4,5)', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('ems-learn-dark', '1'); } catch { /* нет хранилища */ } });
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
+  await page.getByTestId('tb-reader-bar').getByTestId('music-btn').click();
+  const panel = page.getByTestId('music-panel');
+  await expect(panel).toBeVisible();
+  const report = await panel.evaluate((el) => {
+    const rgb = (c) => (c.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    const lum = ([r, g, b]) => { const f = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+    // фон панели — сплошной цвет под градиентом блика
+    const bg = rgb(getComputedStyle(el).backgroundColor);
+    const pick = (sel) => [...el.querySelectorAll(sel)].map((n) => ({ sel, ratio: ratio(rgb(getComputedStyle(n).color), bg) }));
+    const btnBg = [...el.querySelectorAll('.mp-b:not(.main), .mp-x')].map((n) => lum(rgb(getComputedStyle(n).backgroundColor)));
+    return { panelLum: lum(bg), texts: [...pick('.mp-title'), ...pick('.mp-sw-row > span'), ...pick('.mp-what select'), ...pick('.mp-row.cur .mp-name')], btnBg };
+  });
+  expect(report.panelLum, 'панель тёмная').toBeLessThan(0.08);
+  for (const t of report.texts) expect(t.ratio, t.sel).toBeGreaterThanOrEqual(4.5);
+  // круглые кнопки «назад / вперёд» и «закрыть» — не белые пятна на тёмной панели
+  for (const l of report.btnBg) expect(l).toBeLessThan(0.2);
+  expect(errors).toEqual([]);
+});
+
 test('музыка: в панели нет «Заставок событий» и справки о числе пьес; в учебнике — «Волна»; размер текста одной рамкой', async ({ page }) => {
   const { errors } = await openApp(page);
   await openBook(page);

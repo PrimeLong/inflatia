@@ -489,7 +489,10 @@ export function useExclusiveDropdown(width) {
    переключатели вместо «вкл/выкл». Цвет обложки — по настроению пьесы. */
 const MOOD_TINT = { calm: '#3E7C6B', boom: '#C2780B', slump: '#4D5D86', stag: '#8A6A3C', crisis: '#B03A2E', frost: '#3E86A8', war: '#6B4A3A',
   campaign: '#B0466B', stabilization: '#3F6E9E', authoritarian: '#5B4A7A', totalitarian: '#4A4A4A', wave: '#6A5AC0' };
-const PLAYER_CSS = `
+/* Стили проигрывателя — функцией, а не строкой при загрузке: цвета COLOR меняются с темой (светлая и тёмная тема обучения,
+   оформление «Мира»), а строка, собранная при загрузке модуля, навсегда оставалась светлой — в тёмной теме название пьесы
+   и подписи переключателей были тёмными на тёмной панели (пункт владельца 16.11: «плашка музыки ужасно в тёмной теме»). */
+export const playerCss = () => `
   .mp { padding: 14px; border-radius: 18px !important; overflow-y: auto; }
   .mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font: 700 11px var(--ds-sans, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: ${COLOR.faint}; }
   .mp-x { width: 30px; height: 30px; border-radius: 50%; border: none; background: ${COLOR.panelAlt}; color: ${COLOR.muted}; display: grid; place-items: center; cursor: pointer; }
@@ -564,7 +567,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
       </button>
       {open && (
         <div className="ems-panel-raised ems-fade-in mp" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, zIndex: 60, maxHeight: pos.maxHeight, '--mp': MOOD_TINT[np.mood] || MOOD_TINT.calm }}>
-          <style>{PLAYER_CSS}</style>
+          <style>{playerCss()}</style>
           <div className="mp-head">
             <span>Сейчас играет</span>
             {/* на телефоне «ткнуть мимо» — не очевидный способ закрыть панель */}
