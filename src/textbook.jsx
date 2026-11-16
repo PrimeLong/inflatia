@@ -2,6 +2,8 @@
    вместе с KaTeX и текстами глав — в меню и в партии этот код не нужен.
    Тексты — src/textbook/chapters/*.md (разметка — src/textbook/markdown.js), порядок и
    ссылки на настоящие учебники — src/textbook/toc.js, прогресс — src/textbook/progress.js. */
+import { followStep } from './lib/follow.js';
+import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -37,6 +39,7 @@ import { StatTile, Meter, DayBars, STATS_CSS } from './learn-stats.jsx';
 import { openBookLevels } from './learn/grade.js';
 import { unlockBypass } from './learn-unlock.jsx';
 import { trackDaily } from './lib/client.js';
+import { router, bookPageOf } from './lib/route.js';
 
 const LEVER_BY_ID = Object.fromEntries(LEVERS.map((l) => [l.id, l]));
 const DRILL_BY_ID = Object.fromEntries(DRILLS.map((d) => [d.id, d]));
@@ -44,319 +47,9 @@ const CARD_BY_ID = Object.fromEntries(GAME_CARDS.map((c) => [c.id, c]));
 const APPENDIX_BY_ID = Object.fromEntries(APPENDICES.map((a) => [a.id, a]));
 const fmtNum = (v) => String(Math.round(v * 1000) / 1000).replace('.', ',').replace('-', '−');
 
-export const TEXTBOOK_CSS = `
-  .tb-to-top { position: fixed; right: 12px; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 30; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center;
-    padding: 0; border-radius: 50%; border: 1px solid var(--ds-rule2, var(--c-border)); background: var(--ds-card, var(--c-panel)); color: var(--u-ink, var(--c-gold-soft)); box-shadow: 0 4px 14px var(--ds-shade, rgba(0,0,0,.18)); cursor: pointer; }
-  .tb-to-top.with-nav { bottom: calc(84px + env(safe-area-inset-bottom)); }
-  .tb-float-back { position: fixed; left: 12px; top: calc(10px + env(safe-area-inset-top)); z-index: 30; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
-    border-radius: 999px; border: 1px solid var(--ds-rule2, var(--c-border)); background: var(--ds-card, var(--c-panel)); color: var(--u-ink, var(--c-gold-soft));
-    font: 700 13px var(--ds-sans, inherit); box-shadow: 0 4px 14px var(--ds-shade, rgba(0,0,0,.18)); cursor: pointer; animation: tb-float-in .25s ease-out; }
-  @keyframes tb-float-in { from { opacity: 0; transform: translateY(-8px); } }
-  @media (prefers-reduced-motion: reduce) { .tb-float-back { animation: none; } }
-  /* решённая задача — видно издалека: зелёная кайма слева, лёгкий зелёный фон, плашка «Решена» */
-  .tb-chart-axes { margin: 2px auto 0; max-width: 560px; text-align: center; font: italic 12.5px/1.4 var(--ds-sans, sans-serif); color: var(--c-muted, #777); }
-  .tb-solved { border-left: 4px solid var(--c-teal, #2E7D5B) !important; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 7%, var(--c-panel, #fff)) !important; }
-  .tb-solved-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--c-teal, #2E7D5B); color: #fff; }
-  .tb-todo-mark { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 2px dashed var(--c-border); color: var(--c-muted); font: 700 12px/1 var(--ds-sans, sans-serif); }
-  /* повторение: карточка уходит — «вернётся» (ярлык-календарь, вправо) или «выучено» (печать, искры, растворяется) */
-  .rv-item { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .45s ease .2s; scroll-margin-top: 76px; }
-  [data-testid="review"] { scroll-margin-top: 76px; }
-  .rv-item.leaving { grid-template-rows: 0fr; }
-  .rv-in { min-height: 0; position: relative; }
-  .rv-item.leaving .rv-in { overflow: hidden; }
-  .rv-item.later.leaving .rv-in > :first-child { animation: rv-later .55s cubic-bezier(.5,0,.75,0) forwards; }
-  .rv-item.done.leaving .rv-in > :first-child { animation: rv-done .6s ease-in forwards; }
-  .rv-item.dropped.leaving .rv-in > :first-child { animation: rv-dropped .5s ease-in forwards; }
-  @keyframes rv-dropped { to { transform: translateX(-60%); opacity: 0; } }
-  .rv-badge.later.dropped { border-color: var(--c-faint, #777); }
-  .rv-badge.later.dropped b { background: var(--c-muted, #666); }
-  .rv-acts { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .rv-skip { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin: -6px 2px 14px; font-size: 13px; color: var(--c-muted); }
-  .rv-drop { background: none; border: none; padding: 4px 2px; font: 700 13px/1.3 var(--ds-sans, sans-serif); color: var(--c-muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-  .rv-drop:hover { color: var(--c-text); }
-  @keyframes rv-later { to { transform: translateX(70%) rotate(3deg); opacity: 0; } }
-  @keyframes rv-done { to { transform: translateY(-18px) scale(.94); opacity: 0; filter: blur(3px); } }
-  .rv-badge { position: absolute; top: 18px; right: 14px; z-index: 3; pointer-events: none; }
-  .rv-badge.later { display: flex; flex-direction: column; align-items: center; min-width: 74px; padding: 0 0 6px; border-radius: 6px; overflow: hidden;
-    background: var(--ds-card, #fff); border: 1.5px solid var(--c-blue, #3E6FA8); box-shadow: 0 6px 16px rgba(0,0,0,.18); animation: rv-pop .45s cubic-bezier(.3,1.6,.5,1) both; }
-  .rv-badge.later b { display: block; width: 100%; padding: 3px 8px; background: var(--c-blue, #3E6FA8); color: #fff; font: 700 12px/1.2 var(--ds-sans, sans-serif); letter-spacing: .06em; text-transform: uppercase; text-align: center; }
-  .rv-badge.later span { font: 700 14px/1.3 var(--ds-sans, sans-serif); color: var(--c-text, #222); margin-top: 4px; padding: 0 8px; white-space: nowrap; }
-  .rv-badge.done { padding: 6px 14px; border: 3px double var(--c-teal, #2E7D5B); border-radius: 6px; color: var(--c-teal, #2E7D5B); background: color-mix(in srgb, var(--c-teal, #2E7D5B) 10%, var(--ds-card, #fff));
-    font: 800 18px/1 var(--ds-head, Georgia, serif); letter-spacing: .12em; text-transform: uppercase; transform: rotate(-10deg); animation: rv-stamp .5s cubic-bezier(.2,1.5,.4,1) both; }
-  .rv-spark { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; border-radius: 50%; background: var(--ds-gold, #C9A227); animation: rv-spark .75s ease-out both; }
-  .rv-spark:nth-child(even) { background: var(--c-teal, #2E7D5B); width: 7px; height: 7px; }
-  @keyframes rv-pop { from { transform: translateY(-14px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
-  @keyframes rv-stamp { from { transform: rotate(-10deg) scale(2.4); opacity: 0; } to { transform: rotate(-10deg) scale(1); opacity: 1; } }
-  @keyframes rv-spark { from { transform: translate(-50%, -50%) scale(1); opacity: 1; } to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.3); opacity: 0; } }
-  .rv-wrong { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: space-between; margin: -4px 0 12px; padding: 10px 12px; border-radius: 4px;
-    background: color-mix(in srgb, var(--c-rust, #A0522D) 9%, transparent); font-size: 13px; line-height: 1.45; color: var(--c-text); }
-  .rv-tally { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--c-teal, #2E7D5B); margin: 4px 0 8px; }
-  .rv-tally span { display: inline-flex; align-items: center; gap: 4px; }
-  @media (prefers-reduced-motion: reduce) {
-    .rv-item, .rv-item.leaving .rv-in > :first-child, .rv-badge, .rv-spark { animation-duration: .01s !important; transition-duration: .01s !important; }
-  }
-  .tb-solved-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 9px; border-radius: 10px; background: var(--c-teal, #2E7D5B); color: #fff; font: 700 12px/1.4 var(--ds-sans, sans-serif); }
-  @media (min-width: 1024px) { .tb-to-top { right: max(16px, calc(50vw - 560px)); } }
-  .tb-sticky-top { position: sticky; top: 0; z-index: 30; background: var(--ds-paper, var(--tb-bg, #fff)); margin: 0 -16px; padding: 0 16px; border-bottom: 1px solid var(--ds-rule, transparent); }
-  .tb-body { font-size: 14.5px; line-height: 1.68; color: var(--c-text); }
-  .tb-body p { margin: 0 0 12px; }
-  .tb-body h2 { font-family: var(--ds-head, 'PT Sans', sans-serif); font-size: 20px; font-weight: 700; color: var(--c-gold-soft); margin: 28px 0 10px; }
-  .tb-body h3 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; }
-  .tb-body ul, .tb-body ol { margin: 0 0 12px; padding-left: 22px; }
-  .tb-body li { margin-bottom: 4px; }
-  .tb-math { overflow-x: auto; overflow-y: hidden; max-width: 100%; margin: 10px 0 14px; padding: 2px 0 6px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-  .tb-math .katex-display { margin: 0; }
-  .tb-body .katex { font-size: 1.08em; }
-  .tb-table { overflow-x: auto; max-width: 100%; margin: 0 0 14px; }
-  .tb-table table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
-  .tb-table th, .tb-table td { border: 1px solid var(--c-border); padding: 6px 10px; text-align: left; vertical-align: top; }
-  .tb-table th { color: var(--c-gold-soft); font-weight: 600; background: var(--c-panel-alt); }
-  .tb-box { border: 1px solid var(--c-border); border-left-width: 3px; padding: 12px 14px 4px; margin: 16px 0; background: var(--c-panel-alt); }
-  .tb-ask { border: 1px dashed var(--c-gold); border-radius: 10px; padding: 12px 14px; margin: 16px 0; background: color-mix(in srgb, var(--c-gold) 6%, transparent); }
-  .tb-ask-q { display: flex; gap: 8px; align-items: center; font-weight: 700; color: var(--c-text); }
-  .tb-ask-q svg { color: var(--c-gold-soft); flex: none; }
-  .tb-ask-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-  .tb-ask-btns .ems-btn { padding: 7px 14px; font-size: 13.5px; }
-  .tb-ask[data-state="ask"], .tb-ask[data-open="true"] { border-style: solid; }
-  .tb-ask-body { margin-top: 8px; animation: tb-ask-in .25s ease-out; }
-  @keyframes tb-ask-in { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: none } }
-  @media (prefers-reduced-motion: reduce) { .tb-ask-body { animation: none; } }
-  .tb-recall-part { margin-bottom: 4px; }
-  .tb-recall-opts { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
-  .tb-recall-opt { text-align: left; padding: 10px 12px; min-height: 44px; border: 1px solid var(--c-border); border-left: 3px solid var(--c-border); border-radius: 4px; background: var(--c-panel); color: var(--c-text); font: inherit; font-size: 14px; line-height: 1.45; cursor: pointer; }
-  @media (hover: hover) { .tb-recall-opt:hover:not(:disabled) { border-color: var(--c-gold); } }
-  .tb-recall-opt:disabled { cursor: default; }
-  .tb-recall-opt.right { border-color: var(--c-teal, #2E7D5B); background: color-mix(in srgb, var(--c-teal, #2E7D5B) 12%, var(--c-panel)); color: var(--c-text); }
-  /* неверный — сплошная рамка и крестик: пунктир на толстой левой кромке рассыпался на рваные куски (жалоба mvgosm0p) */
-  .tb-recall-opt.wrong { border-color: var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 8%, var(--c-panel)); color: var(--c-text); }
-  .tb-recall-opt.dim { opacity: .62; }
-  /* ответ — с анимацией (пункт владельца 09.11): только для отвеченного сейчас, а не у карточки, открытой отвеченной */
-  .tb-recall-opt { transition: opacity .3s ease, background-color .3s ease, border-color .3s ease; }
-  .tb-recall-part.fresh .tb-recall-opt.right { animation: tb-rc-pop .5s cubic-bezier(.3, 1.6, .5, 1); }
-  .tb-recall-part.fresh .tb-recall-opt.wrong { animation: tb-rc-shake .42s ease-in-out; }
-  .tb-recall-part.fresh .tb-recall-opt.right > svg, .tb-recall-part.fresh .tb-recall-opt.wrong > svg { animation: tb-rc-mark .35s cubic-bezier(.3, 1.5, .5, 1) .05s backwards; }
-  .tb-recall-part.fresh .tb-recall-why { animation: tb-ask-in .3s ease-out .12s backwards; }
-  .tb-recall-fresh { animation: tb-ask-in .35s ease-out .18s backwards; }
-  .tb-recall-fresh + .tb-recall-fresh { animation-delay: .3s; }
-  @keyframes tb-rc-pop { 0% { transform: scale(1) } 40% { transform: scale(1.035) } 100% { transform: scale(1) } }
-  @keyframes tb-rc-shake { 20%, 60% { transform: translateX(-5px) } 40%, 80% { transform: translateX(5px) } }
-  @keyframes tb-rc-mark { from { opacity: 0; transform: scale(0) rotate(-40deg) } }
-  @media (prefers-reduced-motion: reduce) { .tb-recall-part.fresh .tb-recall-opt, .tb-recall-part.fresh .tb-recall-opt > svg, .tb-recall-part.fresh .tb-recall-why, .tb-recall-fresh { animation: none !important; } .tb-recall-opt { transition: none; } }
-  .tb-recall-xp { font: 700 12px/1 var(--ds-sans, sans-serif); color: var(--c-teal, #2E7D5B); padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c-teal, #2E7D5B) 12%, transparent); animation: tb-xp-in .4s ease-out both; }
-  @keyframes tb-xp-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
-  @media (prefers-reduced-motion: reduce) { .tb-recall-xp { animation: none; } }
-  .tb-recall-why { font-size: 13px; line-height: 1.5; color: var(--c-text); margin: -4px 0 10px; padding: 6px 10px; border-left: 3px solid var(--c-rust, #A4462A); background: color-mix(in srgb, var(--c-rust, #A4462A) 6%, transparent); }
-  .tb-box-head { display: flex; align-items: center; gap: 7px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-  .tb-link { background: none; border: none; padding: 0; font: inherit; color: var(--c-gold-soft); cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
-  .tb-term { border-bottom: 1px dashed var(--c-gold); cursor: help; color: var(--c-gold-soft); }
-  .tb-def { display: block; margin: 6px 0; padding: 8px 11px; background: var(--c-panel); border: 1px solid var(--c-border); font-size: 12.5px; line-height: 1.55; color: var(--c-muted); }
-  .tb-slider { width: 100%; accent-color: var(--c-gold); }
-  .tb-toc-row { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; background: none; border: none; border-top: 1px solid var(--c-hairline); color: var(--c-text); font: inherit; cursor: pointer; }
-  .tb-toc-row:hover { background: var(--c-panel-alt); }
-  .tb-toc-row[disabled] { cursor: pointer; }
-  .tb-chip { font-size: 12px; padding: 1px 7px; border: 1px solid var(--c-border); border-radius: 10px; color: var(--c-muted); white-space: nowrap; }
-  /* чип-кнопка — без системного серого фона кнопки (в тёмной теме он съедал контраст) */
-  button.tb-chip { background: transparent; font-family: inherit; cursor: pointer; }
-  .tb-collapse { padding: 3px 10px; color: var(--c-text); }
-  /* ключевая формула главы — её стоит знать наизусть; остальные выводятся из таких */
-  .tb-key { border-left: 3px solid var(--c-gold); background: var(--c-panel-alt); padding: 6px 12px 2px; margin: 12px 0 14px; border-radius: 0 4px 4px 0; }
-  .tb-key .tb-math { margin: 4px 0 8px; }
-  .tb-key .tb-legend { margin: -4px 0 8px; }
-  .tb-key-sum { border-top: 1px dashed var(--c-border); margin-top: 6px; padding-top: 8px; }
-  .tb-key-label { font: 700 12px/1.4 var(--ds-sans, sans-serif); letter-spacing: .07em; text-transform: uppercase; color: var(--c-gold-soft); }
-  .tb-legend { font-size: 13px; line-height: 1.6; color: var(--c-muted); margin: -6px 0 14px; padding-left: 10px; border-left: 2px solid var(--c-hairline); }
-  .tb-calc { margin: 10px 0 4px; max-width: 300px; border: 1px solid var(--c-border); border-radius: 4px; padding: 8px; background: var(--c-panel-alt, rgba(0,0,0,.03)); }
-  .tb-calc-screen { text-align: right; font-family: var(--ds-mono, monospace); padding: 4px 6px 6px; }
-  .tb-calc-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
-  .tb-calc-keys button { font: 600 15px/1 var(--ds-mono, monospace); padding: 9px 0; border: 1px solid var(--c-border); border-radius: 3px; background: var(--c-panel, #fff); color: inherit; cursor: pointer; }
-  .tb-calc-keys button.op { color: var(--c-gold, #9C7218); }
-  .tb-calc-keys button.tb-calc-use { grid-column: span 3; font: 600 12.5px/1.2 var(--ds-sans, sans-serif); padding: 6px; }
-  /* карточка задачи (docs/mechanics.md, «Учебник: карточка задачи»): одно главное действие — «Проверить»,
-     уверенность — короткий переключатель по желанию, подсказка/решение/калькулятор — тихая панель внизу */
-  .tb-prob { background: var(--c-panel); border: 2px solid var(--c-hairline); border-radius: 18px; padding: 14px 16px; box-shadow: 0 2px 0 var(--c-hairline); }
-  /* задача решена верно: плашка с галочкой выпрыгивает, от неё разлетаются искры, рамка задачи коротко
-     светится — раньше был только серый текст (жалоба mvfaw0tz: «никакой анимации, когда верно решил») */
-  .tb-verdict { font-size: 13px; margin-top: 8px; }
-  .tb-verdict.ok { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; color: var(--c-text);
-    background: color-mix(in srgb, var(--c-teal, #2E7D5B) 13%, var(--c-panel)); animation: tb-win-in .35s cubic-bezier(.2,1.3,.4,1) both; }
-  .tb-win-badge { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--c-teal, #2E7D5B); color: #fff;
-    animation: tb-win-pop .55s .05s cubic-bezier(.3,1.7,.5,1) both; }
-  .tb-win-badge i { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%; background: var(--c); opacity: 0; pointer-events: none;
-    animation: tb-win-spark .9s .12s cubic-bezier(.2,.7,.4,1) both; }
-  .tb-win-badge i:nth-child(odd) { border-radius: 2px; }
-  @keyframes tb-win-in { from { opacity: 0; transform: translateY(5px) } }
-  @keyframes tb-win-pop { from { transform: scale(0) rotate(-40deg) } }
-  @keyframes tb-win-spark { 0% { opacity: 1; transform: rotate(var(--a)) translateX(8px) scale(1) } 60% { opacity: 1 } 100% { opacity: 0; transform: rotate(var(--a)) translateX(36px) scale(.4) } }
-  .tb-prob.tb-win { animation: tb-win-glow 1.3s ease-out; }
-  @keyframes tb-win-glow { 0% { box-shadow: 0 2px 0 var(--c-hairline), 0 0 0 0 color-mix(in srgb, var(--c-teal, #2E7D5B) 50%, transparent) }
-    100% { box-shadow: 0 2px 0 var(--c-hairline), 0 0 0 16px transparent } }
-  @media (prefers-reduced-motion: reduce) { .tb-verdict.ok, .tb-win-badge, .tb-prob.tb-win { animation: none; } .tb-win-badge i { display: none; } }
-  .tb-prob-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-  .tb-prob-title { font: 700 16px/1.2 var(--ds-head, sans-serif); color: var(--c-text); }
-  .tb-prob-from { font: 400 13px var(--ds-sans, sans-serif); color: var(--c-muted); }
-  .tb-lv { font: 700 12px/1 var(--ds-sans, sans-serif); letter-spacing: .05em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; color: #fff; background: #4D7C0F; }
-  .tb-lv[data-level="2"] { background: #9A6300; } .tb-lv[data-level="3"] { background: #B3123F; }
-  .tb-prob-meta { font: 13px var(--ds-sans, sans-serif); color: var(--c-muted); }
-  .tb-prob-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
-  .tb-icon { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 10px; background: none; color: var(--c-muted); cursor: pointer; }
-  .tb-icon:hover { background: var(--c-panel-alt); color: var(--c-text); }
-  .tb-fields { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; margin: 10px 0 2px; }
-  .tb-field { display: flex; gap: 6px; align-items: center; font-size: 14px; color: var(--c-muted); }
-  .tb-field b { font: 700 15px var(--ds-sans, sans-serif); color: var(--c-text); min-width: 1.4em; }
-  .tb-input { padding: 10px 12px; font: 16px var(--ds-sans, sans-serif); background: var(--c-panel); border: 2px solid var(--c-border-strong, var(--c-border)); border-radius: 12px; color: var(--c-text); }
-  .tb-input:focus { outline: none; border-color: var(--u, var(--c-gold)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--u, var(--c-gold)) 18%, transparent); }
-  .tb-check-row { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-top: 12px; }
-  .tb-sure { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 2px solid var(--c-hairline); border-radius: 999px; }
-  .tb-sure > span { font: 13px var(--ds-sans, sans-serif); color: var(--c-muted); padding: 0 6px 0 8px; }
-  .tb-pick { font: 700 13px var(--ds-sans, sans-serif); padding: 6px 12px; border: none; border-radius: 999px; background: none; color: var(--c-muted); cursor: pointer; }
-  .tb-pick[aria-pressed="true"] { background: color-mix(in srgb, var(--u, var(--c-gold)) 15%, var(--c-panel)); color: var(--c-text); }
-  .ln-textbook .ems-btn.primary.tb-check { padding: 10px 22px; font-size: 15px; border-radius: 12px; }
-  .tb-tools { display: flex; gap: 4px 16px; flex-wrap: wrap; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--c-hairline); }
-  .tb-tool { display: inline-flex; align-items: center; gap: 6px; padding: 6px 2px; border: none; background: none; font: 700 13.5px var(--ds-sans, sans-serif); color: var(--c-muted); cursor: pointer; }
-  .tb-tool:hover, .tb-tool[aria-expanded="true"] { color: var(--c-text); }
-  .tb-guess { margin: 4px 0 10px; }
-  /* прогноз — таблицей: названия в одной колонке, «растёт / падает / не меняется» — ровными столбцами,
-     даже когда одно название длиннее других (жалоба mvfaw0tz) */
-  .tb-guess-grid { display: grid; grid-template-columns: max-content repeat(3, max-content); align-items: center; gap: 4px 6px; }
-  .tb-guess-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
-  .tb-guess-name { font-size: 13px; padding-right: 12px; color: var(--c-text); }
-  .tb-guess-row .tb-pick { text-align: left; }
-  .tb-guess-row .tb-pick { white-space: nowrap; }
-  @media (max-width: 560px) { .tb-guess-grid { grid-template-columns: repeat(3, max-content); row-gap: 0; } .tb-guess-name { grid-column: 1 / -1; padding-top: 6px; } .tb-guess-row .tb-pick { padding: 6px 10px; } }
-  /* итоги графика — плитками: число колонок зависит только от ширины, а не от длины чисел, поэтому
-     строка под ползунками не перескакивает с одной строки на две и кнопка под ней стоит на месте */
-  /* ключ под графиком: образец линии и что она значит */
-  .tb-chart-key { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; line-height: 1.35; color: var(--ds-ink2, #6b6157); }
-  .tb-chart-key li { display: inline-flex; align-items: center; gap: 6px; }
-  .tb-chart-key svg { flex: none; }
-  .tb-ro { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr)); gap: 6px; margin-top: 12px; }
-  .tb-ro > div { display: flex; flex-direction: column; justify-content: space-between; gap: 3px; padding: 7px 10px; border-radius: 8px; background: color-mix(in srgb, var(--c-text) 5%, transparent); min-width: 0; }
-  .tb-ro-l { font-size: 12px; line-height: 1.3; color: var(--c-muted); }
-  .tb-ro b { font-size: 14px; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--c-text); }
-  .tb-ro .sep { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .tb-flow-step { border: 1px solid var(--c-border); background: var(--c-panel); padding: 8px 12px; }
-  .tb-news { background: #E8DFC6; color: #241C12; border: 1px solid #8C6B3E; padding: 8px 12px 10px; margin: 6px 0 10px; }
-  .tb-news-mast { font-size: 12px; letter-spacing: .12em; color: #6B5A3E; border-bottom: 3px double #8C6B3E; padding-bottom: 4px; margin-bottom: 6px; }
-  .tb-news-head { font-size: 17px; font-weight: 700; line-height: 1.2; }
-  .tb-bar { height: 4px; background: var(--c-hairline); border-radius: 2px; overflow: hidden; }
-  .tb-bar > span { display: block; height: 100%; background: var(--c-teal); }
-  /* разделы главы: строка = номер, название, минуты; на телефоне ничего не «плывёт» */
-  /* место, куда привела ссылка: полоса подсветки и метка «Вам сюда», через пару секунд гаснут */
-  .tb-target { position: relative; animation: tb-target 3.4s ease-out; border-radius: 4px; }
-  .tb-target::before { content: 'Вам сюда'; position: absolute; left: 0; top: -22px; font: 700 11px/1 var(--ds-sans, system-ui); letter-spacing: .08em; text-transform: uppercase;
-    color: #fff; background: var(--u, #B4532A); padding: 4px 7px; border-radius: 3px; animation: tb-target-tag 3.4s ease-out forwards; pointer-events: none; }
-  @keyframes tb-target { 0%, 55% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--u, #B4532A) 22%, transparent); background: color-mix(in srgb, var(--u, #B4532A) 12%, transparent); }
-    100% { box-shadow: 0 0 0 6px transparent; background: transparent; } }
-  @keyframes tb-target-tag { 0% { opacity: 0; transform: translateY(4px); } 8%, 70% { opacity: 1; transform: none; } 100% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .tb-target { animation-duration: .01s; outline: 2px solid var(--u, #B4532A); } .tb-target::before { animation: none; opacity: 1; } }
-  .tb-secnav { border: 1px solid var(--c-border); background: var(--c-panel-alt); padding: 10px 12px 6px; margin: 0 0 16px; }
-  .tb-secnav-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--c-muted); margin-bottom: 6px; }
-  .tb-secnav-head [data-testid="tb-section-progress"] { text-transform: none; letter-spacing: 0; }
-  .tb-secnav-list { list-style: none; margin: 6px 0 0; padding: 0; }
-  .tb-secnav-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 7px 2px; background: none; border: none; border-top: 1px solid var(--c-hairline);
-    color: var(--c-text); font: inherit; font-size: 13.5px; line-height: 1.35; text-align: left; cursor: pointer; }
-  .tb-secnav-list li:first-child .tb-secnav-row { border-top: none; }
-  .tb-secnav-no { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--c-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--c-muted); }
-  .tb-secnav-no.done { background: var(--c-teal); border-color: var(--c-teal); color: #fff; }
-  .tb-secnav-min { font-size: 12px; color: var(--c-faint); white-space: nowrap; }
-  /* учебник внутри обучения: оглавление в стиле дизайн-системы */
-  .tbl-continue { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 14px 16px; margin: 0 0 12px; border-radius: 6px;
-    background: var(--u); color: #fff; border: 1px solid color-mix(in srgb, var(--u) 70%, #000); border-bottom-width: 3px; font: inherit; }
-  .tbl-continue small { display: block; font: 700 12px/1.2 var(--ds-sans); letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
-  .tbl-continue b { display: block; font: 700 18px/1.25 var(--ds-head); margin-top: 2px; }
-  .tbl-stats { display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; font-size: 13.5px; color: var(--ds-ink2); margin: 0 0 14px; }
-  .tbl-stats b { color: var(--ds-ink); }
-  .tbl-parts { display: grid; gap: 14px; }
-  .tbl-part { background: var(--ds-card); border: 1px solid var(--ds-rule2); border-radius: 6px; padding: 10px 0 4px; }
-  .tbl-part-title { font: 700 13px/1.2 var(--ds-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--u-ink); margin: 0; padding: 0 14px 8px; }
-  .tbl-ch { display: grid; grid-template-columns: 28px minmax(0, 1fr) 54px; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; background: none; border: none;
-    border-top: 1px solid var(--ds-rule); color: var(--ds-ink); font: inherit; text-align: left; cursor: pointer; }
-  .tbl-ch:hover { background: var(--ds-card2); }
-  .tbl-ch[data-status="draft"] { color: var(--ds-ink3); }
-  .tbl-no { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--ds-rule2); display: inline-flex; align-items: center; justify-content: center; font: 700 12px/1 var(--ds-sans); color: var(--ds-ink2); }
-  .tbl-no.done { background: var(--ds-ok); border-color: var(--ds-ok); color: #fff; }
-  .tbl-ch-title { font: 600 15px/1.3 var(--ds-sans); }
-  .tbl-ch-title small { font-weight: 500; color: var(--ds-ink3); }
-  .tbl-level-text { font: 13px/1.4 var(--ds-sans); color: var(--ds-ink2); padding: 0 14px 6px; margin-top: -4px; }
-  /* уровень выше нынешнего на Пути — под замком: главы видны, но приглушены, открывают объяснение */
-  .tbl-part.locked .tbl-part-title { display: flex; align-items: center; gap: 6px; color: var(--ds-ink3); }
-  .tbl-ch.locked { opacity: .62; }
-  .tbl-ch.locked .tbl-no { color: var(--ds-ink3); }
-  .tb-locked { text-align: center; padding: 34px 18px; max-width: 460px; margin: 0 auto; }
-  .tb-locked-ico { width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 50%; display: grid; place-items: center; color: var(--ds-ink2);
-    background: var(--ds-card2, rgba(127,127,127,.12)); border: 2px dashed var(--ds-rule2, rgba(127,127,127,.4)); }
-  .tb-locked h2 { margin: 0 0 8px; font: 700 21px/1.25 var(--ds-head, serif); }
-  .tb-locked p { margin: 0 0 16px; font: 15px/1.5 var(--ds-sans, sans-serif); color: var(--ds-ink2, inherit); }
-  .tbl-planned { padding: 0; }
-  .tbl-planned-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 12px 14px; background: none; border: none; cursor: pointer; font: 600 14px var(--ds-sans); color: var(--ds-ink2); }
-  .tbl-planned-list { list-style: none; margin: 0; padding: 0 14px 12px; display: grid; gap: 8px; }
-  .tbl-planned-list li { display: grid; gap: 2px; font: 13px/1.4 var(--ds-sans); color: var(--ds-ink3); }
-  .tbl-planned-list b { color: var(--ds-ink2); font-weight: 600; }
-  /* обложка главы */
-  .tb-cover { --u-ink: color-mix(in srgb, var(--u) 72%, #000); }
-  .ds-dark .tb-cover { --u-ink: color-mix(in srgb, var(--u) 40%, #fff); }
-  .tb-cover { position: relative; overflow: hidden; margin: 2px 0 16px; border-radius: 18px; background: color-mix(in srgb, var(--u) 10%, var(--ds-card));
-    border: 1.5px solid color-mix(in srgb, var(--u) 30%, var(--ds-rule2)); animation: tb-cover-in .45s cubic-bezier(.3,.8,.4,1) both; }
-  .tb-cover-band { display: block; background: var(--u); }
-  .tb-cover-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px 12px; }
-  .tb-cover-eyebrow { font: 700 12px/1.3 var(--ds-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--u-ink); }
-  .tb-cover-title { font: 700 24px/1.2 var(--ds-head); color: var(--ds-ink); margin: 4px 0 8px; letter-spacing: -.01em; }
-  .tb-cover-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
-  .tb-read-auto { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: 13px;
-    color: var(--ds-ok-ink, #147A45); background: color-mix(in srgb, var(--ds-ok, #147A45) 12%, transparent); }
-  .tb-cover-meta span { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--ds-card); color: var(--ds-ink2); border: 1px solid var(--ds-rule); }
-  .tb-cover-meta b { color: var(--ds-ink); }
-  .tb-cover-meta .ok { color: var(--ds-ok-ink); border-color: color-mix(in srgb, var(--ds-ok) 40%, var(--ds-rule)); }
-  .tb-cover-art { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: var(--ds-card); box-shadow: 0 0 0 4px color-mix(in srgb, var(--u) 18%, transparent); }
-  .tb-cover-bar { height: 5px; background: color-mix(in srgb, var(--u) 15%, var(--ds-rule)); }
-  .tb-cover-bar i { display: block; height: 100%; background: var(--u); animation: tb-bar 1s cubic-bezier(.3,.8,.4,1) both; transform-origin: 0 50%; }
-  @keyframes tb-cover-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
-  @keyframes tb-bar { from { transform: scaleX(0) } }
-  @media (max-width: 380px) { .tb-cover-art { width: 72px; height: 72px; } .tb-cover-art svg { width: 68px; height: 68px; } .tb-cover-title { font-size: 21px; } }
-  @media (prefers-reduced-motion: reduce) { .tb-cover, .tb-cover-bar i { animation: none; } }
-  .tbl-ch-meta { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 3px; font: 13px/1.3 var(--ds-sans); color: var(--ds-ink2); }
-  .tbl-ch-meta b { color: var(--ds-ink); font-weight: 700; }
-  .tbl-ch-ring { position: relative; width: 42px; height: 42px; justify-self: end; }
-  .tbl-ch-ring > svg { display: block; transform: rotate(-90deg); }
-  .tbl-ch-ring circle { fill: none; stroke-width: 4; }
-  .tbl-ch-ring .bg { stroke: var(--ds-rule); }
-  .tbl-ch-ring .fg { stroke: var(--u); stroke-linecap: round; animation: tbl-ring .9s cubic-bezier(.3,.8,.4,1) both; }
-  .tbl-ch-ring[data-full="true"] .fg { stroke: var(--ds-ok); }
-  /* число — в кольце целиком: узкие цифры шрифта текста и маленький знак процента (моноширинное «100%» вылезало) */
-  .tbl-ch-ring b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 12px/1 var(--ds-sans); font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: var(--ds-ink); }
-  .tbl-ch-ring small { font-size: 12px; font-weight: 400; color: var(--ds-ink3); }
-  .tbl-ch-ring[data-full="true"] b { color: var(--ds-ok); }
-  @keyframes tbl-ring { from { stroke-dashoffset: var(--len) } }
-  @media (prefers-reduced-motion: reduce) { .tbl-ch-ring .fg { animation: none; } }
-  .tbl-ch-bar { height: 5px; border-radius: 3px; background: var(--ds-rule); overflow: hidden; }
-  .tbl-ch-bar i { display: block; height: 100%; background: var(--ds-ok); }
-  .tbl-more { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-  /* оглавление сбоку у главы (ПК): все главы по частям, открытая отмечена, под ним — разделы главы */
-  .tb-toc-fold { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 8px; padding: 4px 9px; font-size: 12px; }
-  .tb-toc-rail { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; width: 40px; padding: 10px 0; border-radius: 10px; font-size: 11px; writing-mode: vertical-rl; }
-  .tb-toc-rail svg { writing-mode: horizontal-tb; }
-  .tb-chtoc { border: 1px solid var(--c-border); background: var(--c-panel-alt); padding: 10px 12px 6px; margin: 0 0 12px; }
-  .tb-chtoc-part { font-size: 12px; font-weight: 700; color: var(--c-muted); margin: 8px 0 2px; }
-  .tb-chtoc-row { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; padding: 5px 2px; background: none; border: none; color: var(--c-text); font: inherit; font-size: 13.5px; line-height: 1.3; text-align: left; cursor: pointer; border-radius: 4px; }
-  .tb-chtoc-row:hover { background: var(--c-panel); }
-  .tb-chtoc-row[aria-current="page"] { font-weight: 700; color: var(--u-ink, var(--c-gold-soft)); cursor: default; }
-  .tb-chtoc-row[data-status="draft"] { color: var(--c-muted); }
-  /* ПК (от 1024 px): учебник во весь экран — оглавление в две колонки, у главы слева закреплены
-     оглавление и список разделов */
-  @media (min-width: 1024px) {
-    .ln-textbook.wide { max-width: 1240px !important; }
-    .ln-textbook.wide .tbl-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
-    .ln-textbook.wide .tb-ch-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 36px; align-items: start; }
-    /* учебник с увеличенным текстом масштабируется (zoom): высоту панели делим на масштаб, иначе она
-       уходила за низ экрана и «В этой главе» нельзя было докрутить до конца */
-    .ln-textbook.wide .tb-ch-aside { position: sticky; top: calc(64px / var(--tb-zoom, 1)); max-height: calc((100vh - 96px) / var(--tb-zoom, 1)); overflow: auto; overscroll-behavior: contain; }
-    .ln-textbook.wide .tb-ch-main { max-width: 860px; }
-    /* оглавление свёрнуто — узкая полоска с кнопкой, глава шире (пункт владельца 09.11) */
-    .ln-textbook.wide .tb-ch-grid.folded { grid-template-columns: 44px minmax(0, 1fr); }
-    .ln-textbook.wide .tb-ch-grid.folded .tb-ch-main { max-width: 920px; margin: 0 auto; width: 100%; }
-    .ln-textbook.wide .tb-body { font-size: 16px; }
-  }
-`;
+import { TEXTBOOK_CSS } from './learn-styles.js';
+
+export { TEXTBOOK_CSS };
 
 /* ------------------------------ СХЕМЫ ------------------------------ */
 // кругооборот и балансы банков (src/textbook-diagrams.jsx); подпись — как у графика
@@ -830,6 +523,33 @@ export function ChartSvg({ scene }) {
   };
   // надпись с подложкой цвета фона: читается, даже если легла на линию
   const halo = { stroke: COLOR.panel, strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
+  /* подписи не прыгают, пока график едет (src/lib/glide.js): место подписи скакнуло — она доезжает плавно.
+     Считаем по левому краю надписи: смена выравнивания (у правого края поля) — тоже скачок. */
+  const glide = React.useRef(null); if (!glide.current) glide.current = newGlide();
+  const [, bump] = useState(0); const loop = React.useRef(0); const lastT = React.useRef(0);
+  const calm = useMemo(() => typeof window === 'undefined' || !window.requestAnimationFrame || !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches), []);
+  const used = [];
+  const place = (key, x, y, label = '', end = false) => {
+    if (calm) return { x, y };
+    used.push(key);
+    const w = end ? String(label).length * 7.2 : 0;
+    const at = glideAt(glide.current, key, x - w, y);
+    return { x: at.x + w, y: at.y };
+  };
+  React.useEffect(() => {
+    if (calm) return;
+    glideKeep(glide.current, used);
+    if (glide.current.off.size && !loop.current) {
+      lastT.current = performance.now();
+      const tick = (now) => {
+        const live = glideDecay(glide.current, now - lastT.current); lastT.current = now;
+        loop.current = live ? window.requestAnimationFrame(tick) : 0;
+        bump((n) => n + 1);
+      };
+      loop.current = window.requestAnimationFrame(tick);
+    }
+  });
+  React.useEffect(() => () => { if (loop.current) window.cancelAnimationFrame(loop.current); loop.current = 0; }, []);
   return (
     <div ref={box} style={{ width: '100%' }}>
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="График" style={{ display: 'block', maxWidth: 560, margin: '0 auto', fontFamily: 'inherit' }}>
@@ -876,7 +596,7 @@ export function ChartSvg({ scene }) {
           return (
             <g key={`s${i}`}>
               <line x1={sx(s.x0)} x2={sx(s.x1)} y1={sy(s.y)} y2={sy(s.y)} stroke={COLOR.gold} strokeWidth={5} strokeOpacity={0.8} />
-              <text x={(sx(s.x0) + sx(s.x1)) / 2} y={under ? sy(s.y) - 9 : sy(s.y) + 16} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle" data-seg-side={under ? 'above' : 'below'}>{s.label}</text>
+              <text {...place(`s${i}`, (sx(s.x0) + sx(s.x1)) / 2, under ? sy(s.y) - 9 : sy(s.y) + 16)} fontSize={12} {...halo} fill={COLOR.goldSoft} textAnchor="middle" data-label="seg" data-seg-side={under ? 'above' : 'below'}>{s.label}</text>
             </g>
           );
         })}
@@ -909,12 +629,13 @@ export function ChartSvg({ scene }) {
       })}
       {scene.curves.filter((c) => c.label && !c.ghost).map((c) => {
         const at = labelAt(c.points, c.labelPos);
-        return <text key={`l${c.id}`} x={at.x} y={at.y} fontSize={12.5} fontWeight={600} {...halo} fill={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()} textAnchor={at.x > W - 90 ? 'end' : 'start'}>{c.label}</text>;
+        const end = at.x > W - 90;
+        return <text key={`l${c.id}`} {...place(`l${c.id}`, at.x, at.y, c.label, end)} fontSize={12.5} fontWeight={600} {...halo} fill={(CURVE_COLOR[c.color] || CURVE_COLOR.gold)()} textAnchor={end ? 'end' : 'start'} data-label="curve">{c.label}</text>;
       })}
       {scene.points.filter(inside).map((p, i) => (
         <g key={`p${i}`}>
           <circle cx={sx(p.x)} cy={sy(p.y)} r={p.small ? 3 : 5} fill={p.color ? CURVE_COLOR[p.color]() : p.small ? COLOR.muted : COLOR.goldSoft} stroke={COLOR.bg} strokeWidth={1.5} />
-          <text x={Math.min(sx(p.x) + 8, W - M.r - 2)} y={p.below ? sy(p.y) + 17 : sy(p.y) - 8} fontSize={p.small ? 11 : 12.5} {...halo} textAnchor={sx(p.x) > W - 70 ? 'end' : 'start'}
+          <text {...place(`p${i}:${p.label}`, Math.min(sx(p.x) + 8, W - M.r - 2), p.below ? sy(p.y) + 17 : sy(p.y) - 8, p.label, sx(p.x) > W - 70)} fontSize={p.small ? 11 : 12.5} {...halo} textAnchor={sx(p.x) > W - 70 ? 'end' : 'start'} data-label="point"
             fill={p.color ? CURVE_COLOR[p.color]() : p.small ? COLOR.muted : COLOR.goldSoft} fontWeight={p.small ? 400 : 700}>{p.label}</text>
         </g>
       ))}
@@ -946,34 +667,32 @@ export function ChartLegend({ items }) {
   );
 }
 
-/* Плавный график (пункт владельца 09.11): числа ползунков меняются сразу, а сцена — кривые и точки — за треть секунды
-   доезжает до новых значений (кубическое замедление). Новая цель посреди пути — едем к ней от того, где сейчас.
-   Нечисловые значения (переключатели) — сразу; при «уменьшить движение» — всё сразу (docs/mechanics.md). */
-const TWEEN_MS = 320;
-function useTweened(target) {
+/* Плавный график (пункты владельца 09.11 и 15.11): числа ползунков меняются сразу, а сцена — кривые и точки —
+   идёт за ними, как груз на пружине без перелёта (src/lib/follow.js). Один цикл кадров на всё движение: новая цель его не перезапускает,
+   и скорость меняется плавно: нет рывка на каждый шаг ползунка. Нечисловые значения (переключатели) —
+   сразу; при «уменьшить движение» — всё сразу (docs/mechanics.md). span — размах ползунков: порог «доехали». */
+function useTweened(target, span = null) {
   const [shown, setShown] = useState(target);
-  const cur = useRef(target); const raf = useRef(0);
+  const cur = useRef(target); const goal = useRef(target); const raf = useRef(0); const last = useRef(0); const spanRef = useRef(span); const vel = useRef(null);
+  goal.current = target; spanRef.current = span;
   const key = JSON.stringify(target);
   useEffect(() => {
     const calm = typeof window === 'undefined' || !window.requestAnimationFrame || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    const from = cur.current;
-    const moving = Object.keys(target).filter((k) => typeof target[k] === 'number' && typeof from[k] === 'number' && Math.abs(from[k] - target[k]) > 1e-9);
-    if (calm || !moving.length) { cur.current = target; setShown(target); return undefined; }
-    const t0 = performance.now();
+    if (calm) { cur.current = target; setShown(target); return; }
+    if (raf.current) return; // цикл уже идёт — он сам увидит новую цель
+    last.current = performance.now();
     const step = (now) => {
-      const k = Math.min(1, (now - t0) / TWEEN_MS); const e = 1 - (1 - k) ** 3;
-      const next = { ...target };
-      moving.forEach((id) => { next[id] = from[id] + (target[id] - from[id]) * e; });
-      cur.current = k >= 1 ? target : next;
-      setShown(cur.current);
-      if (k < 1) raf.current = window.requestAnimationFrame(step);
+      const r = followStep(cur.current, goal.current, now - last.current, spanRef.current, vel.current);
+      last.current = now; cur.current = r.values; vel.current = r.vel; setShown(r.values);
+      raf.current = r.done ? 0 : window.requestAnimationFrame(step);
     };
     raf.current = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(raf.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  useEffect(() => () => { if (raf.current) window.cancelAnimationFrame(raf.current); raf.current = 0; }, []);
   return shown;
 }
+
 
 /* График с ползунками. Сам хранит положение ползунков, если его не ведёт задача:
    в графической задаче values/onValues приходят снаружи, only — какие ползунки показать. */
@@ -981,7 +700,8 @@ function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = 
   const def = CHARTS[type];
   const [own, setOwn] = useState(() => (def ? chartDefaults(type, attrs) : {}));
   // сцена — по плавно доезжающим значениям, ползунки и проверка задачи — по настоящим
-  const shown = useTweened(outer || own);
+  const spans = useMemo(() => (def ? Object.fromEntries(def.controls(attrs).filter((c) => typeof c.min === 'number' && typeof c.max === 'number').map((c) => [c.id, c.max - c.min])) : null), [def, attrs]);
+  const shown = useTweened(outer || own, spans);
   if (!def) return null;
   const values = outer || own;
   const setValues = (fn) => { const next = typeof fn === 'function' ? fn(values) : fn; if (onValues) onValues(next); else setOwn(next); };
@@ -1256,12 +976,14 @@ function TbCalc({ onUse, label = 'В ответ' }) {
   };
   return (
     <div className="tb-calc" data-testid="tb-calc">
-      <input value={expr} onChange={(e) => setExpr(e.target.value.replace(/[^0-9.,+\-−*/×÷:^√()\s]/g, '').slice(0, 40))} aria-label="Выражение для калькулятора" placeholder="например, (120−60)/2"
-        style={{ ...inputStyle(), width: '100%', boxSizing: 'border-box', fontFamily: 'var(--ds-mono, monospace)' }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (v != null) onUse(fmtResult(v).replace('−', '-')); } }} />
-      <div className="tb-calc-screen" data-testid="tb-calc-value" style={{ fontSize: 18, fontWeight: 700 }}>{v != null ? `= ${fmtResult(v)}` : expr ? '…' : '0'}</div>
+      <div className="tb-calc-display">
+        <input value={expr} onChange={(e) => setExpr(e.target.value.replace(/[^0-9.,+\-−*/×÷:^√()\s]/g, '').slice(0, 40))} aria-label="Выражение для калькулятора" placeholder="например, (120−60)/2"
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (v != null) onUse(fmtResult(v).replace('−', '-')); } }} />
+        <div className="tb-calc-screen" data-testid="tb-calc-value" data-empty={String(v == null)}>{v != null ? `= ${fmtResult(v)}` : expr ? '…' : '0'}</div>
+      </div>
       <div className="tb-calc-keys" role="group" aria-label="Калькулятор">
         {TB_KEYS.map((k) => (
-          <button key={k} type="button" className={'÷×−+^√()='.includes(k) ? 'op' : ''} data-calc={k} onClick={() => press(k)} aria-label={TB_LABEL[k] || k}>{k}</button>
+          <button key={k} type="button" className={k === '=' ? 'eq' : k === 'C' || k === '⌫' ? 'fn' : '÷×−+^√()'.includes(k) ? 'op' : ''} data-calc={k} onClick={() => press(k)} aria-label={TB_LABEL[k] || k}>{k}</button>
         ))}
         <button type="button" className="ems-btn primary tb-calc-use" disabled={v == null} data-testid="tb-calc-use"
           onClick={() => { Audio.play('click'); onUse(fmtResult(v).replace('−', '-')); }}>{label}</button>
@@ -1273,23 +995,35 @@ function TbCalc({ onUse, label = 'В ответ' }) {
 // в какое поле пойдёт результат (labels, target), и его можно выбрать (onTarget)
 function CalcToggle({ onUse, labels = null, target = 0, onTarget = null }) {
   const [open, setOpen] = useState(false);
+  /* плавное появление (пункт владельца 15.11): калькулятор остаётся в документе, пока сворачивается;
+     shown — он в документе, wide — раскрыт (высота и прозрачность идут переходом, .tb-calc-wrap) */
+  const [shown, setShown] = useState(false);
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    if (open) { setShown(true); const id = requestAnimationFrame(() => requestAnimationFrame(() => setWide(true))); return () => cancelAnimationFrame(id); }
+    setWide(false);
+    const t = setTimeout(() => setShown(false), 300);
+    return () => clearTimeout(t);
+  }, [open]);
   const multi = labels && labels.length > 1;
   return (
     <>
       <button type="button" className="tb-tool" aria-expanded={open} data-testid="tb-calc-open"
         onClick={() => { Audio.play('click'); setOpen((x) => !x); }}><Calculator size={15} aria-hidden="true" />Калькулятор</button>
-      {open && (
-        <div style={{ flexBasis: '100%' }}>
-          {multi && onTarget && (
-            <div role="group" aria-label="Куда вставить результат" style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, color: COLOR.muted, marginBottom: 6 }}>
-              Куда:
-              {labels.map((l, k) => (
-                <button key={k} type="button" className="tb-chip" aria-pressed={k === target} data-testid="tb-calc-target" data-target={k}
-                  style={k === target ? { borderColor: COLOR.gold, color: COLOR.text } : undefined} onClick={() => { Audio.play('tick'); onTarget(k); }}>{l}</button>
-              ))}
-            </div>
-          )}
-          <TbCalc onUse={(x) => onUse(x)} label={multi ? `В ответ ${labels[target]}` : 'В ответ'} />
+      {shown && (
+        <div className="tb-calc-wrap" data-open={String(wide)} data-testid="tb-calc-wrap" inert={!open}>
+          <div>
+            {multi && onTarget && (
+              <div role="group" aria-label="Куда вставить результат" style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, color: COLOR.muted, margin: '8px 0 0' }}>
+                Куда:
+                {labels.map((l, k) => (
+                  <button key={k} type="button" className="tb-chip" aria-pressed={k === target} data-testid="tb-calc-target" data-target={k}
+                    style={k === target ? { borderColor: COLOR.gold, color: COLOR.text } : undefined} onClick={() => { Audio.play('tick'); onTarget(k); }}>{l}</button>
+                ))}
+              </div>
+            )}
+            <TbCalc onUse={(x) => onUse(x)} label={multi ? `В ответ ${labels[target]}` : 'В ответ'} />
+          </div>
         </div>
       )}
     </>
@@ -1654,6 +1388,23 @@ function ChapterBody({ id, ctx }) {
   // оглавление и «В этой главе» сворачиваются — выбор помнится на устройстве (пункт владельца 09.11)
   const [tocFolded, setTocFoldedRaw] = useState(() => readJSON(TOC_FOLD_KEY, false) === true);
   const setTocFolded = (v) => { Audio.play('click'); setTocFoldedRaw(v); writeJSON(TOC_FOLD_KEY, v); };
+  /* сворачивается плавно (пункт владельца 15.11: «слишком резко, без анимации»): текст главы переезжает на новое
+     место, а не прыгает, оглавление (или узкая планка вместо него) проявляется. Где что стояло, запоминаем на
+     каждой отрисовке; при «уменьшить движение» — сразу. */
+  const gridRef = useRef(null); const tocWas = useRef(null);
+  useLayoutEffect(() => {
+    const g = gridRef.current; if (!g) return;
+    const aside = g.querySelector('.tb-ch-aside'); const main = g.querySelector('.tb-ch-main');
+    if (!aside || !main) return;
+    const now = { folded: tocFolded, x: main.offsetLeft, y: main.offsetTop, w: main.offsetWidth };
+    const was = tocWas.current; tocWas.current = now;
+    const calm = !main.animate || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (!was || was.folded === tocFolded || calm) return;
+    const o = { duration: 320, easing: 'cubic-bezier(.3, .8, .3, 1)' };
+    if (was.x !== now.x || was.y !== now.y) main.animate([{ transform: `translate(${was.x - now.x}px, ${was.y - now.y}px)` }, { transform: 'none' }], o);
+    aside.animate([{ opacity: 0, transform: wide ? `translateX(${tocFolded ? 14 : -14}px)` : `translateY(${tocFolded ? 8 : -8}px)` }, { opacity: 1, transform: 'none' }], o);
+    g.dataset.foldAnim = String((Number(g.dataset.foldAnim) || 0) + 1);
+  });
   const ch = CHAPTER_BY_ID[id];
   const blocks = CHAPTER_BLOCKS[id];
   // соседние главы — в порядке чтения (как на Пути), только готовые
@@ -1674,7 +1425,7 @@ function ChapterBody({ id, ctx }) {
         <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 14px', fontWeight: 700 }}>{ch.title}</h1>
       </>)}
       {blocks ? (
-        <div className={`tb-ch-grid${tocFolded ? ' folded' : ''}`} data-testid="tb-ch-grid" data-folded={String(tocFolded)}>
+        <div ref={gridRef} className={`tb-ch-grid${tocFolded ? ' folded' : ''}`} data-testid="tb-ch-grid" data-folded={String(tocFolded)}>
           <aside className="tb-ch-aside">
             {tocFolded ? (
               wide ? <button type="button" className="ems-btn tb-toc-rail" data-testid="tb-toc-unfold" aria-label="Показать оглавление" onClick={() => setTocFolded(false)}><ChevronRight size={14} aria-hidden="true" />Оглавление</button>
@@ -1971,7 +1722,7 @@ function ReviewPage({ ctx }) {
   return (
     <div data-testid="review-page">
       <PageNav ctx={ctx} />
-      {!ctx.embedded && <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 12px', fontWeight: 700 }}>Повторение</h1>}
+      {ctx.embedded ? <h1 className="ds-sr">Повторение</h1> : <h1 className="ems-serif" style={{ fontSize: 26, color: COLOR.goldSoft, margin: '4px 0 12px', fontWeight: 700 }}>Повторение</h1>}
       <ReviewPanel ctx={ctx} due={due} />
     </div>
   );
@@ -2261,6 +2012,7 @@ function LearnToc({ ctx }) {
   let n = 0;
   return (
     <div data-testid="textbook" className="tbl">
+      <h1 className="ds-sr">Учебник: оглавление</h1>
       {last && (
         <button type="button" className="tbl-continue" data-testid="tb-continue" aria-label={`Продолжить чтение главы ${chapterNo(last.id)}`} onClick={() => { Audio.play('click'); ctx.go({ kind: 'chapter', id: last.id }); }}>
           <BookOpen size={26} aria-hidden="true" />
@@ -2432,14 +2184,17 @@ const lockedPage = (pg, learn) => {
 
 /* размер текста и музыка — одной строкой справа: «A» (мельче), процент, «A» (крупнее) — в одной закруглённой рамке,
    рядом круглая кнопка музыки той же высоты (раньше «A−» и «A+» отдельными кнопками — «выглядят уродливо», 08.11) */
-const TB_FS_H = 36;
-const tbFsBtn = (big, off) => ({ width: 40, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
+// высота и ширина кнопок — 44 px: цель касания не меньше 44×44 (docs/mechanics.md, «Доступность»)
+const TB_FS_H = 44;
+// высота всей группы и кнопки музыки рядом: кнопки 44 px плюс рамка группы (1,5 px сверху и снизу)
+const TB_FS_OUT = TB_FS_H + 3;
+const tbFsBtn = (big, off) => ({ width: 44, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
   fontFamily: "var(--ds-news, 'PT Serif', Georgia, serif)", fontWeight: 700, fontSize: big ? 19 : 13, lineHeight: 1, color: off ? COLOR.faint : COLOR.text });
 function ReaderBar({ scale, setScale, learn = false }) {
   const i = SCALES.indexOf(scale);
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
-      <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_H, borderRadius: 999, overflow: 'hidden',
+      <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_OUT, boxSizing: 'border-box', borderRadius: 999, overflow: 'hidden',
         border: `1.5px solid ${COLOR.border}`, background: COLOR.panel }}>
         <button type="button" style={tbFsBtn(false, i <= 0)} aria-label="Мельче текст" disabled={i <= 0}
           onClick={() => { Audio.play('tick'); setScale(SCALES[Math.max(0, i - 1)]); }}>A</button>
@@ -2447,7 +2202,7 @@ function ReaderBar({ scale, setScale, learn = false }) {
         <button type="button" style={tbFsBtn(true, i >= SCALES.length - 1)} aria-label="Крупнее текст" disabled={i >= SCALES.length - 1}
           onClick={() => { Audio.play('tick'); setScale(SCALES[Math.min(SCALES.length - 1, i + 1)]); }}>A</button>
       </span>
-      <AudioControls wave learn={learn} buttonStyle={{ width: TB_FS_H, height: TB_FS_H, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
+      <AudioControls wave learn={learn} buttonStyle={{ width: TB_FS_OUT, height: TB_FS_OUT, padding: 0, borderRadius: '50%', display: 'grid', placeItems: 'center' }} />
     </div>
   );
 }
@@ -2516,7 +2271,11 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
      закреплённое настроение не трогаем; в партии снова по режиму экономики (leaveWave в src/MacroSimulator.jsx) */
   useEffect(() => { if (!Audio.nowPlaying().locked) Audio.setPlaylist('wave'); }, []);
   const [progress, setProgress] = useState(loadProgress);
-  const [page, setPage] = useState(() => startPage || (resume && progress.last ? progress.last : { kind: 'toc' }));
+  /* Вкладка «Учебник» живёт по адресу (src/lib/route.js; docs/mechanics.md, «Адреса и история»): /book — оглавление,
+     /book/<id главы> — глава; остальные страницы (повторение, приложения, экзамен) — записи истории с адресом /book.
+     Учебник поверх урока или партии адреса не меняет: он сам — слой истории. */
+  const routed = asTab;
+  const [page, setPage] = useState(() => startPage || (routed ? bookPageOf(router().current()) : null) || (resume && progress.last ? progress.last : { kind: 'toc' }));
   const [stack, setStack] = useState([]);
   const [scale, setScaleRaw] = useState(() => { const v = readJSON(SCALE_KEY, 1); return SCALES.includes(v) ? v : 1; });
   const setScale = (v) => { setScaleRaw(v); writeJSON(SCALE_KEY, v); };
@@ -2603,15 +2362,38 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
     evs.forEach((ev) => window.addEventListener(ev, stop, { passive: true, capture: true }));
     return () => { stop(); evs.forEach((ev) => window.removeEventListener(ev, stop, { capture: true })); };
   }, [page]);
-  const go = (next, { push = true } = {}) => {
+  const show = (next) => {
     // уходя, запомнить, где остановились на этой странице (на странице замка — нечего)
-    if (typeof window !== 'undefined' && !lockedNow.current) saveScroll(pageKey(page));
-    if (push && pageKey(next) !== pageKey(page)) setStack((st) => [...st, page].slice(-30));
-    if (pageKey(next) !== pageKey(page)) Audio.play('paper');
+    if (typeof window !== 'undefined' && !lockedNow.current) saveScroll(pageKey(pageRef.current));
+    if (pageKey(next) !== pageKey(pageRef.current)) Audio.play('paper');
     setPage(next);
     // «продолжить» — глава или приложение; оглавление и «на сегодня» место чтения не меняют
     update((p) => setLast(p, next.kind === 'chapter' || next.kind === 'appendix' ? { kind: next.kind, id: next.id } : p.last));
   };
+  const go = (next, { push = true } = {}) => {
+    if (push && pageKey(next) !== pageKey(page)) setStack((st) => [...st, page].slice(-30));
+    // вкладка: страница — запись истории со своим адресом
+    if (routed) router().navigate({ tab: 'book', page: next }, { replace: !push });
+    show(next);
+  };
+  // «Назад» и «Вперёд» браузера на вкладке «Учебник»: страница — по адресу и состоянию записи
+  React.useEffect(() => {
+    if (!routed) return undefined;
+    return router().subscribe((r) => {
+      const next = bookPageOf(r);
+      if (!next) return;
+      const cur = pageRef.current;
+      if (pageKey(next) === pageKey(cur) && (next.anchor || null) === (cur.anchor || null)) return;
+      // вернулись на прошлую страницу — она уходит из стопки «назад»; ушли куда-то ещё — стопка пуста
+      setStack((st) => { const top = st[st.length - 1]; return top && pageKey(top) === pageKey(next) ? st.slice(0, -1) : []; });
+      show(next);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routed]);
+  // адрес главы, которой нет, — оглавление
+  React.useEffect(() => {
+    if (routed && page.kind === 'chapter' && !CHAPTER_BY_ID[page.id]) { router().navigate({ tab: 'book' }, { replace: true }); setPage({ kind: 'toc' }); }
+  }, [routed, page]);
   /* повторное нажатие на вкладку «Учебник» — на главную страницу учебника (оглавление), к началу.
      Только новое нажатие: вкладка пересоздаётся при каждом заходе, и старый счётчик сбивал бы
      возврат оглавления на место, где остановились */
@@ -2619,12 +2401,15 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
   React.useEffect(() => {
     if (homeTick === homeSeen.current) return;
     homeSeen.current = homeTick;
-    if (page.kind !== 'toc') { go({ kind: 'toc' }, { push: false }); setStack([]); }
+    // на вкладке оглавление — новая запись истории: «Назад» браузера вернёт в главу
+    if (page.kind !== 'toc') { go({ kind: 'toc' }, { push: routed }); setStack([]); }
     if (typeof window !== 'undefined' && window.scrollTo) requestAnimationFrame(() => window.scrollTo(0, 0));
   }, [homeTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const back = () => {
     const prev = stack[stack.length - 1];
     if (!prev) { go({ kind: 'toc' }, { push: false }); return; }
+    // вкладка: прошлая страница — прошлая запись истории; её покажет подписка на адрес
+    if (routed && router().back()) return;
     setStack((st) => st.slice(0, -1));
     go(prev, { push: false });
   };
@@ -2698,7 +2483,7 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
     );
   }
   return (
-    <TrainerPage eyebrow="Учебник" title={cur.kind === 'toc' ? 'Учебник экономики' : 'Учебник'} icon={BookOpenText}
+    <TrainerPage eyebrow="Учебник" title={cur.kind === 'toc' ? 'Учебник экономики' : 'Учебник'} icon={BookOpenText} h1={cur.kind === 'toc'}
       onBack={onBack} backLabel={backLabel}
       lede={cur.kind === 'toc' ? 'Первый год экономического факультета: микро, потом макро. В каждой главе — теория с формулами и графиком, разбор на числах, задачи с решениями и «проверьте в игре»: где эту модель видно в Лаборатории, задачах на 10 минут или в «Своём деле». Учебная модель и то, как это устроено в игре, всегда разведены: в игре коэффициенты подобраны вручную, в учебнике — стандартные модели.' : null}>
       {pages}

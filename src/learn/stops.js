@@ -20,7 +20,8 @@ export const readAfter = (n) => Math.max(peopleAfter(n) + 1, Math.floor(n / 2));
 // встречается позже, чем график вводится»); если график в шагах уроков не встретился — после трети юнита
 export const graphAfter = (n) => Math.min(n - 1, Math.max(2, Math.floor(n / 3)));
 export function graphAt(lessons, chart) {
-  const i = lessons.findIndex((l) => [l.idea, ...(l.inner || []).map((c) => c.idea)].some((b) => b && b.chart === chart));
+  // charts — лёгкое поле урока из указателя курса (src/learn/course-core.js): шаги урока до загрузки глав недоступны
+  const i = lessons.findIndex((l) => (l.charts || [l.idea, ...(l.inner || []).map((c) => c.idea)].map((b) => b && b.chart)).includes(chart));
   return i >= 0 ? i : graphAfter(lessons.length);
 }
 

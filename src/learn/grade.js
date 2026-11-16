@@ -9,7 +9,7 @@
    Уровень курса (Начальный … Профессиональный) — где ученик сейчас: первый, где на уже вышедших юнитах
    остались непройденные уроки; прогресс уровня — уроки уровня, пройденные из вышедших.
    Модуль чистый: его читают Путь и тесты. */
-import { pathState } from './course.js';
+import { pathState } from './course-core.js';
 import { LEVELS } from '../textbook/levels.js';
 import { PEOPLE_BY_UNIT } from './people.js';
 import { READING_BY_UNIT } from './reading.js';

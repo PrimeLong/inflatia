@@ -450,11 +450,32 @@ export function Sketch({ mode = 'lesson' }) {
     return () => clearTimeout(t);
   }, [cleared]);
 
+  /* Учебник: с черновиком колонка главы становится другой ширины, текст перетекает — и то место, которое читали,
+     уезжало на несколько экранов (пункт владельца 15.11: «кидает далеко вверх с лагами, а выключаешь — вниз»).
+     Запоминаем абзац у верха экрана и, пока идёт переход ширины, каждый кадр возвращаем прокрутку так, чтобы он
+     стоял на том же месте. */
+  const holdRaf = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(holdRaf.current), []);
+  const holdReading = (r) => {
+    const main = M.page && r.querySelector('.ln-textbook .tb-ch-main');
+    if (!main) return;
+    let anchor = null;
+    for (const el of main.querySelectorAll('p, h2, h3, li, table, figure, .ems-panel')) { if (el.getBoundingClientRect().bottom > 96) { anchor = el; break; } }
+    if (!anchor) return;
+    const top0 = anchor.getBoundingClientRect().top; const t0 = performance.now();
+    cancelAnimationFrame(holdRaf.current);
+    const tick = () => {
+      const d = anchor.isConnected ? anchor.getBoundingClientRect().top - top0 : 0;
+      if (Math.abs(d) > 0.5) window.scrollBy(0, d);
+      holdRaf.current = performance.now() - t0 < 800 ? requestAnimationFrame(tick) : 0;
+    };
+    holdRaf.current = requestAnimationFrame(tick);
+  };
   const toggle = () => {
     Audio.play('tab');
     // переход ширины учебника — только сейчас, по нажатию
     const r = rootOf();
-    if (r) { r.dataset.sketchAnim = '1'; clearTimeout(animRef.current); animRef.current = setTimeout(() => { delete r.dataset.sketchAnim; }, 700); }
+    if (r) { r.dataset.sketchAnim = '1'; clearTimeout(animRef.current); animRef.current = setTimeout(() => { delete r.dataset.sketchAnim; }, 700); holdReading(r); }
     const next = !on;
     setOn(next);
     store(ON_KEY, next ? '1' : null);

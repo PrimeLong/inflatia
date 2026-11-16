@@ -16,6 +16,10 @@ import '@fontsource/pt-mono/400.css';
 import '@fontsource/fragment-mono/400.css';
 import './index.css';
 import App from './App.jsx';
+import { installCrashHandlers } from './lib/crash.js';
+
+// необработанные ошибки страницы — владельцам, обезличенно (docs/mechanics.md, «Ошибки экрана»)
+installCrashHandlers();
 
 // офлайн для приложения на телефоне (public/sw.js); в разработке не мешает горячей перезагрузке
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

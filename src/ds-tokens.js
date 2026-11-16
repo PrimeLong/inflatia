@@ -55,6 +55,7 @@ export const PLACES = {
   // политология (проба для команды): на карте курса политологии — только оно, на месте «Мастерской»
   power: { place: 'Парламент', building: 'ministry', color: '#8C2337', region: 'capital', at: [306, 576], note: 'власть и государство' },
   labor: { place: 'Биржа труда', building: 'ministry', color: '#A9561A', region: 'industry', at: [212, 462], note: 'зарплаты и занятость' },
+  household: { place: 'Сберкасса', building: 'savings', color: '#9E3D74', region: 'periphery', at: [190, 345], note: 'доход, расход и копилка' },
   'market-failures': { place: 'Порт', building: 'port', color: '#D13B1F', region: 'port', at: [585, 180], note: 'внешние эффекты и налоги' },
   gdp: { place: 'Статуправление', building: 'tower', color: '#A65A00', region: 'capital', at: [330, 445], note: 'как считают ВВП' },
   'money-banks': { place: 'Банк', building: 'bank', color: '#8F6A00', region: 'finance', at: [690, 215], note: 'деньги и кредит' },
@@ -69,7 +70,7 @@ export const PLACES = {
   inequality: { place: 'Рабочий квартал', building: 'store', color: '#B0453A', region: 'periphery', at: [535, 370], note: 'доходы и бедность' },
 };
 // места под будущие юниты уровня — точки на дороге без названия, по порядку после юнитов уровня
-export const SOON_PLACES = { start: [[205, 370], [225, 290], [245, 215]] };
+export const SOON_PLACES = { start: [[230, 284], [245, 215]] };
 export const placeOf = (unitId) => PLACES[unitId] || { place: 'Город', building: 'store', color: '#6B4357', region: 'capital', at: [496, 372], note: '' };
 export const unitColor = (unitId) => placeOf(unitId).color;
 /* Тёплая палитра (docs/world.md, «Цвета»): места юнитов, их кнопки и алмазный уровень — яркие

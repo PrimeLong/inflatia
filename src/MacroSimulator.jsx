@@ -5,6 +5,7 @@ import {
   VolumeX, Music, Trophy, Lock, Share2, GraduationCap, BookOpenText, Crown, Gavel, Hammer, Play, Calendar, BookOpen,
   Vote, Layers, Award, BarChart3, Medal, Handshake, HeartHandshake, LifeBuoy, Ban, DoorOpen, Factory, Wheat, Route,
   UserRound, Map as MapIcon, ShoppingBag, Ellipsis, Newspaper,
+  SkipBack, SkipForward, Pause,
 } from 'lucide-react';
 // звуковой движок подгружается по первому клику — в стартовом файле только обёртка
 import { Audio } from './audio/lazy.js';
@@ -12,6 +13,9 @@ import { BrandLoader } from './logo.jsx';
 import { useAccount, loadAccount, refreshAccount, NameGate } from './account.jsx';
 import { isGuest, GUEST_START, GUEST_SAVE, GUEST_LOGIN } from './lib/guest.js';
 import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './lib/world-trial.js';
+import { router, useHistoryLayer } from './lib/route.js';
+import { TRACK } from './learn/track.js';
+import { reportCrash } from './lib/crash.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -24,7 +28,7 @@ import {
 } from './textbook/progress.js';
 import { featureOpen, FeatureLocked, WorldTrialChip, WorldTrialEnd, WorldTrialSaved } from './learn-unlock.jsx';
 import { BookLinkContext } from './booklink-context.js';
-import { LATEST_NEWS, readNewsSeen, newsForLearner, learnerSince, readFeedSeenAt, friendNewsSince } from './learn/news.js';
+import { LATEST_NEWS_HEAD as LATEST_NEWS, readNewsSeen, newsForLearner, learnerSince, readFeedSeenAt, friendNewsSince } from './learn/news-head.js';
 import { friendsState } from './lib/friends-store.js';
 // профиль игрока живёт в src/account.jsx; сетевой экран и партия берут его отсюда
 export { AuthModal, useAccount, emblemIcon, forgetAccount, loadAccount, accountKidsMode, EMBLEMS } from './account.jsx';
@@ -89,6 +93,15 @@ export const COLOR = { ...THEMES.chamber.colors, isDark: false };
 export function applyTheme(id) {
   const t = THEMES[id] || THEMES.chamber;
   Object.assign(COLOR, t.colors, { isDark: t.dark });
+  syncThemeColor(COLOR.bg);
+}
+/* Цвет строки браузера (meta theme-color) — фон действующей темы приложения (docs/mechanics.md, «Доступность»).
+   Раньше он шёл за системой: при тёмной системе строка была тёмной, а обучение — светлым. */
+export function syncThemeColor(color) {
+  if (typeof document === 'undefined' || !color) return;
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) { meta = document.createElement('meta'); meta.setAttribute('name', 'theme-color'); document.head.appendChild(meta); }
+  if (meta.getAttribute('content') !== color) meta.setAttribute('content', color);
 }
 
 // верхний свет на поверхностях: на тёмных темах — едва заметный, на светлой — молочный
@@ -132,7 +145,7 @@ export const GlobalStyle = () => (
   <style>{`
     .ems-root { ${themeVars()} }
     ${UTILITY_CSS}
-    .ems-root { color-scheme:${COLOR.isDark ? 'dark' : 'light'}; background:${COLOR.bg} radial-gradient(ellipse 1100px 620px at 50% -8%, ${COLOR.bgVignette} 0%, ${COLOR.bg} 70%); color:${COLOR.text}; font-family:${FONT.sans}; min-height:100vh; }
+    .ems-root { color-scheme:${COLOR.isDark ? 'dark' : 'light'}; background:${COLOR.bg} radial-gradient(ellipse 1100px 620px at 50% -8%, ${COLOR.bgVignette} 0%, ${COLOR.bg} 70%); color:${COLOR.text}; font-family:${FONT.sans}; min-height:calc(100vh - var(--ems-notice-h, 0px)); }
     .ems-root * { box-sizing: border-box; }
     .ems-root :focus-visible { outline: 2px solid ${COLOR.goldSoft}; outline-offset: 2px; }
     /* заголовки — PT Sans (класс остался с прежним именем); засечки — только у газеты */
@@ -279,6 +292,16 @@ export const GlobalStyle = () => (
     @media (max-width: 860px) { .ems-grid { grid-template-columns: minmax(0,1fr); padding: 12px !important; gap: 10px; } }
     @media (max-width: 860px) { .ems-hide-narrow { display: none !important; } }
     @media (max-width: 640px) { .ems-pad { padding-left: 10px !important; padding-right: 10px !important; } }
+    /* ТЕЛЕФОН: текст партии — не мельче 14 px (docs/mechanics.md, «Доступность»; пункт владельца 13.11). Экран партии
+       набран под ПК: почти весь текст — 12–13 px, заданные прямо в разметке; на телефоне всё, что мельче, поднимается
+       до 14 px. Подписи внутри графиков (SVG) — часть рисунка и масштабируются с ним. */
+    @media (max-width: 640px) {
+      .ems-game :not(svg *)[style*="font-size: 11px"], .ems-game :not(svg *)[style*="font-size: 12px"], .ems-game :not(svg *)[style*="font-size: 13px"],
+      .ems-game .fs-12, .ems-game .fs-13, .ems-game .note, .ems-game .ems-btn, .ems-game .ems-tab, .ems-game .ems-seg > button, .ems-game .ems-eyebrow,
+      .ems-game .ems-kpi-label, .ems-game .ems-kpi-ctl button, .ems-game .ems-fold-close, .ems-game .ems-kpi-unit, .ems-game .ems-hero-eyebrow, .ems-game .ems-hero-badge, .ems-game .ems-pill,
+      .ems-game .recharts-legend-item-text, .ems-game .recharts-tooltip-wrapper, .ems-game .recharts-tooltip-wrapper * { font-size: 14px !important; }
+      .ems-game .ems-eyebrow, .ems-game .ems-hero-eyebrow { letter-spacing: 0.06em; }
+    }
     .ems-col-hidden { display: none !important; }
     .ems-dense .ems-visual { display: none !important; }
     .ems-dense .ems-panel { padding-top: 9px !important; padding-bottom: 9px !important; }
@@ -461,6 +484,56 @@ export function useExclusiveDropdown(width) {
   return { open, setOpen, toggle, btnRef, pos };
 }
 
+/* Проигрыватель (пункт владельца 15.11: «переделай управление музыкой, сделай современный, приятный дизайн, убери
+   описание песен»): обложка цвета настроения с «эквалайзером», пока играет; круглые кнопки; плейлист строками;
+   переключатели вместо «вкл/выкл». Цвет обложки — по настроению пьесы. */
+const MOOD_TINT = { calm: '#3E7C6B', boom: '#C2780B', slump: '#4D5D86', stag: '#8A6A3C', crisis: '#B03A2E', frost: '#3E86A8', war: '#6B4A3A',
+  campaign: '#B0466B', stabilization: '#3F6E9E', authoritarian: '#5B4A7A', totalitarian: '#4A4A4A', wave: '#6A5AC0' };
+const PLAYER_CSS = `
+  .mp { padding: 14px; border-radius: 18px !important; overflow-y: auto; }
+  .mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font: 700 11px var(--ds-sans, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: ${COLOR.faint}; }
+  .mp-x { width: 30px; height: 30px; border-radius: 50%; border: none; background: ${COLOR.panelAlt}; color: ${COLOR.muted}; display: grid; place-items: center; cursor: pointer; }
+  .mp-now { display: flex; align-items: center; gap: 12px; }
+  .mp-cover { position: relative; flex: none; width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; color: #fff;
+    background: linear-gradient(135deg, var(--mp), color-mix(in srgb, var(--mp) 55%, #000)); box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--mp) 70%, transparent); }
+  .mp-cover > svg { opacity: .9; transition: opacity .3s; } .mp-cover.on > svg { opacity: 0; }
+  .mp-eq { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 3px; padding-bottom: 16px; opacity: 0; transition: opacity .3s; }
+  .mp-cover.on .mp-eq { opacity: 1; }
+  .mp-eq i { width: 4px; height: 22px; border-radius: 2px; background: #fff; transform-origin: bottom; animation: mp-eq 1s ease-in-out infinite alternate; }
+  .mp-eq i:nth-child(2) { animation-delay: -.4s; } .mp-eq i:nth-child(3) { animation-delay: -.7s; } .mp-eq i:nth-child(4) { animation-delay: -.2s; }
+  .mp-eq.sm { position: static; opacity: 1; padding: 0; gap: 2px; height: 12px; } .mp-eq.sm i { width: 3px; height: 12px; background: var(--mp); }
+  @keyframes mp-eq { 0% { transform: scaleY(.25) } 100% { transform: scaleY(1) } }
+  .mp-title { font: 700 16px/1.25 var(--ds-sans, sans-serif); color: ${COLOR.text}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .mp-chip { padding: 1px 8px; border-radius: 999px; font: 600 11.5px/18px var(--ds-sans, sans-serif); color: var(--mp); background: color-mix(in srgb, var(--mp) 14%, transparent); }
+  .mp-chip.rec { color: ${COLOR.goldSoft}; background: none; box-shadow: inset 0 0 0 1px ${COLOR.gold}; }
+  .mp-ctl { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 12px 0 10px; }
+  .mp-b { width: 40px; height: 40px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; color: ${COLOR.text}; background: ${COLOR.panelAlt}; transition: transform .12s, background .15s; }
+  .mp-b:hover { background: color-mix(in srgb, var(--mp) 14%, ${COLOR.panelAlt}); } .mp-b:active { transform: scale(.93); }
+  .mp-b.main { width: 52px; height: 52px; color: #fff; background: var(--mp); box-shadow: 0 8px 16px -8px var(--mp); }
+  .mp-list { max-height: 150px; overflow-y: auto; margin: 0 -4px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .mp-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: none; border-radius: 10px; background: none; cursor: pointer; text-align: left; font: 500 13px var(--ds-sans, sans-serif); color: ${COLOR.muted}; }
+  .mp-row:hover { background: ${COLOR.panelAlt}; } .mp-row.cur { color: ${COLOR.text}; font-weight: 700; background: color-mix(in srgb, var(--mp) 12%, transparent); }
+  .mp-dot { width: 14px; flex: none; display: grid; place-items: center; } .mp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-rec { font-size: 9px; color: ${COLOR.gold}; }
+  .mp-what { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font: 12.5px var(--ds-sans, sans-serif); color: ${COLOR.muted}; }
+  .mp-what select { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 999px; border: 1px solid ${COLOR.border}; background: ${COLOR.panelAlt}; color: ${COLOR.text}; font: 600 12.5px var(--ds-sans, sans-serif); }
+  .mp-hint { font-size: 12px; color: ${COLOR.faint}; margin: 0 0 8px; line-height: 1.4; }
+  .mp-sw-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font: 13px var(--ds-sans, sans-serif); color: ${COLOR.text}; }
+  .mp-sw-row > svg { color: ${COLOR.faint}; } .mp-sw-row > svg.on { color: var(--mp); } .mp-sw-row > span { flex: 1; }
+  .mp-sw { position: relative; width: 44px; height: 26px; border-radius: 999px; border: none; padding: 0; cursor: pointer; background: ${COLOR.border}; transition: background .2s; }
+  .mp-sw.on { background: var(--mp); }
+  .mp-sw i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+  .mp-sw.on i { transform: translateX(18px); }
+  .mp-sw-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .mp-vol { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: ${COLOR.faint}; }
+  .mp-range { flex: 1; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 999px; outline-offset: 4px;
+    background: linear-gradient(90deg, var(--mp) var(--v), ${COLOR.border} var(--v)); }
+  .mp-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; }
+  .mp-range::-moz-range-thumb { width: 18px; height: 18px; border: none; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { .mp-eq i { animation: none; transform: scaleY(.6); } .mp-sw i, .mp-b { transition: none; } }
+`;
+
 /* «Волна» играет в учебнике; в партии музыка снова следует за экономикой (docs/mechanics.md, «Музыка») */
 export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked === 'wave') Audio.setPlaylist(null); };
 
@@ -485,65 +558,70 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
     ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
   return (
     <div style={{ position: 'relative' }}>
-      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
+      <button ref={btnRef} className="ems-btn" style={{ padding: '7px 9px', minWidth: 44, minHeight: 44, display: 'inline-grid', placeItems: 'center', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid="music-btn" aria-label="Музыка и звуки"
         onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
         {anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
       {open && (
-        <div className="ems-panel-raised ems-fade-in" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, padding: 13, zIndex: 60, maxHeight: pos.maxHeight, overflowY: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-            <Music size={13} color={COLOR.gold} />
-            <span className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft }}>Саундтрек</span>
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: COLOR.faint }}>{np.moodLabel} · {np.bpm} BPM</span>
+        <div className="ems-panel-raised ems-fade-in mp" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, zIndex: 60, maxHeight: pos.maxHeight, '--mp': MOOD_TINT[np.mood] || MOOD_TINT.calm }}>
+          <style>{PLAYER_CSS}</style>
+          <div className="mp-head">
+            <span>Сейчас играет</span>
             {/* на телефоне «ткнуть мимо» — не очевидный способ закрыть панель */}
-            <button className="ems-btn" style={{ padding: '3px 5px', lineHeight: 0 }} aria-label="Закрыть"
-              onClick={() => { Audio.play('click'); setOpen(false); }}><X size={12} /></button>
+            <button className="mp-x" aria-label="Закрыть" onClick={() => { Audio.play('click'); setOpen(false); }}><X size={14} /></button>
           </div>
-          <div style={{ background: COLOR.panelAlt, border: `1px solid ${COLOR.border}`, borderRadius: 3, padding: '9px 10px', marginBottom: 9 }}
-            data-testid="music-now" data-track={np.id || ''} data-file={String(!!np.file)}>
-            <div className="ems-serif" style={{ fontSize: 13, color: COLOR.text, lineHeight: 1.2 }}>{np.name}</div>
-            {/* звучит запись из public/music, а не синтез (docs/mechanics.md, «Музыка: записи вместо синтеза») */}
-            <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 2 }}>{np.file
-              ? <><span data-testid="music-file" style={{ display: 'inline-block', padding: '0 6px', marginRight: 6, borderRadius: 999, border: `1px solid ${COLOR.gold}`, color: COLOR.goldSoft, fontSize: 11, lineHeight: '16px' }}>запись</span>{np.subtitle}</>
-              : np.subtitle}</div>
-            <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
-              <button className="ems-btn" style={{ flex: 1, padding: '4px 0', fontSize: 12 }} onClick={() => { Audio.play('tick'); Audio.skip(false); }}>◀ пред.</button>
-              <button className="ems-btn" style={{ flex: 1, padding: '4px 0', fontSize: 12 }} onClick={() => { Audio.play('tick'); Audio.skip(true); }}>след. ▶</button>
+          {/* обложка, название и управление; описаний пьес нет (пункт владельца 15.11: «убери описание песен») */}
+          <div className="mp-now" data-testid="music-now" data-track={np.id || ''} data-file={String(!!np.file)}>
+            <div className={`mp-cover${music ? ' on' : ''}`} aria-hidden="true"><Music size={20} /><span className="mp-eq"><i /><i /><i /><i /></span></div>
+            <div style={{ minWidth: 0 }}>
+              <div className="mp-title">{np.name}</div>
+              <div className="mp-meta">
+                {np.moodLabel && <span className="mp-chip">{np.moodLabel}</span>}
+                {/* звучит запись из public/music, а не синтез (docs/mechanics.md, «Музыка: записи вместо синтеза») */}
+                {np.file && <span className="mp-chip rec" data-testid="music-file">запись</span>}
+              </div>
             </div>
           </div>
+          <div className="mp-ctl">
+            <button className="mp-b" aria-label="Предыдущая пьеса" data-testid="music-prev" onClick={() => { Audio.play('tick'); Audio.skip(false); }}><SkipBack size={16} /></button>
+            <button className="mp-b main" aria-label={music ? 'Пауза' : 'Играть'} data-testid="music-play"
+              onClick={() => { const v = !music; Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); setMusic(v); }}>{music ? <Pause size={20} /> : <Play size={20} />}</button>
+            <button className="mp-b" aria-label="Следующая пьеса" data-testid="music-next" onClick={() => { Audio.play('tick'); Audio.skip(true); }}><SkipForward size={16} /></button>
+          </div>
           {list.length > 1 && (
-            <div style={{ marginBottom: 9, maxHeight: 116, overflowY: 'auto' }} className="ems-scroll">
+            <div className="mp-list ems-scroll" role="list" aria-label="Плейлист">
               {list.map((x) => (
-                <div key={x.id} onClick={() => { Audio.play('tick'); Audio.playTrack(x.id); }}
-                  style={{ fontSize: 12, padding: '3px 6px', borderRadius: 2, cursor: 'pointer',
-                    color: x.current ? COLOR.goldSoft : COLOR.muted, background: x.current ? COLOR.goldDim : 'transparent' }}>
-                  {x.current ? '♪ ' : '   '}{x.name}{x.file ? <span style={{ color: COLOR.faint }}> · запись</span> : null}
-                </div>
+                <button key={x.id} role="listitem" className={`mp-row${x.current ? ' cur' : ''}`} data-testid="music-row" data-track={x.id} onClick={() => { Audio.play('tick'); Audio.playTrack(x.id); }}>
+                  <span className="mp-dot" aria-hidden="true">{x.current ? <span className="mp-eq sm"><i /><i /><i /></span> : null}</span>
+                  <span className="mp-name">{x.name}</span>
+                  {x.file && <span className="mp-rec" title="запись">●</span>}
+                </button>
               ))}
             </div>
           )}
           {/* «Заставки событий» и справки о числе пьес в панели нет: заставки звучат в партии сами (пункт владельца 08.11) */}
-          <div style={{ marginBottom: 9 }}>
-            <div style={{ fontSize: 12, color: COLOR.muted, marginBottom: 4 }}>Что играть</div>
-            <select className="ems-btn" data-testid="music-what" value={np.locked || (wave ? 'wave' : 'auto')} style={{ width: '100%', padding: '5px 8px', fontSize: 12 }}
+          <label className="mp-what">
+            <span>Что играть</span>
+            <select data-testid="music-what" value={np.locked || (wave ? 'wave' : 'auto')}
               onChange={(e) => { Audio.play('tab'); Audio.setPlaylist(e.target.value === 'auto' ? null : e.target.value); }}>
               {moods.map(([id, label]) => (<option key={id} value={id}>{label}</option>))}
             </select>
-            {wave && (np.locked || 'wave') === 'wave' && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 4, lineHeight: 1.4 }} data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
-          </div>
+          </label>
+          {wave && (np.locked || 'wave') === 'wave' && <div className="mp-hint" data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
           {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); }, Music],
             ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); if (learn) setLearnSfx(v); else setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                <Icon size={12} color={val ? COLOR.gold : COLOR.faint} />
-                <span style={{ fontSize: 12, color: val ? COLOR.text : COLOR.muted, flex: 1 }}>{label}</span>
-                <button className="ems-btn" data-testid={Icon === Music ? 'music-toggle' : 'sfx-toggle'} style={{ padding: '2px 9px', fontSize: 12, background: val ? COLOR.sel : COLOR.panelAlt, color: val ? COLOR.selText : COLOR.muted, borderColor: val ? COLOR.selBorder : COLOR.border }}
-                  onClick={() => set(!val)}>{val ? 'вкл' : 'выкл'}</button>
+              <div key={label} className="mp-sw-row">
+                <Icon size={14} className={val ? 'on' : ''} />
+                <span>{label}</span>
+                <button className={`mp-sw${val ? ' on' : ''}`} role="switch" aria-checked={val} aria-label={label} data-testid={Icon === Music ? 'music-toggle' : 'sfx-toggle'}
+                  onClick={() => set(!val)}><i aria-hidden="true" /><span className="mp-sw-t">{val ? 'вкл' : 'выкл'}</span></button>
               </div>
             ))}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
-            <span style={{ fontSize: 12, color: COLOR.muted, width: 54 }}>Громкость</span>
-            <input type="range" className="ems-slider" min={0} max={1} step={0.05} value={vol}
+          <div className="mp-vol">
+            <VolumeX size={14} aria-hidden="true" />
+            <input type="range" className="mp-range" aria-label="Громкость" min={0} max={1} step={0.05} value={vol} style={{ '--v': `${Math.round(vol * 100)}%` }}
               onChange={(e) => { const v = parseFloat(e.target.value); setVol(v); Audio.setVolume(v); setWorldVolume(v); }} />
+            <Volume2 size={14} aria-hidden="true" />
           </div>
         </div>
       )}
@@ -591,6 +669,12 @@ function tycoonWasOpen() {
 export function loadTycoonMeta() {
   try { return JSON.parse(localStorage.getItem(TYCOON_META_KEY) || 'null') || {}; } catch { return {}; }
 }
+
+/* Из партии вышли «Назад» браузера (docs/mechanics.md, «Адреса и история»): партия остаётся в автосохранении и ждёт в меню
+   «Мира», но сама при следующей загрузке не открывается. Новая или продолженная партия отметку снимает. */
+const GAME_LEFT_KEY = 'ems-game-left';
+const gameLeft = () => { try { return localStorage.getItem(GAME_LEFT_KEY) === '1'; } catch { return false; } };
+const setGameLeft = (on) => { try { if (on) localStorage.setItem(GAME_LEFT_KEY, '1'); else localStorage.removeItem(GAME_LEFT_KEY); } catch { /* приватный режим */ } };
 
 export const loadAutosave = () => {
   try {
@@ -865,7 +949,9 @@ const LabScreen = React.lazy(() => import('./trainer.jsx').then((m) => ({ defaul
 // учебник: главы, KaTeX, приложения — свой чанк
 const TextbookScreen = React.lazy(() => import('./textbook.jsx').then((m) => ({ default: m.TextbookScreen })));
 // путь уроков, практика и профиль учёбы — вместе с учебником (формулы и графики те же)
-const loadLearn = () => import('./learn.jsx');
+/* вкладка обучения рисует Путь по указателю курса (src/learn/course-core.js). У пробного курса политологии указателя
+   нет: для него сначала грузится курс целиком, потом вкладка */
+const loadLearn = () => (TRACK === 'politics' ? import('./learn/course.js').then(() => import('./learn.jsx')) : import('./learn.jsx'));
 const LearnTab = React.lazy(() => loadLearn().then((m) => ({ default: m.LearnTab })));
 const Welcome = React.lazy(() => import('./welcome.jsx'));
 // витрина дизайн-системы обучения — внутренняя страница …/#ds
@@ -994,7 +1080,8 @@ function CrashScreen({ error, onMenu }) {
 class ScreenErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error('Экран упал:', error, info); }
+  // сбой экрана — и владельцам, обезличенно (src/lib/crash.js)
+  componentDidCatch(error, info) { console.error('Экран упал:', error, info); reportCrash(error, 'boundary'); }
   componentDidUpdate(prev) {
     // сменили экран — пробуем снова: ошибка была у того, который уже закрыт
     if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null });
@@ -1013,8 +1100,8 @@ export default function MacroSimulator() {
   // «Мир» закрыт (проба с приветствия кончилась, docs/mechanics.md, «„Мир“ на пробу») — сохранённая партия сама не открывается
   const [worldShut] = useState(() => trialEnded() && !featureOpen(loadTextbookProgress().learn, 'world'));
   const [resumeTycoon] = useState(() => (!roomCodeFromUrl() && !worldShut && tycoonWasOpen() ? loadTycoonSave() : null));
-  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : loadAutosave()));
-  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut ? null : (loadAutosave() || {}).setup || null));
+  const [loaded, setLoaded] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut || gameLeft() ? null : loadAutosave()));
+  const [setup, setSetup] = useState(() => (roomCodeFromUrl() || resumeTycoon || worldShut || gameLeft() ? null : (loadAutosave() || {}).setup || null));
   const [nonce, setNonce] = useState(0);
   // оформление «Мира» — сохранённое на устройстве или по ночной теме из настроек (ds-tokens.js)
   const [theme, setThemeState] = useState(worldThemeId);
@@ -1026,8 +1113,15 @@ export default function MacroSimulator() {
   /* Главный экран — оболочка с нижней панелью: Путь (уроки), Практика, Теория (учебник как
      справочник), Мир (партия, «Своё дело», лаборатория) и Профиль. view 'menu' — оболочка,
      tab — открытая вкладка; из Лаборатории или партии возвращаемся на ту же вкладку. */
-  const [tab, setTabRaw] = useState('path');
-  const setTab = (t) => { setTabRaw(t); window.scrollTo(0, 0); };
+  /* Вкладка — из адреса (src/lib/route.js; docs/mechanics.md, «Адреса и история»): /, /book, /league, /shop, /profile,
+     /world, /news. Смена вкладки — новая запись истории; «Назад» и «Вперёд» браузера возвращают вкладку по адресу. */
+  const [tab, setTabRaw] = useState(() => router().current().tab);
+  const setTab = (t, opts) => { router().navigate({ tab: t }, opts); setTabRaw(t); window.scrollTo(0, 0); };
+  React.useEffect(() => {
+    // незнакомый адрес — это Путь: адрес поправляем, чтобы перезагрузка и ссылка вели туда же
+    if (!router().current().known) router().navigate({ tab: 'path' }, { replace: true });
+    return router().subscribe((r) => { setTabRaw((t) => { if (t !== r.tab) window.scrollTo(0, 0); return r.tab; }); });
+  }, []);
   // аналитика: открыли вкладку «Мир» — не чаще раза в день с устройства (docs/mechanics.md, «Аналитика»)
   React.useEffect(() => { if (tab === 'world' && view === 'menu') trackDaily('world_open'); }, [tab, view]);
   /* Вход обязателен: без аккаунта — только приветствие, вход и регистрация (src/welcome.jsx).
@@ -1049,12 +1143,12 @@ export default function MacroSimulator() {
   // «Мир» на пробу кончился — окно «Пробная игра окончена» (src/lib/world-trial.js)
   const [trialOver, setTrialOver] = useState(false);
   React.useEffect(() => {
-    const ready = () => { setTrialOver(false); setGate(false); setGuest(false); setView('menu'); setTabRaw('path'); window.scrollTo(0, 0); };
-    const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('path'); setFirstLesson(true); window.scrollTo(0, 0); };
+    const ready = () => { setTrialOver(false); setGate(false); setGuest(false); setView('menu'); setTab('path', { replace: true }); };
+    const guestStart = () => { setGuest(true); setGate(false); setView('menu'); setTab('path', { replace: true }); setFirstLesson(true); };
     const guestSave = () => { setTrialOver(false); setGateScreen('register'); setGate(true); window.scrollTo(0, 0); };
     const guestLogin = () => { setTrialOver(false); setGateScreen('login'); setGate(true); window.scrollTo(0, 0); };
     // с приветствия — сразу в «Мир», без аккаунта и уроков
-    const worldTrial = () => { setGuest(true); setGate(false); setView('menu'); setTabRaw('world'); window.scrollTo(0, 0); track('world_trial_start'); };
+    const worldTrial = () => { setGuest(true); setGate(false); setView('menu'); setTab('world', { replace: true }); track('world_trial_start'); };
     window.addEventListener('ems-account-ready', ready);
     window.addEventListener(GUEST_START, guestStart);
     window.addEventListener(GUEST_SAVE, guestSave);
@@ -1073,6 +1167,8 @@ export default function MacroSimulator() {
   const [reopenBook, setReopenBook] = useState(false);
   // учебник открыт поверх вкладки обучения: внизу подсвечен «Учебник»; closeTick закрывает его
   const [bookOver, setBookOver] = useState(false);
+  // идёт урок (или особый урок во весь экран) — нижняя панель под ним недоступна с клавиатуры и для чтения с экрана
+  const [navOff, setNavOff] = useState(false);
   const [closeTick, setCloseTick] = useState(0);
   // повторное нажатие на «Учебник», когда он уже открыт, — на главную страницу учебника
   const [bookHome, setBookHome] = useState(0);
@@ -1120,8 +1216,8 @@ export default function MacroSimulator() {
       const ended = tickTrial(1);
       setTrialLeftS(trialLeft());
       if (ended) {
-        setNetwork(null); setLoaded(null); setSetup(null); setTycoon(null); setView('menu'); setTabRaw('world');
-        setTrialOver(true); window.scrollTo(0, 0); track('world_trial_end');
+        setNetwork(null); setLoaded(null); setSetup(null); setTycoon(null); setView('menu'); setTab('world', { replace: true });
+        setTrialOver(true); track('world_trial_end');
       }
     }, 1000);
     return () => clearInterval(id);
@@ -1155,6 +1251,21 @@ export default function MacroSimulator() {
   React.useEffect(() => { window.scrollTo(0, 0); }, [screenKey]);
 
   const backToMenu = () => { setNetwork(null); setLoaded(null); setSetup(null); goMenu(); };
+  /* Экраны «Мира» поверх вкладки (партия, «Своё дело», сетевая игра, анкета, лаборатория, задачи, обучение) — слой истории:
+     «Назад» браузера закрывает экран и возвращает туда, откуда его открыли (в учебник или на вкладку). Партия при этом
+     не теряется: она в автосохранении и ждёт в меню «Мира». */
+  const worldOver = !showGate && !!(tycoon || network || setup || view !== 'menu');
+  useHistoryLayer(worldOver, () => {
+    if (setup && !tycoon && !network) setGameLeft(true);
+    const toBook = fromBook || gameFromBook;
+    setBookOverlay(null); setTycoon(null); setNetwork(null); setLoaded(null); setSetup(null); setSetupPreset(null); setTycoonLesson(null); setLabInit(null);
+    setFromBook(false); setGameFromBook(false);
+    if (toBook) backToBook(); else goMenu();
+  });
+  // партия на экране — отметка «вышли „Назад“» снята
+  React.useEffect(() => { if (setup) setGameLeft(false); }, [setup]);
+  // «Подробнее в учебнике» из партии — слой поверх партии
+  useHistoryLayer(!!bookOverlay && !showGate, () => closeBookOverlay());
   const startTycoon = (x) => {
     if (loadTycoonSave() && !window.confirm('Начать новое дело? Сохранённая компания будет потеряна (репутация останется).')) return;
     setTycoon({ lesson: tycoonLesson, setupNew: { start: x.sector || 'farm', scenario: x.scenario, difficulty: x.difficulty, cbPersona: x.cbPersona,
@@ -1223,6 +1334,7 @@ export default function MacroSimulator() {
       const startDrill = (x) => { setFromBook(false); setGameFromBook(true); clearAutosave(); setLoaded(null); setSetup(x); };
       return (
         <div data-testid="shell" data-tab={tab}>
+          <main id="main" tabIndex={-1}>
           {tab === 'world' && worldLocked ? (
             <DsRoot theme={dsThemeId()} style={{ minHeight: '100vh' }}>
               <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 120px' }} data-testid="world-locked">
@@ -1249,7 +1361,7 @@ export default function MacroSimulator() {
               <GlobalStyle />
               <Suspense fallback={<GameFallback />}>
                 <LearnTab tab={tab} onTab={setTab} reopenBook={reopenBook} onBookReopened={() => setReopenBook(false)} onThemeChange={() => setLearnTick((k) => k + 1)}
-                  onBookOver={setBookOver} closeTick={closeTick} bookHome={bookHome} pathHome={pathHome} guest={guest} firstLesson={firstLesson} onFirstLesson={() => setFirstLesson(false)}
+                  onBookOver={setBookOver} onBusy={setNavOff} closeTick={closeTick} bookHome={bookHome} pathHome={pathHome} guest={guest} firstLesson={firstLesson} onFirstLesson={() => setFirstLesson(false)}
                   bookHandlers={{
                     onOpenLab: (init) => { setFromBook(true); setLabInit(init); setLabLever(init.lever); setView('lab'); },
                     onStartDrill: startDrill,
@@ -1266,8 +1378,10 @@ export default function MacroSimulator() {
               </Suspense>
             </div>
           )}
+          </main>
           {/* учебник поверх вкладки (например, «Открыть теорию» из карточки урока) — внизу отмечен «Учебник»;
               нажатие на вкладку закрывает его */}
+          <div inert={navOff && tab !== 'world'} data-testid="bottom-nav-wrap">
           <BottomNav tab={bookOver && tab !== 'world' ? 'book' : tab} onTab={(t) => { if (bookOver) { setBookOver(false); setCloseTick((k) => k + 1); } setTab(t); }}
             onReselect={(t) => {
               /* повторное касание вкладки — как «назад» к её началу: учебник — в оглавление,
@@ -1281,6 +1395,7 @@ export default function MacroSimulator() {
               // профиль: повторное касание закрывает и страницы поверх него — настройки, уведомления
               if (t === 'profile') setCloseTick((k) => k + 1);
             }} />
+          </div>
         </div>
       );
     }
@@ -1310,15 +1425,19 @@ export default function MacroSimulator() {
   if (showcase) return <Suspense fallback={<GameFallback />}><DsShowcase /></Suspense>;
   if (showGate) {
     return (
-      <div className="ems-root" data-testid="gate">
+      <main id="main" tabIndex={-1} className="ems-root" data-testid="gate">
         <GlobalStyle />
         <Suspense fallback={<GameFallback />}><Welcome key={gateScreen} initialScreen={gateScreen} onCancel={guest ? () => setGate(false) : null} /></Suspense>
-      </div>
+      </main>
     );
   }
+  /* область main — на каждом экране одна (docs/mechanics.md, «Доступность»): в оболочке с нижней панелью она вокруг
+     содержимого вкладки (панель — рядом, своей областью nav), у остальных экранов — вокруг всего экрана */
+  const inShell = !tycoon && !network && !setup && view === 'menu';
+  const body = inShell ? wrapped : <main id="main" tabIndex={-1}>{wrapped}</main>;
   // ник под запретом: окно «Смените ник» или экран блокировки (src/account.jsx) — поверх любого экрана
   return (
-    <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{wrapped}<NameGate />
+    <ScreenErrorBoundary resetKey={screenKey} onMenu={backToMenu}>{body}<NameGate />
       {trialOn && <WorldTrialChip left={trialLeftS} />}
       {trialOver && <DsRoot theme={dsThemeId()}><WorldTrialEnd hasAccount={!!account} onLessons={() => { setTrialOver(false); setTab('path'); }} /></DsRoot>}
     </ScreenErrorBoundary>
