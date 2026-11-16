@@ -597,3 +597,12 @@ describe('корень как на обычном калькуляторе', () 
     expect(evalExpr(`${pressRoot('5+')}9`)).toBe(8);
   });
 });
+
+describe('плашка «Редкое» у задания дня — свой класс (полный прогон e2e 16.11)', () => {
+  it('не переопределяет плашки лавки .rw-rare: у тех шрифт и положение свои', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../learn-rewards.jsx', import.meta.url), 'utf8');
+    expect(src).toContain('className="rw-quest-rare"');
+    expect(src.match(/^\s*\.rw-rare \{/gm)).toHaveLength(1);
+  });
+});

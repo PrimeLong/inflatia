@@ -284,7 +284,7 @@ export const REWARD_CSS = `
   .rw-price s { color: var(--ds-ink3); font-weight: 400; margin-right: 4px; }
   .rw-goal { height: 5px; width: 100%; border-radius: 3px; background: var(--ds-rule); overflow: hidden; }
   .rw-goal > i { display: block; height: 100%; background: #8A2F45; }
-  .rw-rare { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; vertical-align: 1px; color: var(--ds-gold-ink, #7A5A12); background: color-mix(in srgb, var(--ds-gold) 22%, var(--ds-card)); border: 1px solid color-mix(in srgb, var(--ds-gold) 55%, var(--ds-rule)); }
+  .rw-quest-rare { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .02em; vertical-align: 1px; color: var(--ds-gold-ink, #7A5A12); background: color-mix(in srgb, var(--ds-gold) 22%, var(--ds-card)); border: 1px solid color-mix(in srgb, var(--ds-gold) 55%, var(--ds-rule)); }
   @media (prefers-reduced-motion: reduce) { .rw-ticket, .rw-seal svg *, .rw-flame *, .rw-days span, .rw-days-label, .rw-days-sub, .rw-dot i { animation: none !important; stroke-dashoffset: 0 !important; } }
   @media (prefers-reduced-motion: reduce) { .sh-panel, .sh-more, .rw-flame, .rw-chest-open, .rw-item[data-rare="true"], .rw-bar > i, .rw-quest, .rw-ico.ok, .rw-goalbox, .rw-ring .fg, .rw-book-days i, .rw-pig-coin, .rw-pig-in .spark, .rw-pig-peek, .rw-pig-box.taking .rw-pig, .rw-pig-plus, .rw-grow .main, .rw-grow .now circle, .rw-grow .area, .rw-grow .other, .rw-grow .dot, .rw-grow .now, .rw-grow text { animation: none; } .rw-grow .main { stroke-dasharray: none; } .rw-bar > i, .rw-item { transition: none; } }
 `;
@@ -404,7 +404,7 @@ export function QuestsCard({ learn, now = Date.now(), testid = 'quests' }) {
             <div key={q.id} className="rw-quest" data-testid="quest" data-quest={q.id} data-done={String(q.done)}>
               <span className={`rw-ico ${q.done ? 'ok' : ''}`}>{q.done ? <Check size={16} aria-hidden="true" /> : <Icon size={16} aria-hidden="true" />}</span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 4 }}>{q.title}{q.rare && <span className="rw-rare" data-testid="quest-rare">Редкое</span>}</div>
+                <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 4 }}>{q.title}{q.rare && <span className="rw-quest-rare" data-testid="quest-rare">Редкое</span>}</div>
                 <Bar have={q.have} target={q.target} ok={q.done} />
               </div>
               <div style={{ textAlign: 'right' }}>

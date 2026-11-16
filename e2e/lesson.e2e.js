@@ -706,13 +706,14 @@ test('мир: выключенная музыка не включается по
   const { errors } = await openApp(page);
   const soundBtn = page.locator('button[title^="Музыка"]');
   await soundBtn.click();
-  const row = page.locator('div', { has: page.locator('span', { hasText: /^Музыка$/ }) }).last();
-  await row.getByRole('button', { name: 'вкл' }).click();
-  await expect(row.getByRole('button', { name: 'выкл' })).toBeVisible();
+  // переключатель «Музыка» в проигрывателе (пункт владельца 15.11)
+  const sw = page.getByTestId('music-panel').getByRole('switch', { name: 'Музыка' });
+  await expect(sw).toHaveAttribute('aria-checked', 'true');
+  await sw.click();
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
   await gotoApp(page);
   await page.locator('button[title^="Музыка"]').click();
-  const row2 = page.locator('div', { has: page.locator('span', { hasText: /^Музыка$/ }) }).last();
-  await expect(row2.getByRole('button', { name: 'выкл' })).toBeVisible();
+  await expect(page.getByTestId('music-panel').getByRole('switch', { name: 'Музыка' })).toHaveAttribute('aria-checked', 'false');
   expect(errors).toEqual([]);
 });
 
