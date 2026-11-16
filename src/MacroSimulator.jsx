@@ -5,6 +5,7 @@ import {
   VolumeX, Music, Trophy, Lock, Share2, GraduationCap, BookOpenText, Crown, Gavel, Hammer, Play, Calendar, BookOpen,
   Vote, Layers, Award, BarChart3, Medal, Handshake, HeartHandshake, LifeBuoy, Ban, DoorOpen, Factory, Wheat, Route,
   UserRound, Map as MapIcon, ShoppingBag, Ellipsis, Newspaper,
+  SkipBack, SkipForward, Pause,
 } from 'lucide-react';
 // звуковой движок подгружается по первому клику — в стартовом файле только обёртка
 import { Audio } from './audio/lazy.js';
@@ -483,6 +484,56 @@ export function useExclusiveDropdown(width) {
   return { open, setOpen, toggle, btnRef, pos };
 }
 
+/* Проигрыватель (пункт владельца 15.11: «переделай управление музыкой, сделай современный, приятный дизайн, убери
+   описание песен»): обложка цвета настроения с «эквалайзером», пока играет; круглые кнопки; плейлист строками;
+   переключатели вместо «вкл/выкл». Цвет обложки — по настроению пьесы. */
+const MOOD_TINT = { calm: '#3E7C6B', boom: '#C2780B', slump: '#4D5D86', stag: '#8A6A3C', crisis: '#B03A2E', frost: '#3E86A8', war: '#6B4A3A',
+  campaign: '#B0466B', stabilization: '#3F6E9E', authoritarian: '#5B4A7A', totalitarian: '#4A4A4A', wave: '#6A5AC0' };
+const PLAYER_CSS = `
+  .mp { padding: 14px; border-radius: 18px !important; overflow-y: auto; }
+  .mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font: 700 11px var(--ds-sans, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: ${COLOR.faint}; }
+  .mp-x { width: 30px; height: 30px; border-radius: 50%; border: none; background: ${COLOR.panelAlt}; color: ${COLOR.muted}; display: grid; place-items: center; cursor: pointer; }
+  .mp-now { display: flex; align-items: center; gap: 12px; }
+  .mp-cover { position: relative; flex: none; width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; color: #fff;
+    background: linear-gradient(135deg, var(--mp), color-mix(in srgb, var(--mp) 55%, #000)); box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--mp) 70%, transparent); }
+  .mp-cover > svg { opacity: .9; transition: opacity .3s; } .mp-cover.on > svg { opacity: 0; }
+  .mp-eq { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 3px; padding-bottom: 16px; opacity: 0; transition: opacity .3s; }
+  .mp-cover.on .mp-eq { opacity: 1; }
+  .mp-eq i { width: 4px; height: 22px; border-radius: 2px; background: #fff; transform-origin: bottom; animation: mp-eq 1s ease-in-out infinite alternate; }
+  .mp-eq i:nth-child(2) { animation-delay: -.4s; } .mp-eq i:nth-child(3) { animation-delay: -.7s; } .mp-eq i:nth-child(4) { animation-delay: -.2s; }
+  .mp-eq.sm { position: static; opacity: 1; padding: 0; gap: 2px; height: 12px; } .mp-eq.sm i { width: 3px; height: 12px; background: var(--mp); }
+  @keyframes mp-eq { 0% { transform: scaleY(.25) } 100% { transform: scaleY(1) } }
+  .mp-title { font: 700 16px/1.25 var(--ds-sans, sans-serif); color: ${COLOR.text}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .mp-chip { padding: 1px 8px; border-radius: 999px; font: 600 11.5px/18px var(--ds-sans, sans-serif); color: var(--mp); background: color-mix(in srgb, var(--mp) 14%, transparent); }
+  .mp-chip.rec { color: ${COLOR.goldSoft}; background: none; box-shadow: inset 0 0 0 1px ${COLOR.gold}; }
+  .mp-ctl { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 12px 0 10px; }
+  .mp-b { width: 40px; height: 40px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; color: ${COLOR.text}; background: ${COLOR.panelAlt}; transition: transform .12s, background .15s; }
+  .mp-b:hover { background: color-mix(in srgb, var(--mp) 14%, ${COLOR.panelAlt}); } .mp-b:active { transform: scale(.93); }
+  .mp-b.main { width: 52px; height: 52px; color: #fff; background: var(--mp); box-shadow: 0 8px 16px -8px var(--mp); }
+  .mp-list { max-height: 150px; overflow-y: auto; margin: 0 -4px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .mp-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: none; border-radius: 10px; background: none; cursor: pointer; text-align: left; font: 500 13px var(--ds-sans, sans-serif); color: ${COLOR.muted}; }
+  .mp-row:hover { background: ${COLOR.panelAlt}; } .mp-row.cur { color: ${COLOR.text}; font-weight: 700; background: color-mix(in srgb, var(--mp) 12%, transparent); }
+  .mp-dot { width: 14px; flex: none; display: grid; place-items: center; } .mp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-rec { font-size: 9px; color: ${COLOR.gold}; }
+  .mp-what { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font: 12.5px var(--ds-sans, sans-serif); color: ${COLOR.muted}; }
+  .mp-what select { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 999px; border: 1px solid ${COLOR.border}; background: ${COLOR.panelAlt}; color: ${COLOR.text}; font: 600 12.5px var(--ds-sans, sans-serif); }
+  .mp-hint { font-size: 12px; color: ${COLOR.faint}; margin: 0 0 8px; line-height: 1.4; }
+  .mp-sw-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font: 13px var(--ds-sans, sans-serif); color: ${COLOR.text}; }
+  .mp-sw-row > svg { color: ${COLOR.faint}; } .mp-sw-row > svg.on { color: var(--mp); } .mp-sw-row > span { flex: 1; }
+  .mp-sw { position: relative; width: 44px; height: 26px; border-radius: 999px; border: none; padding: 0; cursor: pointer; background: ${COLOR.border}; transition: background .2s; }
+  .mp-sw.on { background: var(--mp); }
+  .mp-sw i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+  .mp-sw.on i { transform: translateX(18px); }
+  .mp-sw-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .mp-vol { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: ${COLOR.faint}; }
+  .mp-range { flex: 1; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 999px; outline-offset: 4px;
+    background: linear-gradient(90deg, var(--mp) var(--v), ${COLOR.border} var(--v)); }
+  .mp-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; }
+  .mp-range::-moz-range-thumb { width: 18px; height: 18px; border: none; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { .mp-eq i { animation: none; transform: scaleY(.6); } .mp-sw i, .mp-b { transition: none; } }
+`;
+
 /* «Волна» играет в учебнике; в партии музыка снова следует за экономикой (docs/mechanics.md, «Музыка») */
 export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked === 'wave') Audio.setPlaylist(null); };
 
@@ -512,60 +563,65 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false 
         {anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
       {open && (
-        <div className="ems-panel-raised ems-fade-in" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, padding: 13, zIndex: 60, maxHeight: pos.maxHeight, overflowY: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-            <Music size={13} color={COLOR.gold} />
-            <span className="ems-serif" style={{ fontSize: 13, color: COLOR.goldSoft }}>Саундтрек</span>
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: COLOR.faint }}>{np.moodLabel} · {np.bpm} BPM</span>
+        <div className="ems-panel-raised ems-fade-in mp" data-testid="music-panel" style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: DD_WIDTH, zIndex: 60, maxHeight: pos.maxHeight, '--mp': MOOD_TINT[np.mood] || MOOD_TINT.calm }}>
+          <style>{PLAYER_CSS}</style>
+          <div className="mp-head">
+            <span>Сейчас играет</span>
             {/* на телефоне «ткнуть мимо» — не очевидный способ закрыть панель */}
-            <button className="ems-btn" style={{ padding: '3px 5px', lineHeight: 0 }} aria-label="Закрыть"
-              onClick={() => { Audio.play('click'); setOpen(false); }}><X size={12} /></button>
+            <button className="mp-x" aria-label="Закрыть" onClick={() => { Audio.play('click'); setOpen(false); }}><X size={14} /></button>
           </div>
-          <div style={{ background: COLOR.panelAlt, border: `1px solid ${COLOR.border}`, borderRadius: 3, padding: '9px 10px', marginBottom: 9 }}
-            data-testid="music-now" data-track={np.id || ''} data-file={String(!!np.file)}>
-            <div className="ems-serif" style={{ fontSize: 13, color: COLOR.text, lineHeight: 1.2 }}>{np.name}</div>
-            {/* звучит запись из public/music, а не синтез (docs/mechanics.md, «Музыка: записи вместо синтеза») */}
-            <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 2 }}>{np.file
-              ? <><span data-testid="music-file" style={{ display: 'inline-block', padding: '0 6px', marginRight: 6, borderRadius: 999, border: `1px solid ${COLOR.gold}`, color: COLOR.goldSoft, fontSize: 11, lineHeight: '16px' }}>запись</span>{np.subtitle}</>
-              : np.subtitle}</div>
-            <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
-              <button className="ems-btn" style={{ flex: 1, padding: '4px 0', fontSize: 12 }} onClick={() => { Audio.play('tick'); Audio.skip(false); }}>◀ пред.</button>
-              <button className="ems-btn" style={{ flex: 1, padding: '4px 0', fontSize: 12 }} onClick={() => { Audio.play('tick'); Audio.skip(true); }}>след. ▶</button>
+          {/* обложка, название и управление; описаний пьес нет (пункт владельца 15.11: «убери описание песен») */}
+          <div className="mp-now" data-testid="music-now" data-track={np.id || ''} data-file={String(!!np.file)}>
+            <div className={`mp-cover${music ? ' on' : ''}`} aria-hidden="true"><Music size={20} /><span className="mp-eq"><i /><i /><i /><i /></span></div>
+            <div style={{ minWidth: 0 }}>
+              <div className="mp-title">{np.name}</div>
+              <div className="mp-meta">
+                {np.moodLabel && <span className="mp-chip">{np.moodLabel}</span>}
+                {/* звучит запись из public/music, а не синтез (docs/mechanics.md, «Музыка: записи вместо синтеза») */}
+                {np.file && <span className="mp-chip rec" data-testid="music-file">запись</span>}
+              </div>
             </div>
           </div>
+          <div className="mp-ctl">
+            <button className="mp-b" aria-label="Предыдущая пьеса" data-testid="music-prev" onClick={() => { Audio.play('tick'); Audio.skip(false); }}><SkipBack size={16} /></button>
+            <button className="mp-b main" aria-label={music ? 'Пауза' : 'Играть'} data-testid="music-play"
+              onClick={() => { const v = !music; Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); setMusic(v); }}>{music ? <Pause size={20} /> : <Play size={20} />}</button>
+            <button className="mp-b" aria-label="Следующая пьеса" data-testid="music-next" onClick={() => { Audio.play('tick'); Audio.skip(true); }}><SkipForward size={16} /></button>
+          </div>
           {list.length > 1 && (
-            <div style={{ marginBottom: 9, maxHeight: 116, overflowY: 'auto' }} className="ems-scroll">
+            <div className="mp-list ems-scroll" role="list" aria-label="Плейлист">
               {list.map((x) => (
-                <div key={x.id} onClick={() => { Audio.play('tick'); Audio.playTrack(x.id); }}
-                  style={{ fontSize: 12, padding: '3px 6px', borderRadius: 2, cursor: 'pointer',
-                    color: x.current ? COLOR.goldSoft : COLOR.muted, background: x.current ? COLOR.goldDim : 'transparent' }}>
-                  {x.current ? '♪ ' : '   '}{x.name}{x.file ? <span style={{ color: COLOR.faint }}> · запись</span> : null}
-                </div>
+                <button key={x.id} role="listitem" className={`mp-row${x.current ? ' cur' : ''}`} data-testid="music-row" data-track={x.id} onClick={() => { Audio.play('tick'); Audio.playTrack(x.id); }}>
+                  <span className="mp-dot" aria-hidden="true">{x.current ? <span className="mp-eq sm"><i /><i /><i /></span> : null}</span>
+                  <span className="mp-name">{x.name}</span>
+                  {x.file && <span className="mp-rec" title="запись">●</span>}
+                </button>
               ))}
             </div>
           )}
           {/* «Заставки событий» и справки о числе пьес в панели нет: заставки звучат в партии сами (пункт владельца 08.11) */}
-          <div style={{ marginBottom: 9 }}>
-            <div style={{ fontSize: 12, color: COLOR.muted, marginBottom: 4 }}>Что играть</div>
-            <select className="ems-btn" data-testid="music-what" value={np.locked || (wave ? 'wave' : 'auto')} style={{ width: '100%', padding: '5px 8px', fontSize: 12 }}
+          <label className="mp-what">
+            <span>Что играть</span>
+            <select data-testid="music-what" value={np.locked || (wave ? 'wave' : 'auto')}
               onChange={(e) => { Audio.play('tab'); Audio.setPlaylist(e.target.value === 'auto' ? null : e.target.value); }}>
               {moods.map(([id, label]) => (<option key={id} value={id}>{label}</option>))}
             </select>
-            {wave && (np.locked || 'wave') === 'wave' && <div style={{ fontSize: 12, color: COLOR.faint, marginTop: 4, lineHeight: 1.4 }} data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
-          </div>
+          </label>
+          {wave && (np.locked || 'wave') === 'wave' && <div className="mp-hint" data-testid="music-wave-hint">Пьесы разных настроений сменяют друг друга сами</div>}
           {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); }, Music],
             ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); if (learn) setLearnSfx(v); else setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                <Icon size={12} color={val ? COLOR.gold : COLOR.faint} />
-                <span style={{ fontSize: 12, color: val ? COLOR.text : COLOR.muted, flex: 1 }}>{label}</span>
-                <button className="ems-btn" data-testid={Icon === Music ? 'music-toggle' : 'sfx-toggle'} style={{ padding: '2px 9px', fontSize: 12, background: val ? COLOR.sel : COLOR.panelAlt, color: val ? COLOR.selText : COLOR.muted, borderColor: val ? COLOR.selBorder : COLOR.border }}
-                  onClick={() => set(!val)}>{val ? 'вкл' : 'выкл'}</button>
+              <div key={label} className="mp-sw-row">
+                <Icon size={14} className={val ? 'on' : ''} />
+                <span>{label}</span>
+                <button className={`mp-sw${val ? ' on' : ''}`} role="switch" aria-checked={val} aria-label={label} data-testid={Icon === Music ? 'music-toggle' : 'sfx-toggle'}
+                  onClick={() => set(!val)}><i aria-hidden="true" /><span className="mp-sw-t">{val ? 'вкл' : 'выкл'}</span></button>
               </div>
             ))}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
-            <span style={{ fontSize: 12, color: COLOR.muted, width: 54 }}>Громкость</span>
-            <input type="range" className="ems-slider" min={0} max={1} step={0.05} value={vol}
+          <div className="mp-vol">
+            <VolumeX size={14} aria-hidden="true" />
+            <input type="range" className="mp-range" aria-label="Громкость" min={0} max={1} step={0.05} value={vol} style={{ '--v': `${Math.round(vol * 100)}%` }}
               onChange={(e) => { const v = parseFloat(e.target.value); setVol(v); Audio.setVolume(v); setWorldVolume(v); }} />
+            <Volume2 size={14} aria-hidden="true" />
           </div>
         </div>
       )}

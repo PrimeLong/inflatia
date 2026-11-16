@@ -100,6 +100,33 @@ describe('записи вместо синтеза', () => {
     ok.stopMusic();
   });
 
+  it('следующая запись грузится заранее и входит поверх затухающей — без тишины (пункт владельца 15.11)', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx, log } = fakeContext();
+    const list = MOOD_PLAYLISTS.calm; const next = list[(list.indexOf('dawn') + 1) % list.length];
+    const urls = [];
+    const a = createAudioEngine({ context: ctx, musicFiles: ['dawn', next], fetchMusic: async (url) => { urls.push(url); return new ArrayBuffer(8); } });
+    a.playTrack('dawn');
+    vi.advanceTimersByTime(120);
+    await flush(); await flush(); await flush();
+    // играет первая — вторая уже скачана и декодируется заранее
+    expect(urls).toEqual(['/music/dawn.mp3', `/music/${next}.mp3`]);
+    expect(log.decoded).toBe(2);
+    const osc0 = log.osc;
+    // ведём время к концу записи (30 с): вторая стартует до того, как первая замолчит
+    for (let k = 0; k < 260 && log.sources.length < 2; k += 1) { ctx.currentTime += 0.125; vi.advanceTimersByTime(120); }
+    expect(log.sources).toHaveLength(2);
+    const [first, second] = log.sources;
+    expect(a.nowPlaying().id).toBe(next);
+    expect(a.nowPlaying().file).toBe(true);
+    expect(second.started).toBeLessThan(first.stopped);
+    // наложение — секунды, а не мгновение
+    expect(first.stopped - second.started).toBeGreaterThan(2);
+    // синтез всё это время молчал
+    expect(log.osc).toBe(osc0);
+    a.stopMusic();
+  });
+
   it('офлайн-замер громкости — всегда синтез, даже если запись лежит', () => {
     const { ctx } = fakeContext();
     const a = createAudioEngine({ context: ctx });

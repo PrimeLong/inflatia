@@ -33,8 +33,16 @@ test('музыка: у пьесы есть запись в public/music — иг
   // файл — по id пьесы, из public/music
   const id = await now.getAttribute('data-track');
   expect(asked).toContain(`/music/${id}.mp3`);
-  // в списке пьес у записей — «· запись»
-  await expect(panel.getByText('· запись').first()).toBeVisible();
+  // проигрыватель (пункт владельца 15.11): описаний пьес нет; следующая запись плейлиста загружена заранее; круглые кнопки
+  await expect(now).not.toContainText('BPM');
+  await expect(panel.locator('.mp-cover')).toBeVisible();
+  for (const b of ['music-prev', 'music-play', 'music-next']) expect((await panel.getByTestId(b).boundingBox()).height).toBeGreaterThanOrEqual(40);
+  const rows = panel.getByTestId('music-row');
+  const ids = await rows.evaluateAll((els) => els.map((e) => e.dataset.track));
+  const nextId = ids[(ids.indexOf(id) + 1) % ids.length];
+  await expect.poll(() => asked.includes(`/music/${nextId}.mp3`), { timeout: 10000 }).toBe(true);
+  // в списке пьес у записей — значок «запись»
+  await expect(panel.locator('[data-testid=music-row] .mp-rec[title="запись"]').first()).toBeVisible();
   expect(errors).toEqual([]);
 });
 
