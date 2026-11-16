@@ -869,8 +869,9 @@ test('«Персоналии»: портрет — свой файл из public
   await page.getByTestId('people-finish').click();
   // галерея профиля: у кого есть файл — фото, у кого нет — медальон с инициалами
   await openTab(page, 'profile');
-  const gallery = page.getByTestId('prof-gallery');
-  await gallery.scrollIntoViewIfNeeded();
+  // вся галерея — в альбоме («Все»): людей много, в профиле — четыре марки (пункт владельца 16.11, вечер)
+  await page.getByTestId('gallery-all').click();
+  const gallery = page.getByTestId('people-album');
   await expect(gallery.locator('[data-testid=gallery-person][data-met="true"]')).toHaveCount(everyone.length);
   await expect(gallery.locator('[data-testid=people-portrait][data-photo="true"]')).toHaveCount(everyone.filter((p) => files[p.id]).length);
   if (noFile) {
@@ -1315,4 +1316,62 @@ test('новая сборка во время занятия: часть при�
   expect(loads).toBeGreaterThanOrEqual(2);
   await expect(page.getByText('Экран не открылся')).toHaveCount(0);
   expect(reports.filter((p) => p && p.includes('"crash"'))).toEqual([]);
+});
+
+// пункт владельца 16.11, вечер: «профиль: мышка на нижнем крае книги — дёргается»; «людей много — нужна настоящая галерея, как с марками»
+test('профиль: книга под курсором у нижнего края не дёргается; галерея персоналий — альбом марок с листом на каждый юнит', async ({ page, isMobile }) => {
+  await page.addInitScript((ids) => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 } }, read: { 'read-choice': at }, met: Object.fromEntries(ids.map((id) => [id, at])) } }));
+  }, ['people-scarcity']);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'profile' });
+  const shelf = page.getByTestId('prof-shelf');
+  await shelf.scrollIntoViewIfNeeded();
+  if (!isMobile) {
+    const book = shelf.locator('[data-testid=shelf-book][data-book="smith-wealth"]');
+    await expect(book).toHaveAttribute('data-open', 'true');
+    const box = await book.boundingBox();
+    // курсор — на 2 точки выше нижнего края: книга приподнимается и остаётся приподнятой, а не прыгает вверх-вниз
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height - 2);
+    await page.waitForTimeout(400);
+    const lifts = [];
+    for (let k = 0; k < 8; k += 1) {
+      await page.mouse.move(box.x + box.width / 2 + (k % 2), box.y + box.height - 2);
+      await page.waitForTimeout(60);
+      lifts.push(await book.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m42));
+    }
+    lifts.forEach((y) => expect(y).toBeLessThan(-6));
+  }
+  // в профиле — четыре марки и «ещё»: знакомые первыми
+  const gallery = page.getByTestId('prof-gallery');
+  await expect(gallery.getByTestId('gallery-person')).toHaveCount(4);
+  await expect(gallery.getByTestId('gallery-person').first()).toHaveAttribute('data-met', 'true');
+  await expect(gallery.getByTestId('gallery-more')).toBeVisible();
+  // альбом: лист на каждый юнит, знакомые «Люди выбора» вклеены, остальные — пустые ячейки
+  await gallery.getByTestId('gallery-more').click();
+  const album = page.getByTestId('people-album');
+  await expect(album).toBeVisible();
+  const sheets = album.getByTestId('people-album-sheet');
+  expect(await sheets.count()).toBeGreaterThanOrEqual(6);
+  const first = album.locator('[data-testid=people-album-sheet][data-group="people-scarcity"]');
+  const n = await first.getByTestId('gallery-person').count();
+  await expect(first.getByTestId('people-album-sheet-count')).toHaveText(`${n} из ${n}`);
+  await expect(first.locator('[data-testid=gallery-person][data-met="false"]')).toHaveCount(0);
+  await expect(album.locator('[data-testid=people-album-sheet][data-group="people-household"] [data-testid=gallery-person][data-met="true"]')).toHaveCount(0);
+  // марка — с перфорацией (вырезанные маской зубцы)
+  const mask = await first.locator('.lb-ps-perf').first().evaluate((el) => getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage);
+  expect(mask).toContain('radial-gradient');
+  // встреченный — карточка с идеей; пустая ячейка — где он откроется
+  await first.getByTestId('gallery-person').first().click();
+  await expect(page.getByTestId('gallery-card')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('gallery-card')).toHaveCount(0);
+  await album.locator('[data-testid=people-album-sheet][data-group="people-household"] [data-testid=gallery-person]').first().click();
+  await expect(page.getByTestId('gallery-locked')).toContainText('Люди сбережений');
+  await page.getByTestId('gallery-locked').getByRole('button', { name: 'Понятно' }).click();
+  await page.getByTestId('people-album-back').click();
+  await expect(album).toHaveCount(0);
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll');
+  expect(errors).toEqual([]);
 });
