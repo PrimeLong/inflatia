@@ -34,7 +34,9 @@ test('особые уроки как обычный: тема и украшен�
   const head = page.getByTestId('reading').getByTestId('special-head');
   await expect(head.locator('.ln-head')).toHaveCount(1);
   await expect(head.getByTestId('special-progress')).toContainText('0/3');
-  await expect(head).not.toContainText('Чтение');
+  await expect(head.locator('.ln-head')).not.toContainText('Чтение');
+  // вид урока — в том же блоке шапки, одной полосой (жалоба ученика 16.11: «сверху две какие-то плашки»)
+  await expect(head.getByTestId('special-label')).toHaveCount(1);
   await expect(head.getByTestId('lesson-streak')).toHaveCount(0);
   await expect(page.getByTestId('reading').getByTestId('special-label')).toContainText('Чтение · ');
   // серия верных ответов с Инфлей в шапке

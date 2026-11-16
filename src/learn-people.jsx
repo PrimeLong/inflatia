@@ -365,7 +365,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
       {/* шапка как у урока: «✕», полоса прогресса по людям, молния «верно подряд» и Инфля (learn-special.jsx) */}
       <SpecialHead closeLabel="Закрыть" closeTestid="people-close" onClose={() => { Audio.play('paper'); onClose(); }} run={run}
         total={g.people.length + (gem ? 1 : 0)}
-        answers={[...g.people.map((_, i) => firstOk.current[i]).filter((v) => v !== undefined), ...(whoDone ? [who.every((it) => whoPicks[it.k] === it.answer)] : [])]} />
+        answers={[...g.people.map((_, i) => firstOk.current[i]).filter((v) => v !== undefined), ...(whoDone ? [who.every((it) => whoPicks[it.k] === it.answer)] : [])]} >
       <SpecialLabel kind="Персоналии" title={g.title} gem={gem} gemTestid="people-gem-tag">
         {/* «Сообщить об ошибке» — как в любом уроке: человек, вопрос и выбранный ответ уходят в жалобу */}
         <ReportFlag context={() => ({
@@ -375,6 +375,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
           answer: finished ? '' : whoStage ? who.map((it) => whoPicks[it.k] || '—').join(' / ') : choice != null ? order[k][choice].text : '',
         })} />
       </SpecialLabel>
+      </SpecialHead>
       <SpecialDesk learn={learn} />
       {!finished && whoStage ? <WhoIdea items={who} picks={whoPicks} onPick={pickWho} color={g.color} /> : !finished ? (
         <div className="pp-page pp-two" key={p.id} data-testid="people-page" data-person={p.id}>

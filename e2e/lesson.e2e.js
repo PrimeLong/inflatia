@@ -1352,7 +1352,7 @@ test('украшения урока: на «Предыдущей карточк�
 });
 
 // пункт владельца 15.11: «тема северного сияния сломана на ПК, буквально выглядит ужасно, а северное сияние слишком яркое»
-test('тема «Северное сияние» на ПК: сияние — тонкие ленты у верха, под текстом тёмная подложка, ёлки не растянуты', async ({ page, isMobile }) => {
+test('тема «Северное сияние» на ПК: сияние — тонкие ленты у верха, под текстом тёмная подложка, ёлки не растянуты, горы без треугольников', async ({ page, isMobile }) => {
   test.skip(isMobile, 'проверка — на широком экране');
   await withTestFlag(page);
   await page.addInitScript(() => {
@@ -1368,7 +1368,13 @@ test('тема «Северное сияние» на ПК: сияние — т�
     bands: [...document.querySelectorAll('.sk-au-band')].map((b) => ({ h: b.offsetHeight, o: Number(getComputedStyle(b).opacity) })),
     veil: !!document.querySelector('.sk-au-veil'),
     trees: [...document.querySelectorAll('[data-testid=skin-au-tree]')].map((t) => { const r = t.getBoundingClientRect(); return r.width / r.height; }),
+    // горы: плавные (кривые Безье, без ломаных вершин) и сплошного цвета — без бирюзовой «кромки»-градиента
+    hills: [...document.querySelectorAll('[data-testid=skin-au-hills] path')].map((p) => ({ d: p.getAttribute('d'), fill: p.getAttribute('fill') })),
+    rim: document.querySelectorAll('.sk-au-hills linearGradient, .sk-au-rim').length,
   }));
+  expect(look.hills.length).toBeGreaterThan(0);
+  look.hills.forEach((h) => { expect(h.d).toMatch(/C/); expect(h.d).not.toMatch(/L/); expect(h.fill).not.toMatch(/url\(/); });
+  expect(look.rim).toBe(0);
   expect(look.bands).toHaveLength(3);
   // раньше лента была в треть экрана (≈320 px) и белила фон под вопросом
   look.bands.forEach((b) => { expect(b.h).toBeLessThanOrEqual(160); expect(b.o).toBeLessThanOrEqual(0.35); });

@@ -28,7 +28,9 @@ const CSS = `
   .sp-shell.sk-on .pp-top, .sp-shell.sk-on .rd-top { background: color-mix(in srgb, var(--ds-paper) 72%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
   .sp-desk { max-width: 640px; width: 100%; margin: 0 auto; padding: 0 14px; }
   /* шапка — как у урока (.ln-head из src/learn.jsx): колонка 592 px по центру; при прокрутке остаётся сверху */
-  .sp-top { position: sticky; top: 0; z-index: 3; background: color-mix(in srgb, var(--ds-paper) 90%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  /* шапка — одна, без своей подложки-плашки и черты: поверх содержимого — мягкое затухание цвета фона урока */
+  .sp-top { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 96%, transparent) 72%, transparent); }
+  .sk-on .sp-top { background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 78%, transparent) 60%, transparent); }
   .sp-top .ln-head { padding-bottom: 6px; }
   .sp-run { display: inline-flex; align-items: center; flex: none; height: 40px; overflow: visible; }
   .sp-run > :last-child { max-height: 40px; }
@@ -79,7 +81,7 @@ export function useAnswerRun(start = 0, startLog = []) {
 
 /* шапка особого урока — та же, что у урока: «✕», полоса прогресса (answers — верно/неверно по пройденным шагам, total — всего
    шагов), молния «верно подряд» и Инфля. Без серии (подсказка из урока — peek) — только «✕» и полоса */
-export function SpecialHead({ closeLabel = 'Выйти из урока', closeTestid, onClose, answers = [], total, run = null }) {
+export function SpecialHead({ closeLabel = 'Выйти из урока', closeTestid, onClose, answers = [], total, run = null, children = null }) {
   return (
     <div className="sp-top" data-testid="special-head">
       <style>{CSS}</style>
@@ -90,6 +92,8 @@ export function SpecialHead({ closeLabel = 'Выйти из урока', closeTe
         {run && <span className="sp-run" data-testid="special-run" data-n={run.n} aria-label={`Верных ответов подряд: ${run.n}`}><InflaMeter streak={run.n} mood={run.mood} size={34} /></span>}
         {run && <AudioControls wave learn icon={Music} label="Музыка" testid="lesson-music" className="ln-music" />}
       </div>
+      {/* вид урока и флажок — в том же блоке шапки, одной полосой, а не второй плашкой (жалоба ученика 16.11, вечер) */}
+      {children}
     </div>
   );
 }

@@ -292,7 +292,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
       {/* шапка как у урока: «✕», полоса прогресса по страницам, молния «верно подряд» и Инфля (learn-special.jsx) */}
       <SpecialHead closeLabel="Закрыть чтение" closeTestid="reading-close" onClose={() => { Audio.play('paper'); onClose(); }} run={run}
         total={r.pages.length + (gem ? 1 : 0)}
-        answers={[...answers.filter(Boolean).map((a) => !!a.ok), ...(whoDone ? [who.every((it, k) => picks[k] === it.answer)] : [])]} />
+        answers={[...answers.filter(Boolean).map((a) => !!a.ok), ...(whoDone ? [who.every((it, k) => picks[k] === it.answer)] : [])]} >
       <SpecialLabel kind="Чтение" title={r.title} gem={gem} gemTestid="reading-gem-tag">
         {/* «Сообщить об ошибке» — подборка, страница, вопрос и ответ уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в чтении? Цитата, вопрос и устройство приложатся сами." context={() => ({
@@ -302,6 +302,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
           answer: !done && answered ? `${page.ask.kind === 'choice' ? ((page.ask.options || []).find((o) => o.k === answered.pick) || {}).text || '' : `слово ${answered.pick}`} — ${answered.ok ? 'верно' : 'неверно'}` : '',
         })} />
       </SpecialLabel>
+      </SpecialHead>
       <SpecialDesk learn={learn} />
       {!done ? (
         <div className="rd-page">
