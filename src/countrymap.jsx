@@ -1,6 +1,7 @@
 /* Карта страны: округа, их напряжение и итоги выборов по округам. Вынесена
    из MacroSimulator.jsx в отдельный чанк и грузится лениво — карта нужна
    только по нажатию вкладки «Карта», а не при первой загрузке сайта. */
+import { capitalShown } from './lib/politics/president.js';
 import { ruNum } from './lib/num.js';
 import { AlertTriangle, Anchor, ArrowLeft, Castle, CheckCircle2, Coins, Construction, Crown, Expand, Factory, Flag, Globe2, Handshake, Landmark, Lock, Maximize2, Minimize2, Minus, Mountain, Pickaxe, Plus, Shield, Swords, Trees, Vote, Wheat, Wind } from 'lucide-react';
 import { MAP_REGIONS, REGION_PROJECTS, clamp, fmt1, fmtMoney, projectBlocker, regionBlurb, warFrontRegion, defaultWarOrder, WAR_STANCES, warObjectiveOpen, warStrength,
@@ -618,7 +619,7 @@ function DiplomacyBlock({ id, economy, plan, onPlan, planner }) {
       )}
       {mine && <NeighborEventBox view={mine} plan={plan} onPlan={onPlan} planner={planner} />}
       <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: COLOR.faint, margin: '10px 0 5px' }}>
-        Дипломатия {onPlan ? `· один ход за квартал, капитал ${Math.round(capital)}` : ''}
+        Дипломатия {onPlan ? `· один ход за квартал, капитал ${capitalShown(capital)}` : ''}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 5 }}>
         {DIPLO_ACTIONS.map((a) => {

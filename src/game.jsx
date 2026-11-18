@@ -1,4 +1,5 @@
 import { ruNum, ruDots } from './lib/num.js';
+import { capitalShown } from './lib/politics/president.js';
 import { noteWorldQuarter } from './textbook/progress.js';
 import React, { useState, useMemo, useCallback, useRef, Suspense } from 'react';
 import { fetchSoloSlots, fetchSoloSlot, saveSoloSlot, renameSoloSlot, deleteSoloSlot, submitDailyResult } from './lib/client.js';
@@ -1161,7 +1162,7 @@ export function PresidentWatchPanel({ economy, plan, last, branch }) {
         <span className="bar-track">
           <span style={{ display: 'block', width: `${clamp(economy.politicalCapital || 0, 0, 100)}%`, height: '100%', background: COLOR.gold }} />
         </span>
-        <span className="ems-mono t-goldsoft">{Math.floor((economy.politicalCapital || 0) + 1e-9)}</span>
+        <span className="ems-mono t-goldsoft">{capitalShown(economy.politicalCapital)}</span>
       </div>
       {/* у трейдера президента не за что увольнять — «отношение к вам» там не про что */}
       {branch && (
@@ -1239,8 +1240,8 @@ function CapitalBar({ value, reserved, gain }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
         {/* вниз, а не до ближайшего: капитал дробный, и «26 свободно» при 25,6 обещало
             решение за 26, которое на деле недоступно */}
-        <span className="ems-mono" style={{ fontSize: 25, color: COLOR.gold, fontWeight: 600, lineHeight: 1 }}>{Math.floor(left + 1e-9)}</span>
-        <span className="fs-12 t-muted">из {Math.floor(v + 1e-9)} свободно</span>
+        <span className="ems-mono" style={{ fontSize: 25, color: COLOR.gold, fontWeight: 600, lineHeight: 1 }}>{capitalShown(left)}</span>
+        <span className="fs-12 t-muted">из {capitalShown(v)} свободно</span>
         <span className="ems-mono" style={{ marginLeft: 'auto', fontSize: 12, color: gain >= 0 ? COLOR.teal : COLOR.rust }}>
           {gain >= 0 ? '+' : ''}{fmt1(gain)} за квартал
         </span>
@@ -3719,7 +3720,7 @@ export const INDICATOR_TABS = [
       hint: 'Кредит доверия правительству национального спасения — есть только в сценарии «Гиперинфляция». Пока он действует, рейтинг держится выше, а напряжение ниже, чем говорит экономика. Полную силу даёт, только пока стабилизационная программа работает; при бездействии — треть силы и сгорает вдвое быстрее.' },
     { label: 'Беспорядки в стране', get: (e) => !!e.unrestActive, text: true, map: { true: 'да', false: 'нет' } },
     { label: 'Парламент', get: (e) => !!e.parliamentDissolved, text: true, map: { true: 'распущен', false: 'работает' } },
-    { key: 'politicalCapital', label: 'Политический капитал', fmt: (v) => v.toFixed(0) },
+    { key: 'politicalCapital', label: 'Политический капитал', fmt: (v) => String(capitalShown(v)) },
     { key: 'cbTenure', label: 'Глава ЦБ в должности, кв.', fmt: (v) => v.toFixed(0), noDelta: true },
     { key: 'mofTenure', label: 'Министр финансов в должности, кв.', fmt: (v) => v.toFixed(0), noDelta: true },
     { label: 'Проведённые реформы', text: true,
