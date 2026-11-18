@@ -1939,6 +1939,16 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   }, []);
   // «Нарисуй сам» — только с дороги юнита
   const [draw, setDraw] = useState(null);
+  /* вышли из урока (обычного или особого, дочитав или посреди) — выдать выполненное в нём: задание дня «N верных подряд»
+     засчитывается ответом, и раньше его монеты приходили при следующем действии в лавке — «дало деньги, когда я мыл
+     витрину» (замечание владельца 18.11, вечер, п. 7). Теперь — плашкой на Пути сразу после урока */
+  const inLesson = !!(run || graph || draw);
+  const wasInLesson = useRef(false);
+  useEffect(() => {
+    if (wasInLesson.current && !inLesson) update((x) => x, { settle: true });
+    wasInLesson.current = inLesson;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inLesson]);
   const [extraLocked, setExtraLocked] = useState(null);
   // урок и особые уроки во весь экран — нижняя панель (она вне этой вкладки) на это время недоступна с клавиатуры
   const fullOver = !!run || !!reading || !!people || !!graph || !!draw || !!dockBook || morning;

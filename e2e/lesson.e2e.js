@@ -1814,3 +1814,25 @@ test('тема урока перекрашивает и задания: карт
   expect(how.font).toMatch(/Mono/i);
   expect(errors).toEqual([]);
 });
+
+// замечание владельца 18.11, вечер, п. 7: «почему-то дало деньги, когда я мыл витрину, за 10 верных ответов подряд» — задание дня,
+// выполненное в уроке, выплачивается сразу при выходе из урока (плашка на Пути), а не при следующем действии в лавке
+test('задание дня, выполненное в уроке, выплачивается при выходе из урока — плашкой на Пути', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const d = new Date(); const day = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    // всё на сегодня уже сделано ответами — но ещё не выплачено (как после урока, брошенного посреди)
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { daily: { [day]: { l: 0, n: 0, p: 0, a: 40, c: 40, s: 0, r: 40, rc: 40 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await expect(page.getByTestId('notify-toast')).toHaveCount(0);
+  await pathNode(page, 'sc-i1').click();
+  await page.getByTestId('lesson-start').click();
+  await expect(page.getByTestId('lesson')).toBeVisible();
+  await page.getByTestId('lesson').getByRole('button', { name: 'Выйти из урока' }).click();
+  const confirm = page.getByRole('button', { name: /Выйти/ }).last();
+  if (await page.getByTestId('lesson').count() && await confirm.isVisible().catch(() => false)) await confirm.click();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  await expect(page.getByTestId('notify-toast')).toContainText('Задание');
+  expect(errors).toEqual([]);
+});
