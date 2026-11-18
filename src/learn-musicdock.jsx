@@ -84,7 +84,7 @@ export function MusicDock() {
   return (
     <>
       <style>{MINI_CSS}{DOCK_CSS}</style>
-      <div ref={wrap} className="lb-mini lm-dock" role="region" aria-label="Музыка" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
+      <div ref={wrap} className="lb-mini lm-dock" role="region" aria-label="Музыка" data-dd-anchor="" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
         style={{ '--b': MOOD_TINT[np.mood] || MOOD_TINT.wave, '--dock-b': `${navH}px` }}>
         <button type="button" className={`lb-mini-skip lm-skip${kick === 'prev' ? ' kick prev' : ''}`} onClick={() => skip(false)} aria-label="Предыдущая пьеса" data-testid="music-dock-prev" data-kick={kick === 'prev' ? 'true' : undefined}>
           <SkipBack size={17} aria-hidden="true" />
