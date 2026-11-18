@@ -389,6 +389,12 @@ test('путь: юнит «Спрос и предложение» — кажды
   for (let i = 0; i < 6; i += 1) await page.getByTestId('word-next').click();
   await expect(word).toContainText('Новое слово 8 из 8');
   await expect(page.getByTestId('word-next')).toHaveText('К упражнениям');
+  // пункт владельца 18.11: последняя карточка уходит с анимацией, на её место — «Все слова — ваши», потом упражнения
+  await page.getByTestId('word-next').click();
+  await expect(page.getByTestId('flash-card-out')).toBeVisible();
+  await expect(page.getByTestId('word-end')).toContainText('Все слова — ваши');
+  await expect(page.locator('[data-testid=word-dots] i.know')).toHaveCount(8);
+  await expect(page.getByTestId('word-end')).toHaveCount(0, { timeout: 4000 });
   const { kinds: wk } = await playLesson(page, { wrongAt: [0] });
   expect([...wk]).toEqual(expect.arrayContaining(['tiles', 'match', 'choice']));
   await finish();

@@ -962,18 +962,26 @@ export function WordDeck({ cards, onDone, body, foot }) {
   const [dx, setDx] = useState(0);
   const [dir, setDir] = useState(0); // откуда въезжает новая: 1 — справа, −1 — слева
   const [out, setOut] = useState(null); // уходящая карточка: { idx, side, x0, key }
-  const outT = useRef(0);
+  /* последняя карточка уходит так же, как остальные, и на её место выезжает карточка «Все слова — ваши»; упражнения — после
+     неё (пункт владельца 18.11: «последнюю карточку мотаешь — резко исчезает без анимации, и задания») */
+  const [ending, setEnding] = useState(false);
+  const outT = useRef(0); const endT = useRef(0);
   const drag = useRef(null);
   const card = cards[idx];
   const last = idx === cards.length - 1;
-  useEffect(() => () => clearTimeout(outT.current), []);
+  useEffect(() => () => { clearTimeout(outT.current); clearTimeout(endT.current); }, []);
   /* from — откуда въезжает новая карточка: «дальше» справа, «назад» слева; старая уходит в другую сторону —
      с того места, где её отпустили (x0). Индекс меняется сразу: быстрые нажатия не теряются. */
   const go = (d, from = d, x0 = 0) => {
     const n = idx + d;
     if (n < 0) return;
+    if (ending) return;
     Audio.play('paper'); setDx(0); setDir(from);
-    if (n >= cards.length) { onDone(); return; }
+    if (n >= cards.length) {
+      setEnding(true); setOut({ idx, side: -from, x0, key: Date.now() });
+      endT.current = setTimeout(() => onDone(), 1100);
+      return;
+    }
     clearTimeout(outT.current);
     setOut({ idx, side: -from, x0, key: Date.now() });
     outT.current = setTimeout(() => setOut(null), 340);
@@ -1026,6 +1034,15 @@ export function WordDeck({ cards, onDone, body, foot }) {
       {body(<>
       <div className="lp-deck">
         {!last && <div className="lp-deck-ghost" aria-hidden="true" />}
+        {ending ? (
+          <div className="lp-word lp-word-end in" key="end" style={{ '--from': `${(dir || 1) * 60}px`, '--rise': '0px' }} data-testid="word-end" role="status">
+            <div className="lp-word-top"><span>Слова · {cards.length} из {cards.length}</span></div>
+            <div className="lp-word-end-mark" aria-hidden="true">✓</div>
+            <div className="lp-word-term">Все слова — ваши</div>
+            <div className="lp-word-rule" />
+            <div className="lp-word-def"><span>Дальше — упражнения на них: определения из плиток и пары на время.</span></div>
+          </div>
+        ) : (
         <div className={`lp-word in${dx ? ' drag' : ''}`} key={idx} style={style} data-testid="flash-card" data-word={idx} data-dx={Math.round(dx)}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onDragStart={(e) => e.preventDefault()}>
           {dx !== 0 && <span className={`lp-swipe-tag ${dx < 0 ? 'next' : 'prev'}`} style={{ opacity: pull }} aria-hidden="true">{last ? 'К упражнениям' : 'Дальше'}</span>}
@@ -1033,6 +1050,7 @@ export function WordDeck({ cards, onDone, body, foot }) {
           <div className="lp-word-def open" data-testid="word-def"><span><Inline nodes={card.text} />{card.example && <span className="lp-word-ex"><b>Пример:</b> <Inline nodes={card.example} /></span>}</span></div>
           {idx === 0 && <div className="lp-word-tip" data-testid="word-tip">Прочитайте и запомните: после слов — пара лёгких упражнений на них.</div>}
         </div>
+        )}
         {/* прошлая карточка уходит поверх новой — только картинка, без текста значения (его уже не читают) */}
         {prevCard && (
           <div className="lp-word lp-word-out" key={`out-${out.key}`} aria-hidden="true" inert data-testid="flash-card-out" data-side={out.side}
@@ -1042,13 +1060,13 @@ export function WordDeck({ cards, onDone, body, foot }) {
         )}
       </div>
       <div className="lp-word-dots" data-testid="word-dots" role="img" aria-label={`Прочитано слов: ${seen.size} из ${cards.length}`}>
-        {cards.map((_, i) => <i key={i} className={`${seen.has(i) ? 'know' : ''} ${i === idx ? 'cur' : ''}`} />)}
+        {cards.map((_, i) => <i key={i} className={`${seen.has(i) || ending ? 'know' : ''} ${i === idx && !ending ? 'cur' : ''}${ending ? ' done' : ''}`} style={ending ? { animationDelay: `${i * 50}ms` } : undefined} />)}
       </div>
       </>)}
       {foot(
         <div style={{ display: 'grid', gridTemplateColumns: idx > 0 ? '1fr 2fr' : '1fr', gap: 10 }}>
           {idx > 0 && <Button variant="secondary" onClick={() => go(-1)} data-testid="word-prev">Назад</Button>}
-          <Button onClick={() => go(1)} data-testid="word-next">{last ? 'К упражнениям' : 'Дальше'}</Button>
+          <Button onClick={() => go(1)} disabled={ending} data-testid="word-next">{last ? 'К упражнениям' : 'Дальше'}</Button>
         </div>,
       )}
     </>

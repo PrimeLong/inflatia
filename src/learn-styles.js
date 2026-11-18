@@ -398,6 +398,13 @@ export const PLAY_CSS = `
   .lp-word-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--ds-rule); }
   .lp-word-dots i.know { background: var(--u); }
   .lp-word-dots i.cur { box-shadow: 0 0 0 2px var(--ds-paper), 0 0 0 3.5px var(--u); }
+  .lp-word-dots i.done { animation: lp-dot-done .45s cubic-bezier(.3, 1.6, .5, 1) backwards; }
+  @keyframes lp-dot-done { from { transform: scale(.3); } }
+  .lp-word-end { align-items: center; text-align: center; }
+  .lp-word-end-mark { width: 54px; height: 54px; margin: 16px auto 0; border-radius: 50%; display: grid; place-items: center; font: 700 28px var(--ds-sans); color: #fff; background: var(--u);
+    animation: lp-end-pop .55s cubic-bezier(.3, 1.7, .5, 1) .12s backwards; }
+  @keyframes lp-end-pop { from { transform: scale(0) rotate(-30deg); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .lp-word-end-mark, .lp-word-dots i.done { animation: none; } }
   .lp-calc { max-width: 340px; margin: 0 auto; }
   .lp-calc-screen { display: flex; align-items: baseline; gap: 8px; border: 1px solid var(--ds-rule2); border-radius: 3px; background: var(--ds-card2); padding: 6px 10px; margin-bottom: 6px; min-height: 42px; }
   .lp-calc-expr { flex: 1; min-width: 0; font-size: 16px; color: var(--ds-ink2); overflow-wrap: anywhere; }
