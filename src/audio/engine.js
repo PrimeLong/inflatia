@@ -20,6 +20,8 @@ import MUSIC_FILES from 'virtual:music-files';
 // детский режим «Мира» (docs/world.md): без войны, тоталитаризма и ручного управления — и в музыке
 // во сколько раз тише музыка, пока звучит голос в «Слушай»
 export const DUCK_LEVEL = 0.22;
+// настроения, ради которых музыка «Мира» меняется сразу, посреди пьесы: экстренные режимы
+export const URGENT_MOODS = ['war', 'crisis', 'totalitarian'];
 export const KIDS_HIDDEN_MOODS = ['war', 'totalitarian', 'authoritarian'];
 export const moodFor = (e) => {
   if (e.kidsMode) { const m = moodForAdult(e); return KIDS_HIDDEN_MOODS.includes(m) ? 'calm' : m; }
@@ -59,6 +61,8 @@ export function createAudioEngine(options = {}) {
   const opts = { music: true, sfx: true, volume: 0.6 };
   let lastTick = 0; const listeners = [];
   let track = TRACKS.dawn; let mood = 'calm'; let lockedMood = null; let playlistIdx = 0;
+  // настроение, которое наступит, когда доиграет нынешняя пьеса (не экстренная смена режима), и счёт кварталов до него
+  let softMood = null; let softSeen = null; let softCount = 0;
   /* «Волна» (tracks.js, waveNext): история сыгранного (для «назад» и чтобы не повторяться), следующая пьеса — выбрана
      заранее (её запись загружается до конца текущей), пьесы с лайком — чаще */
   let waveHist = []; let waveUp = null; let waveBack = false; let likes = [];
@@ -720,6 +724,8 @@ export function createAudioEngine(options = {}) {
       }
       pending = waveUpcoming(); waveUp = null; return;
     }
+    // доиграла пьеса — пора неэкстренной смене настроения: следующая — уже из нового плейлиста
+    if (softMood && !lockedMood && forward !== false) { mood = softMood; softMood = null; softSeen = null; softCount = 0; playlistIdx = -1; }
     const list = listOf(lockedMood || mood);
     playlistIdx = (playlistIdx + (forward === false ? -1 : 1) + list.length) % list.length;
     pending = list[playlistIdx]; pendingKind = 'cut';
@@ -904,7 +910,7 @@ export function createAudioEngine(options = {}) {
     return fileBufs[id];
   };
   // следующая пьеса плейлиста (без перехода к ней)
-  const peekNext = () => { if (isWave()) return waveUpcoming(); const list = listOf(lockedMood || mood); return list[(playlistIdx + 1) % list.length]; };
+  const peekNext = () => { if (isWave()) return waveUpcoming(); if (softMood && !lockedMood) return listOf(softMood)[0]; const list = listOf(lockedMood || mood); return list[(playlistIdx + 1) % list.length]; };
   // заранее — следующую запись: к концу этой она уже декодирована
   const prefetchNext = () => { const id = peekNext(); if (id && fileTrack(id)) loadFile(id).catch(() => {}); };
   const stopFile = (at) => {
@@ -1366,6 +1372,17 @@ export function createAudioEngine(options = {}) {
       tempoTarget = clamp(0.95 + (e.gdpGrowth - 2.0) * 0.012 + intensity * 0.05 + inflPush, 0.9, 1.22);
       if (!running) tempoMod = tempoTarget;
       this.setAmbience(e.regime, intensity);
+      /* Замечание владельца 18.11, вечер, п. 14: «музыка по режиму экономики не должна так резко переключаться, только в
+         экстренных случаях». Резко — только война, кризис и тоталитаризм (URGENT_MOODS) или пока музыка молчит. Прочее
+         (подъём, спад, кампания, стабилизация, ручное управление…) ждёт: новое настроение должно продержаться два квартала
+         подряд, и тогда наступает, когда доиграет нынешняя пьеса, — без обрыва (softMood, см. advancePlaylist). */
+      if (m === mood) { softSeen = null; softCount = 0; softMood = null; return; }
+      if (!URGENT_MOODS.includes(m) && running && !lockedMood) {
+        if (softSeen === m) softCount += 1; else { softSeen = m; softCount = 1; }
+        if (softCount >= 2 && softMood !== m) { softMood = m; notify(); }
+        return;
+      }
+      softSeen = null; softCount = 0; softMood = null;
       if (m !== mood) {
         mood = m; playlistIdx = 0;
         if (!lockedMood) {
@@ -1397,19 +1414,12 @@ export function createAudioEngine(options = {}) {
       running = false;
       return nextTime;
     },
-    quarterSequence({ wellbeingDelta, newCrisis, bigNews, stinger }) {
+    /* итог квартала — один «штамп» нажатия (замечание владельца 18.11, вечер, п. 13: «звуки при каких-то событиях
+       сохранились, при выборах там, нужно убрать»): ни заставок событий (выборы, переворот, падение режима), ни сигналов
+       кризиса, новостей, роста и спада. Параметры оставлены, чтобы экраны не менять */
+    quarterSequence() {
       if (!ensure()) return; resume();
-      // заставка — это музыка: звучит, если включена музыка, даже при выключенных звуках интерфейса
-      const staged = !!(stinger && opts.music && playStinger(stinger));
-      if (!opts.sfx) return;
-      playSfx('stamp');
-      setTimeout(() => { if (bigNews && !staged) playSfx('news'); }, 240);
-      setTimeout(() => {
-        if (staged) return;
-        if (newCrisis) playSfx('alarm');
-        else if (wellbeingDelta > 0.6) playSfx('up');
-        else if (wellbeingDelta < -0.6) playSfx('down');
-      }, 430);
+      if (opts.sfx) playSfx('stamp');
     },
   };
 }

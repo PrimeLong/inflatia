@@ -273,4 +273,17 @@ describe('поправки громкости', () => {
     }
     for (const id of Object.keys(STINGERS)) expect(STINGER_GAIN_DB[id], id).toBeTypeOf('number');
   });
+
+  // замечание владельца 18.11, вечер, п. 13: «звуки при каких-то событиях сохранились, при выборах там, нужно убрать»
+  it('итог квартала — только «штамп»: ни заставок выборов и переворотов, ни сигналов кризиса и новостей', async () => {
+    const { readFileSync } = await import('node:fs');
+    const eng = readFileSync(new URL('../engine.js', import.meta.url), 'utf8');
+    const body = eng.slice(eng.indexOf('    quarterSequence() {'), eng.indexOf('    },', eng.indexOf('    quarterSequence() {')));
+    expect(body).toContain("playSfx('stamp')");
+    for (const bad of ['playStinger', "'news'", "'alarm'", "'up'", "'down'"]) expect(body, bad).not.toContain(bad);
+    for (const f of ['../../game.jsx', '../../network.jsx']) {
+      const src = readFileSync(new URL(f, import.meta.url), 'utf8');
+      expect(src, f).not.toMatch(/stingerFor\(/);
+    }
+  });
 });

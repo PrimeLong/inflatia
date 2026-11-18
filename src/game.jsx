@@ -22,7 +22,7 @@ import {
   electionForecast, botDefenseOrder, botFrontOrder, DEF_ENEMY, botTreaty, botDiplomacy, neighborEventView, WAR_TARGETS, warTargetOf, SOCIAL_GROUPS, ACTION_GROUP_EFFECTS, leverGroupEffects,
   botPresident, directiveProgress, directiveVerdict, militaryCoupRisk, parliamentBlocksReform, scaleLever, currencyUnionRate, taylorRate, botPresidentRegion, regionEventOwner,
 } from './lib/engine.js';
-import { Audio, stingerFor } from './audio/engine.js';
+import { Audio } from './audio/engine.js';
 import { BookLink, useHiddenBookLinks, restoreBookLinks } from './booklink.jsx';
 import { LEVER_BOOK, WHY_BOOK, COMPASS_BOOK } from './lib/booklinks.js';
 import { advancedOpen, readLearnLevel, ADVANCED_TABS, ADVANCED_ROWS, ADVANCED_CHAPTERS, ADVANCED_QUARTER } from './lib/disclosure.js';
@@ -4933,13 +4933,8 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
     if (newCrisis) { setFlashKey(quarterIndex); setShake(true); haptic([45, 70, 45, 70, 90]); setTimeout(() => setShake(false), 950); }
     else if (result.economy.regime !== economy.regime) { setFlashKey(quarterIndex); haptic([28, 60, 28]); }
     else haptic(14);
-    Audio.quarterSequence({
-      wellbeingDelta: result.economy.wellbeing - economy.wellbeing,
-      newCrisis,
-      bigNews: result.newsEntries.some((n) => n.priority >= 8),
-      // выборы, переворот, падение режима, остановленные цены — у каждого своя музыкальная заставка
-      stinger: stingerFor(economy, result.economy),
-    });
+    // итог квартала — только «штамп»: звуков событий (выборы, кризис, новости) нет (замечание владельца 18.11, вечер, п. 13)
+    Audio.quarterSequence();
     // без этого directiveProgress следующего квартала сравнивал бы решения с
     // тем, какими они были в САМОМ ПЕРВОМ квартале партии: базовая точка ни разу
     // не обновлялась, и «выполнено ли требование» проверялось не с начала этого
