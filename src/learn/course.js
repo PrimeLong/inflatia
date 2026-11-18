@@ -172,7 +172,7 @@ function fromBlock(b) {
 // мини-игра → упражнение со своим счётом; chart — график, который меняют карточки
 function fromGame(g) {
   return { id: g.id, kind: g.kind, title: g.title, prompt: g.prompt, explain: null, game: true, items: g.items, labels: g.labels, seconds: g.seconds || GAME_SECONDS,
-    chart: g.chart || null, ...(g.market ? { market: g.market } : {}) };
+    chart: g.chart || null, ...(g.market ? { market: g.market } : {}), ...(g.names ? { names: g.names } : {}) };
 }
 /* «Слова»: упражнения из слов урока — определение из плиток (первые три слова), пары «термин —
    определение» на время (по четыре) и «какой это термин?» для остальных. Плитки размечает автор
@@ -360,7 +360,7 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
     case 'wallet':
       return { ...base, title: ex.title, years: walletYears(ex.items.map((it, k) => ({ key: `g${k}`, text: it.text, raw: it.raw, level: it.level })), rand) };
     case 'swipe': case 'rush':
-      return { ...base, title: ex.title, labels: ex.labels, seconds: extra.seconds || ex.seconds || SECONDS[ex.kind], chart: ex.chart || null, ...(ex.market ? { market: ex.market } : {}),
+      return { ...base, title: ex.title, labels: ex.labels, seconds: extra.seconds || ex.seconds || SECONDS[ex.kind], chart: ex.chart || null, ...(ex.market ? { market: ex.market } : {}), ...(ex.names ? { names: ex.names } : {}),
         items: shuffle(ex.items.map((it, k) => ({ key: `g${k}`, text: it.text, raw: it.raw, side: it.side, effect: it.effect || null })), rand) };
     default: throw new Error(ex.kind);
   }

@@ -397,6 +397,12 @@ const EX_KINDS = ['choice', 'gap', 'tf', 'match', 'sort', 'calc', 'shift', 'news
 export const DOMINO_EFFECTS = ['D+', 'D-', 'S+', 'S-', 'P', 'Q', 'ceil', 'street'];
 const MARKET = ['a', 'b', 'c', 'd', 'dA', 'dC'];
 const market = (attrs) => Object.fromEntries(MARKET.map((k) => [k, attrs[k] != null ? Number(attrs[k]) : (k === 'dA' || k === 'dC' ? 0 : NaN)]));
+/* названия на графике мини-игры (жалоба 18.11, hh-g: «самый обычный дефолтный график, а не тот, что разбирается в
+   разборе»): xname, yname — оси, dname, sname — кривые, unit — единица цены (например, %). Нет — «P, цена» и «Q, количество». */
+const marketNames = (attrs) => {
+  const n = { x: attrs.xname || null, y: attrs.yname || null, d: attrs.dname || null, s: attrs.sname || null, unit: attrs.unit || '' };
+  return n.x || n.y || n.d || n.s || n.unit ? n : null;
+};
 /* ------------------------------ РАСЧЁТ С ПАРАМЕТРАМИ ------------------------------
    vary="имя=по умолчанию:от..до[:шаг] …", calc — формула ответа, when — условие на параметры.
    Формулы — числа, имена параметров, + − * / ^, % (остаток), скобки и сравнения (< > <= >= == != дают 1 или 0;
@@ -626,7 +632,7 @@ function parseRound(kind, attrs, body) {
   const chart = attrs.chart || null;
   if (chart && !ROUND_EFFECTS[chart]) throw new Error(`В игре ${attrs.id} неизвестный график ${chart}`);
   const item = (l) => /^-\s/.test(l.trim());
-  const g = { type: 'round', kind, id: attrs.id, title: attrs.title || '', chart, ...(chart === 'market' ? { market: market(attrs) } : {}), prompt: parseBlocks(body.filter((l) => !item(l)).join('\n')), seconds: attrs.seconds ? Number(attrs.seconds) : null };
+  const g = { type: 'round', kind, id: attrs.id, title: attrs.title || '', chart, ...(chart === 'market' ? { market: market(attrs), ...(marketNames(attrs) ? { names: marketNames(attrs) } : {}) } : {}), prompt: parseBlocks(body.filter((l) => !item(l)).join('\n')), seconds: attrs.seconds ? Number(attrs.seconds) : null };
   if (kind === 'wallet') {
     g.items = body.filter(item).map((l) => {
       const [t, tail = ''] = l.trim().slice(2).split(/\s>>\s/);
