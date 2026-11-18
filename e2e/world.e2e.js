@@ -881,3 +881,19 @@ test('«Мир»: флажок «Сообщить об ошибке» в шап�
   expect(JSON.parse(r.context.numbers)).toHaveProperty('inflation');
   expect(errors).toEqual([]);
 });
+
+// замечание владельца 18.11, вечер, п. 12: «странно, что внешняя политика есть в кабинете, хотя должна быть на карте»
+test('президент: внешняя политика — на карте («Наша страна»), в кабинете — только подсказка, куда идти', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await startSoloGame(page, 'Президент');
+  await expect(page.getByTestId('pres-foreign-hint')).toContainText('на вкладке «Карта»');
+  await expect(page.getByText('Ввести санкции против торгового партнёра')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Карта' }).first().click();
+  await page.getByRole('button', { name: 'Наша страна' }).click();
+  const fp = page.getByTestId('map-foreign-policy');
+  await expect(fp).toBeVisible();
+  await expect(fp).toContainText('Вступить в торговый блок');
+  await fp.getByText('Вступить в торговый блок').click();
+  await expect(fp).toContainText('Свободно');
+  expect(errors).toEqual([]);
+});

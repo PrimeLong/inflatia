@@ -1412,6 +1412,25 @@ function PresActionCard({ action, economy, cooldowns, selected, affordable, onTo
   );
 }
 
+/* Внешняя политика президента — на карте, в карточке «Наша страна» (src/countrymap.jsx): те же решения-указы
+   (санкции, торговый блок), та же бронь капитала, что в кабинете. reservedElse — капитал, уже забронированный в кабинете
+   (кадры, указание), чтобы «хватает ли» считалось по тому же остатку. */
+export function ForeignPolicyBlock({ economy, cooldowns, selected, setSelected, reservedElse = 0 }) {
+  const capital = Number.isFinite(economy.politicalCapital) ? economy.politicalCapital : 55;
+  const reserved = selected.reduce((sum, id) => sum + ((PRES_BY_ID[id] || {}).cost || 0), 0) + reservedElse;
+  const free = capital - reserved;
+  const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const list = PRESIDENT_ACTIONS.filter((a) => a.group === 'diplomacy' && !(economy.kidsMode && kidsBlocked(a)));
+  return (
+    <div data-testid="map-foreign-policy">
+      {list.map((a) => (
+        <PresActionCard key={a.id} action={a} economy={economy} cooldowns={cooldowns}
+          selected={selected.includes(a.id)} affordable={free >= a.cost} onToggle={() => toggle(a.id)} />
+      ))}
+      <div style={{ fontSize: 12, color: COLOR.faint }}>Свободно {capitalShown(free)} ПК — бронь общая с кабинетом.</div>
+    </div>
+  );
+}
 export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPersonaId, mofPersonaId,
   appointCb, setAppointCb, appointMof, setAppointMof, directive, setDirective, lastDirective,
   directiveStrength, setDirectiveStrength }) {
@@ -1498,7 +1517,12 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
 
       {tab === 'public' && (
         <div>
-          {['public', 'diplomacy', 'power'].map((g) => {
+          {/* внешняя политика — на карте (замечание владельца 18.11, вечер, п. 12: «странно, что внешняя политика есть в кабинете,
+              хотя должна быть на карте»): здесь только подсказка, куда идти */}
+          <div data-testid="pres-foreign-hint" style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.45, margin: '0 0 10px', padding: '8px 10px', border: `1px dashed ${COLOR.border}`, borderRadius: 4 }}>
+            <Globe2 size={12} style={{ verticalAlign: -2, marginRight: 5 }} />Внешняя политика — на вкладке «Карта»: в карточке «Наша страна» — санкции и торговый блок, в карточке соседа — договор, помощь, ультиматум и санкции против него.
+          </div>
+          {['public', 'power'].map((g) => {
             const Icon = PRES_GROUP_ICON[g];
             return (
               <React.Fragment key={g}>
@@ -5305,7 +5329,9 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
             treatyPlanner={presEnabled ? `президент (бот, ${getPresPersona(presPersonaId).name.toLowerCase()})` : 'МИД по поручению правительства'}
             diploPlan={diploPlan} onDiploPlan={isPresident && !defeat ? setDiploPlan : null}
             warPlan={presActions.includes('war_start') ? (warTarget || 'north') : null} onWarPlan={isPresident && !defeat ? planWar : null}
-            diploPlanner={presEnabled ? `президент (бот, ${getPresPersona(presPersonaId).name.toLowerCase()})` : 'МИД по поручению правительства'} />
+            diploPlanner={presEnabled ? `президент (бот, ${getPresPersona(presPersonaId).name.toLowerCase()})` : 'МИД по поручению правительства'}
+            foreignPolicy={isPresident && !defeat ? <ForeignPolicyBlock economy={economy} cooldowns={eventCooldowns} selected={presActions} setSelected={setPresActions}
+              reservedElse={(presAppointCb ? APPOINT_COST.central_bank : 0) + (presAppointMof ? APPOINT_COST.ministry_finance : 0) + (presDirective ? PRES_DIRECTIVE_COST : 0)} /> : null} />
         </Suspense>
       </KeepAlive>
 

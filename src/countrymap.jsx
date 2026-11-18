@@ -645,7 +645,7 @@ function DiplomacyBlock({ id, economy, plan, onPlan, planner }) {
     </div>
   );
 }
-function CountryPanel({ id, economy, onBack, diploPlan, onDiploPlan, diploPlanner, warPlan, onWarPlan }) {
+function CountryPanel({ id, economy, onBack, diploPlan, onDiploPlan, diploPlanner, warPlan, onWarPlan, foreignPolicy = null }) {
   const e = economy;
   if (id === 'home') {
     const regime = (POLITICAL_REGIME_INFO[e.politicalRegime] || {}).label || e.politicalRegime;
@@ -668,6 +668,13 @@ function CountryPanel({ id, economy, onBack, diploPlan, onDiploPlan, diploPlanne
         <InfoRow k="Рейтинг власти" v={`${Math.round(e.approval)} из 100`} />
         <InfoRow k="Курс валюты" v={fmt1(e.exchangeRate)} />
         {(e.warQuartersLeft || 0) > 0 && <div style={{ fontSize: 12, color: COLOR.rust, marginTop: 9 }}>Страна воюет — подробности в панели войны.</div>}
+        {/* внешняя политика президента — здесь, на карте, а не в кабинете (замечание владельца 18.11, вечер, п. 12) */}
+        {foreignPolicy && (
+          <div style={{ marginTop: 12, borderTop: `1px solid ${COLOR.hairline}`, paddingTop: 10 }}>
+            <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: COLOR.faint, marginBottom: 6 }}>Внешняя политика</div>
+            {foreignPolicy}
+          </div>
+        )}
       </div>
     );
   }
@@ -1082,7 +1089,7 @@ const TerrainLayer = memo(function TerrainLayer({ annexKey, tunnel, halvik }) {
    campaignPlanner — кто распределяет их за игрока без права решать. */
 /* treatyPlan/onTreatyPlan — условия мира, которые президент предложит Норланду в этом квартале. */
 export function CountryMap({ economy, plan, onPlan, planner, onEventPlan = undefined, eventPlanner = undefined, warOrder, onWarOrder, warPlanner, campaignPlan, onCampaignPlan, campaignPlanner,
-  treatyPlan, onTreatyPlan, treatyPlanner, diploPlan, onDiploPlan, diploPlanner, warPlan = null, onWarPlan = null }) {
+  treatyPlan, onTreatyPlan, treatyPlanner, diploPlan, onDiploPlan, diploPlanner, warPlan = null, onWarPlan = null, foreignPolicy = null }) {
   // выбранная страна (сосед или своя): вместо карточки области — карточка страны
   const [country, setCountry] = useState(null);
   const [selected, setSelectedRaw] = useState('capital');
@@ -1697,7 +1704,7 @@ export function CountryMap({ economy, plan, onPlan, planner, onEventPlan = undef
           </button>
         )}
         {country && <CountryPanel id={country} economy={economy} onBack={() => setCountry(null)}
-          diploPlan={diploPlan} onDiploPlan={onDiploPlan} diploPlanner={diploPlanner} warPlan={warPlan} onWarPlan={onWarPlan} />}
+          diploPlan={diploPlan} onDiploPlan={onDiploPlan} diploPlanner={diploPlanner} warPlan={warPlan} onWarPlan={onWarPlan} foreignPolicy={foreignPolicy} />}
         {camp && <WarOperationPanel economy={economy} camp={camp} order={order} setOrder={setOrder} planner={warPlanner} />}
         {revCamp && <DefensePanel economy={economy} camp={revCamp} order={defOrder} setOrder={setDefOrder} planner={warPlanner}
           onFocus={setSelected} />}
