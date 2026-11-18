@@ -33,6 +33,11 @@ const CSS = `
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
   .dl-coord { font: 700 11.5px var(--ds-sans); }
+  .dl-gem-rules { margin-top: 10px; padding: 9px 12px; border-radius: 12px; font-size: 14px; line-height: 1.4; color: var(--ds-ink);
+    background: linear-gradient(120deg, color-mix(in srgb, ${DIAMOND_COLOR} 16%, var(--ds-card)), color-mix(in srgb, ${DIAMOND_COLOR} 6%, var(--ds-card)));
+    border: 1px solid color-mix(in srgb, ${DIAMOND_COLOR} 45%, transparent); }
+  .dl-gem-rules b { display: block; color: ${DIAMOND_COLOR}; letter-spacing: .02em; margin-bottom: 2px; }
+  .dl-box[data-gem="true"] .gl-stage { box-shadow: 0 0 0 2px ${DIAMOND_COLOR}, 0 0 28px -8px ${DIAMOND_COLOR}; }
   .dl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
   .dl-table { margin: 10px 0 2px; border-collapse: collapse; font: 400 15px var(--ds-sans); font-variant-numeric: tabular-nums; }
   .dl-table th { padding: 4px 16px 4px 0; text-align: left; font: 600 12.5px var(--ds-sans); color: var(--ds-ink3); border-bottom: 1px solid var(--ds-rule2); }
@@ -504,9 +509,12 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 <tbody>{t.at.map((q, j) => <tr key={j}><td>{j + 1}</td><td>{fmt(q.x)}</td><td>{fmt(q.y)}</td></tr>)}</tbody>
               </table>
             )}
-            {!resolved && <span className="dl-how">{HOW[t.do]}{gem ? ' Алмаз: одна попытка на шаг.' : ''}</span>}
+            {!resolved && <span className="dl-how">{HOW[t.do]}</span>}
+            {/* алмаз — не тот же урок с меткой (жалоба ученика 18.11: «а в чём отличие от обычного урока»): одна попытка, без
+                координат под курсором, без процента закраски и без подсказки — по памяти и по графику */}
+            {gem && !resolved && <div className="dl-gem-rules" data-testid="draw-gem-rules"><b>◆ Алмазный уровень</b> Одна попытка на шаг — ошибка сразу покажет решение. Без координат под курсором и без процента закраски: стройте по графику и по памяти.</div>}
           </div>
-          <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)} data-zoom={z.toFixed(2)}>
+          <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)} data-zoom={z.toFixed(2)} data-gem={String(!!gem)}>
           {full && (
             <div className="dl-fhead" data-testid="draw-full-head">
               <span className="dl-fstep">Шаг {i + 1} из {n}</span>
@@ -549,9 +557,9 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 <defs><clipPath id={`dlc${id}`}><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath></defs>
                 {/* сетка — в самом графике (GraphStage, grid): линии через шаг задания, подписи — только на них */}
                 {!res?.ok && through()}
-                {full && hover && !resolved && t.do !== 'shift' && cross(hover)}
+                {full && hover && !resolved && t.do !== 'shift' && !gem && cross(hover)}
                 {hover && !drag.current && pts.length < maxPts && t.do !== 'area' && (
-                  <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', coordLabel(hover))}</g>
+                  <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', gem ? null : coordLabel(hover))}</g>
                 )}
                 {/* кисть и ластик — круг размера кисти под курсором, а не точка */}
                 {t.do === 'area' && hover && !resolved && (
@@ -576,7 +584,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 ))}
               </svg>
               {/* сколько области закрашено — пока шаг не решён */}
-              {cov && !resolved && <div className="dl-paint-chip" data-testid="draw-coverage" aria-live="polite">Закрашено {Math.round(cov.inside * 100)}%</div>}
+              {cov && !resolved && !gem && <div className="dl-paint-chip" data-testid="draw-coverage" aria-live="polite">Закрашено {Math.round(cov.inside * 100)}%</div>}
             </div>
             </div>
             {t.do === 'shift' && ctl && (

@@ -1134,7 +1134,7 @@ test('«Разбор графика» на алмаз: пропущенное с
   expect(errors).toEqual([]);
 });
 
-test('«Персоналии» на алмаз — «Чья это идея?»; «Нарисуй сам» на алмаз — одна попытка: ошибка — сразу «вот как надо»', async ({ page }) => {
+test('«Персоналии» на алмаз — «Чья это идея?»; «Нарисуй сам» на алмаз — одна попытка: ошибка — сразу «вот как надо»', async ({ page, isMobile }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
@@ -1176,9 +1176,18 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await page.getByTestId('extra-gem').click();
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
+  // жалоба ученика 18.11: «а в чём отличие от обычного урока» — у алмаза свои правила, они написаны, поле в алмазной рамке,
+  // координат под курсором нет
+  await expect(g.getByTestId('draw-gem-rules')).toContainText('Одна попытка на шаг');
+  await expect(g.getByTestId('draw-box')).toHaveAttribute('data-gem', 'true');
+  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
   const ink = g.getByTestId('draw-ink');
   // шапка теперь как у урока (с подписью вида урока) — график ниже: прокручиваем его в середину экрана
   await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  if (!isMobile) {
+    const b = await ink.boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await expect(ink.locator('.dl-coord')).toHaveCount(0);
+  }
   for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
     const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x + 40, Math.max(30, y - 40)]);
     await page.mouse.click(cx, cy);
