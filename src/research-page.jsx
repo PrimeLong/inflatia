@@ -33,10 +33,10 @@ function infoBody(md) {
   return parts.length > 1 ? parts.slice(1).join('\n') : md;
 }
 function inline(text, key) {
-  const out = []; const re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\([^)]+\)/g; let last = 0; let m; let k = 0;
+  const out = []; const re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\([^)]+\)|`([^`]+)`/g; let last = 0; let m; let k = 0;
   while ((m = re.exec(text))) {
     if (m.index > last) out.push(text.slice(last, m.index));
-    out.push(m[1] ? <b key={`${key}-${k += 1}`}>{m[1]}</b> : m[2]);
+    out.push(m[1] ? <b key={`${key}-${k += 1}`}>{m[1]}</b> : m[3] ? <code key={`${key}-${k += 1}`}>{m[3]}</code> : m[2]);
     last = re.lastIndex;
   }
   if (last < text.length) out.push(text.slice(last));
@@ -69,6 +69,7 @@ const CSS = `
   .rs-sub { color: var(--ink2); margin-bottom: 18px; }
   .rs-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin: 14px 0; }
   .rs-info { max-height: 52vh; overflow-y: auto; padding-right: 6px; }
+  .rs-info code { font-family: ui-monospace, Menlo, monospace; font-size: .95em; padding: 1px 6px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); }
   .rs-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 20px; border-radius: 12px; border: 0; cursor: pointer;
     background: var(--acc); color: #fff; font: 700 16px 'PT Sans', sans-serif; }
   .rs-btn:disabled { opacity: .45; cursor: default; }

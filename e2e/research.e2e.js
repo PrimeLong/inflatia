@@ -88,6 +88,8 @@ test('исследование: полный цикл — запись, вход
   // информация для участника — из research/participant-information.md; без двух отметок записаться нельзя
   await expect(page.getByTestId('rs-info')).toContainText('Что видят технические провайдеры');
   await expect(page.getByTestId('rs-info')).toContainText('Telegram');
+  // ник Discord — с подчёркиваниями (замечание владельца 18.11, п. 18)
+  await expect(page.getByTestId('rs-info').locator('code', { hasText: '_privet1_' })).toBeVisible();
   await expect(page.getByTestId('rs-enroll')).toBeDisabled();
   await page.getByTestId('rs-adult').check();
   await page.getByTestId('rs-agree').check();
