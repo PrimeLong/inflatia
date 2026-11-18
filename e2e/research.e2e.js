@@ -137,6 +137,10 @@ test('исследование: полный цикл — запись, вход
   for (const prefix of ['rp:', 're:', 'rt:', 'rx:', 'rslot:']) expect(await st.keys(prefix), prefix).toEqual([]);
   expect(await st.get('rwithdrawn')).toBe(1);
   expect(await page.evaluate(() => localStorage.getItem('ems-research-code'))).toBeNull();
+  // фиксация набора: удаление всей исследовательской базы по ключу и фразе подтверждения
+  const purge = (await run({ method: 'POST', query: {}, headers: { 'x-research-token': 'ключ' }, body: { action: 'purge', confirm: 'УДАЛИТЬ НАБОР' } })).body;
+  expect(purge).toMatchObject({ ok: true, withdrawn: 1 });
+  expect(await st.keys('r')).toEqual([]);
   // страница ходила только в /api/research
   expect(seen.every((p) => p === '/api/research')).toBe(true);
 });

@@ -38,6 +38,8 @@ export const ENROLL_PER_DAY = 300;      // защита от массовой з
 export const EVENTS_PER_PARTICIPANT = 3000;
 export const LOCK_SECONDS = 30;
 export const STAGE_ORDER = ['enrolled', 'pretest', 'material', 'posttest', 'delayed'];
+export const PURGE_PHRASE = 'УДАЛИТЬ НАБОР';
+export const PURGE_PREFIXES = ['rp:', 're:', 'rt:', 'rx:', 'rslot:', 'rlock:', 'rcount:', 'rday:', 'rwithdrawn'];
 export const ISSUE_SECONDS = 4 * 3600;   // выданные задачи теста ждут ответа 4 часа
 export const LAST_SECONDS = 30 * 60;     // отметка последнего действия живёт 30 минут
 const VERSION_RE = /^[a-z0-9][a-z0-9._-]{0,39}$/i;
@@ -269,6 +271,17 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
           for (const kind of Object.keys(TEST_WINDOWS)) tests.push(...((await store().get(`rt:${p.participant_code}:${kind}`)) || []));
         }
         return res.status(200).json({ protocol: PROTOCOL_VERSION, participants, events, tests, withdrawn: (await store().get('rwithdrawn')) || 0 });
+      }
+      /* удаление набора при фиксации (research/retention-policy.md, «Удаление»): только по ключу исследователя и с фразой
+         подтверждения; стирает все ключи исследовательской базы, число отозвавших возвращает для отчёта */
+      if (action === 'purge') {
+        if (!exportToken || !sameToken(req.headers && req.headers['x-research-token'], exportToken)) return res.status(403).json({ error: 'Нет доступа' });
+        if (b.confirm !== PURGE_PHRASE) return res.status(400).json({ error: `Нужна фраза подтверждения: ${PURGE_PHRASE}` });
+        const withdrawn = (await store().get('rwithdrawn')) || 0;
+        const keys = [];
+        for (const prefix of PURGE_PREFIXES) keys.push(...(await store().keys(prefix)));
+        if (keys.length) await store().del(...keys);
+        return res.status(200).json({ ok: true, deleted: keys.length, withdrawn });
       }
       if (!actions[action]) return res.status(400).json({ error: 'Неизвестное действие' });
       if (action !== 'status' && !open()) return res.status(403).json({ error: 'Исследование сейчас не проводится' });

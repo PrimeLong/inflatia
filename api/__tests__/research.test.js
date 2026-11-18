@@ -277,4 +277,17 @@ describe('исследование: сервер', () => {
     expect(info).toContain('Discord **privet1**'); expect(info).toContain('Telegram **@Yyyeeeeessssss**');
     expect(info).not.toMatch(/заполнить при фиксации/);
   });
+  it('удаление набора при фиксации: только по ключу и фразе подтверждения; стирает все ключи исследования', async () => {
+    const { h, st } = openStudy();
+    const code = await enroll(h);
+    await take(h, code, 'pre', 'A', 7);
+    await passLesson(h, code, 'hh-i1');
+    const other = await enroll(h); await call(h, { action: 'withdraw', code: other });
+    expect((await call(h, { action: 'purge', confirm: 'УДАЛИТЬ НАБОР' }, { headers: { 'x-research-token': 'не тот' } })).status).toBe(403);
+    expect((await call(h, { action: 'purge', confirm: 'да' }, { headers: { 'x-research-token': 'секрет-исследователя' } })).status).toBe(400);
+    const r = await call(h, { action: 'purge', confirm: 'УДАЛИТЬ НАБОР' }, { headers: { 'x-research-token': 'секрет-исследователя' } });
+    expect(r.data).toMatchObject({ ok: true, withdrawn: 1 });
+    expect(r.data.deleted).toBeGreaterThan(10);
+    expect(await st.keys('r')).toEqual([]);
+  });
 });
