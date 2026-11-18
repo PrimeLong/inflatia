@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { FIELDS, FORBIDDEN, TABLES, ARMS, PROTOCOL_VERSION, STUDY_STATUS, MODULE_LESSONS, forbiddenField } from '../dictionary.js';
 import { cleanRecord, participantCode, normalizeCode, isParticipantCode, CODE_ALPHABET } from '../record.js';
-import { allocationSequence, armAt, seededRandom, stratumOf, newBlock } from '../randomize.js';
+import { allocationSequence, armAt, seededRandom, stratumOf, guessRate, MAX_IMBALANCE } from '../randomize.js';
 import { tCdf, tQuantile, normCdf, welch, hedgesG, mannWhitney, fisherExact, diffProportions, ancova, kr20, holm, mean } from '../stats.js';
 import { analyze, toMarkdown } from '../analyze.js';
 
@@ -105,13 +105,11 @@ describe('исследование: словарь и записи', () => {
 });
 
 describe('исследование: распределение по группам', () => {
-  it('блоки по 2 и 4: в каждом группы поровну; в слое разница численностей не больше 2; вся последовательность задана зерном', () => {
-    const rnd = seededRandom(7);
-    for (let i = 0; i < 50; i += 1) { const b = newBlock(rnd); expect([2, 4]).toContain(b.length); expect(b.filter((a) => a === 'game').length).toBe(b.length / 2); }
+  it('«большая палка»: в слое перекос не больше 3; вся последовательность задана зерном', () => {
     for (const st of ['low', 'high']) {
       const seq = allocationSequence('зерно-1', st, 101);
       let g = 0; let pl = 0;
-      seq.forEach((a) => { if (a === 'game') g += 1; else pl += 1; expect(Math.abs(g - pl)).toBeLessThanOrEqual(2); });
+      seq.forEach((a) => { if (a === 'game') g += 1; else pl += 1; expect(Math.abs(g - pl)).toBeLessThanOrEqual(MAX_IMBALANCE); });
       // n-я группа — одна и та же, сколько бы ни считали до неё
       expect(seq.map((_, i) => armAt('зерно-1', st, i))).toEqual(seq);
     }
@@ -121,6 +119,17 @@ describe('исследование: распределение по группа
     expect(allocationSequence(42, 'low', 50)).not.toEqual(allocationSequence(42, 'high', 50));
     expect(new Set(allocationSequence(1, 'high', 20))).toEqual(new Set(ARMS));
     expect(stratumOf(6, 12)).toBe('high'); expect(stratumOf(5, 12)).toBe('low');
+  });
+  // замечание владельца 18.11, п. 4: «текущие блоки 2/4 могут позволять частично предсказывать следующую группу»
+  it('сокрытие: зная все прошлые назначения слоя, следующую группу угадывают не чаще 62% (у блоков 2/4 было ~72%)', () => {
+    const rates = Array.from({ length: 400 }, (_, k) => guessRate(allocationSequence(`зерно-${k}`, k % 2 ? 'low' : 'high', 60)));
+    const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
+    expect(avg).toBeLessThan(0.62);
+    expect(avg).toBeGreaterThan(0.5);
+    // для сравнения: блоки по 2 и 4 угадываются заметно лучше
+    const blocks = (rnd) => { const out = []; while (out.length < 60) { const n = rnd() < 0.5 ? 2 : 4; const b = Array.from({ length: n }, (_, i) => (i % 2 ? 'game' : 'plain')); for (let i = n - 1; i > 0; i -= 1) { const j = Math.floor(rnd() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } out.push(...b); } return out.slice(0, 60); };
+    const old = Array.from({ length: 400 }, (_, k) => guessRate(blocks(seededRandom(k + 1)))).reduce((a, b) => a + b, 0) / 400;
+    expect(old).toBeGreaterThan(0.68);
   });
 });
 

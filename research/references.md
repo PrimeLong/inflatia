@@ -63,6 +63,7 @@
 - **Пропущенные данные**: теория пропусков [29] и практика множественной импутации [30] — для плана по H2 ([план анализа](analysis-plan.md), раздел 7).
 - **Содержательная валидность теста** и её оценка экспертами — индекс содержательной валидности [31] ([методика](methodology.md), раздел 10).
 - **Угрозы валидности** экспериментальных дизайнов, в том числе влияние предварительного тестирования [32].
+- **Сокрытие распределения.** Предсказуемость следующей группы оценивают стратегией «сходимости» — ставить на отстающую группу [37]; перемешанные блоки малого размера угадываются заметно чаще, чем менее строгие схемы с ограниченным перекосом [36]. Поэтому распределение идёт по схеме «большая палка» [35] (перекос в слое не больше 3), а не блоками по 2 и 4 ([методика](methodology.md), раздел 1).
 
 ## 7. Этика и право
 
@@ -105,3 +106,6 @@
 32. Campbell D. T., Stanley J. C. Experimental and Quasi-Experimental Designs for Research. Chicago: Rand McNally, 1963.
 33. British Educational Research Association. Ethical Guidelines for Educational Research. 4th ed. London: BERA, 2018.
 34. Федеральный закон от 27.07.2006 № 152-ФЗ «О персональных данных».
+35. Soares J. F., Wu C. F. J. Some restricted randomization rules in sequential designs // Communications in Statistics — Theory and Methods. 1983. Vol. 12, № 17. P. 2017–2034. doi:10.1080/03610928308828586
+36. Berger V. W., Ivanova A., Knoll M. D. Minimizing predictability while retaining balance through the use of less restrictive randomization procedures // Statistics in Medicine. 2003. Vol. 22, № 19. P. 3017–3028. doi:10.1002/sim.1538
+37. Blackwell D., Hodges J. L. Design for the control of selection bias // Annals of Mathematical Statistics. 1957. Vol. 28, № 2. P. 449–460.
