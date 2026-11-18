@@ -1,4 +1,5 @@
 import { ruNum, ruDots } from './lib/num.js';
+import { WorldReportButton, worldReportContext } from './world-report.jsx';
 import { capitalShown } from './lib/politics/president.js';
 import { noteWorldQuarter } from './textbook/progress.js';
 import React, { useState, useMemo, useCallback, useRef, Suspense } from 'react';
@@ -5125,6 +5126,8 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
               <Newspaper size={14} />Газета
             </button>
           )}
+          {/* «Сообщить об ошибке» (замечание владельца 18.11, вечер, п. 10: «в мире нет кнопки жалобы») */}
+          <WorldReportButton context={() => worldReportContext({ economy, role: setup.role, mode: 'solo', scenario: setup.scenario || 'sandbox', quarter: quarterIndex, view })} />
           <AudioControls />
           <HeaderOverflowMenu items={[
             ...(narrow ? [

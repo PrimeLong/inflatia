@@ -860,3 +860,24 @@ test('частный инвестор: тёмный терминал — бег�
   expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+// замечание владельца 18.11, вечер, п. 10: «в мире нет кнопки жалобы»
+test('«Мир»: флажок «Сообщить об ошибке» в шапке партии — шторка в цветах «Мира», в жалобу уходят роль, квартал и числа', async ({ page }) => {
+  await page.addInitScript((a) => { localStorage.setItem('ems-account', JSON.stringify(a)); }, ACCOUNT);
+  const sent = [];
+  const { errors } = await openApp(page, '/', (req) => { if (req.url().includes('/api/reports') && req.method() === 'POST') sent.push(req.postDataJSON()); return '{"ok":true}'; });
+  await startSoloGame(page);
+  await page.getByTestId('world-report').click();
+  const sheet = page.getByTestId('report-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('Что не так в «Мире»');
+  await sheet.locator('[data-reason="theory"]').click();
+  await expect(sheet.locator('[data-reason="theory"]')).toContainText('Экономика ведёт себя странно');
+  await sheet.getByTestId('report-send').click();
+  await expect(page.getByTestId('report-thanks')).toBeVisible();
+  const r = sent.find((x) => x.action === 'send');
+  expect(r.reason).toBe('theory');
+  expect(r.context).toMatchObject({ screen: 'world', kind: 'central_bank', mode: 'solo', step: 'квартал 1' });
+  expect(JSON.parse(r.context.numbers)).toHaveProperty('inflation');
+  expect(errors).toEqual([]);
+});

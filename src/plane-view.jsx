@@ -251,7 +251,7 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
         <div className="pv-title">{title}</div>
         {/* флажок жалобы (замечание владельца 18.11, вечер, п. 3): шаг, график и значения ползунков уходят в жалобу */}
         <span className="pv-flag"><ReportFlag withText text="Ошибка?" testid="plane-report" reasons={EXPLAIN_REASONS} sub="Что не так на графике? Название, шаг и положение ползунков приложатся сами."
-          context={() => ({ ...(report ? report() : { screen: 'plane' }), view: 'plane', plane: title, ...(vals ? { values: JSON.stringify(Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Math.round(x * 100) / 100]))) } : {}) })} /></span>
+          context={() => ({ ...(report ? report() : { screen: 'plane' }), page: `на весь экран: ${title}`.slice(0, 200), ...(vals ? { numbers: JSON.stringify(Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Math.round(x * 100) / 100]))) } : {}) })} /></span>
         <button ref={closeBtn} type="button" className="pv-btn" aria-label="Закрыть" data-testid="plane-close" onClick={() => { Audio.play('paper'); onClose(); }}><X size={18} /></button>
       </div>
       <div className="pv-body">
