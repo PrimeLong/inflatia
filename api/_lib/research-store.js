@@ -5,7 +5,12 @@
    Ключи: rp:<код> — участник, re:<код> — события, rt:<код>:<pre|post|delayed> — ответы теста (пишутся один раз, setNx),
    rlock:<код> — короткая блокировка участника на время входного теста и распределения, rslot:<код> — номер участника в слое,
    rcount:<слой> — сколько распределено в слое (атомарный счётчик), rday:<ГГГГ-ММ-ДД> — сколько записалось за день (защита от
-   массовой записи), rwithdrawn — сколько отозвали участие (только число). Логинов, адресов и токенов здесь нет.
+   массовой записи), rwithdrawn — сколько отозвали участие (только число). rx:<код>:… — служебный ход участника по модулю,
+   который ведёт сервер: номер попытки задания (att:<задание>), отвеченные задания (seen:<задание>), сколько заданий урока
+   отвечено (cnt:<урок>), активные секунды урока (sec:<урок>), пройденные уроки (done:<урок> — день), номер занятия (sess);
+   и две короткоживущие отметки времени сервера — последнее действие (last, живёт 30 минут) и выдача задач теста
+   (issue:<вид>, живёт 4 часа, стирается при отправке теста): по ним сервер сам считает время, а не верит клиенту.
+   В выгрузку rx:… не идёт. Логинов, адресов и токенов здесь нет.
    Атомарность: incr и setNx — одна команда базы; у памяти — синхронный участок без await, тоже неделимый. */
 let redis = null;
 try {
@@ -34,6 +39,9 @@ export function memoryStore() {
     },
     del: async (...ks) => { ks.forEach((k) => m.delete(k)); return true; },
     incr: async (k) => { const v = (m.get(k) || 0) + 1; m.set(k, v); return v; },
+    incrBy: async (k, n) => { const v = (m.get(k) || 0) + n; m.set(k, v); return v; },
+    // записать с временем жизни ttl секунд (служебные отметки времени — живут недолго)
+    setEx: async (k, v, ttl) => { m.set(k, { __until: Date.now() + ttl * 1000, v: structuredClone(v) }); return true; },
     push: async (k, v) => { const list = m.get(k) || []; list.push(structuredClone(v)); m.set(k, list); return list.length; },
     list: async (k) => structuredClone(m.get(k) || []),
     keys: async (prefix) => [...m.keys()].filter((k) => k.startsWith(prefix)),
@@ -47,6 +55,8 @@ function redisStore(r) {
     setNx: async (k, v, ttl = 0) => (await r.set(k, v, ttl ? { nx: true, ex: ttl } : { nx: true })) === 'OK',
     del: (...ks) => r.del(...ks),
     incr: (k) => r.incr(k),
+    incrBy: (k, n) => r.incrby(k, n),
+    setEx: (k, v, ttl) => r.set(k, v, { ex: ttl }),
     push: (k, v) => r.rpush(k, v),
     list: async (k) => (await r.lrange(k, 0, -1)) || [],
     keys: async (prefix) => {

@@ -2,6 +2,7 @@
    ленивым файлом (docs/mechanics.md, «Приветствие и загрузка»): всё, что нужно только уроку, — учебник с формулами
    (KaTeX), графики, мини-игры, лента «Истории» — грузится, когда урок начинается, а не до появления Пути.
    Общие с Путём вещи (раскладка CSS, значки видов урока, плашка гостя) — из src/learn.jsx. */
+import { raceOffersOn } from './ds-tokens.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -169,7 +170,8 @@ function MiniChart({ type, attrs, values = null, tween = false, zoom = false }) 
   // картинка карточки: касание — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»)
   if (zoom) {
     return (
-      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} plane={() => scene}>
+      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} plane={() => scene}
+        model={def.controls ? () => ({ controls: def.controls(attrs), values: { ...target }, build: (vv) => sceneInCrowns(def.build(attrs, vv)) }) : null}>
         <ChartSvg scene={scene} />{legend}
       </Zoomable>
     );
@@ -524,7 +526,7 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
           {inst.items.map((it) => (
-            <div key={it.key} style={{ border: `2px solid ${fb ? (r[it.key] === it.bin ? 'var(--ds-ok)' : 'var(--ds-bad)') : 'var(--ds-rule2)'}`, borderRadius: 14, padding: '9px 11px', margin: '9px 0', background: 'var(--ds-card)' }}>
+            <div key={it.key} className="ln-sort-item" data-testid="sort-item" style={{ border: `2px solid ${fb ? (r[it.key] === it.bin ? 'var(--ds-ok)' : 'var(--ds-bad)') : 'var(--sk-edge, var(--ds-rule2))'}`, borderRadius: 'var(--sk-radius, 14px)', padding: '9px 11px', margin: '9px 0', background: 'var(--sk-surface, var(--ds-card))' }}>
               <div style={{ fontSize: 14.5, marginBottom: 4 }}><Inline nodes={it.text} ctx={ctx} /></div>
               <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                 {inst.bins.map((b) => (
@@ -933,7 +935,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     Audio.play('register'); vibrate([20, 30, 20, 30, 60]);
     // иногда после урока — «Забег с другом?»: есть друг, бывший в сети за неделю, и не чаще раза в день
     let raceFriends = null;
-    if (run.mode === 'lesson' && !guest) {
+    if (run.mode === 'lesson' && !guest && raceOffersOn()) {
       let offered = null; try { offered = localStorage.getItem(RACE_OFFER_KEY); } catch { /* приватный режим */ }
       // автотест карточки забега просит её явно (ems-race-test): иначе она — по жребию дня
       let always = false; try { always = !!navigator.webdriver && localStorage.getItem('ems-race-test') === '1'; } catch { /* приватный режим */ }

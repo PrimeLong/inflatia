@@ -65,7 +65,7 @@ export function SpecialDesk({ learn }) {
 /* серия верных ответов подряд в этом уроке: засчитывается первая попытка вопроса; ошибка обнуляет. log — первые попытки по
    порядку (отрезки полосы прогресса). Ответ слышат и украшение, и тема (tellAnswer) — колыбель щёлкает, гирлянда
    колышется, тема вспыхивает */
-export function useAnswerRun(start = 0, startLog = []) {
+export function useAnswerRun(start = 0, startLog = [], onAnswer = null) {
   const [n, setN] = useState(start);
   const [mood, setMood] = useState('hello');
   const [log, setLog] = useState(() => (Array.isArray(startLog) ? startLog.map(Boolean) : []));
@@ -75,6 +75,8 @@ export function useAnswerRun(start = 0, startLog = []) {
     logRef.current = [...logRef.current, !!ok];
     setN(nRef.current); setLog(logRef.current); setMood(ok ? 'joy' : 'cheer');
     tellAnswer(ok);
+    // в общую серию верных подряд — для задания дня (src/textbook/learn-state.js, tallyAnswer)
+    if (onAnswer) onAnswer(!!ok);
   };
   return { n, mood, log, answer, current: () => nRef.current, currentLog: () => logRef.current };
 }

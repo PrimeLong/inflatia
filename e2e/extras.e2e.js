@@ -867,6 +867,9 @@ test('«Персоналии»: портрет — свой файл из public
     await page.getByTestId('people-next').click();
   }
   await page.getByTestId('people-finish').click();
+  // пункт владельца 18.11: ответы особого урока — в серию «верных ответов подряд» (задание дня)
+  const people = PEOPLE.find((g) => g.id === 'people-scarcity').people.length;
+  expect(await page.evaluate(() => { const l = JSON.parse(localStorage.getItem('ems-textbook-v1')).learn; const d = l.daily[new Date().toISOString().slice(0, 10)]; return d && d.r; })).toBeGreaterThanOrEqual(people);
   // галерея профиля: у кого есть файл — фото, у кого нет — медальон с инициалами
   await openTab(page, 'profile');
   // вся галерея — в альбоме («Все»): людей много, в профиле — четыре марки (пункт владельца 16.11, вечер)
@@ -1131,7 +1134,7 @@ test('«Разбор графика» на алмаз: пропущенное с
   expect(errors).toEqual([]);
 });
 
-test('«Персоналии» на алмаз — «Чья это идея?»; «Нарисуй сам» на алмаз — одна попытка: ошибка — сразу «вот как надо»', async ({ page }) => {
+test('«Персоналии» на алмаз — «Чья это идея?»; «Нарисуй сам» на алмаз — одна попытка: ошибка — сразу «вот как надо»', async ({ page, isMobile }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
@@ -1173,9 +1176,18 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await page.getByTestId('extra-gem').click();
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
+  // жалоба ученика 18.11: «а в чём отличие от обычного урока» — у алмаза свои правила, они написаны, поле в алмазной рамке,
+  // координат под курсором нет
+  await expect(g.getByTestId('draw-gem-rules')).toContainText('Одна попытка на шаг');
+  await expect(g.getByTestId('draw-box')).toHaveAttribute('data-gem', 'true');
+  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
   const ink = g.getByTestId('draw-ink');
   // шапка теперь как у урока (с подписью вида урока) — график ниже: прокручиваем его в середину экрана
   await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  if (!isMobile) {
+    const b = await ink.boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await expect(ink.locator('.dl-coord')).toHaveCount(0);
+  }
   for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
     const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x + 40, Math.max(30, y - 40)]);
     await page.mouse.click(cx, cy);
@@ -1373,5 +1385,117 @@ test('профиль: книга под курсором у нижнего кр�
   await page.getByTestId('people-album-back').click();
   await expect(album).toHaveCount(0);
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll');
+  expect(errors).toEqual([]);
+});
+
+// сбой 17.11 на /shop: «Cannot read properties of undefined (reading 'default')» — часть лавки не загрузилась после новой
+// сборки, а отменённая ошибка Vite превращала её в пустой модуль. Теперь — одна перезагрузка, лавка открывается, сбоя нет
+test('новая сборка: часть лавки не загрузилась при переходе — перезагрузка вместо сбоя, лавка открывается', async ({ page }) => {
+  let blocked = 0; const reports = [];
+  page.on('request', (r) => { if (r.url().includes('/api/reports')) reports.push(r.postData() || ''); });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await page.route(/\/assets\/learn-shop-[\w-]+\.js$/, (r) => { if (blocked === 0) { blocked += 1; return r.abort(); } return r.continue(); });
+  await openTab(page, 'shop');
+  await expect(page.getByTestId('shop-panel')).toBeVisible({ timeout: 20000 });
+  expect(blocked).toBe(1);
+  await expect(page.getByText('Экран не открылся')).toHaveCount(0);
+  expect(reports.filter((p) => p.includes('"crash"'))).toEqual([]);
+  expect(errors.filter((e) => /reading 'default'/.test(e))).toEqual([]);
+});
+
+
+// пункт владельца 18.11: «когда в разборе нужно закрасить область — нельзя стирать накрашенное, и когда красишь — почему-то точка, а не кисточка»
+test('«Нарисуй сам»: закраска — кисть с кругом-курсором, ластик стирает, «Отменить» возвращает', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'курсор кисти — у мыши');
+  test.setTimeout(120000);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'household');
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"][data-id="draw-household"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  const ink = g.getByTestId('draw-ink');
+  const at = async (vx, vy) => { const b = await ink.boundingBox(); return [b.x + (vx / 360) * b.width, b.y + (vy / 290) * b.height]; };
+  const tap = async (vx, vy) => { const [x, y] = await at(vx, vy); await page.mouse.click(x, y); };
+  const answer = async () => JSON.parse(await ink.getAttribute('data-answer'));
+  for (let k = 0; k < 3; k += 1) {
+    for (const [x, y] of (await answer()).pts) await tap(x, y);
+    await g.getByTestId('draw-check').click();
+    await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+    await g.getByTestId('draw-next').click();
+  }
+  await expect(g.getByTestId('draw-task')).toHaveAttribute('data-do', 'area');
+  // курсор — круг кисти, а не маркер точки
+  const pts = (await answer()).pts;
+  const [hx, hy] = await at(pts[0][0], pts[0][1]);
+  await page.mouse.move(hx, hy);
+  await expect(g.getByTestId('draw-brush-cursor')).toHaveAttribute('data-tool', 'brush');
+  expect(Number(await g.getByTestId('draw-brush-cursor').getAttribute('r'))).toBeGreaterThan(5);
+  // закрасили всё мазком по точкам решения
+  const [sx0, sy0] = await at(pts[0][0], pts[0][1]);
+  await page.mouse.move(sx0, sy0); await page.mouse.down();
+  for (const [x, y] of pts) { const [px, py] = await at(x, y); await page.mouse.move(px, py, { steps: 3 }); }
+  await page.mouse.up();
+  const cov = async () => Number(await g.getByTestId('draw-paint').getAttribute('data-coverage'));
+  const full = await cov();
+  expect(full).toBeGreaterThan(50);
+  // ластик: стёр часть — закрашено меньше; курсор — пунктирный круг
+  await g.getByTestId('draw-eraser').click();
+  await expect(g.getByTestId('draw-eraser')).toHaveAttribute('aria-pressed', 'true');
+  await page.mouse.move(sx0, sy0); await page.mouse.down();
+  for (const [x, y] of pts.slice(0, Math.ceil(pts.length / 2))) { const [px, py] = await at(x, y); await page.mouse.move(px, py, { steps: 3 }); }
+  await page.mouse.up();
+  await expect(g.getByTestId('draw-brush-cursor')).toHaveAttribute('data-tool', 'erase');
+  expect(await cov()).toBeLessThan(full - 15);
+  // «Отменить» — ластик отменён, снова как было
+  await g.getByTestId('draw-undo').click();
+  await expect.poll(cov).toBe(full);
+  await g.getByTestId('draw-brush').click();
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+  expect(errors).toEqual([]);
+});
+
+// жалоба ученика 17.11 («Горка выручки», шаг 1): «тут нет рисования» — линию можно провести: нажать в первой точке и протянуть до второй
+test('«Нарисуй сам»: линию проводят — от первой точки протянули ко второй; после одной точки к курсору тянется резинка', async ({ page, isMobile }) => {
+  test.setTimeout(120000);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum',
+      'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum', 'el-i1', 'el-l1', 'el-i2', 'el-l2', 'el-w', 'el-s1', 'el-radio', 'el-g', 'el-rev', 'el-sum'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), levels: { start: { at } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'elasticity');
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"][data-id="draw-revenue"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  const ink = g.getByTestId('draw-ink');
+  await expect(g.getByTestId('draw-task')).toContainText('Проведите линию');
+  await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const at = async (vx, vy) => ink.evaluate((svg, [x, y]) => { const q = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [vx, vy]);
+  const [[ax, ay], [bx, by]] = JSON.parse(await ink.getAttribute('data-answer')).pts;
+  const [x1, y1] = await at(ax, ay); const [x2, y2] = await at(bx, by);
+  if (!isMobile) {
+    // одна точка — и к курсору тянется резинка
+    await page.mouse.click(x1, y1);
+    await page.mouse.move(x2, y2, { steps: 4 });
+    await expect(g.getByTestId('draw-rubber')).toBeVisible();
+    await g.getByTestId('draw-reset').click();
+  }
+  // одним движением: нажали в первой точке, протянули, отпустили во второй
+  await page.mouse.move(x1, y1); await page.mouse.down();
+  await page.mouse.move((x1 + x2) / 2, (y1 + y2) / 2, { steps: 5 }); await page.mouse.move(x2, y2, { steps: 5 }); await page.mouse.up();
+  await expect(ink).toHaveAttribute('data-ready', 'true');
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
   expect(errors).toEqual([]);
 });

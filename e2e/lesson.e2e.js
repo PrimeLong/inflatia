@@ -1787,3 +1787,30 @@ test('«Соедините» — как «вставьте слово»: сло�
   await expectNoSidewaysScroll(page);
   expect(errors).toEqual([]);
 });
+
+// жалобы учеников 17.11 («Сберкасса», тема урока): «карточки „Слов“ не под тему урока», «инструкция мини-игры не в стиле»
+test('тема урока перекрашивает и задания: карточка «Слов» и «Как играть» мини-игры — поверхность и акцент темы, не цвет юнита', async ({ page }) => {
+  test.setTimeout(120000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), owned: { 'theme-exchange': at }, wear: { theme: 'theme-exchange', at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const look = (sel) => page.locator(sel).first().evaluate((el) => { const c = getComputedStyle(el); return { bg: c.backgroundColor, top: c.borderTopColor, font: c.fontFamily }; });
+  await startLesson(page, 'hh-w', /Начать|Повторить/);
+  const word = await look('.lp-word');
+  expect(word.bg).toBe('rgba(8, 26, 18, 0.92)');
+  expect(word.top).toBe('rgb(25, 195, 125)');
+  expect(await page.locator('.lp-word-term').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(25, 195, 125)');
+  await page.getByTestId('lesson').getByRole('button', { name: 'Выйти из урока' }).click();
+  const leave = page.getByRole('button', { name: /^Выйти$/ });
+  if (await leave.count()) await leave.click();
+  await startLesson(page, 'hh-g', /Начать|Повторить/);
+  const how = await look('.lp-howto');
+  expect(how.bg).toBe('rgba(8, 26, 18, 0.92)');
+  expect(how.font).toMatch(/Mono/i);
+  expect(errors).toEqual([]);
+});

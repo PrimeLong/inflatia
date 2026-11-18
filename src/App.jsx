@@ -1,6 +1,10 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import MacroSimulator from './MacroSimulator.jsx';
 import { StorageNotice } from './privacy.jsx';
+
+/* страница исследования — отдельно от приложения: без оболочки, аккаунта и уведомлений (src/research-page.jsx) */
+const ResearchPage = React.lazy(() => import('./research-page.jsx'));
+export const isResearchPath = (p) => /^\/research\/?$/.test(p || '');
 
 /* «К содержимому» — первая остановка клавиатуры: фокус сразу в область main, мимо уведомления и панелей.
    Не якорь (#main): якорь — запись истории, а история занята экранами (src/lib/route.js). */
@@ -11,6 +15,11 @@ const toMain = (e) => {
 };
 
 export default function App() {
+  if (typeof window !== 'undefined' && isResearchPath(window.location.pathname)) return <React.Suspense fallback={null}><ResearchPage /></React.Suspense>;
+  return <Shell />;
+}
+
+function Shell() {
   const skip = useRef(null);
   /* Первое нажатие Tab после загрузки, пока фокус нигде не стоит, — на ссылку «К содержимому». Сам браузер на
      прокрученной странице (Путь открывается на текущем уроке) начинает обход с того, что на экране, и ссылку

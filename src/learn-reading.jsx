@@ -11,7 +11,7 @@ import { Button } from './ds.jsx';
 import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho } from './learn/reading.js';
-import { finishLesson, markRead, markReadGem, countAnswers, addStudySeconds } from './textbook/learn-state.js';
+import { tallyAnswer, finishLesson, markRead, markReadGem, countAnswers, addStudySeconds } from './textbook/learn-state.js';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 const CSS = `
@@ -218,7 +218,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   // вышли посреди чтения — продолжаем с той же страницы, с теми же ответами (learn-special.jsx)
   const resume = useSpecialResume('read', id, gem);
   const was = resumedState(resume);
-  const run = useAnswerRun(was ? was.run || 0 : 0);
+  const run = useAnswerRun(was ? was.run || 0 : 0, [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
   const [idx, setIdx] = useState(() => (was ? was.idx : 0));
   const [answers, setAnswers] = useState(() => (was ? was.answers : []));
   const [done, setDone] = useState(false);

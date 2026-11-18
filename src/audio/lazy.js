@@ -65,6 +65,10 @@ export const Audio = {
   primed() { return real ? real.primed() : !!earlyCtx; },
   // движок уже загружен (до первого клика — нет)
   loaded() { return !!real; },
+  // загрузить движок без звука и без AudioContext (плашка музыки на паузе после возвращения на сайт)
+  preload() { return load(); },
+  levels(n) { return real ? real.levels(n) : null; },
+  restorePaused: deferred('restorePaused'),
   play: deferred('play', { drop: true }),
   startMusic: deferred('startMusic'),
   stopMusic: deferred('stopMusic'),

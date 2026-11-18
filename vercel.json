@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "node scripts/fetch-portraits.mjs --soft && npm run build",
   "rewrites": [
-    { "source": "/(book|league|shop|profile|world|news)", "destination": "/index.html" },
+    { "source": "/(book|league|shop|profile|world|news|research)", "destination": "/index.html" },
     { "source": "/book/:chapter([^/.]+)", "destination": "/index.html" }
   ],
   "headers": [

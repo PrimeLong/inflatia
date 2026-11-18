@@ -50,6 +50,7 @@ export const stingerFor = (prev, cur) => {
 };
 
 export function createAudioEngine(options = {}) {
+  let analyser = null;
   let ctx = null; let master = null; let comp = null; let musicBus = null; let songBus = null; let sfxBus = null; let noiseBuf = null;
   let dry = null; let verbIn = null; let echo = null; let pianoBus = null; let chorusIn = null;
   const opts = { music: true, sfx: true, volume: 0.6 };
@@ -145,6 +146,8 @@ export function createAudioEngine(options = {}) {
       master.connect(comp); comp.connect(ctx.destination);
     } catch { master.connect(ctx.destination); }
     musicBus = ctx.createGain(); musicBus.gain.value = opts.music ? 0.55 : 0; musicBus.connect(master);
+    // ответвление для спектра проигрывателя: слушает музыку, в выход не идёт
+    try { analyser = ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.78; musicBus.connect(analyser); } catch { analyser = null; }
     sfxBus = ctx.createGain(); sfxBus.gain.value = opts.sfx ? 0.9 : 0; sfxBus.connect(master);
     // шина пьесы: всё, что играет саундтрек (вместе с реверберацией и эхом), проходит
     // через неё — здесь живёт поправка громкости пьесы и затухание на переходах
@@ -1235,7 +1238,22 @@ export function createAudioEngine(options = {}) {
       moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood,
       file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), next: peekNext(),
       // секунда записи сейчас (для паузы и проверки «продолжить с места»); на паузе — где остановились
-      position: fileSrc && fileFor === track.id ? Math.max(0, now() - fileStart) : paused && paused.id === track.id && paused.file ? paused.offset : 0 }),
+      position: fileSrc && fileFor === track.id ? Math.max(0, now() - fileStart) : paused && paused.id === track.id && paused.file ? paused.offset : 0,
+      // длительность записи (у синтеза её нет) — для полосы времени в проигрывателе
+      duration: fileSrc && fileFor === track.id && fileSrc.buffer ? fileSrc.buffer.duration : null }),
+    /* спектр того, что звучит сейчас, — n полос 0…1 (низы слева), по логарифмической шкале частот; тишина и пауза — null.
+       Рисует живой круг вокруг обложки проигрывателя (src/MacroSimulator.jsx, «Сейчас играет») */
+    levels(n = 48) {
+      if (!analyser || !running) return null;
+      const d = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(d);
+      const N = d.length * 0.82; const out = [];
+      for (let i = 0; i < n; i += 1) {
+        const a = Math.floor(Math.pow(i / n, 1.7) * N); const b = Math.max(a + 1, Math.floor(Math.pow((i + 1) / n, 1.7) * N));
+        let m = 0; for (let k = a; k < b; k += 1) if (d[k] > m) m = d[k];
+        out.push(m / 255);
+      }
+      return out;
+    },
     // у «Волны» плейлиста нет — она выбирает пьесы сама
     playlist: () => (isWave() ? [] : listOf(lockedMood || mood).map((id) => ({ id, name: TRACKS[id].name, current: id === track.id, file: fileTrack(id) }))),
     // лайки: пьесы, которые «Волна» ставит чаще (хранит экран — ems-music-likes)
@@ -1284,6 +1302,14 @@ export function createAudioEngine(options = {}) {
       timer = setInterval(() => {
         try { scheduler(); } catch (err) { if (import.meta.env && import.meta.env.DEV) console.error(err); /* музыка не ломает игру */ }
       }, 120);
+      notify();
+    },
+    /* пауза после возвращения на сайт (пункт владельца 18.11: «минипроигрыватель исчезает, если поставил на паузу и ушёл с
+       сайта»): та же пьеса встаёт на паузу на той же секунде записи — «Играть» продолжит с неё. Не играет и не грузит звук */
+    restorePaused(st) {
+      if (running || !st || !TRACKS[st.id]) return;
+      if (track.id !== st.id) setTrack(st.id);
+      paused = fileTrack(st.id) ? { id: st.id, file: true, offset: Math.max(0, Number(st.offset) || 0) } : { id: st.id, file: false, step: 0 };
       notify();
     },
     stopMusic() {

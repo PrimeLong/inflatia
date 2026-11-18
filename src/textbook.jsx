@@ -719,7 +719,7 @@ function ChartBox({ type, attrs, caption, ctx, values: outer = null, onValues = 
       </div>
       {/* касание графика — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»); там — как выставлено ползунками */}
       <Zoomable title={def.title} testid="tb-chart-zoom" caption={caption ? <Inline nodes={fillVars(caption, captionVars(type, attrs, values))} ctx={ctx} /> : null}
-        plane={() => scene}>
+        plane={() => scene} model={() => ({ controls: def.controls(attrs), values: { ...values }, build: (vv) => def.build(attrs, vv) })}>
         <ChartSvg scene={scene} />
       </Zoomable>
       {def.legend && <ChartLegend items={def.legend(attrs, values)} />}

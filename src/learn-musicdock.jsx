@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Play, Pause, SkipForward, SkipBack, Heart, ChevronUp } from 'lucide-react';
 import { Audio, AudioControls } from './MacroSimulator.jsx';
-import { learnMusic, setLearnMusic, toggleMusicLike, MOOD_TINT } from './ds-tokens.js';
+import { learnMusic, setLearnMusic, toggleMusicLike, MOOD_TINT, musicPaused, setMusicPaused } from './ds-tokens.js';
 import { MINI_CSS, Bars } from './learn-bookdock.jsx';
 
 const DOCK_CSS = `
@@ -35,12 +35,24 @@ const DOCK_CSS = `
 
 export function MusicDock() {
   const [, tick] = useState(0);
-  // пауза на плашке — плашка остаётся до «×» или ухода из обучения
-  const [paused, setPaused] = useState(false);
+  // пауза на плашке — плашка остаётся до «×» или ухода из обучения; пауза сохраняется и после ухода с сайта (ems-music-paused)
+  const [paused, setPaused] = useState(() => !!musicPaused() && !learnMusic());
   const [kick, setKick] = useState(null);
   const kickT = useRef(0);
   const wrap = useRef(null);
   useEffect(() => Audio.onChange(() => tick((n) => n + 1)), []);
+  /* вернулись на сайт: та же пьеса встаёт на паузу на той же секунде — движок грузится без звука (пункт владельца 18.11) */
+  useEffect(() => {
+    const st = musicPaused();
+    if (!st || (Audio.loaded() && Audio.nowPlaying().id === st.id)) return;
+    Promise.resolve(Audio.preload()).then(() => { if (!Audio.loaded()) return; if (!Audio.nowPlaying().locked) Audio.setPlaylist('wave'); Audio.restorePaused(st); });
+  }, []);
+  // ушли с сайта, пока играло, — запомнить пьесу и секунду: вернётесь — продолжит оттуда же
+  useEffect(() => {
+    const save = () => { if (!Audio.loaded() || !learnMusic()) return; const n = Audio.nowPlaying(); if (n.id) setMusicPaused({ id: n.id, offset: n.position }); };
+    window.addEventListener('pagehide', save);
+    return () => window.removeEventListener('pagehide', save);
+  }, []);
   useEffect(() => () => window.clearTimeout(kickT.current), []);
   const on = !!Audio.opts.music && learnMusic();
   const show = Audio.loaded() && (on || paused);
@@ -56,7 +68,10 @@ export function MusicDock() {
     return () => { window.removeEventListener('resize', nav); document.documentElement.removeAttribute('data-music-dock'); };
   }, [show]);
   if (!show) return null;
-  const play = (v) => { Audio.prime(); Audio.setMusic(v); setLearnMusic(v); setPaused(!v); };
+  const play = (v) => {
+    if (!v) { const n = Audio.nowPlaying(); setMusicPaused({ id: n.id, offset: n.position }); }
+    Audio.prime(); Audio.setMusic(v); setLearnMusic(v); setPaused(!v);
+  };
   const skip = (forward) => {
     Audio.play('tick'); setKick(forward ? 'next' : 'prev');
     window.clearTimeout(kickT.current); kickT.current = window.setTimeout(() => setKick(null), 450);
@@ -69,7 +84,7 @@ export function MusicDock() {
   return (
     <>
       <style>{MINI_CSS}{DOCK_CSS}</style>
-      <div ref={wrap} className="lb-mini lm-dock" role="region" aria-label="Музыка" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
+      <div ref={wrap} className="lb-mini lm-dock" role="region" aria-label="Музыка" data-dd-anchor="" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
         style={{ '--b': MOOD_TINT[np.mood] || MOOD_TINT.wave, '--dock-b': `${navH}px` }}>
         <button type="button" className={`lb-mini-skip lm-skip${kick === 'prev' ? ' kick prev' : ''}`} onClick={() => skip(false)} aria-label="Предыдущая пьеса" data-testid="music-dock-prev" data-kick={kick === 'prev' ? 'true' : undefined}>
           <SkipBack size={17} aria-hidden="true" />
@@ -88,7 +103,7 @@ export function MusicDock() {
           onClick={() => { if (np.id) Audio.setLikes(toggleMusicLike(np.id)); }}><Heart size={17} fill={np.liked ? 'currentColor' : 'none'} aria-hidden="true" /></button>
         {/* развернуть полный проигрыватель: плейлист, «Что играть», громкость */}
         <AudioControls wave learn icon={ChevronUp} label="Развернуть проигрыватель" testid="music-dock-open" className="lm-open" />
-        <button type="button" className="lb-mini-skip" onClick={() => { Audio.setMusic(false); setLearnMusic(false); setPaused(false); }} aria-label="Выключить музыку" data-testid="music-dock-close"><X size={17} aria-hidden="true" /></button>
+        <button type="button" className="lb-mini-skip" onClick={() => { Audio.setMusic(false); setLearnMusic(false); setMusicPaused(null); setPaused(false); }} aria-label="Выключить музыку" data-testid="music-dock-close"><X size={17} aria-hidden="true" /></button>
       </div>
     </>
   );

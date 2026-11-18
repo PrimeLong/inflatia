@@ -3,6 +3,7 @@
    события и «Позвать на забег»; карточка забега на Пути (дорожка с двумя бегущими Инфлями),
    предложение забега после урока и лента событий друзей в «Новостях». Данные — src/lib/friends-store.js,
    правила — src/learn/friends.js. */
+import { setRaceOffersOn } from './ds-tokens.js';
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, UserPlus, Check, X, ChevronRight, Copy, Flag, Flame, Sparkles, Trophy, Landmark, Stamp, CalendarDays, Award } from 'lucide-react';
 import { ACH_ICON } from './award-art.js';
@@ -89,6 +90,8 @@ export const FRIENDS_CSS = `
   .fr-offer-who small { font: 500 13.5px var(--ds-sans); color: var(--ds-ink3); }
   .fr-offer-acts { display: flex; gap: 8px; align-items: center; }
   .fr-offer-acts > :first-child { flex: 1 1 auto; min-width: 0; }
+  .fr-offer-never { display: block; margin: 8px auto 0; border: 0; background: none; padding: 4px 6px; cursor: pointer; color: var(--ds-ink2); font: 600 13px var(--ds-sans); text-decoration: underline; text-underline-offset: 3px; }
+  .fr-offer-never small { font-weight: 400; color: var(--ds-ink3); text-decoration: none; }
   .fr-offer-acts > :last-child { flex: none; white-space: nowrap; }
   .fr-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 10px; }
   .fr-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink); font: 700 14px var(--ds-sans); cursor: pointer; transition: transform .15s; }
@@ -353,6 +356,9 @@ export function RaceOffer({ friends, onDone }) {
           <Button small disabled={!pick || state === 'busy'} data-testid="race-invite" onClick={send}>Позвать на забег</Button>
           <Button small variant="ghost" data-testid="race-offer-later" onClick={() => { Audio.play('paper'); onDone(); }}>Не сейчас</Button>
         </div>
+        <button type="button" className="fr-offer-never" data-testid="race-offer-never" onClick={() => { Audio.play('paper'); setRaceOffersOn(false); onDone(); }}>
+          Больше не показывать <small>· вернуть — в настройках</small>
+        </button>
       </>)}
     </Card>
   );

@@ -8,7 +8,7 @@ import { SpecialShell, SpecialDesk, SpecialHead, SpecialLabel, useAnswerRun, use
 import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChartSpline, RotateCcw, Maximize2 } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, IconButton } from './ds.jsx';
 import { useReducedMotion, useMedia } from './ds-art.jsx';
@@ -16,7 +16,7 @@ import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView, graphCloze } from './learn/graphs.js';
-import { finishLesson, markGraph, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
+import { tallyAnswer, finishLesson, markGraph, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -43,7 +43,7 @@ export const GRAPH_CSS = `
   .gl-stage { position: relative; background: var(--ds-card); border: 1px solid var(--ds-rule2); border-radius: 22px; padding: 10px 6px 4px;
     box-shadow: 0 18px 40px -28px rgba(0,0,0,.45); }
   .gl-stage svg { display: block; width: 100%; height: auto; max-width: 560px; margin: 0 auto; overflow: visible; }
-  .gl-replay { position: absolute; right: 10px; top: 10px; }
+  .gl-replay { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
   .gl-text { margin-top: 14px; padding: 16px 18px; border-radius: 18px; background: color-mix(in srgb, var(--g-blue) 7%, var(--ds-card)); border: 1px solid color-mix(in srgb, var(--g-blue) 22%, var(--ds-rule));
     font: 400 17px/1.55 var(--ds-sans); animation: gl-rise .45s cubic-bezier(.2, .9, .3, 1) backwards; }
   .gl-text b { color: var(--ds-ink); background: linear-gradient(transparent 60%, color-mix(in srgb, var(--g-gold) 28%, transparent) 60%); }
@@ -67,6 +67,10 @@ export const GRAPH_CSS = `
   .g-in .fade { animation: g-fade .6s ease .5s backwards; }
   @keyframes g-fade { from { opacity: 0 } }
   .g-in .grow { transform-box: fill-box; transform-origin: 50% 100%; animation: g-grow .8s cubic-bezier(.3, .9, .3, 1) .2s backwards; }
+  /* область закрашивается проходом кисти слева направо (жалоба ученика 18.11, «Налог на кофе», шаг 3: «странная анимация, когда
+     закрашивает область»): раньше она росла растяжением от нижнего края — треугольник излишка сплющивался и вытягивался */
+  .g-in .sweep { animation: g-sweep .9s cubic-bezier(.35, .7, .3, 1) .2s backwards; }
+  @keyframes g-sweep { from { clip-path: inset(0 100% 0 0); fill-opacity: 0; } }
   @keyframes g-grow { from { transform: scaleY(0); opacity: 0 } }
   .g-pulse { animation: g-pulse 1.8s ease-in-out infinite; }
   @keyframes g-pulse { 50% { fill-opacity: .42 } }
@@ -119,6 +123,31 @@ const gridLines = (lo, hi, g) => Array.from({ length: Math.floor((hi - lo) / g +
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+/* сцена шага для числовой плоскости на весь экран: только то, что видно на этом шаге (кривые, точки, области) */
+export function stepScene(scene, view) {
+  const has = (id) => view.shown.has(id);
+  return {
+    ...scene,
+    curves: (scene.curves || []).filter((c) => has(c.id)),
+    points: (scene.points || []).filter((p, i) => has(`pt#${i}`) || has(`pt:${p.label}`)),
+    polys: (scene.polys || []).filter((p, i) => has(`poly#${i}`) || has(`poly:${p.label}`)),
+    rects: (scene.rects || []).filter((r, i) => has(`rect:${i}`)),
+  };
+}
+const PlaneViewer = React.lazy(() => import('./plane-view.jsx').then((m) => ({ default: m.PlaneViewer })));
+// окно графика, общее для всех шагов урока: объединение границ сцены при значениях каждого шага
+const unionDomain = (a, b) => [Math.min(a[0], b[0]), Math.max(a[1], b[1])];
+export function lessonDomain(g, def, defaults) {
+  if (!g || !Array.isArray(g.steps) || !g.steps.length) return null;
+  let x = null; let y = null;
+  for (let k = 0; k < g.steps.length; k += 1) {
+    const view = stepView(g, k);
+    const sc = def.build(g.attrs, { ...defaults, ...view.values });
+    x = x ? unionDomain(x, sc.xDomain) : [...sc.xDomain]; y = y ? unionDomain(y, sc.yDomain) : [...sc.yDomain];
+  }
+  return { x, y };
+}
+
 /* значения ползунков на шаге: по умолчанию модели, поверх — значения шага; переход — плавный */
 function useTweenValues(target, reduced) {
   const [cur, setCur] = useState(target);
@@ -170,7 +199,12 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
     }
   });
   useEffect(() => () => { if (glideLoop.current) cancelAnimationFrame(glideLoop.current); glideLoop.current = 0; }, []);
-  const scene = sceneInCrowns(def.build(g.attrs, vals));
+  /* оси — одни на весь урок (жалоба ученика 17.11, «Деньги», шаг 6: «очень странное движение»): границы графика
+     считаются по значениям шага, и пока кривая плавно ехала, ось рывками сжималась (верх мультипликатора — ceil, с 11 до 8).
+     Теперь окно — объединение окон всех шагов урока, и при переходе двигается только то, что меняется по смыслу */
+  const lock = useMemo(() => lessonDomain(g, def, defaults), [g, def, defaults]);
+  const scene0 = sceneInCrowns(def.build(g.attrs, vals));
+  const scene = lock && !live ? { ...scene0, xDomain: unionDomain(lock.x, scene0.xDomain), yDomain: unionDomain(lock.y, scene0.yDomain) } : scene0;
   const [x0, x1] = scene.xDomain; const [y0, y1] = scene.yDomain;
   const sx = (x) => M.l + ((x - x0) / (x1 - x0)) * (W - M.l - M.r);
   const sy = (y) => H - M.b - ((y - y0) / (y1 - y0)) * (H - M.t - M.b);
@@ -253,7 +287,7 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
           const c = r.tone === 'rust' ? 'var(--g-rust)' : 'var(--g-gold)';
           return (
             <g key={`${id}-${isIn(id) ? k : 0}`} className={`${cls(id)}${isIn(id) ? ' g-in' : ''}`} style={{ '--k': c }} data-testid="graph-el" data-el={id} data-on={String(view.focus.has(id))}>
-              <rect className="grow" x={sx(r.x0)} y={sy(r.y1)} width={Math.max(0, sx(r.x1) - sx(r.x0))} height={Math.max(0, sy(r.y0) - sy(r.y1))} fill={c} fillOpacity=".2" stroke={c} strokeOpacity=".6" />
+              <rect className="sweep" x={sx(r.x0)} y={sy(r.y1)} width={Math.max(0, sx(r.x1) - sx(r.x0))} height={Math.max(0, sy(r.y0) - sy(r.y1))} fill={c} fillOpacity=".2" stroke={c} strokeOpacity=".6" />
             </g>
           );
         })}
@@ -262,7 +296,7 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
           const c = KCOLOR[p.tone] || 'var(--g-rust)';
           return (
             <g key={`${id}-${isIn(id) ? k : 0}`} className={`${cls(id)}${isIn(id) ? ' g-in' : ''}`} style={{ '--k': c }} data-testid="graph-el" data-el={id} data-on={String(view.focus.has(id))}>
-              <polygon className={`grow${view.focus.has(id) ? ' g-pulse' : ''}`} points={p.points.map((q) => `${sx(q.x).toFixed(1)},${sy(q.y).toFixed(1)}`).join(' ')} fill={c} fillOpacity=".24" stroke={c} strokeOpacity=".6" />
+              <polygon className={`sweep${view.focus.has(id) ? ' g-pulse' : ''}`} points={p.points.map((q) => `${sx(q.x).toFixed(1)},${sy(q.y).toFixed(1)}`).join(' ')} fill={c} fillOpacity=".24" stroke={c} strokeOpacity=".6" />
             </g>
           );
         })}
@@ -356,11 +390,12 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
 }
 
 export default function GraphLesson({ id, learn, update, onClose, peek = false, gem = false }) {
+  const [full, setFull] = useState(false);
   const g = GRAPH_BY_ID[id];
   // вышли посреди разбора — продолжаем с того же шага (learn-special.jsx); подсказка из урока (peek) — без этого
   const resume = useSpecialResume('graph', id, gem);
   const was = peek ? null : resumedState(resume);
-  const run = useAnswerRun(was ? was.run || 0 : 0);
+  const run = useAnswerRun(was ? was.run || 0 : 0, [], (ok) => { if (update && !peek) update((st) => tallyAnswer(st, ok)); });
   const [k, setK] = useState(() => (was ? was.k : 0));
   const [replay, setReplay] = useState(0);
   const [phase, setPhase] = useState(() => (was ? was.phase : 'tour')); // tour → quiz → done
@@ -458,8 +493,24 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
         <div className="gl-page">
           <div className="gl-stage">
             <GraphStage g={g} k={k} key={replay} />
-            <div className="gl-replay"><IconButton label="Ещё раз" icon={RotateCcw} data-testid="graph-replay" onClick={() => { Audio.play('tick'); setReplay((x) => x + 1); }} /></div>
+            <div className="gl-replay">
+              <IconButton label="Ещё раз" icon={RotateCcw} data-testid="graph-replay" onClick={() => { Audio.play('tick'); setReplay((x) => x + 1); }} />
+              {/* на весь экран — числовая плоскость этого шага: ползунки модели, выделенное шага (пункт владельца 18.11) */}
+              <IconButton label="На весь экран" icon={Maximize2} data-testid="graph-full" onClick={() => { Audio.play('paper'); setFull(true); }} />
+            </div>
           </div>
+          {full && (() => {
+            const def = CHARTS[g.chart]; const v = stepView(g, k);
+            const defs = Object.fromEntries((def.controls ? def.controls(g.attrs) : []).map((c) => [c.id, c.def]));
+            const build = (vv) => stepScene(sceneInCrowns(def.build(g.attrs, vv)), v);
+            const values = { ...defs, ...v.values };
+            return (
+              <React.Suspense fallback={null}>
+                <PlaneViewer title={`${g.title} · шаг ${k + 1} из ${n}`} scene={build(values)} caption={String(v.text || '').replace(/\*\*/g, '')}
+                  model={def.controls ? { controls: def.controls(g.attrs), values, build } : null} focus={v.focus} from={root.current} onClose={() => setFull(false)} />
+              </React.Suspense>
+            );
+          })()}
           <div className="gl-text" key={k} data-testid="graph-text" aria-live="polite">
             <span className="gl-step">Шаг {k + 1} из {n}</span>
             {cq && !cOk

@@ -246,6 +246,14 @@ export function countAnswers(s, right, total, now = Date.now()) {
   const day = dayOf(now); const d = dayEntry(s, day);
   return upd(s, { daily: { ...s.daily, [day]: { ...d, a: d.a + n, c: d.c + ok } } });
 }
+/* ответ в особом уроке — в серию верных подряд: та же бессрочная run и сегодняшняя часть rc, что у обычного урока, чтобы
+   задание дня «N верных ответов подряд» считало и особые уроки (пункт владельца 18.11). Число ответов и верных дня
+   (a, c) сюда не входит — его добавляет countAnswers в конце урока */
+export function tallyAnswer(s, ok, now = Date.now()) {
+  const day = dayOf(now); const d = dayEntry(s, day);
+  const rc = ok ? d.rc + 1 : 0;
+  return upd(s, { daily: { ...s.daily, [day]: { ...d, rc, r: Math.max(d.r, rc) } }, run: runNext(s.run, ok ? streakNow(s, now) + 1 : 0, now) });
+}
 /* серия, с которой начинается урок: бессрочная run; у прогресса без run (до бессрочной серии) — сегодняшняя rc */
 export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n : dayEntry(s, dayOf(now)).rc);
 const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h', 'w'];

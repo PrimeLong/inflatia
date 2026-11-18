@@ -12,7 +12,7 @@ import { Button } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { personByName, PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf, quizIdea } from './learn/people.js';
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
-import { finishLesson, markMet, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
+import { tallyAnswer, finishLesson, markMet, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -282,7 +282,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
   const [k, setK] = useState(() => (was ? was.k : 0));
   const [picked, setPicked] = useState(() => (was ? was.picked : {}));
   const [order] = useState(() => (was && was.order ? was.order : g.people.map((p) => p.ask.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5))));
-  const run = useAnswerRun(was ? was.run || 0 : 0);
+  const run = useAnswerRun(was ? was.run || 0 : 0, [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
   const [finished, setFinished] = useState(false);
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   // алмазный уровень: после людей — «Чья это идея?»; алмаз — без единой ошибки

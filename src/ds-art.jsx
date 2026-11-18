@@ -225,20 +225,33 @@ const B = {
       <path d="M70,89 q4,-2.4 8,0 t8,0 t8,0 t8,0 t8,0 t8,0" fill="none" stroke="currentColor" strokeWidth=".6" opacity=".7" />
     </>
   ),
-  // сберкасса (юнит «Доходы, расходы и сбережения»): дом с фронтоном и часами, крыльцо, вывеска-копилка с монетой
+  /* сберкасса (юнит «Доходы, расходы и сбережения»): здание с колоннами на ступенях, на фронтоне — копилка с монетой над
+     прорезью. Прежняя гравюра была странной (пункт владельца 18.11): копилка налезала на нижнее окно, монета — на углы двух окон */
   savings: (h) => (
     <>
-      <rect x="22" y="40" width="76" height="42" fill={h.body} stroke="currentColor" strokeWidth="1.1" />
-      <path d="M16,42 L60,18 L104,42 Z" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth="1.1" />
-      <circle cx="60" cy="32" r="6" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".9" />
-      <path d="M60,28 L60,32 L63,33" fill="none" stroke="currentColor" strokeWidth=".8" />
-      {[28, 44, 70, 86].map((x) => <rect key={x} x={x - 4} y="48" width="10" height="12" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".7" />)}
-      <rect x="52" y="60" width="16" height="22" fill={h.hatch} stroke="currentColor" strokeWidth=".9" />
-      <path d="M46,82 L74,82 L71,78 L49,78 Z" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth=".8" />
-      <ellipse cx="38" cy="70" rx="8" ry="5.5" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".9" />
-      <path d="M33,74 L33,77 M43,74 L43,77" stroke="currentColor" strokeWidth=".9" />
-      <rect x="36" y="63" width="4" height="1.6" fill="currentColor" />
-      <circle cx="38" cy="59" r="2.4" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".7" />
+      <path d="M12,82 L108,82 L104,77 L16,77 Z" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth=".9" />
+      <path d="M18,77 L102,77 L99,73 L21,73 Z" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth=".8" />
+      <rect x="24" y="44" width="72" height="29" fill={h.body} stroke="currentColor" strokeWidth="1.1" />
+      <rect x="20" y="39" width="80" height="5" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth=".9" />
+      <path d="M17,39 L60,17 L103,39 Z" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth="1.1" />
+      <g data-part="piggy">
+        <ellipse cx="60" cy="31" rx="8" ry="5.2" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".9" />
+        <path d="M54.5,27.6 L55.5,24.6 L57.8,26.9" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".7" />
+        <path d="M67.6,30 l2.4,-0.8 l0,2.6 Z" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".6" />
+        <path d="M56,35.6 v1.8 M64,35.6 v1.8" stroke="currentColor" strokeWidth=".9" />
+        <rect x="58" y="26.2" width="4" height="1.2" fill="currentColor" />
+        <circle cx="60" cy="22.6" r="2.2" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".7" />
+      </g>
+      {[28, 42, 72, 86].map((x) => (
+        <g key={x} data-part="column">
+          <rect x={x} y="44.5" width="6" height="28.5" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth=".7" />
+          <rect x={x - 1} y="44.5" width="8" height="2" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".5" />
+          <line x1={x + 3} y1="47" x2={x + 3} y2="72" stroke="currentColor" strokeWidth=".35" opacity=".6" />
+        </g>
+      ))}
+      <path d="M52,73 L52,59 A8,8 0 0 1 68,59 L68,73 Z" fill={h.hatch} stroke="currentColor" strokeWidth=".9" />
+      <line x1="60" y1="53" x2="60" y2="73" stroke="currentColor" strokeWidth=".5" />
+      <circle cx="57.5" cy="64" r=".8" fill="currentColor" /><circle cx="62.5" cy="64" r=".8" fill="currentColor" />
     </>
   ),
   store: (h) => (

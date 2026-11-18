@@ -80,3 +80,23 @@ describe('серия верных ответов — бессрочная, ко�
     expect(streakNow(normalizeLearn(old), at(5))).toBe(7);
   });
 });
+
+// пункт владельца 18.11: «„10 верных ответов подряд“ — задание не считает квадратные уроки»
+import { tallyAnswer, countAnswers } from '../../textbook/learn-state.js';
+describe('серия верных подряд и особые уроки', () => {
+  it('ответы особого урока идут в серию дня и бессрочную серию, как в обычном уроке; ошибка обнуляет', () => {
+    const now = Date.UTC(2026, 10, 18, 12);
+    let s = emptyLearn();
+    // два верных в обычном уроке, потом восемь — в «Нарисуй сам»
+    s = recordAttempt(s, 'choice', true, 1000, { now }); s = recordAttempt(s, 'choice', true, 1000, { now });
+    for (let i = 0; i < 8; i += 1) s = tallyAnswer(s, true, now + i);
+    expect(dailyOf(s, now).rc).toBe(10);
+    expect(dailyOf(s, now).r).toBe(10);
+    expect(streakNow(s, now)).toBe(10);
+    // ответы особого урока в конце — в число ответов дня, серию не трогают
+    s = countAnswers(s, 8, 8, now);
+    expect(dailyOf(s, now).c).toBe(10); expect(dailyOf(s, now).r).toBe(10);
+    s = tallyAnswer(s, false, now + 100);
+    expect(dailyOf(s, now).rc).toBe(0); expect(dailyOf(s, now).r).toBe(10); expect(streakNow(s, now)).toBe(0);
+  });
+});

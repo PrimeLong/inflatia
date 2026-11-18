@@ -142,7 +142,14 @@ export const setLearnDark = (on) => {
 export const learnThemeId = () => (learnDark() ? 'learnDark' : 'learn');
 export const dsThemeId = () => (learnDark() ? 'ink' : 'paper');
 export const learnMusic = () => store.get('ems-learn-music') === '1';
+// «Забег с другом?» после урока: «Больше не показывать» (пункт владельца 18.11) — вернуть можно в настройках
+export const raceOffersOn = () => store.get('ems-race-offer-off') !== '1';
+export const setRaceOffersOn = (on) => store.set('ems-race-offer-off', on ? null : '1');
 export const setLearnMusic = (on) => store.set('ems-learn-music', on ? '1' : null);
+/* музыка обучения на паузе: какая пьеса и на какой секунде (ems-music-paused) — чтобы после ухода с сайта плашка вернулась
+   «на паузе» с той же пьесой, а «Играть» продолжило с того же места. «×» и выключение в настройках стирают её */
+export const musicPaused = () => { try { const v = JSON.parse(store.get('ems-music-paused') || 'null'); return v && typeof v.id === 'string' ? v : null; } catch { return null; } };
+export const setMusicPaused = (st) => store.set('ems-music-paused', st && st.id ? JSON.stringify({ id: st.id, offset: Math.max(0, Math.round((st.offset || 0) * 10) / 10) }) : null);
 export const learnSfx = () => store.get('ems-learn-sfx') !== '0';
 export const setLearnSfx = (on) => store.set('ems-learn-sfx', on ? null : '0');
 // звук «Мира»: выключенная музыка (и звуки, громкость) остаётся выключенной после перезагрузки.

@@ -8,13 +8,13 @@
 import { SpecialShell, SpecialDesk, SpecialHead, SpecialLabel, useAnswerRun, useSpecialResume, resumedState } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Plus, Minus, Hand, Expand, Undo2, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Minimize2, Plus, Minus, Hand, Expand, Undo2, ChevronUp, ChevronDown, Paintbrush, Eraser } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour, paintCoverage, PAINT_BRUSH } from './learn/draws.js';
-import { finishLesson, markDraw, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
+import { tallyAnswer, finishLesson, markDraw, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -33,6 +33,11 @@ const CSS = `
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
   .dl-coord { font: 700 11.5px var(--ds-sans); }
+  .dl-gem-rules { margin-top: 10px; padding: 9px 12px; border-radius: 12px; font-size: 14px; line-height: 1.4; color: var(--ds-ink);
+    background: linear-gradient(120deg, color-mix(in srgb, ${DIAMOND_COLOR} 16%, var(--ds-card)), color-mix(in srgb, ${DIAMOND_COLOR} 6%, var(--ds-card)));
+    border: 1px solid color-mix(in srgb, ${DIAMOND_COLOR} 45%, transparent); }
+  .dl-gem-rules b { display: block; color: ${DIAMOND_COLOR}; letter-spacing: .02em; margin-bottom: 2px; }
+  .dl-box[data-gem="true"] .gl-stage { box-shadow: 0 0 0 2px ${DIAMOND_COLOR}, 0 0 28px -8px ${DIAMOND_COLOR}; }
   .dl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
   .dl-table { margin: 10px 0 2px; border-collapse: collapse; font: 400 15px var(--ds-sans); font-variant-numeric: tabular-nums; }
   .dl-table th { padding: 4px 16px 4px 0; text-align: left; font: 600 12.5px var(--ds-sans); color: var(--ds-ink3); border-bottom: 1px solid var(--ds-rule2); }
@@ -104,7 +109,7 @@ const CSS = `
 const rich = (t) => String(t).split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : <React.Fragment key={i}>{p}</React.Fragment>));
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const HOW = {
-  line: 'Нажмите на график в двух местах — точки прилипают к сетке; точку можно перетащить, а касанием — убрать.',
+  line: 'Проведите линию: нажмите в первой точке и протяните до второй — или нажмите в двух местах. Точки прилипают к сетке; точку можно перетащить, а касанием — убрать.',
   points: 'Каждая строка таблицы — точка на графике; точки прилипают к сетке, их можно перетащить, а касанием — убрать.',
   point: 'Нажмите на график — точку можно перетащить, а касанием — убрать.',
   shift: 'Потяните график пальцем или мышью вбок — или двигайте ползунок под ним.',
@@ -118,12 +123,15 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const resume = useSpecialResume('draw', id, gem);
   const was = resumedState(resume);
   // первые попытки шагов (отрезки полосы прогресса) — переживают выход, как и серия
-  const run = useAnswerRun(was ? was.run || 0 : 0, was ? was.log || [] : []);
+  const run = useAnswerRun(was ? was.run || 0 : 0, was ? was.log || [] : [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
   const [i, setI] = useState(() => (was ? was.i : 0));
   const [phase, setPhase] = useState('task'); // task → done
   const [pts, setPts] = useState([]);
-  // «закрасить область»: pts — точки мазков подряд, strokes — с какой точки начинается каждый мазок (для «Отменить»)
-  const strokes = useRef([]);
+  /* «закрасить область»: pts — точки мазков, у каждой s — номер мазка; tool — кисть или ластик (пункт владельца 18.11: «нельзя
+     стирать накрашенное, и когда красишь — почему-то точка, а не кисточка»); history — снимки до каждого мазка (для «Отменить») */
+  const strokes = useRef(0);
+  const history = useRef([]);
+  const [tool, setTool] = useState('brush');
   const [v, setV] = useState(0);
   const [hover, setHover] = useState(null);
   const [tries, setTries] = useState(0);
@@ -288,7 +296,11 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     touch();
     if (t.do === 'shift') { drag.current = { x: raw.x, v }; return; }
     // закрасить область: новый мазок с этой точки
-    if (t.do === 'area') { strokes.current = [...strokes.current, pts.length]; setPts([...pts, raw]); drag.current = { paint: true, before: pts }; return; }
+    if (t.do === 'area') {
+      history.current = [...history.current, pts];
+      if (tool === 'erase') { setPts(eraseAt(pts, raw)); drag.current = { erase: true, before: pts }; return; }
+      strokes.current += 1; setPts([...pts, { ...raw, s: strokes.current }]); drag.current = { paint: true, before: pts }; return;
+    }
     const p = place(raw);
     // касание прямо в поставленную точку: отпустили, не сдвинув, — точка убирается; потянули — едет за пальцем
     const near = pts.map((q, k) => ({ k, dd: Math.hypot(sx(q.x) - sx(raw.x), sy(q.y) - sy(raw.y)) })).sort((a, b) => a.dd - b.dd)[0];
@@ -297,7 +309,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     if (t.do === 'line' || t.do === 'points') {
       // все уже стоят — переставляем ближнюю
       const k = near && pts.length >= maxPts ? near.k : pts.length;
-      const next = [...pts]; next[k] = p; setPts(next); drag.current = { k, before: pts };
+      const next = [...pts]; next[k] = p; setPts(next);
+      /* линия с первой точки — протягивается (пункт ученика 17.11: «тут нет рисования»): ведёте от первой точки, вторая едет
+         за пальцем; отпустили на месте — осталась одна точка, как при касании */
+      drag.current = t.do === 'line' && pts.length === 0 ? { k, before: pts, stretch: true, x: e.clientX, y: e.clientY } : { k, before: pts };
     } else { setPts([p]); drag.current = { k: 0, before: pts }; }
     Audio.play('tick');
   };
@@ -312,11 +327,20 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     if (pan.current) { const r = ink.current.getBoundingClientRect(); setVb(panVb(pan.current.v0, e.clientX - pan.current.x, e.clientY - pan.current.y, r.width, W, H)); return; }
     if (lockTouch.current) return;
     const raw = toData(e); if (!raw) return;
-    if (!drag.current) { if (e.pointerType === 'mouse' && !resolved && !hand && t.do !== 'shift') setHover(place(raw)); return; }
+    if (!drag.current) { if (e.pointerType === 'mouse' && !resolved && !hand && t.do !== 'shift') setHover(t.do === 'area' ? raw : place(raw)); return; }
+    if (drag.current.erase) { setHover(raw); setPts((prev) => eraseAt(prev, raw)); return; }
     if (t.do === 'shift') { setV(clampV(drag.current.v + (raw.x - drag.current.x))); return; }
     // мазок кистью: точка — когда кисть ушла хотя бы на пятую часть своего радиуса
     if (drag.current.paint) {
-      setPts((prev) => { const last = prev[prev.length - 1]; if (last && Math.hypot((raw.x - last.x) / (x1 - x0), (raw.y - last.y) / (y1 - y0)) < PAINT_BRUSH / 5) return prev; return [...prev, raw]; });
+      setHover(raw);
+      setPts((prev) => { const last = prev[prev.length - 1]; if (last && last.s === strokes.current && Math.hypot((raw.x - last.x) / (x1 - x0), (raw.y - last.y) / (y1 - y0)) < PAINT_BRUSH / 5) return prev; return [...prev, { ...raw, s: strokes.current }]; });
+      return;
+    }
+    // протягивание линии: палец ушёл от первой точки — появилась вторая, дальше она едет за ним
+    if (drag.current.stretch) {
+      if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) < 12) return;
+      const p2 = place(raw);
+      setPts((prev) => [prev[0], p2]); drag.current = { k: 1, before: drag.current.before, drawn: true }; setHover(null);
       return;
     }
     // от касания точки — в перетаскивание, только когда палец сдвинулся заметно
@@ -374,9 +398,9 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const next = () => {
     if (i >= n - 1) { finish(); return; }
     Audio.play('paper');
-    setI(i + 1); setPts([]); strokes.current = []; setV(0); setTries(0); setRes(null); setHover(null); setVb(fullVb(W, H)); setHand(false);
+    setI(i + 1); setPts([]); strokes.current = 0; history.current = []; setTool('brush'); setV(0); setTries(0); setRes(null); setHover(null); setVb(fullVb(W, H)); setHand(false);
   };
-  const reset = () => { Audio.play('tick'); setPts([]); strokes.current = []; setV(0); touch(); };
+  const reset = () => { Audio.play('tick'); if (pts.length) history.current = [...history.current, pts]; setPts([]); setV(0); touch(); };
 
   // что видно на графике: решено — шаг вперёд (новое появляется), иначе — как было плюс то, что нужно шагу
   const k = phase === 'done' ? n : i + (resolved ? 1 : 0);
@@ -384,6 +408,17 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const solveView = sol && !sol.paint ? (sol.ps || (sol.a ? [sol.a, sol.b] : sol.p ? [sol.p] : [])).map((q) => [Math.round(sx(q.x) * 10) / 10, Math.round(sy(q.y) * 10) / 10]) : [];
   const testAnswer = (() => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : s.paint ? { pts: s.paint.map((q) => [sx(q.x), sy(q.y)]) } : { pts: (s.ps || (s.a ? [s.a, s.b] : [s.p])).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); })();
   const mine = res && res.shown ? 'var(--g-rust)' : 'var(--g-blue)';
+  // расстояние в долях осей; ластик убирает мазки в круге кисти; мазок рисуется кусками — там, где ластик прошёл, разрыв
+  const nd = (a, b) => Math.hypot((a.x - b.x) / (x1 - x0), (a.y - b.y) / (y1 - y0));
+  function eraseAt(list, q) { return list.filter((p) => nd(p, q) > PAINT_BRUSH * 1.15); }
+  function paintSegments(list) {
+    const out = []; let cur = null;
+    for (const p of list) {
+      if (cur && cur.s === p.s && nd(cur.pts[cur.pts.length - 1], p) <= PAINT_BRUSH * 0.9) cur.pts.push(p);
+      else { cur = { s: p.s, pts: [p] }; out.push(cur.pts); }
+    }
+    return out;
+  }
   const coordLabel = (q) => `${fmt(q.x)}; ${fmt(q.y)}`;
   // поставить точку в q — как касание (линия и таблица: следующая или ближняя, если все стоят)
   const placeAt = (q) => {
@@ -394,13 +429,13 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
       const near = pts.map((r, k) => ({ k, dd: Math.hypot(sx(r.x) - sx(p.x), sy(r.y) - sy(p.y)) })).sort((a, b) => a.dd - b.dd)[0];
       const k = near && pts.length >= maxPts ? near.k : pts.length;
       const next = [...pts]; next[k] = p; setPts(next);
-    } else if (t.do === 'area') { strokes.current = [...strokes.current, pts.length]; setPts([...pts, q]); } else setPts([p]);
+    } else if (t.do === 'area') { history.current = [...history.current, pts]; if (tool === 'erase') setPts(eraseAt(pts, q)); else { strokes.current += 1; setPts([...pts, { ...q, s: strokes.current }]); } } else setPts([p]);
     Audio.play('tick');
   };
   const undoPt = () => {
-    if (resolved || !pts.length) return; Audio.play('tick'); touch();
-    // закрашивание — отменяется весь последний мазок
-    if (t.do === 'area') { const from = strokes.current.pop() ?? 0; setPts(pts.slice(0, from)); return; }
+    if (resolved || (!pts.length && !(t.do === 'area' && history.current.length))) return; Audio.play('tick'); touch();
+    // закрашивание — отменяется весь последний мазок или ластик (снимок до него)
+    if (t.do === 'area') { const prev = history.current[history.current.length - 1] || []; history.current = history.current.slice(0, -1); setPts(prev); return; }
     setPts(pts.slice(0, -1));
   };
   const dropPt = (k) => { if (resolved) return; Audio.play('tick'); touch(); setPts(pts.filter((_, j) => j !== k)); };
@@ -484,9 +519,12 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 <tbody>{t.at.map((q, j) => <tr key={j}><td>{j + 1}</td><td>{fmt(q.x)}</td><td>{fmt(q.y)}</td></tr>)}</tbody>
               </table>
             )}
-            {!resolved && <span className="dl-how">{HOW[t.do]}{gem ? ' Алмаз: одна попытка на шаг.' : ''}</span>}
+            {!resolved && <span className="dl-how">{HOW[t.do]}</span>}
+            {/* алмаз — не тот же урок с меткой (жалоба ученика 18.11: «а в чём отличие от обычного урока»): одна попытка, без
+                координат под курсором, без процента закраски и без подсказки — по памяти и по графику */}
+            {gem && !resolved && <div className="dl-gem-rules" data-testid="draw-gem-rules"><b>◆ Алмазный уровень</b> Одна попытка на шаг — ошибка сразу покажет решение. Без координат под курсором и без процента закраски: стройте по графику и по памяти.</div>}
           </div>
-          <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)} data-zoom={z.toFixed(2)}>
+          <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)} data-zoom={z.toFixed(2)} data-gem={String(!!gem)}>
           {full && (
             <div className="dl-fhead" data-testid="draw-full-head">
               <span className="dl-fstep">Шаг {i + 1} из {n}</span>
@@ -508,9 +546,15 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 {zoomed && <button type="button" className="dl-full-btn" aria-pressed={hand} data-testid="draw-hand" title="Двигать график, а не ставить точки"
                   onClick={() => { Audio.play('tick'); setHand(!hand); setHover(null); }}><Hand size={14} aria-hidden="true" />Двигать</button>}
               </div>
+              {t.do === 'area' && !resolved && (
+                <div className="dl-zoom" role="group" aria-label="Кисть или ластик" data-testid="draw-tools">
+                  <button type="button" className="dl-full-btn" aria-pressed={tool === 'brush'} data-testid="draw-brush" onClick={() => { Audio.play('tick'); setTool('brush'); }}><Paintbrush size={14} aria-hidden="true" />Кисть</button>
+                  <button type="button" className="dl-full-btn" aria-pressed={tool === 'erase'} data-testid="draw-eraser" onClick={() => { Audio.play('tick'); setTool('erase'); }}><Eraser size={14} aria-hidden="true" />Ластик</button>
+                </div>
+              )}
               {!full && <button type="button" className="dl-full-btn" data-testid="draw-full" onClick={goFull}><Maximize2 size={14} aria-hidden="true" />На весь экран</button>}
-              {full && t.do !== 'shift' && (
-                <button type="button" className="dl-full-btn" data-testid="draw-undo" disabled={resolved || !pts.length} title="Отменить (Ctrl+Z)" onClick={undoPt}><Undo2 size={14} aria-hidden="true" />Отменить</button>
+              {(full || t.do === 'area') && t.do !== 'shift' && (
+                <button type="button" className="dl-full-btn" data-testid="draw-undo" disabled={resolved || (!pts.length && !(t.do === 'area' && history.current.length))} title="Отменить (Ctrl+Z)" onClick={undoPt}><Undo2 size={14} aria-hidden="true" />Отменить</button>
               )}
             </div>
             <div ref={wrap} className={`dl-wrap${zoomed ? ' zoomed' : ''}`} data-testid="draw-wrap" style={full && fitBox ? { width: fitBox.w, height: fitBox.h } : undefined}>
@@ -523,18 +567,24 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 <defs><clipPath id={`dlc${id}`}><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath></defs>
                 {/* сетка — в самом графике (GraphStage, grid): линии через шаг задания, подписи — только на них */}
                 {!res?.ok && through()}
-                {full && hover && !resolved && t.do !== 'shift' && cross(hover)}
-                {hover && !drag.current && pts.length < maxPts && (
-                  <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', coordLabel(hover))}</g>
+                {full && hover && !resolved && t.do !== 'shift' && !gem && cross(hover)}
+                {/* одна точка линии стоит — к курсору тянется пунктирная «резинка»: видно, какая выйдет линия */}
+                {t.do === 'line' && pts.length === 1 && hover && !drag.current && !resolved && (
+                  <line x1={sx(pts[0].x)} y1={sy(pts[0].y)} x2={sx(hover.x)} y2={sy(hover.y)} stroke={mine} strokeWidth={2.4 * pz} strokeDasharray={`${6 * pz} ${5 * pz}`} strokeLinecap="round" opacity=".6" pointerEvents="none" data-testid="draw-rubber" />
+                )}
+                {hover && !drag.current && pts.length < maxPts && t.do !== 'area' && (
+                  <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', gem ? null : coordLabel(hover))}</g>
+                )}
+                {/* кисть и ластик — круг размера кисти под курсором, а не точка */}
+                {t.do === 'area' && hover && !resolved && (
+                  <circle cx={sx(hover.x)} cy={sy(hover.y)} r={brushPx} pointerEvents="none" data-testid="draw-brush-cursor" data-tool={tool}
+                    fill={tool === 'erase' ? 'none' : mine} fillOpacity=".18" stroke={tool === 'erase' ? 'var(--ds-ink2)' : mine} strokeWidth={1.6 * pz} strokeDasharray={tool === 'erase' ? `${4 * pz} ${3 * pz}` : undefined} />
                 )}
                 {/* закрашивание — мазки кистью: полупрозрачные полосы цвета ответа, по краю поля обрезаны */}
                 {t.do === 'area' && pts.length > 0 && (
                   <g clipPath={`url(#dlc${id})`} pointerEvents="none" data-testid="draw-paint" data-coverage={cov ? Math.round(cov.inside * 100) : 0}>
-                    {[...strokes.current, pts.length].slice(0, -1).map((from, si) => {
-                      const to = strokes.current[si + 1] ?? pts.length; const seg = pts.slice(from, to);
-                      return seg.length === 1 ? <circle key={si} cx={sx(seg[0].x)} cy={sy(seg[0].y)} r={brushPx} fill={res?.ok ? 'var(--ds-ok)' : mine} fillOpacity=".32" />
-                        : <polyline key={si} points={seg.map((q) => `${sx(q.x)},${sy(q.y)}`).join(' ')} fill="none" stroke={res?.ok ? 'var(--ds-ok)' : mine} strokeOpacity=".32" strokeWidth={brushPx * 2} strokeLinecap="round" strokeLinejoin="round" />;
-                    })}
+                    {paintSegments(pts).map((seg, si) => (seg.length === 1 ? <circle key={si} cx={sx(seg[0].x)} cy={sy(seg[0].y)} r={brushPx} fill={res?.ok ? 'var(--ds-ok)' : mine} fillOpacity=".32" />
+                      : <polyline key={si} points={seg.map((q) => `${sx(q.x)},${sy(q.y)}`).join(' ')} fill="none" stroke={res?.ok ? 'var(--ds-ok)' : mine} strokeOpacity=".32" strokeWidth={brushPx * 2} strokeLinecap="round" strokeLinejoin="round" />))}
                   </g>
                 )}
                 {!res?.ok && t.do !== 'area' && pts.map((q, j) => pin(q, `p${j}`, mine, coordLabel(q)))}
@@ -548,7 +598,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 ))}
               </svg>
               {/* сколько области закрашено — пока шаг не решён */}
-              {cov && !resolved && <div className="dl-paint-chip" data-testid="draw-coverage" aria-live="polite">Закрашено {Math.round(cov.inside * 100)}%</div>}
+              {cov && !resolved && !gem && <div className="dl-paint-chip" data-testid="draw-coverage" aria-live="polite">Закрашено {Math.round(cov.inside * 100)}%</div>}
             </div>
             </div>
             {t.do === 'shift' && ctl && (

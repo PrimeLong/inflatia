@@ -81,7 +81,7 @@ describe('физика вещиц', () => {
   }));
   /* пункт владельца 16.11: «гирлянда флажков — слишком агрессивная физика». Взятый флажок раньше вставал под палец
      одним кадром (скачок 25 px), а струна хлестала соседей со скоростью до 800 px/с. */
-  it('гирлянда мягкая: взятый флажок тянется к руке плавно, соседи не хлещут, отпустили — затихает за 3,5 с', async () => {
+  it('гирлянда живая, но мягкая: флажок тянется к руке плавно, соседи не хлещут, отпустили — покачивается и затихает за 2–5 с, верный ответ — трепет флажков', async () => {
     const { holdBunting, releaseBunting, BUNTING } = await import('../../learn-decor.jsx');
     const H = 56; const m = decorModel('desk-bunting', 700, H);
     settle(m, H);
@@ -93,17 +93,24 @@ describe('физика вещиц', () => {
       m.pts.forEach((p, i) => { jump = Math.max(jump, Math.hypot(p.x - prev[i][0], p.y - prev[i][1])); fast = Math.max(fast, Math.hypot(p.vx, p.vy)); });
       prev = m.pts.map((p) => [p.x, p.y]);
     }
-    expect(jump, 'за кадр — не больше 5 px').toBeLessThanOrEqual(5);
+    expect(jump, 'за кадр — не больше 7 px').toBeLessThanOrEqual(7);
     expect(fast).toBeLessThanOrEqual(BUNTING.maxV);
     // через секунду флажок у руки (рука далеко — не дальше BUNTING.reach от места покоя)
     expect(Math.abs(q.y - Math.min(y0 + 25, q.ry + BUNTING.reach, H - 22))).toBeLessThan(2);
     releaseBunting(q);
-    expect(settle(m, H)).toBeLessThan(3.5);
-    // верный ответ — лёгкое колыхание, а не рывок
+    // пункт владельца 18.11: «теперь слишком скучная» — отпущенная гирлянда ещё покачивается, но затихает за 5 секунд
+    const calm = settle(m, H);
+    expect(calm).toBeGreaterThan(2); expect(calm).toBeLessThan(5);
+    // верный ответ — заметное колыхание струны и трепет флажков, но не рывок
     kick(m, true);
-    let off = 0; const rest = m.pts.map((p) => p.y);
-    for (let k = 0; k < 120; k += 1) { m.t += 1 / 60; decorStep(m, 1 / 60, H); m.pts.forEach((p, i) => { off = Math.max(off, Math.abs(p.y - rest[i])); }); }
-    expect(off).toBeLessThan(6);
+    let off = 0; let flap = 0; const rest = m.pts.map((p) => p.y);
+    for (let k = 0; k < 120; k += 1) {
+      m.t += 1 / 60; decorStep(m, 1 / 60, H);
+      m.pts.forEach((p, i) => { off = Math.max(off, Math.abs(p.y - rest[i])); });
+      flap = Math.max(flap, ...m.flags.map((f) => Math.abs(f.a)));
+    }
+    expect(off).toBeGreaterThan(4); expect(off).toBeLessThan(14);
+    expect(flap, 'флажки трепещут').toBeGreaterThan(0.12); expect(flap).toBeLessThan(0.9);
   });
   it('гирлянда в покое провисает посередине, а не лежит на дне полосы', () => {
     const H = 48; const m = decorModel('desk-bunting', 560, H);

@@ -29,7 +29,11 @@ const css = (el, name, def) => { const v = el ? getComputedStyle(el).getProperty
    Мягко, как ткань на верёвке (пункт владельца 16.11: «слишком агрессивная физика»): взятый флажок не прыгает
    под палец, а тянется к нему на упругой нити; струна натянута слабее и гасит колебания сильнее, скорость точек
    ограничена, ветер верного ответа — медленный и слабый. Параметры — BUNTING. */
-export const BUNTING = { tension: 1100, restore: 22, damp: 6.5, wind: 420, windFreq: 4, sagForce: 380, pull: { k: 70, zeta: 0.95 }, maxV: 240, reach: 24 };
+/* пункт владельца 18.11: «физика гирлянд теперь слишком скучная» — середина между «агрессивной» (15.11) и «скучной»: размах
+   и скорость больше, вязкость меньше, ветер верного ответа заметнее; и у каждого флажка — свой маятник (flag): флажок
+   раскачивается по инерции, когда струна дёргается, и трепещет на ветру, а затихает медленно */
+export const BUNTING = { tension: 1350, restore: 20, damp: 4.2, wind: 760, windFreq: 5, sagForce: 420, pull: { k: 95, zeta: 0.75 }, maxV: 380, reach: 34,
+  flag: { k: 38, damp: 2.6, inertia: 0.022, flutter: 7, max: 0.9 } };
 function makeBunting(W, H) {
   const n = Math.max(8, Math.round(W / 26));
   const span = W - 16; const sag = Math.min(12, (H - 26) * 0.5);
@@ -65,7 +69,16 @@ function stepBunting(m, dt, H) {
       if (Math.abs(p.y - y) > 1e-9) p.vy = 0;
     }
   }
-  m.wind *= 0.96; m.sag *= 0.97;
+  // флажки-маятники: толчок — от ускорения струны в их месте, ветер — трепет; угол ограничен (флажок не крутится)
+  const F = B.flag;
+  if (!m.flags) m.flags = Array.from({ length: P.length - 1 }, () => ({ a: 0, w: 0 }));
+  for (let i = 0; i < P.length - 1; i += 1) {
+    const f = m.flags[i]; const a = P[i]; const b = P[i + 1];
+    const vx = (a.vx + b.vx) / 2; const acc = (vx - (f.pvx ?? vx)) / Math.max(1e-3, dt); f.pvx = vx;
+    f.w += (-F.k * f.a - F.damp * f.w - acc * F.inertia + m.wind * Math.sin(m.t * 13 + i * 1.7) * F.flutter) * dt;
+    f.a = Math.max(-F.max, Math.min(F.max, f.a + f.w * dt));
+  }
+  m.wind *= 0.965; m.sag *= 0.97;
   return P.reduce((e, p) => e + (Math.abs(p.vx) + Math.abs(p.vy)) * dt + (Math.abs(p.ox) + Math.abs(p.oy)) * 0.01, 0) + Math.abs(m.wind) * 5 + m.sag * 5;
 }
 function drawBunting(ctx, m, col) {
@@ -76,7 +89,7 @@ function drawBunting(ctx, m, col) {
     const a = m.pts[i]; const b = m.pts[i + 1];
     const mx = (a.x + b.x) / 2; const my = (a.y + b.y) / 2;
     const ang = Math.atan2(b.y - a.y, b.x - a.x);
-    const sway = (a.vx + b.vx) * 0.004;
+    const sway = (a.vx + b.vx) * 0.003 + (m.flags && m.flags[i] ? m.flags[i].a : 0);
     ctx.save(); ctx.translate(mx, my); ctx.rotate(ang * 0.6 + sway);
     ctx.fillStyle = FLAG_COLORS[i % FLAG_COLORS.length];
     ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(9, 0); ctx.lineTo(0, 19); ctx.closePath(); ctx.fill();
@@ -249,7 +262,7 @@ const DRAW = { bunting: drawBunting, cradle: drawCradle, mobile: drawMobile };
 
 // реакция на ответ урока
 export function kick(m, ok) {
-  if (m.kind === 'bunting') { if (ok) m.wind = 1.2; else { m.sag = 1; m.pts.forEach((p, i) => { if (!p.pin) p.vy -= Math.sin(i) * 70; }); } }
+  if (m.kind === 'bunting') { if (ok) m.wind = 1.3; else { m.sag = 1; m.pts.forEach((p, i) => { if (!p.pin) p.vy -= Math.sin(i) * 70; }); } }
   if (m.kind === 'cradle') { if (ok) m.lift = { t: 0, from: m.balls[0].a }; else m.balls.forEach((x) => { x.w += (Math.random() - 0.5) * 0.6; }); }
   if (m.kind === 'mobile') m.coins.forEach((c, i) => { c.sv += ok ? 5 + (i % 3) : 1.2; c.glow = ok ? 1 : 0; c.w += ok ? 0.6 * (i % 2 ? 1 : -1) : 0.2; });
 }
