@@ -962,6 +962,41 @@ test('после урока: «Забег с другом?» — компакт�
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 18.11: «нужна кнопка для забега с другом „Больше не показывать“»
+test('после урока: «Забег с другом?» — «Больше не показывать» убирает карточку насовсем; в настройках её можно вернуть', async ({ page }) => {
+  test.setTimeout(150_000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('ems-race-test', '1');
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: Date.now() - 86400000, runs: 1, best: 90 }, 'sc-i1b': { at: Date.now() - 86400000, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', accountApi, { tab: 'path' });
+  await startLesson(page, 'sc-l1', /Начать|Повторить/);
+  await playLesson(page);
+  const offer = page.getByTestId('race-offer');
+  await offer.scrollIntoViewIfNeeded();
+  await offer.getByTestId('race-offer-never').click();
+  await expect(offer).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('ems-race-offer-off'))).toBe('1');
+  // следующий урок — карточки нет (хотя автотест просит её каждый раз)
+  await page.evaluate(() => localStorage.removeItem('ems-race-offer'));
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await startLesson(page, 'sc-l1', /Начать|Повторить/);
+  await playLesson(page);
+  await expect(page.getByTestId('lesson-result')).toBeVisible();
+  await expect(page.getByTestId('race-offer')).toHaveCount(0);
+  // настройки: «Предлагать забег с другом» выключено; включили — снова предлагается
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  await expect(page.getByTestId('prof-race-offers')).toHaveAttribute('aria-checked', 'false');
+  await page.getByTestId('prof-race-offers').click();
+  await expect(page.getByTestId('prof-race-offers')).toHaveAttribute('aria-checked', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('ems-race-offer-off'))).toBeNull();
+  expect(errors).toEqual([]);
+});
+
 /* «Ранее» (пункт 7 от 06.11): последние три прочитанных, свежее сверху; прочитанное, которого в расчёте уже нет
    (обогнали в лиге, а потом сами обогнали), остаётся в «Ранее» снимком на устройстве */
 test('уведомления: «Ранее» — последние три прочитанных, свежее сверху; прошедшее событие не пропадает', async ({ page }) => {

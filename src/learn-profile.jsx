@@ -21,7 +21,7 @@ import { albumItems, sealItems, monthItems, monthsByYear, shelfOrder, fullDate }
 import { NOTIFY_KINDS, REMIND_HOURS } from './learn/notify.js';
 import { ProgramCard } from './learn-rewards.jsx';
 import { BellButton, browserNotifySupported } from './learn-notify.jsx';
-import { learnDark, setLearnDark, learnMusic, setLearnMusic, learnSfx, setLearnSfx, setMusicPaused } from './ds-tokens.js';
+import { learnDark, setLearnDark, learnMusic, setLearnMusic, learnSfx, setLearnSfx, setMusicPaused, raceOffersOn, setRaceOffersOn } from './ds-tokens.js';
 import { ProfileModal, loadAccount } from './account.jsx';
 import { reportsMe } from './lib/client.js';
 import { TRACK, rememberTeam, switchTrack } from './learn/track.js';
@@ -480,6 +480,7 @@ export function SettingsView({ learn, update, notify, onBack, onThemeChange, onP
   const [dark, setDark] = useState(learnDark);
   const [music, setMusic] = useState(learnMusic);
   const [sfx, setSfx] = useState(learnSfx);
+  const [raceOffers, setRaceOffers] = useState(raceOffersOn);
   const [calmOn, setCalmOn] = useState(() => !antistressHidden());
   const calmOpen = antistressUnlocked(learn);
   const [account, setAccount] = useState(false);
@@ -508,6 +509,7 @@ export function SettingsView({ learn, update, notify, onBack, onThemeChange, onP
         <SetGroup icon={Palette} tone="#C2490B" title="Оформление и звук" testid="prof-settings">
           <SetRow title="Тёмная тема" note="Для обучения и «Мира»" on={dark} testid="prof-dark" onChange={(v) => { setLearnDark(v); setDark(v); onThemeChange(); }} />
           <SetRow title="Музыка в обучении" on={music} testid="prof-music" onChange={(v) => { setLearnMusic(v); setMusicPaused(null); setMusic(v); onThemeChange(); }} />
+          <SetRow title="Предлагать забег с другом" note="Карточка после урока, не чаще раза в день" on={raceOffers} testid="prof-race-offers" onChange={(v) => { Audio.play('tick'); setRaceOffersOn(v); setRaceOffers(v); }} />
           <SetRow title="Звуки ответов" on={sfx} testid="prof-sfx" onChange={(v) => { setLearnSfx(v); setSfx(v); onThemeChange(); if (v) Audio.play('coin'); }} />
           <SetRow title="Антистресс" testid="prof-antistress" on={calmOpen && calmOn} disabled={!calmOpen} onChange={(v) => { Audio.play('tick'); setAntistressShown(v); setCalmOn(v); }}
             note={calmOpen ? 'Окошко в углу урока на компьютере: кольца, битва цветов, маятники, лава-лампа, стая, песок, поп-ит, тетрис и змейка'

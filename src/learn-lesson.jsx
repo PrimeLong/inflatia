@@ -2,6 +2,7 @@
    ленивым файлом (docs/mechanics.md, «Приветствие и загрузка»): всё, что нужно только уроку, — учебник с формулами
    (KaTeX), графики, мини-игры, лента «Истории» — грузится, когда урок начинается, а не до появления Пути.
    Общие с Путём вещи (раскладка CSS, значки видов урока, плашка гостя) — из src/learn.jsx. */
+import { raceOffersOn } from './ds-tokens.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -933,7 +934,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     Audio.play('register'); vibrate([20, 30, 20, 30, 60]);
     // иногда после урока — «Забег с другом?»: есть друг, бывший в сети за неделю, и не чаще раза в день
     let raceFriends = null;
-    if (run.mode === 'lesson' && !guest) {
+    if (run.mode === 'lesson' && !guest && raceOffersOn()) {
       let offered = null; try { offered = localStorage.getItem(RACE_OFFER_KEY); } catch { /* приватный режим */ }
       // автотест карточки забега просит её явно (ems-race-test): иначе она — по жребию дня
       let always = false; try { always = !!navigator.webdriver && localStorage.getItem('ems-race-test') === '1'; } catch { /* приватный режим */ }

@@ -142,6 +142,9 @@ export const setLearnDark = (on) => {
 export const learnThemeId = () => (learnDark() ? 'learnDark' : 'learn');
 export const dsThemeId = () => (learnDark() ? 'ink' : 'paper');
 export const learnMusic = () => store.get('ems-learn-music') === '1';
+// «Забег с другом?» после урока: «Больше не показывать» (пункт владельца 18.11) — вернуть можно в настройках
+export const raceOffersOn = () => store.get('ems-race-offer-off') !== '1';
+export const setRaceOffersOn = (on) => store.set('ems-race-offer-off', on ? null : '1');
 export const setLearnMusic = (on) => store.set('ems-learn-music', on ? '1' : null);
 /* музыка обучения на паузе: какая пьеса и на какой секунде (ems-music-paused) — чтобы после ухода с сайта плашка вернулась
    «на паузе» с той же пьесой, а «Играть» продолжило с того же места. «×» и выключение в настройках стирают её */
