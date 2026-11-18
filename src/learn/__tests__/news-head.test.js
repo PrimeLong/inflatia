@@ -18,9 +18,14 @@ describe('заголовок свежего выпуска новостей', ()
     expect(item.text).toContain('«Биржи труда»');
     expect(issue.title).toContain('Сберкасса');
   });
+  it('выпуск 18.11: проигрыватель, живой график, кисть и ластик — свежий; пункты не повторяются', () => {
+    expect(NEWS[0].id).toBe('2026-11-18');
+    const t18 = NEWS[0].items.map((i) => i.title).join(' | ');
+    ['Новый проигрыватель', 'График на весь экран', '«Нарисуй сам»', 'Тема урока', 'Задания и забег'].forEach((w) => expect(t18).toContain(w));
+  });
   it('выпуск 16.11, вечер: терминал инвестора, альбом персоналий, график на весь экран; пункты выпуска не повторяются', () => {
-    expect(NEWS[0].id).toBe('2026-11-16-evening');
-    const titles = NEWS[0].items.map((i) => i.title).join(' | ');
+    const issue = NEWS.find((n) => n.id === '2026-11-16-evening');
+    const titles = issue.items.map((i) => i.title).join(' | ');
     ['Терминал частного инвестора', 'альбом марок', 'График на весь экран', 'Музыка', 'закрасьте область'].forEach((w) => expect(titles).toContain(w));
     NEWS.forEach((n) => expect(new Set(n.items.map((i) => i.title)).size).toBe(n.items.length));
   });
