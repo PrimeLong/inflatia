@@ -17,4 +17,10 @@ describe('украшения урока в теме', () => {
     expect(skins).toContain('.sk-on[data-skin] { --sk-frame: var(--sk-accent); }');
     expect(decor).toContain("css(el, '--sk-frame', css(el, '--ds-ink2'");
   });
+  // жалоба 18.11 (lm-radio): «чёт не по стилю урока выглядит»
+  it('«Слушай» и «История» — шапка эфира, приёмник, реплики, кнопка «слушать» и «в эфире» в цветах темы', () => {
+    expect(skins).toContain('.sk-on[data-skin] .fd { --u: var(--sk-accent); --u-ink: var(--sk-accent); }');
+    expect(skins).toMatch(/\.fd :is\(\.fd-mast, \.fd-set, \.fd-bubble, \.fd-archive\) \{ background: var\(--sk-surface\)/);
+    for (const sel of ['.fd .fd-play', '.fd .fd-onair', '.fd .fd-mast-name']) expect(skins, sel).toContain(`.sk-on[data-skin] ${sel} {`);
+  });
 });
