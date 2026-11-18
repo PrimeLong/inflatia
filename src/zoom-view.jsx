@@ -209,7 +209,8 @@ export function ZoomViewer({ title, caption = null, width = 560, from = null, on
 /* Обёртка картинки: касание или Enter — на весь экран. view() — что показать там (по умолчанию — то же самое);
    plane() — сцена графика: тогда на весь экран открывается не картинка, а числовая плоскость (src/plane-view.jsx) */
 const PlaneViewer = React.lazy(() => import('./plane-view.jsx').then((m) => ({ default: m.PlaneViewer })));
-export function Zoomable({ title, caption = null, width = 560, view = null, plane = null, testid = 'zoom-open', className = '', style = null, badge = 'tr', children }) {
+/* model() — живая модель графика { controls, values, build } для ползунков на плоскости; focus — выделенные кривые шага */
+export function Zoomable({ title, caption = null, width = 560, view = null, plane = null, model = null, focus = null, testid = 'zoom-open', className = '', style = null, badge = 'tr', children }) {
   const [open, setOpen] = useState(false);
   const self = useRef(null);
   const go = (e) => {
@@ -227,7 +228,7 @@ export function Zoomable({ title, caption = null, width = 560, view = null, plan
         {children}
         <span className={`zv-badge ${badge}`} aria-hidden="true"><Expand size={14} /></span>
       </div>
-      {open && plane && <React.Suspense fallback={null}><PlaneViewer title={title} caption={caption} scene={plane()} from={self.current} onClose={() => setOpen(false)} /></React.Suspense>}
+      {open && plane && <React.Suspense fallback={null}><PlaneViewer title={title} caption={caption} scene={plane()} model={model ? model() : null} focus={focus} from={self.current} onClose={() => setOpen(false)} /></React.Suspense>}
       {open && !plane && <ZoomViewer title={title} caption={caption} width={width} from={self.current} onClose={() => setOpen(false)}>{view ? view() : children}</ZoomViewer>}
     </>
   );

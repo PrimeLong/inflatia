@@ -170,7 +170,8 @@ function MiniChart({ type, attrs, values = null, tween = false, zoom = false }) 
   // картинка карточки: касание — на весь экран, с приближением (docs/mechanics.md, «Картинки на весь экран»)
   if (zoom) {
     return (
-      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} plane={() => scene}>
+      <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} plane={() => scene}
+        model={def.controls ? () => ({ controls: def.controls(attrs), values: { ...target }, build: (vv) => sceneInCrowns(def.build(attrs, vv)) }) : null}>
         <ChartSvg scene={scene} />{legend}
       </Zoomable>
     );

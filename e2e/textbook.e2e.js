@@ -665,14 +665,28 @@ test('график на весь экран — числовая плоскос�
   const pv = page.getByTestId('plane-view');
   await expect(pv).toBeVisible();
   await expect(pv).toContainText(title);
-  await expect(pv.getByTestId('plane-caption')).toBeVisible();
+  await expect(pv.getByTestId('plane-caption')).toBeAttached();
   const level = pv.getByTestId('plane-level');
   await expect(level).toHaveText('×1,0');
   const st = pv.getByTestId('plane-stage');
   const num = async (a) => Number(await st.getAttribute(a));
-  // во весь экран: плоскость занимает почти всё окно
+  // во весь экран: плоскость занимает основную часть окна (рядом — панель модели: справа на ПК, снизу на телефоне)
   const box = await st.boundingBox(); const vp = page.viewportSize();
-  expect(box.width).toBeGreaterThan(vp.width * 0.95); expect(box.height).toBeGreaterThan(vp.height * 0.6);
+  expect(box.width).toBeGreaterThan(vp.width * (isMobile ? 0.95 : 0.6)); expect(box.height).toBeGreaterThan(vp.height * (isMobile ? 0.35 : 0.6));
+  // пункт владельца 18.11: «он же ничего не меняет — сделай РЕАЛЬНУЮ числовую плоскость»: ползунки модели прямо на плоскости,
+  // кривая перестраивается, прежняя — пунктиром «как было», значения — живые; «Как было» возвращает
+  await page.waitForTimeout(1100);
+  const side = pv.getByTestId('plane-side');
+  await expect(side).toContainText('Меняйте модель');
+  const curveD = async () => st.locator('svg').evaluate((el) => [...el.querySelectorAll('[data-testid=plane-curve], circle')].map((e) => e.getAttribute('d') || `${e.getAttribute('cx')},${e.getAttribute('cy')}`).join('|'));
+  const before = await curveD(); const read0 = await side.getByTestId('plane-readout').textContent();
+  for (const ctl of await side.getByTestId('plane-ctl').all()) await ctl.fill(await ctl.getAttribute('min'));
+  await expect.poll(curveD).not.toBe(before);
+  await expect(st.getByTestId('plane-was').first()).toBeAttached();
+  await expect(side.getByTestId('plane-readout')).not.toHaveText(read0);
+  await side.getByTestId('plane-reset').click();
+  await expect.poll(curveD).toBe(before);
+  await expect(st.getByTestId('plane-was')).toHaveCount(0);
   // кривые — линиями в точках экрана, деления — числами
   await expect(st.locator('svg path').first()).toBeVisible();
   const step0 = await num('data-step-x');
@@ -1204,3 +1218,34 @@ test('график рынка труда: подпись «безработиц�
   expect(hit(u.b, e.b)).toBe(false);
   expect(errors).toEqual([]);
 });
+
+// пункт владельца 18.11: «разбор графика не меняется; когда открываешь на весь экран — стиль урока исчезает»
+test('«Разбор графика» на весь экран: плоскость текущего шага — его текст, выделенные кривые и ползунки; тема урока остаётся', async ({ page }) => {
+  test.setTimeout(120000);
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), owned: { 'theme-exchange': at }, wear: { theme: 'theme-exchange', at } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await page.locator('[data-testid=path-extra][data-id="graph-ppf"]').click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('graph-lesson');
+  await g.getByTestId('graph-next').click();
+  const stepText = (await g.getByTestId('graph-text').textContent()).replace(/^Шаг \d+ из \d+/, '').trim().slice(0, 30);
+  await g.getByTestId('graph-full').click();
+  const pv = page.getByTestId('plane-view');
+  await expect(pv).toBeVisible();
+  await expect(pv).toContainText('шаг 2 из');
+  await expect(pv.getByTestId('plane-caption')).toContainText(stepText.slice(0, 20));
+  await expect(pv).toHaveAttribute('data-skin', 'exchange');
+  expect(await pv.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(6, 20, 13)');
+  await expect(pv.getByTestId('plane-curve').first()).toBeAttached();
+  await page.keyboard.press('Escape');
+  await expect(pv).toHaveCount(0);
+  await expect(g).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
