@@ -19,3 +19,16 @@ describe('лавка: нажатие на уже выбранное — без �
     expect(rewards).toContain("onClick={() => { if (p.goal === g) return; Audio.play('tick');");
   });
 });
+
+// замечание владельца 18.11, вечер, п. 9: «странно выглядит анимация „Надуваем Инфлю“, хотя она не надувается, а качается»
+describe('заставка «Надуваем Инфлю»', () => {
+  const logo = readFileSync(new URL('../../logo.jsx', import.meta.url), 'utf8');
+  it('шарик надувают толчками (масштаб растёт), струйки воздуха снизу; покачивания нет', () => {
+    expect(logo).not.toMatch(/bl-bob/);
+    const pump = logo.match(/@keyframes bl-pump \{([^}]|\}(?! \}))*\} \}/)[0];
+    const scales = [...pump.matchAll(/scale\(([\d.]+)\)/g)].map((m) => Number(m[1]));
+    expect(Math.max(...scales) - Math.min(...scales)).toBeGreaterThan(0.2);
+    expect(pump).not.toMatch(/rotate|translateY/);
+    expect(logo).toContain('<span className="bl-air"><i /><i /><i /></span>');
+  });
+});

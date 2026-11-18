@@ -18,6 +18,41 @@ import { DeskDecor } from './learn-decor.jsx';
 import { SkinPreview, SKIN_CSS } from './learn-skins.jsx';
 // сад — отдельный ленивый чанк: грузится, только когда открыли «Сад»
 const GardenView = React.lazy(() => import('./learn-garden.jsx').then((m) => ({ default: m.GardenView })));
+/* Пока грузится сад (замечание владельца 18.11, вечер, п. 8: «когда загружается сад, нужна приятная анимация»): из земли
+   в горшке тянется росток, разворачиваются два листка, сверху падают капли полива; подпись — «Сад просыпается». */
+const GARDEN_LOAD_CSS = `
+  .gd-load { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 34px 16px 40px; color: var(--ds-ink2); animation: gd-load-in .3s ease-out .15s both; }
+  .gd-load svg { width: 120px; height: 120px; overflow: visible; }
+  .gd-load .stem { stroke: #4E9A52; stroke-width: 4; stroke-linecap: round; fill: none; stroke-dasharray: 48; stroke-dashoffset: 48; animation: gd-grow 2.4s cubic-bezier(.4,0,.2,1) infinite; }
+  .gd-load .leaf { fill: #6DBB5F; transform-box: fill-box; transform: scale(0); animation: gd-leaf 2.4s cubic-bezier(.3,1.5,.5,1) infinite; }
+  .gd-load .leaf.l { transform-origin: 100% 100%; } .gd-load .leaf.r { transform-origin: 0% 100%; animation-delay: .12s; }
+  .gd-load .drop { fill: #5AA7E6; opacity: 0; animation: gd-drop 2.4s ease-in infinite; } .gd-load .drop.b { animation-delay: .35s; } .gd-load .drop.c { animation-delay: .7s; }
+  .gd-load .pot { fill: #C46A3C; } .gd-load .rim { fill: #A8552D; } .gd-load .soil { fill: #6B4A2E; }
+  .gd-load-t { font: 700 13px var(--ds-sans); letter-spacing: .06em; display: flex; align-items: baseline; gap: 2px; }
+  .gd-load-t i { display: inline-block; width: 4px; height: 4px; margin-left: 3px; border-radius: 50%; background: currentColor; animation: gd-dot 1.2s ease-in-out infinite; }
+  .gd-load-t i:nth-child(2) { animation-delay: .15s; } .gd-load-t i:nth-child(3) { animation-delay: .3s; }
+  @keyframes gd-load-in { from { opacity: 0; } }
+  @keyframes gd-grow { 0% { stroke-dashoffset: 48; } 45%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes gd-leaf { 0%, 38% { transform: scale(0); } 55%, 85% { transform: scale(1); } 100% { transform: scale(1); opacity: 0; } }
+  @keyframes gd-drop { 0% { opacity: 0; transform: translateY(-14px); } 15% { opacity: .9; } 40% { opacity: 0; transform: translateY(16px); } 100% { opacity: 0; } }
+  @keyframes gd-dot { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-4px); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .gd-load, .gd-load .stem, .gd-load .leaf, .gd-load .drop, .gd-load-t i { animation: none !important; stroke-dashoffset: 0; transform: none; } }
+`;
+export function GardenLoading() {
+  return (
+    <div className="gd-load" role="status" aria-live="polite" data-testid="garden-loading">
+      <style>{GARDEN_LOAD_CSS}</style>
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <ellipse className="drop" cx="44" cy="18" rx="3" ry="4.5" /><ellipse className="drop b" cx="62" cy="12" rx="3" ry="4.5" /><ellipse className="drop c" cx="78" cy="20" rx="3" ry="4.5" />
+        <path className="stem" d="M60 88 C60 74 58 64 60 46" />
+        <path className="leaf l" d="M60 60 C48 58 40 50 38 40 C50 40 58 48 60 60 Z" />
+        <path className="leaf r" d="M60 52 C72 50 80 42 82 32 C70 32 62 40 60 52 Z" />
+        <path className="pot" d="M36 88 H84 L78 112 H42 Z" /><rect className="rim" x="32" y="82" width="56" height="10" rx="3" /><ellipse className="soil" cx="60" cy="84" rx="24" ry="3.5" />
+      </svg>
+      <div className="gd-load-t">Сад просыпается<span><i /><i /><i /></span></div>
+    </div>
+  );
+}
 const DustGame = React.lazy(() => import('./learn-dust.jsx'));
 import {
   balance, rateOn, rateHistory, priceOf, crownsOn, inflationInfo, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF,
@@ -365,7 +400,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
         <ShopSwitch view={view} onView={(v) => { if (v === view) return; Audio.play('paper'); setView(v); setMsg(null); }} learn={learn} gardenLocked={!featureOpen(learn, 'garden')} />
         {/* сад и копилка открываются не сразу (src/learn/unlocks.js): до того — карточка «откроется после N-го урока» */}
         {view === 'garden' ? (featureOpen(learn, 'garden')
-          ? <React.Suspense fallback={<div className="ds-sub" style={{ padding: 20 }}>Сад загружается…</div>}><GardenView learn={learn} update={update} /></React.Suspense>
+          ? <React.Suspense fallback={<GardenLoading />}><GardenView learn={learn} update={update} /></React.Suspense>
           : <FeatureLocked id="garden" learn={learn} />) : <>
         <Card className="sh-head-card" data-testid="rate">
           <div className="sh-head">
