@@ -603,7 +603,7 @@ export const bareTitle = (t) => { const x = String(t).replace(/^Знакомст
    и опыт — и кнопка «Начать» (или «Продолжить», если урок был прерван). Пройденный урок
    можно взять на алмазном уровне — задачи сложнее, опыт и монеты больше — или просто
    повторить. Если тема слабая, первым предлагается простой повтор. */
-/* «Теория уже была в уроке»: разделы, про которые больше не спрашиваем (удобство устройства) */
+/* «Я знаю эту тему — не напоминать»: разделы, про которые больше не спрашиваем (удобство устройства) */
 const THEORY_KEY = 'ems-learn-theory-known';
 const readKnown = () => { try { const v = JSON.parse(localStorage.getItem(THEORY_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
 const addKnown = (id) => { try { localStorage.setItem(THEORY_KEY, JSON.stringify([...new Set([...readKnown(), id])].slice(-200))); } catch { /* приватный режим */ } };
@@ -653,15 +653,17 @@ function LessonSheet({ l, learn, weak = false, onStart, onClose, onOpenBook, onS
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <BookOpenText size={22} color="var(--u-ink)" style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
               <div className="ds-sub" style={{ fontSize: 14.5, lineHeight: 1.45 }}>
-                Для этого урока нужна теория из учебника: раздел <b>«{theory.section.title}»</b>{theory.section.minutes ? `, ≈${theory.section.minutes} мин` : ''}.
+                Урок опирается на раздел учебника <b>«{theory.section.title}»</b>{theory.section.minutes ? ` (≈${theory.section.minutes} мин)` : ''}. Можно прочитать его сейчас — или начать урок сразу.
               </div>
             </div>
             <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
               <Button wide variant="secondary" icon={BookOpenText} data-testid="theory-open"
                 onClick={() => { Audio.play('paper'); onClose(); onOpenBook({ kind: 'chapter', id: theory.chapter, anchor: theory.section.id }); }}>Открыть теорию</Button>
-              <Button wide data-testid="lesson-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart({ mode: 'lesson', lessonId: l.id }); }}>Начать без теории</Button>
+              <Button wide data-testid="lesson-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart({ mode: 'lesson', lessonId: l.id }); }}>Начать урок</Button>
+              {/* было «Теория уже была в уроке» — непонятно, зачем и что значит (пункт владельца 18.11). Теперь прямо: тема
+                  знакома — начать урок и больше не напоминать про этот раздел */}
               <Button wide variant="ghost" data-testid="theory-known"
-                onClick={() => { Audio.prime(); Audio.play('click'); addKnown(theory.section.id); onStart({ mode: 'lesson', lessonId: l.id }); }}>Теория уже была в уроке</Button>
+                onClick={() => { Audio.prime(); Audio.play('click'); addKnown(theory.section.id); onStart({ mode: 'lesson', lessonId: l.id }); }}>Я знаю эту тему — не напоминать</Button>
             </div>
           </div>
         ) : resume || !l.done ? (

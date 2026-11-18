@@ -905,6 +905,12 @@ test('теория из карточки урока: внизу отмечен �
   await showUnit(page, 'consumer');
   await page.locator('[data-testid=path-lesson][data-lesson="cs-s1"]').click();
   await expect(page.getByTestId('theory-notice')).toBeVisible();
+  // пункт владельца 18.11: вместо непонятной «Теория уже была в уроке» — три ясных действия
+  await expect(page.getByTestId('theory-notice')).toContainText('Можно прочитать его сейчас — или начать урок сразу');
+  await expect(page.getByTestId('theory-open')).toHaveText('Открыть теорию');
+  await expect(page.getByTestId('theory-notice').getByTestId('lesson-start')).toHaveText('Начать урок');
+  await expect(page.getByTestId('theory-known')).toHaveText('Я знаю эту тему — не напоминать');
+  await expect(page.getByTestId('theory-notice')).not.toContainText('уже была в уроке');
   await page.getByTestId('theory-open').click();
   await expect(page.getByTestId('learn-book')).toBeVisible();
   const nav = page.getByTestId('bottom-nav');
