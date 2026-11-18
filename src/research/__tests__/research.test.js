@@ -187,3 +187,14 @@ describe('исследование: анализ и отчёт', () => {
     expect(mean([1, 2, 3])).toBe(2);
   });
 });
+
+// пункт владельца 18.11: «„исследовательскими не являются и в анализ не входят — исследование собирает свой набор заново…“ —
+// убери это и не пиши такое»: документы исследования и описание данных не объявляют, чем данные Инфляции «не являются»
+describe('документы исследования без заявлений о статусе данных Инфляции', () => {
+  it('ни в research/, ни в docs/data-architecture.md нет таких формулировок', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const files = [...readdirSync('research').filter((f) => f.endsWith('.md')).map((f) => `research/${f}`), 'docs/data-architecture.md'];
+    const bad = /исследовательскими\s+(\*\*)?не\s+(являются|объявляются)|собирает свой набор заново|отдельно и заново/i;
+    files.forEach((f) => expect(readFileSync(f, 'utf8'), f).not.toMatch(bad));
+  });
+});
