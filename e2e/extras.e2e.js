@@ -867,6 +867,9 @@ test('«Персоналии»: портрет — свой файл из public
     await page.getByTestId('people-next').click();
   }
   await page.getByTestId('people-finish').click();
+  // пункт владельца 18.11: ответы особого урока — в серию «верных ответов подряд» (задание дня)
+  const people = PEOPLE.find((g) => g.id === 'people-scarcity').people.length;
+  expect(await page.evaluate(() => { const l = JSON.parse(localStorage.getItem('ems-textbook-v1')).learn; const d = l.daily[new Date().toISOString().slice(0, 10)]; return d && d.r; })).toBeGreaterThanOrEqual(people);
   // галерея профиля: у кого есть файл — фото, у кого нет — медальон с инициалами
   await openTab(page, 'profile');
   // вся галерея — в альбоме («Все»): людей много, в профиле — четыре марки (пункт владельца 16.11, вечер)

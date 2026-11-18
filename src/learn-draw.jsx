@@ -14,7 +14,7 @@ import { Button } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour, paintCoverage, PAINT_BRUSH } from './learn/draws.js';
-import { finishLesson, markDraw, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
+import { tallyAnswer, finishLesson, markDraw, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -118,7 +118,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const resume = useSpecialResume('draw', id, gem);
   const was = resumedState(resume);
   // первые попытки шагов (отрезки полосы прогресса) — переживают выход, как и серия
-  const run = useAnswerRun(was ? was.run || 0 : 0, was ? was.log || [] : []);
+  const run = useAnswerRun(was ? was.run || 0 : 0, was ? was.log || [] : [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
   const [i, setI] = useState(() => (was ? was.i : 0));
   const [phase, setPhase] = useState('task'); // task → done
   const [pts, setPts] = useState([]);
