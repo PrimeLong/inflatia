@@ -1309,7 +1309,7 @@ function SectionNav({ sections, ctx }) {
   );
 }
 
-function ChapterToc({ current, ctx }) {
+function ChapterToc({ current, ctx, sections = null }) {
   let n = 0;
   return (
     <nav className="tb-chtoc" aria-label="Оглавление учебника" data-testid="tb-side-toc">
@@ -1328,6 +1328,8 @@ function ChapterToc({ current, ctx }) {
                     <span className={`tb-secnav-no${chapterRead(ctx.progress, c.id) ? ' done' : ''}`} aria-hidden="true">{chapterRead(ctx.progress, c.id) ? <Check size={12} /> : n}</span>
                     <span>{c.title}</span>
                   </button>
+                  {/* разделы открытой главы — прямо под ней, а не отдельным списком ниже всего оглавления */}
+                  {on && sections}
                 </li>
               );
             })}
@@ -1437,8 +1439,9 @@ function ChapterBody({ id, ctx }) {
                   {wide ? <ChevronLeft size={13} aria-hidden="true" /> : <ChevronUp size={13} aria-hidden="true" />}Свернуть
                 </button>
               )}
-              {wide && ctx.embedded && <ChapterToc current={id} ctx={ctx} />}
-              <SectionNav sections={CHAPTER_SECTIONS[id]} ctx={{ ...ctx, chapter: id }} />
+              {wide && ctx.embedded
+                ? <ChapterToc current={id} ctx={ctx} sections={<div className="tb-chtoc-secs"><SectionNav sections={CHAPTER_SECTIONS[id]} ctx={{ ...ctx, chapter: id }} /></div>} />
+                : <SectionNav sections={CHAPTER_SECTIONS[id]} ctx={{ ...ctx, chapter: id }} />}
             </>)}
           </aside>
           <div className="tb-ch-main tb-body"><Blocks blocks={blocks} ctx={{ ...ctx, chapter: id }} top /></div>
@@ -2032,6 +2035,7 @@ function LearnToc({ ctx }) {
           <section key={lv.id} className={`tbl-part${ctx.levelOpen(lv.id) ? '' : ' locked'}`} data-testid="tb-level-group" data-level={lv.id} data-locked={ctx.levelOpen(lv.id) ? undefined : 'true'}>
             <h2 className="tbl-part-title">{!ctx.levelOpen(lv.id) && <Lock size={13} aria-hidden="true" />}Уровень {lv.no} · {lv.title}</h2>
             <div className="tbl-level-text">{ctx.levelOpen(lv.id) ? lv.text : 'Откроется, когда вы дойдёте до этого уровня на Пути.'}</div>
+            <div className="tbl-chs">
             {lv.chapters.map((c) => {
               n += 1;
               if (!ctx.levelOpen(lv.id)) {
@@ -2051,7 +2055,7 @@ function LearnToc({ ctx }) {
               const share = chapterShare(ctx.progress, c.id);
               const R = 17; const L = 2 * Math.PI * R;
               return (
-                <button key={c.id} type="button" className="tbl-ch tb-toc-row" data-status={c.status} data-chapter={c.id} onClick={() => { Audio.play('click'); ctx.go({ kind: 'chapter', id: c.id }); }}>
+                <button key={c.id} type="button" className="tbl-ch tb-toc-row" data-status={c.status} data-chapter={c.id} style={{ '--u': (placeOf(c.id) || {}).color }} onClick={() => { Audio.play('click'); ctx.go({ kind: 'chapter', id: c.id }); }}>
                   <span className={`tbl-no${readMark ? ' done' : ''}`} aria-label={readMark ? 'прочитана' : undefined}>{readMark ? <Check size={14} aria-hidden="true" /> : n}</span>
                   <span style={{ minWidth: 0 }}>
                     <span className="tbl-ch-title" style={{ display: 'block' }}>{c.title}</span>
@@ -2069,6 +2073,7 @@ function LearnToc({ ctx }) {
                 </button>
               );
             })}
+            </div>
           </section>
         ))}
         <PlannedList />
@@ -2191,10 +2196,10 @@ const TB_FS_H = 44;
 const TB_FS_OUT = TB_FS_H + 3;
 const tbFsBtn = (big, off) => ({ width: 44, height: '100%', border: 0, background: 'transparent', cursor: off ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center',
   fontFamily: "var(--ds-news, 'PT Serif', Georgia, serif)", fontWeight: 700, fontSize: big ? 19 : 13, lineHeight: 1, color: off ? COLOR.faint : COLOR.text });
-function ReaderBar({ scale, setScale, learn = false }) {
+function ReaderBar({ scale, setScale, learn = false, page = null }) {
   const i = SCALES.indexOf(scale);
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar">
+    <div className="tb-reader-bar" style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }} data-testid="tb-reader-bar" data-page={page || undefined}>
       <span role="group" aria-label="Размер текста" data-testid="tb-font" style={{ display: 'inline-flex', alignItems: 'stretch', height: TB_FS_OUT, boxSizing: 'border-box', borderRadius: 999, overflow: 'hidden',
         border: `1.5px solid ${COLOR.border}`, background: COLOR.panel }}>
         <button type="button" style={tbFsBtn(false, i <= 0)} aria-label="Мельче текст" disabled={i <= 0}
@@ -2451,7 +2456,7 @@ export function TextbookScreen({ onBack, onExit = null, resume = false, startPag
   const pages = (
     <>
       <style>{TEXTBOOK_CSS + STATS_CSS}</style>
-      {!(embedded && cur.kind === 'toc') && <ReaderBar scale={scale} setScale={setScale} learn={embedded} />}
+      {!(embedded && cur.kind === 'toc') && <ReaderBar scale={scale} setScale={setScale} learn={embedded} page={cur.kind} />}
       <div style={{ zoom: scale, '--tb-zoom': scale }} data-testid="tb-content">
         {cur.kind === 'toc' && <TocPage ctx={ctx} />}
         {cur.kind === 'review' && <ReviewPage ctx={ctx} />}

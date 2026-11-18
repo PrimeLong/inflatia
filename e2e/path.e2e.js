@@ -1269,7 +1269,8 @@ test('ПК от 1024 px: Путь в две колонки, у главы уче
     // страницу прокрутили вниз — панель закреплена у верха и целиком на экране
     await page.evaluate(() => window.scrollTo(0, 1500));
     await page.waitForTimeout(200);
-    await aside.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    // разделы открытой главы — прямо под ней в оглавлении (редизайн 18.11): докручиваем панель до последнего раздела
+    await aside.evaluate((el) => { const li = el.querySelector('[data-testid="tb-sections"] li:last-child'); const r = li.getBoundingClientRect(); const a = el.getBoundingClientRect(); el.scrollTop += r.bottom - a.bottom + 8; });
     const last = page.getByTestId('tb-sections').locator('li').last();
     await expect(last).toBeInViewport();
     const ab = await aside.boundingBox();

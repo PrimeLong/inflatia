@@ -657,6 +657,38 @@ test('учебник: пока график едет за ползунком, п
   expect(errors).toEqual([]);
 });
 
+// замечание владельца 18.11, вечер, п. 20: «не нравится, как выглядит оглавление в учебнике, нужен редизайн; очень много лишнего
+// места вместо чтения»: главы — карточками с цветом юнита; у главы шрифт и музыка — в строке обложки (ПК), разделы — лентой
+// (телефон), текст главы начинается на первом экране
+test('учебник: оглавление карточками, глава без лишнего места — текст на первом экране', async ({ page, isMobile }) => {
+  const { errors } = await openApp(page);
+  await openBook(page);
+  const cards = page.getByTestId('textbook').locator('.tbl-chs .tbl-ch');
+  expect(await cards.count()).toBeGreaterThan(10);
+  expect(await cards.first().evaluate((el) => getComputedStyle(el).getPropertyValue('--u').trim())).not.toBe('');
+  expect(await cards.first().evaluate((el) => getComputedStyle(el, '::before').height)).toBe('4px');
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+  const ch = page.getByTestId('chapter');
+  await expect(ch).toBeVisible();
+  const vp = page.viewportSize();
+  const firstP = ch.locator('.tb-ch-main p').first();
+  const top = (await firstP.boundingBox()).y;
+  expect(top, 'первый абзац главы — на первом экране').toBeLessThan(vp.height * (isMobile ? 0.62 : 0.3));
+  if (isMobile) {
+    // разделы — лентой: все в одной строке
+    const ys = await ch.getByTestId('tb-sections').locator('li').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(new Set(ys).size).toBe(1);
+  } else {
+    // шрифт и музыка — в строке обложки, а не отдельной строкой над ней
+    const bar = await page.getByTestId('tb-reader-bar').boundingBox(); const cover = await ch.getByTestId('chapter-cover').boundingBox();
+    expect(bar.y).toBeGreaterThanOrEqual(cover.y);
+    expect(bar.y + bar.height).toBeLessThanOrEqual(cover.y + cover.height);
+    // разделы открытой главы — под ней в оглавлении
+    await expect(ch.getByTestId('tb-side-toc').locator('[aria-current="page"] + .tb-chtoc-secs [data-testid="tb-sections"]')).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
+
 // замечания владельца 18.11, вечер: «отдалял, потом приблизил — сломанный график в прямую превратился», «странно обрывается,
 // когда ты что-то сместил, исчезает значение на конце», «зачем такое далёкое отдаление с миллионами», «анимаций нет, когда
 // дёргаешь ползунки», «нет флажка жалобы»

@@ -339,6 +339,66 @@ export const TEXTBOOK_CSS = `
     .ln-textbook.wide .tb-body { font-size: 16px; }
     .ln-textbook.wide .tb-ch-main.tb-body { font-size: 18px; }
   }
+  /* РЕДИЗАЙН ОГЛАВЛЕНИЯ И ГЛАВЫ (замечание владельца 18.11, вечер, п. 20: «мне не нравится, как выглядит оглавление в
+     учебнике, нужен редизайн; а ещё очень много лишнего места вместо чтения»).
+     Оглавление — уровни с крупным номером и главы карточками: полоса цвета юнита сверху, номер, название, задачи и
+     разделы, кольцо прогресса; карточка приподнимается под курсором. */
+  .tbl-parts { gap: 22px; }
+  .tbl-part { background: none; border: 0; padding: 0; }
+  .tbl-part-title { padding: 0 2px 4px; font-size: 13px; }
+  .tbl-level-text { padding: 0 2px 10px; }
+  .tbl-chs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 10px; }
+  .tbl-chs .tbl-ch { position: relative; overflow: hidden; border: 1px solid var(--ds-rule2); border-radius: 14px; background: var(--ds-card); padding: 14px 12px 12px 14px;
+    align-items: start; box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-ink) 5%, transparent); transition: transform .16s ease, box-shadow .16s ease, border-color .16s; }
+  .tbl-chs .tbl-ch::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--u, var(--ds-rule2)); opacity: .85; }
+  .tbl-chs .tbl-ch:hover { background: var(--ds-card); transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(0,0,0,.45); border-color: color-mix(in srgb, var(--u, var(--ds-rule2)) 45%, var(--ds-rule2)); }
+  .tbl-chs .tbl-ch.locked::before { background: var(--ds-rule2); }
+  .tbl-chs .tbl-no { border-color: color-mix(in srgb, var(--u, var(--ds-rule2)) 55%, var(--ds-rule2)); color: color-mix(in srgb, var(--u, var(--ds-ink2)) 75%, var(--ds-ink)); }
+  .tbl-chs .tbl-ch-title { font-size: 15px; }
+  .tbl-chs .tbl-ch-ring .fg { stroke: var(--u, var(--ds-ok)); }
+  @media (prefers-reduced-motion: reduce) { .tbl-chs .tbl-ch { transition: none; } .tbl-chs .tbl-ch:hover { transform: none; } }
+  @media (min-width: 1024px) { .ln-textbook.wide .tbl-parts { grid-template-columns: 1fr; } }
+  /* Глава на ПК: обложка тоньше, шрифт и музыка — в её строке справа (не отдельной строкой над ней), колонка текста —
+     посередине свободного места, оглавление легче: без коробки, у открытой главы — её разделы прямо под ней */
+  @media (min-width: 1024px) {
+    .ln-textbook.wide .tb-reader-bar[data-page="chapter"] { position: relative; z-index: 3; margin: 0 18px -60px auto !important; width: max-content; top: 30px; }
+    .ln-textbook.wide .tb-cover-in { padding: 10px 250px 10px 18px; grid-template-columns: auto minmax(0, 1fr); }
+    .ln-textbook.wide .tb-cover-art { order: -1; width: 64px; height: 64px; }
+    .ln-textbook.wide .tb-cover-art svg { width: 60px; height: 60px; }
+    .ln-textbook.wide .tb-cover-title { font-size: 22px; margin: 2px 0 6px; }
+    .ln-textbook.wide .tb-cover { margin-bottom: 12px; }
+    .ln-textbook.wide .tb-ch-grid { grid-template-columns: 250px minmax(0, 1fr); gap: 28px; }
+    .ln-textbook.wide .tb-ch-main { margin: 0 auto; width: 100%; }
+    .ln-textbook.wide .tb-chtoc { border: 0; background: none; padding: 0 0 0 2px; }
+    .ln-textbook.wide .tb-chtoc .tb-secnav-head { font-weight: 800; letter-spacing: .12em; }
+    .ln-textbook.wide .tb-chtoc-part { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ds-ink3, var(--c-muted)); margin: 14px 0 4px; }
+    .ln-textbook.wide .tb-chtoc-row { padding: 6px 8px 6px 4px; border-radius: 10px; position: relative; }
+    .ln-textbook.wide .tb-chtoc-row:hover { background: color-mix(in srgb, var(--u, var(--c-gold)) 8%, transparent); }
+    .ln-textbook.wide .tb-chtoc-row[aria-current="page"] { background: color-mix(in srgb, var(--u, var(--c-gold)) 13%, transparent); }
+    .ln-textbook.wide .tb-chtoc-row[aria-current="page"]::before { content: ''; position: absolute; left: -2px; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--u, var(--c-gold)); }
+    .ln-textbook.wide .tb-chtoc-secs { margin: 2px 0 8px 14px; padding-left: 12px; border-left: 1px solid var(--ds-rule2, var(--c-border)); }
+    .ln-textbook.wide .tb-chtoc-secs .tb-secnav { border: 0; background: none; padding: 0; margin: 0; }
+    .ln-textbook.wide .tb-chtoc-secs .tb-secnav-head { display: none; }
+    .ln-textbook.wide .tb-chtoc-secs .tb-secnav-row { padding: 5px 2px; font-size: 13px; border-top: 0; }
+    .ln-textbook.wide .tb-chtoc-secs .tb-secnav-no { width: 18px; height: 18px; font-size: 11px; }
+  }
+  /* Телефон и планшет: «В этой главе» — лентой разделов, которую листают вбок (а не столбиком на пол-экрана), обложка
+     ниже и плотнее: текст главы начинается на первом экране */
+  @media (max-width: 1023px) {
+    .tb-cover-in { padding: 10px 12px 9px; }
+    .tb-cover-art { width: 64px; height: 64px; } .tb-cover-art svg { width: 60px; height: 60px; }
+    .tb-cover-title { font-size: 21px; margin: 2px 0 6px; }
+    .tb-cover { margin-bottom: 10px; }
+    .tb-reader-bar[data-page="chapter"] { margin-bottom: 8px !important; }
+    .tb-ch-aside .tb-secnav { padding: 8px 0 4px; margin: 0 0 12px; border-left: 0; border-right: 0; border-radius: 0; background: none; }
+    .tb-ch-aside .tb-secnav-head { padding: 0 2px; margin-bottom: 2px; }
+    .tb-ch-aside .tb-secnav-list { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x proximity; padding: 4px 2px 8px; margin: 4px 0 0; scrollbar-width: none; }
+    .tb-ch-aside .tb-secnav-list::-webkit-scrollbar { display: none; }
+    .tb-ch-aside .tb-secnav-list li { flex: none; scroll-snap-align: start; }
+    .tb-ch-aside .tb-secnav-row { display: inline-flex; width: auto; gap: 6px; padding: 7px 12px 7px 7px; border: 1px solid var(--c-border); border-radius: 999px; background: var(--c-panel); white-space: nowrap; font-size: 13.5px; }
+    .tb-ch-aside .tb-secnav-list li:first-child .tb-secnav-row { border-top: 1px solid var(--c-border); }
+    .tb-ch-aside .tb-secnav-min { font-size: 11.5px; }
+  }
 `;
 
 export const PLAY_CSS = `
