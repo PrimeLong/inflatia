@@ -183,11 +183,11 @@ function Wardrobe({ learn, wear, onWear }) {
               <div className="rw-slots" role="tablist" aria-label="Место вещи">
                 {slots.map((k) => {
                   const n = list.filter((o) => o.slot === k).length;
-                  return <button key={k} type="button" role="tab" aria-selected={slot === k} disabled={!n} data-slot={k} onClick={() => { Audio.play('tick'); setSlot(k); }}>{SLOT_LABEL[k]} <b>{n}</b></button>;
+                  return <button key={k} type="button" role="tab" aria-selected={slot === k} disabled={!n} data-slot={k} onClick={() => { if (slot === k) return; Audio.play('tick'); setSlot(k); }}>{SLOT_LABEL[k]} <b>{n}</b></button>;
                 })}
               </div>
               <div className="rw-tiles" role="group" aria-label={`Вещи: ${SLOT_LABEL[slot].toLowerCase()}`}>
-                <button type="button" className="rw-tile none" aria-pressed={!wear[slot]} data-testid="wardrobe-none" onClick={() => onWear(slot, null)}>Без вещи</button>
+                <button type="button" className="rw-tile none" aria-pressed={!wear[slot]} data-testid="wardrobe-none" onClick={() => { if (wear[slot]) onWear(slot, null); }}>Без вещи</button>
                 {here.map((o) => {
                   const on = wear[o.slot] === o.id;
                   return (
@@ -362,7 +362,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
     <div className="ln-wrap" data-testid="shop" data-view={view} data-tab={view === 'shop' ? tab : undefined}>
       <h1 className="ds-sr">{view === 'garden' ? 'Сад Инфли' : 'Лавка'}</h1>
       <div>
-        <ShopSwitch view={view} onView={(v) => { Audio.play('paper'); setView(v); setMsg(null); }} learn={learn} gardenLocked={!featureOpen(learn, 'garden')} />
+        <ShopSwitch view={view} onView={(v) => { if (v === view) return; Audio.play('paper'); setView(v); setMsg(null); }} learn={learn} gardenLocked={!featureOpen(learn, 'garden')} />
         {/* сад и копилка открываются не сразу (src/learn/unlocks.js): до того — карточка «откроется после N-го урока» */}
         {view === 'garden' ? (featureOpen(learn, 'garden')
           ? <React.Suspense fallback={<div className="ds-sub" style={{ padding: 20 }}>Сад загружается…</div>}><GardenView learn={learn} update={update} /></React.Suspense>
@@ -729,13 +729,13 @@ function PiggyCard({ learn, update, now, b, onMsg }) {
             </div>
             {/* вид вклада — с итогом для этой суммы: сравнение честное, цифрами */}
             <div className="rw-kinds" role="group" aria-label="Вид вклада">
-              <button type="button" aria-pressed={!topup} data-testid="piggy-kind-fixed" onClick={() => { Audio.play('tick'); setTopup(false); }}>
+              <button type="button" aria-pressed={!topup} data-testid="piggy-kind-fixed" onClick={() => { if (!topup) return; Audio.play('tick'); setTopup(false); }}>
                 <span className="t"><Lock size={14} aria-hidden="true" /> Срочный</span>
                 <b>{fmtPct(rateNow)} в день</b>
                 <span className="res">{n} → <em>{fixedEnd}</em> <i>+{fixedEnd - n}</i></span>
                 <small>Больше процент, но докладывать нельзя</small>
               </button>
-              <button type="button" aria-pressed={topup} data-testid="piggy-kind-topup" onClick={() => { Audio.play('tick'); setTopup(true); }}>
+              <button type="button" aria-pressed={topup} data-testid="piggy-kind-topup" onClick={() => { if (topup) return; Audio.play('tick'); setTopup(true); }}>
                 <span className="t"><Plus size={14} aria-hidden="true" /> Пополняемый</span>
                 <b>{fmtPct(rTop)} в день</b>
                 <span className="res">{n} → <em>{topEnd}</em> <i>+{topEnd - n}</i></span>
