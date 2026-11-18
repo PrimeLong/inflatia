@@ -397,7 +397,7 @@ export const TEXTBOOK_CSS = `
     .tb-ch-aside .tb-secnav-list li { flex: none; scroll-snap-align: start; }
     .tb-ch-aside .tb-secnav-row { display: inline-flex; width: auto; gap: 6px; padding: 7px 12px 7px 7px; border: 1px solid var(--c-border); border-radius: 999px; background: var(--c-panel); white-space: nowrap; font-size: 13.5px; }
     .tb-ch-aside .tb-secnav-list li:first-child .tb-secnav-row { border-top: 1px solid var(--c-border); }
-    .tb-ch-aside .tb-secnav-min { font-size: 11.5px; }
+    .tb-ch-aside .tb-secnav-min { font-size: 12px; }
   }
 `;
 

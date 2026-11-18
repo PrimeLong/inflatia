@@ -13,7 +13,7 @@ export { LATEST_NEWS_HEAD, learnerSince, newsForLearner, NEWS_SEEN_PREFIX, readN
 
 export const NEWS = [
   {
-    id: '2026-11-18-evening', date: '2026-11-18', at: '2026-11-18T22:30:00Z', icon: 'store', color: '#C9A43A',
+    id: '2026-11-18-evening', date: '2026-11-18', at: '2026-11-18T22:30:00Z', icon: 'store', color: '#9A7413',
     title: 'Пластинки в лавке, новый учебник и честный график на весь экран',
     lead: 'В лавке — полка пластинок, учебник стал просторнее для чтения, график на весь экран — без обрывов и с плавными ползунками, а в «Мире» — кнопка «Сообщить об ошибке».',
     items: [
