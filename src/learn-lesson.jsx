@@ -525,7 +525,7 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
           {inst.items.map((it) => (
-            <div key={it.key} style={{ border: `2px solid ${fb ? (r[it.key] === it.bin ? 'var(--ds-ok)' : 'var(--ds-bad)') : 'var(--ds-rule2)'}`, borderRadius: 14, padding: '9px 11px', margin: '9px 0', background: 'var(--ds-card)' }}>
+            <div key={it.key} className="ln-sort-item" data-testid="sort-item" style={{ border: `2px solid ${fb ? (r[it.key] === it.bin ? 'var(--ds-ok)' : 'var(--ds-bad)') : 'var(--sk-edge, var(--ds-rule2))'}`, borderRadius: 'var(--sk-radius, 14px)', padding: '9px 11px', margin: '9px 0', background: 'var(--sk-surface, var(--ds-card))' }}>
               <div style={{ fontSize: 14.5, marginBottom: 4 }}><Inline nodes={it.text} ctx={ctx} /></div>
               <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                 {inst.bins.map((b) => (

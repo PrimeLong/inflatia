@@ -55,6 +55,19 @@ export const SKIN_CSS = `
   .sk-on[data-skin="blueprint"] { --sk-surface: rgba(14,58,102,.9); --sk-edge: rgba(255,255,255,.5); --sk-radius: 4px; --sk-accent: #FFD166; --chart-halo: #0E3A66; }
   .sk-on[data-skin="mint"] { --sk-surface: #FFFBF0; --sk-edge: #D9C48F; --sk-radius: 14px; --sk-accent: #9A7413; --chart-halo: #FFFBF0; }
   .sk-on :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task, .dl-table, .pp-frame) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); }
+  /* и задания (жалобы учеников 17.11: «карточки „Слов“ не под тему урока», «странный дизайн пар не по теме», «сортировка не по
+     стилю урока», «инструкция мини-игры не в стиле»): карточка слова, «Как играть», строки пар, карточки сортировки и фишки —
+     поверхность и рамка темы; цвет юнита (розовый у «Сберкассы») в теме заменяет её акцент */
+  .sk-on:not(.sk-preview) :is(.lp-word, .lp-howto, .ln-m2-row, .ln-m2-bank, .lp-game-stage, .lp-trial) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); }
+  .sk-on :is(.lp-word, .lp-word-dots, .lp-howto, .ln-m2-rows, .ln-m2-bank, .ln-sort-item, .lp-game, .lp-trial) { --u: var(--sk-accent); --u-ink: var(--sk-accent); }
+  .sk-on:not(.sk-preview) .lp-word { border-top: 4px solid var(--sk-accent); box-shadow: 0 14px 30px -18px rgba(0,0,0,.6); }
+  .sk-on :is(.ln-sort-item .ds-chip, .ln-m2-slot) { background: color-mix(in srgb, var(--sk-surface) 70%, transparent); border-color: var(--sk-edge); color: inherit; border-radius: calc(var(--sk-radius) * .7); }
+  .sk-on .ln-sort-item .ds-chip[aria-pressed="true"] { background: var(--sk-accent); border-color: var(--sk-accent); color: var(--sk-on-accent, #04140C); }
+  .sk-on .ds-btn--secondary:not(:disabled) { background: var(--sk-surface); border-color: var(--sk-edge); color: inherit; border-radius: var(--sk-radius); }
+  .sk-on[data-skin="mint"] { --sk-on-accent: #FFFBF0; }
+  .sk-on[data-skin="exchange"] :is(.lp-word-term, .lp-howto, .lp-trial-card, .ln-sort-item, .ln-m2-row) { font-family: var(--ds-mono); }
+  .sk-on[data-skin="blueprint"] :is(.lp-word, .lp-howto, .ln-m2-row, .ln-sort-item) { border-style: dashed !important; }
+  .sk-on[data-skin="aurora"] :is(.lp-word, .lp-howto, .ln-m2-row, .ln-sort-item) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
   .sk-on[data-skin="aurora"] :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 18px 40px -24px rgba(0,0,0,.7); }
   .sk-on[data-skin="blueprint"] :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task) { border-style: dashed; border-width: 1.5px; }
   .sk-on[data-skin="exchange"] :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task) { box-shadow: 0 0 0 1px rgba(25,195,125,.08), 0 0 30px rgba(25,195,125,.06); }
