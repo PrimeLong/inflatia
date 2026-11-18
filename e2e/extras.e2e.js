@@ -1499,3 +1499,41 @@ test('«Нарисуй сам»: линию проводят — от перво
   await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
   expect(errors).toEqual([]);
 });
+
+// жалобы 18.11 (draw-inflation): «две точки — пунктиром прямая, а не кривая, ведь тут сложный процент»; «кнопки на весь экран
+// не по стилю»; «страшное открытие на весь экран» — шапка с названием, шагом и крестиком, кнопки одной системы с плоскостью
+test('«Нарисуй сам», сложный процент: пунктир через две точки — кривая; на весь экран — шапка с названием и крестиком', async ({ page }) => {
+  test.setTimeout(120000);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000; const ids = ['sc-i1','sc-i1b','sc-i2','sc-l1','sc-l2','sc-l3','sc-l4','sc-l5','sc-l6','sc-w','sc-s1','sc-radio','sc-l-radio','sc-g','sc-rev','sc-sum','lm-i1','lm-i1b','lm-i2','lm-l1','lm-l2','lm-l3','lm-l4','lm-l5','lm-l6','lm-w','lm-s1','lm-radio','lm-l-radio','lm-g','lm-rev','lm-sum','hh-i1','hh-i1b','hh-i2','hh-l1','hh-l2','hh-l3','hh-l4','hh-l5','hh-l6','hh-w','hh-s1','hh-radio','hh-l-radio','hh-g','hh-rev','hh-sum','sd-i1','sd-i1b','sd-i2','sd-l1','sd-l2','sd-l3','sd-l4','sd-l5','sd-l6','sd-w','sd-s1','sd-radio','sd-l-radio','sd-g','sd-rev','sd-sum','el-i1','el-i1b','el-i2','el-l1','el-l2','el-l3','el-l4','el-l5','el-l6','el-w','el-s1','el-radio','el-l-radio','el-g','el-rev','el-sum','mf-i1','mf-i1b','mf-i2','mf-l1','mf-l2','mf-l3','mf-l4','mf-l5','mf-l6','mf-w','mf-s1','mf-radio','mf-l-radio','mf-g','mf-rev','mf-sum','mb-i1','mb-i1b','mb-i2','mb-l1','mb-l2','mb-l3','mb-l4','mb-l5','mb-l6','mb-w','mb-s1','mb-radio','mb-l-radio','mb-g','mb-rev','mb-sum','in-i1','in-i1b','in-i2','in-l1','in-l2','in-l3','in-l4','in-l5','in-l6','in-w','in-s1','in-radio','in-l-radio','in-g','in-rev','in-sum'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), levels: { start: { at } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'inflation');
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"][data-id="draw-inflation"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  const ink = g.getByTestId('draw-ink');
+  await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const at = async (vx, vy) => ink.evaluate((svg, [x, y]) => { const q = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [vx, vy]);
+  const [[ax, ay], [bx, by]] = JSON.parse(await ink.getAttribute('data-answer')).pts;
+  const [x1, y1] = await at(ax, ay); const [x2, y2] = await at(bx, by);
+  await page.mouse.click(x1, y1); await page.waitForTimeout(150); await page.mouse.click(x2, y2);
+  const through = g.getByTestId('draw-through');
+  await expect(through).toHaveAttribute('data-shape', 'curve');
+  // пунктир не прямой: середина дуги ниже хорды (цены растут всё быстрее)
+  const bend = await through.evaluate((p) => { const L = p.getTotalLength(); const a = p.getPointAtLength(0); const b = p.getPointAtLength(L); const m = p.getPointAtLength(L / 2); return m.y - (a.y + b.y) / 2; });
+  expect(Math.abs(bend)).toBeGreaterThan(2);
+  // кнопка «На весь экран» — в системе кнопок плоскости, масштаб — одной капсулой
+  await expect(g.getByTestId('draw-full')).toHaveClass(/accent/);
+  await expect(g.locator('.dl-seg')).toBeVisible();
+  await g.getByTestId('draw-full').click();
+  const head = g.getByTestId('draw-full-head');
+  await expect(head).toContainText('Нарисуй сам'); await expect(head).toContainText('Цены и вклад'); await expect(head).toContainText('Шаг 1 из 4');
+  await head.getByTestId('draw-full-exit').click();
+  await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'false');
+  expect(errors).toEqual([]);
+});
+

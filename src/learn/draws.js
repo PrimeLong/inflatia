@@ -229,8 +229,8 @@ export const DRAWS = [
         hint: 'Над пятым годом поднимитесь до кривой цен — она ниже кривой вклада.',
         done: '≈ **146,9** кроны, а на вкладе 161,1: по покупкам сбережения выросли примерно на 10%.' },
       { do: 'point', el: 'pt:176,2', values: { pi: 12 }, hide: ['pt:146,9'], add: ['pt:176,2'],
-        text: 'Инфляция выросла до **12% в год**. Отметьте цену корзины через пять лет.',
-        hint: 'Кривая цен поднялась — над пятым годом она теперь выше кривой вклада.',
+        text: 'Инфляция выросла до **12% в год** — кривая цен на графике перестроилась. Каждый год цена умножается на 1,12: 100 → 112 → 125,4 → 140,5 → 157,4 → … Отметьте цену корзины через **пять лет**.',
+        hint: 'Последний шаг цепочки: 157,4 · 1,12 ≈ 176. Над пятым годом поднимитесь до новой кривой цен — теперь она выше кривой вклада.',
         done: '≈ **176,2** — больше, чем на вкладе (161,1): крон на счёте больше, а корзин меньше. Реальная ставка ниже нуля.' },
     ],
   },
@@ -490,6 +490,39 @@ export function checkTask(d, t, ans) {
   return { ok: false, why: '' };
 }
 // правильный ответ — для «вот как надо» после второй ошибки и для тестов
+/* Пунктир через две точки ученика — той же формы, что нужная линия (жалоба mwm301op, draw-inflation: «когда ты поставил
+   две точки, нарисовалась пунктиром прямая, а не кривая, ведь тут сложный процент»). Нужная линия прямая — пунктир прямой
+   (null: рисует сам урок). Кривая — её форма f(x) (функция кривой или ломаная её точек) растягивается по высоте и
+   сдвигается так, чтобы пройти ровно через обе точки: y = α + β·f(x). Точки на кривой — пунктир совпадает с ней;
+   мимо — такая же дуга, но через точки ученика. Возвращает точки пунктира от x0 до x1 или null. */
+export function previewCurve(c, a, b, [x0, x1], n = 80) {
+  if (!c || !a || !b || !c.points || c.points.length < 3) return null;
+  const pts = [...c.points].sort((p, q) => p.x - q.x);
+  const straight = (() => {
+    const p = pts[0]; const q = pts[pts.length - 1];
+    const sx = Math.max(1e-12, q.x - p.x); const sy = Math.max(1e-12, ...pts.map((r) => Math.abs(r.y - p.y)));
+    return pts.every((r) => Math.abs(((r.x - p.x) / sx) * ((q.y - p.y) / sy) - (r.y - p.y) / sy) < 1e-6);
+  })();
+  if (straight) return null;
+  const lo = pts[0].x; const hi = pts[pts.length - 1].x;
+  const poly = (x) => {
+    if (x <= lo) return pts[0].y; if (x >= hi) return pts[pts.length - 1].y;
+    let k = 1; while (k < pts.length - 1 && pts[k].x < x) k += 1;
+    const p = pts[k - 1]; const q = pts[k]; const u = q.x > p.x ? (x - p.x) / (q.x - p.x) : 0;
+    return p.y + (q.y - p.y) * u;
+  };
+  const f = typeof c.fn === 'function' ? c.fn : poly;
+  const fa = f(a.x); const fb = f(b.x);
+  if (!Number.isFinite(fa) || !Number.isFinite(fb) || Math.abs(fb - fa) < 1e-9 || Math.abs(b.x - a.x) < 1e-9) return null;
+  const beta = (b.y - a.y) / (fb - fa); const alpha = a.y - beta * fa;
+  const [d0, d1] = typeof c.fn === 'function' ? (c.dom || [-Infinity, Infinity]) : [lo, hi];
+  const from = Math.max(x0, d0); const to = Math.min(x1, d1);
+  if (!(to > from)) return null;
+  const out = [];
+  for (let i = 0; i <= n; i += 1) { const x = from + ((to - from) * i) / n; const y = alpha + beta * f(x); if (Number.isFinite(y)) out.push({ x, y }); }
+  return out.length > 1 ? out : null;
+}
+
 export function solveTask(d, t) {
   const values = t.values || {};
   const sc = drawScene(d, values);

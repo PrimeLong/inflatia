@@ -2,7 +2,7 @@
    верный ответ засчитывается, неверный — нет; правильный ответ, который показывают после второй ошибки,
    сам проходит проверку. */
 import { describe, it, expect } from 'vitest';
-import { DRAWS, DRAW_BY_UNIT, DRAW_XP, checkTask, solveTask, snapTo, drawScene, taskTarget, drawTour } from '../draws.js';
+import { DRAWS, DRAW_BY_UNIT, DRAW_XP, checkTask, solveTask, snapTo, drawScene, taskTarget, drawTour, previewCurve } from '../draws.js';
 import { CHARTS } from '../../textbook/charts.js';
 import { UNIT_BY_ID, pathState } from '../course.js';
 import { unitStops, extraLocks } from '../stops.js';
@@ -182,5 +182,31 @@ describe('разбор графика: оси одни на весь урок', 
     const src = readFileSync(new URL('../../learn-graph.jsx', import.meta.url), 'utf8');
     expect(src).toMatch(/<polygon className=\{`sweep/);
     expect(src).toMatch(/@keyframes g-sweep \{ from \{ clip-path: inset\(0 100% 0 0\)/);
+  });
+
+  // жалобы 18.11 (draw-inflation): «две точки — пунктиром прямая, а не кривая, ведь тут сложный процент»; шаг 4 — «откуда я знать должен»
+  it('пунктир через две точки — той же формы, что нужная кривая: на кривой — совпадает с ней, у прямой — прямой', () => {
+    const d = DRAWS.find((q) => q.id === 'draw-inflation');
+    const c = drawScene(d, {}).curves.find((q) => q.id === 'P');
+    const fn = (x) => 100 * 1.08 ** x;
+    const pv = previewCurve(c, { x: 1, y: fn(1) }, { x: 5, y: fn(5) }, [0, 5]);
+    expect(pv.length).toBeGreaterThan(20);
+    for (const q of pv) expect(q.y).toBeCloseTo(fn(q.x), 6);
+    // мимо кривой — такая же выпуклая дуга, но ровно через точки ученика
+    const off = previewCurve(c, { x: 1, y: 110 }, { x: 5, y: 150 }, [0, 5]);
+    const at = (x) => off.reduce((b, q) => (Math.abs(q.x - x) < Math.abs(b.x - x) ? q : b));
+    expect(at(1).y).toBeCloseTo(110, 0); expect(at(5).y).toBeCloseTo(150, 0);
+    const mid = at(3).y; expect(mid).toBeLessThan((110 + 150) / 2);   // выпукла вниз, как сложный процент
+    // прямая (спрос) — пунктир рисует сам урок, прямой
+    const sd = DRAWS.find((q) => q.id === 'draw-sd');
+    expect(previewCurve(drawScene(sd, {}).curves.find((q) => q.id === 'D'), { x: 10, y: 50 }, { x: 40, y: 20 }, [0, 100])).toBe(null);
+  });
+  it('draw-inflation, шаг 4: в условии — как посчитать цену при 12% (цепочка умножений), в подсказке — последний шаг', () => {
+    const t = DRAWS.find((q) => q.id === 'draw-inflation').tasks[3];
+    expect(t.text).toContain('1,12'); expect(t.text).toContain('157,4');
+    expect(t.hint).toContain('176');
+    let x = 100; const chain = [];
+    for (let k = 0; k < 4; k += 1) { x *= 1.12; chain.push(Math.round(x * 10) / 10); }
+    expect(chain.map((v) => String(v).replace('.', ','))).toEqual(['112', '125,4', '140,5', '157,4']);
   });
 });
