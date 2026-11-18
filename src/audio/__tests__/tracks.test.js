@@ -138,9 +138,10 @@ describe('звуковой движок без Web Audio', () => {
   it('«Волна»: случайный выбор из пяти настроений; начало — всегда спокойное; переходы плавные, без повторов подряд', async () => {
     const { waveNext, WAVE_ENERGY, WAVE_RECENT } = await import('../tracks.js');
     const { seededRandom } = await import('../../research/randomize.js');
-    const moods = [...new Set(Object.values(TRACKS).map((t) => t.mood))];
+    const moods = [...new Set(Object.values(TRACKS).map((t) => t.mood))].filter((m) => m !== 'records');
     // в волне — ВСЕ пьесы саундтрека, и «Война», и «Кризис» (пункт владельца 18.11: «должны все и война и кризис»)
-    expect([...MOOD_PLAYLISTS.wave].sort()).toEqual(Object.keys(TRACKS).sort());
+    // кроме пластинок лавки: их слушают только купившие — миксом «Пластинки»
+    expect([...MOOD_PLAYLISTS.wave].sort()).toEqual(Object.keys(TRACKS).filter((id) => TRACKS[id].mood !== 'records').sort());
     for (const id of ['anthem', 'firstlesson', 'chalkboard', 'openingbell', 'residence', 'graduation', 'anchor', 'warmarch', 'ironmarch', 'collapse', 'decree', 'bankrun', 'marginwire', 'thinvolume']) expect(MOOD_PLAYLISTS.wave).toContain(id);
     moods.forEach((m) => expect(WAVE_ENERGY[m], m).toBeGreaterThan(0));
     expect(MOOD_LABEL.wave).toBe('Волна');

@@ -70,8 +70,11 @@ export function createAudioEngine(options = {}) {
   const isWave = () => lockedMood === 'wave';
   const waveUpcoming = () => waveUp || (waveUp = waveNext(waveHist, { likes, rnd }));
   let roleId = null;
+  // купленные пластинки лавки (src/audio/tracks.js, RECORDS): микс «Пластинки» — только из них
+  let ownedRecords = [];
   const listOf = (m) => (
-    (roleId && ROLE_PLAYLISTS[roleId] && ROLE_PLAYLISTS[roleId][m])
+    m === 'records' ? (ownedRecords.length ? ownedRecords : MOOD_PLAYLISTS.calm)
+      : (roleId && ROLE_PLAYLISTS[roleId] && ROLE_PLAYLISTS[roleId][m])
     || MOOD_PLAYLISTS[m] || MOOD_PLAYLISTS.calm
   );
   let pending = null; let tempoMod = 1; let tempoTarget = 1; let intensity = 0.3;
@@ -1264,6 +1267,9 @@ export function createAudioEngine(options = {}) {
       if (duckGain && ctx) duckGain.gain.setTargetAtTime(ducked ? DUCK_LEVEL : 1, now(), ducked ? 0.12 : 0.45);
     },
     get ducked() { return ducked; },
+    // какие пластинки куплены (id пьес): экран передаёт их из прогресса ученика
+    setRecords(ids) { ownedRecords = (Array.isArray(ids) ? ids : []).filter((id) => TRACKS[id] && TRACKS[id].mood === 'records'); notify(); },
+    records: () => [...ownedRecords],
     levels(n = 48) {
       if (!analyser || !running) return null;
       const d = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(d);
@@ -1291,7 +1297,7 @@ export function createAudioEngine(options = {}) {
     playTrack(id) { if (!ensure()) return; resume(); pending = id; pendingKind = 'cut'; const list = listOf(lockedMood || mood); const i = list.indexOf(id); if (i >= 0) playlistIdx = i; if (!running) this.startMusic(); },
     setPlaylist(moodId) {
       lockedMood = moodId || null;
-      const list = MOOD_PLAYLISTS[lockedMood || mood] || MOOD_PLAYLISTS.calm;
+      const list = listOf(lockedMood || mood);
       // «Волна» начинается заново: спокойная пьеса, случайная (лайкнутые — чаще)
       if (isWave()) { waveHist = []; waveUp = null; waveBack = false; playlistIdx = 0; queue(waveNext([], { likes, rnd })); notify(); if (!running && opts.music) this.startMusic(); return; }
       playlistIdx = 0; queue(list[0]); notify();

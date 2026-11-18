@@ -3,6 +3,7 @@
    платите вы монетами по курсу дня — он колеблется вокруг единицы и тянется к ней обратно.
    Модуль чистый: всё считается из состояния учёбы (learn-state.js); каждая награда выдаётся
    под ключом (claimed) — ни дважды, ни на двух устройствах. Экраны — src/learn.jsx. */
+import { RECORDS } from '../audio/records.js';
 import { dayOf, addDays, streak, longestStreak, dailyOf, DIAMOND_ACCURACY, goalMinutes, goalToday, PREMIUM, policyActive, weekOf, diamondCount } from '../textbook/learn-state.js';
 import { plural } from '../lib/plural.js';
 import { isUnlocked } from './unlocks.js';
@@ -172,6 +173,8 @@ export const OUTFITS = [
   { id: 'desk-bunting', slot: 'desk', title: 'Гирлянда флажков', note: 'Потяните — флажки закачаются; верный ответ — порыв ветра', crowns: 1300, rare: true },
   { id: 'desk-cradle', slot: 'desk', title: 'Колыбель Ньютона', note: 'Оттяните один шарик или сразу несколько — столько же вылетит с другой стороны; толкните крайний внутрь — закачаются все; верный ответ щёлкает сам', crowns: 1500, rare: true },
   { id: 'desk-mobile', slot: 'desk', title: 'Мобиле из монет', note: 'Коснитесь монетки — закрутится; верный ответ — все вспыхнут', crowns: 1650, rare: true },
+  // пластинки: запись-пьеса для обучения — микс «Пластинки» в проигрывателе (замечание владельца 18.11, вечер, п. 4)
+  ...RECORDS.map((r) => ({ id: r.id, slot: 'record', title: `Пластинка «${r.name}»`, note: r.subtitle, crowns: r.crowns, rare: true, track: r.track })),
   /* ТЕМЫ УРОКА (src/learn-skins.jsx): урок целиком — живой фон, свои кнопки вариантов и отклик на ответ.
      Место «theme», одна на все уроки; тоже не на Инфле и не в гардеробе. */
   { id: 'theme-mint', slot: 'theme', title: 'Тема «Монетный двор»', note: 'Гильош вращается, золотая пыль; варианты — банкноты; верный ответ — падает монета', crowns: 1350, rare: true },
@@ -192,9 +195,12 @@ export const OUTFITS = [
 export const SEASON_ITEMS = OUTFITS.filter((o) => o.season === 'halloween' && !o.reward).map((o) => o.id);
 export const OUTFIT_BY_ID = Object.fromEntries(OUTFITS.map((o) => [o.id, o]));
 export const DESK_ITEMS = OUTFITS.filter((o) => o.slot === 'desk').map((o) => o.id);
+// пластинки лавки (src/audio/tracks.js, RECORDS): играют записями; в продаже — только те, чей файл уже лежит в public/music
+export const RECORD_ITEMS = OUTFITS.filter((o) => o.slot === 'record').map((o) => o.id);
+export const ownedRecordTracks = (s) => RECORD_ITEMS.filter((id) => (s.owned || {})[id]).map((id) => OUTFIT_BY_ID[id].track);
 export const THEME_ITEMS = OUTFITS.filter((o) => o.slot === 'theme').map((o) => o.id);
 // для урока, а не для Инфли: вещицы на столе и темы
-export const LESSON_SLOTS = ['desk', 'theme'];
+export const LESSON_SLOTS = ['desk', 'theme', 'record'];
 // вещи Инфли — без украшений урока
 export const WARDROBE = OUTFITS.filter((o) => !LESSON_SLOTS.includes(o.slot));
 export const SLOT_LABEL = { head: 'Голова', face: 'Лицо', neck: 'Шея', hand: 'В руке', frame: 'Рамка' };
@@ -210,7 +216,7 @@ export function shopDay(s, day) {
   Object.entries((s && s.owned) || {}).forEach(([id, at]) => { if (!(typeof at === 'number' && at > 0 && dayOf(at) === day)) owned[id] = at; });
   const order = OUTFITS.filter((o) => !o.rare && !o.season).map((o) => ({ o, k: hash01(`shop:${day}:${o.id}`) })).sort((a, b) => a.k - b.k).map((x) => x.o.id);
   const showcase = order.filter((id) => !owned[id]).slice(0, SHOWCASE_SIZE);
-  return { showcase, deal: showcase[0] || null, rare: OUTFITS.filter((o) => o.rare && !o.season && !LESSON_SLOTS.includes(o.slot)).map((o) => o.id), desk: DESK_ITEMS, theme: THEME_ITEMS, season: halloweenOn(day) ? SEASON_ITEMS : [] };
+  return { showcase, deal: showcase[0] || null, rare: OUTFITS.filter((o) => o.rare && !o.season && !LESSON_SLOTS.includes(o.slot)).map((o) => o.id), desk: DESK_ITEMS, theme: THEME_ITEMS, records: RECORD_ITEMS, season: halloweenOn(day) ? SEASON_ITEMS : [] };
 }
 export const crownsOf = (id) => itemOf(id).crowns;
 /* ИНФЛЯЦИЯ В ЛАВКЕ (docs/mechanics.md, «Лавка»): цены вещей в кронах растут каждый месяц. Инфляция месяца —

@@ -746,7 +746,9 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
   const { MOOD_LABEL = {}, TRACKS: TRACK_META = {} } = Audio.meta() || {};
   const TRACK_NAMES = Object.fromEntries(Object.entries(TRACK_META).map(([id, t]) => [id, t.name]));
   const moods = [wave ? ['wave', 'Волна'] : ['auto', 'По режиму экономики'], ['calm', MOOD_LABEL.calm], ['boom', MOOD_LABEL.boom],
-    ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
+    ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war],
+    // купленные пластинки лавки — свой микс (в обучении)
+    ...(learn && Audio.records().length ? [['records', MOOD_LABEL.records || 'Пластинки']] : [])];
   return (
     <div style={{ position: 'relative' }}>
       <button ref={btnRef} className={className} style={{ padding: '7px 9px', minWidth: 44, minHeight: 44, display: 'inline-grid', placeItems: 'center', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid={testid} aria-label={label}

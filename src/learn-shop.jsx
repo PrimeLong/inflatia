@@ -15,6 +15,8 @@ import { Rosette } from './ds-art.jsx';
 import { ShopSwitch, RateWeek } from './learn-rate.jsx';
 import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
 import { DeskDecor } from './learn-decor.jsx';
+import MUSIC_FILES from 'virtual:music-files';
+import { setLearnMusic, setMusicPaused } from './ds-tokens.js';
 import { SkinPreview, SKIN_CSS } from './learn-skins.jsx';
 // сад — отдельный ленивый чанк: грузится, только когда открыли «Сад»
 const GardenView = React.lazy(() => import('./learn-garden.jsx').then((m) => ({ default: m.GardenView })));
@@ -123,9 +125,53 @@ function RateChart({ hist }) {
 /* ------------------------------ ЛАВКА ------------------------------ */
 // до полуночи по всемирному времени — когда обновится витрина
 const untilMidnight = (now) => { const m = dayStart(now) + 24 * 3600000 - now; const hh = Math.floor(m / 3600000); const mm = Math.floor((m % 3600000) / 60000); return `${hh} ч ${mm} мин`; };
+/* ПЛАСТИНКИ (замечание владельца 18.11, вечер, п. 4): в продаже — только те, чей файл уже лежит в public/music
+   (src/audio/records.js, music/README.md). Пластинка на витрине крутится и даёт послушать 20 секунд; купленная —
+   «Поставить»: музыка обучения включается миксом «Пластинки» с этой пьесы. */
+const MUSIC_HAVE = new Set(MUSIC_FILES || []);
+export const recordsFor = (ids, files) => ids.filter((id) => OUTFIT_BY_ID[id] && files.has(OUTFIT_BY_ID[id].track));
+export const recordsOnSale = (ids) => recordsFor(ids, MUSIC_HAVE);
+export const RECORD_CSS = `
+  .rw-vinyl { position: relative; width: 74px; height: 74px; margin: 2px auto 6px; border-radius: 50%; cursor: pointer; border: 0; padding: 0;
+    background: radial-gradient(circle, var(--rv, #C9A43A) 0 13px, #111 14px 15px, transparent 16px), repeating-radial-gradient(circle, #1d1d1d 0 1px, #2a2a2a 1px 3px);
+    box-shadow: 0 10px 20px -10px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.06); }
+  .rw-vinyl::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(130deg, rgba(255,255,255,.18), transparent 40%); }
+  .rw-vinyl.spin { animation: rw-vinyl 2.4s linear infinite; }
+  .rw-vinyl i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #111; }
+  .rw-vinyl-t { font: 600 11.5px var(--ds-sans); color: var(--ds-ink3); text-align: center; margin-top: -2px; }
+  @keyframes rw-vinyl { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .rw-vinyl.spin { animation: none; } }
+`;
+const RECORD_TINT = { 'rec-nights': '#7A5BD8', 'rec-gold': '#C9A43A', 'rec-aurora': '#2BE3A0', 'rec-gong': '#D2503C', 'rec-rain': '#5B8EC8', 'rec-funk': '#E07A2E' };
+let previewAudio = null;
+function RecordDisc({ o }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => () => { if (previewAudio && previewAudio.dataset && previewAudio.dataset.rec === o.id) { previewAudio.pause(); previewAudio = null; } }, [o.id]);
+  const toggle = () => {
+    if (on && previewAudio) { previewAudio.pause(); previewAudio = null; setOn(false); return; }
+    if (previewAudio) previewAudio.pause();
+    const a = new window.Audio(`/music/${o.track}.mp3`); a.dataset.rec = o.id; a.volume = 0.8; previewAudio = a;
+    Audio.duck(true);
+    const stop = () => { if (previewAudio === a) previewAudio = null; a.pause(); setOn(false); Audio.duck(false); };
+    a.addEventListener('ended', stop); a.addEventListener('pause', () => { setOn(false); Audio.duck(false); });
+    a.play().then(() => { setOn(true); setTimeout(() => { if (previewAudio === a) stop(); }, 20000); }).catch(() => stop());
+  };
+  return (
+    <>
+      <button type="button" className={`rw-vinyl${on ? ' spin' : ''}`} style={{ '--rv': RECORD_TINT[o.id] }} onClick={toggle} aria-pressed={on}
+        aria-label={on ? `Остановить: ${o.title}` : `Послушать 20 секунд: ${o.title}`} data-testid="record-preview"><i /></button>
+      <div className="rw-vinyl-t">{on ? 'играет — коснитесь, чтобы остановить' : 'коснитесь — 20 секунд'}</div>
+    </>
+  );
+}
+function playRecord(o) {
+  Audio.prime(); Audio.play('paper');
+  setMusicPaused(null); setLearnMusic(true);
+  Audio.setMusic(true); Audio.setPlaylist('records'); Audio.playTrack(o.track);
+}
 // карточка вещи: Инфля в ней, цена по курсу (со скидкой — старая зачёркнута), купить / надеть
 function ShopItem({ o, learn, day, wear, b, onBuy, onToggle, deal = false, goal = false, hw = null, calm = false }) {
-  const desk = o.slot === 'desk'; const theme = o.slot === 'theme';
+  const desk = o.slot === 'desk'; const theme = o.slot === 'theme'; const rec = o.slot === 'record';
   const owned = !!(learn.owned || {})[o.id]; const on = (desk ? deskOf(learn) : theme ? themeOf(learn) : wear[o.slot]) === o.id;
   const price = priceOf(o.id, day, learn); const full = priceOf(o.id, day);
   return (
@@ -133,12 +179,13 @@ function ShopItem({ o, learn, day, wear, b, onBuy, onToggle, deal = false, goal 
       {deal && !owned && !calm && <span className="rw-deal" data-testid="shop-deal">−{Math.round(DEAL_OFF * 100)}%</span>}
       {o.season ? <span className="rw-rare rw-season"><Ghost size={11} aria-hidden="true" />хеллоуин</span> : theme ? <span className="rw-rare rw-theme-tag"><Palette size={11} aria-hidden="true" />тема урока</span> : desk ? <span className="rw-rare rw-desk-tag"><Gem size={11} aria-hidden="true" />в урок</span> : o.rare && <span className="rw-rare"><Gem size={11} aria-hidden="true" />редкое</span>}
       {/* украшение урока — живое прямо на витрине: его можно потрогать до покупки */}
-      {theme ? <SkinPreview id={o.id} /> : desk ? <div className="rw-desk-stage"><DeskDecor id={o.id} height={64} preview label={`${o.title}: потрогайте`} /></div>
+      {rec ? <RecordDisc o={o} /> : theme ? <SkinPreview id={o.id} /> : desk ? <div className="rw-desk-stage"><DeskDecor id={o.id} height={64} preview label={`${o.title}: потрогайте`} /></div>
         : <Mascot mood="hello" size={o.rare ? 62 : 50} outfit={{ [o.slot]: o.id }} label={`Инфля: ${o.title}`} />}
       <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.25 }}>{o.title}</div>
       {o.note && <div className="rw-note">{o.note}</div>}
       {owned
-        ? <Button small variant={on ? 'secondary' : 'primary'} onClick={() => onToggle(o)} data-testid={desk ? 'desk-toggle' : theme ? 'theme-toggle' : undefined}>{on ? (desk ? 'Убрать из уроков' : theme ? 'Выключить' : 'Снять') : (desk ? 'Повесить в уроки' : theme ? 'Включить в уроках' : 'Надеть')}</Button>
+        ? rec ? <Button small onClick={() => playRecord(o)} data-testid="record-play">Поставить</Button>
+        : <Button small variant={on ? 'secondary' : 'primary'} onClick={() => onToggle(o)} data-testid={desk ? 'desk-toggle' : theme ? 'theme-toggle' : undefined}>{on ? (desk ? 'Убрать из уроков' : theme ? 'Выключить' : 'Снять') : (desk ? 'Повесить в уроки' : theme ? 'Включить в уроках' : 'Надеть')}</Button>
         : o.reward ? <>
           {/* награда события: не продаётся — собирается тыквами за уроки */}
           <div className="rw-forgone" data-testid="shop-reward">Не продаётся: {hw ? `тыкв ${hw.pumpkins} из ${hw.goal}` : 'награда за 13 тыкв'}</div>
@@ -383,6 +430,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
     setMsg({ ok: true, text: id === BOOST.id ? `Двойной опыт на ${BOOST.minutes} минут — за ${r.price} ${coinsWord(r.price)}.`
       : slot === 'desk' ? `Куплено за ${r.price} ${coinsWord(r.price)} — украшение уже висит в уроках на ПК и планшете.`
         : slot === 'theme' ? `Куплено за ${r.price} ${coinsWord(r.price)} — тема уже включена: откройте любой урок.`
+          : slot === 'record' ? `Куплено за ${r.price} ${coinsWord(r.price)} — пластинка ваша: «Поставить» или микс «Пластинки» в проигрывателе.`
           : `Куплено за ${r.price} ${coinsWord(r.price)} — Инфля уже в обновке. Снять и переодеть — во вкладке «Гардероб».` });
   };
   const toggle = (o) => { Audio.play('paper'); trackDaily('wardrobe_wear'); update((s) => setWear(s, o.slot, (s.wear || {})[o.slot] === o.id ? null : o.id, now)); };
@@ -500,6 +548,13 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <div className="rw-items rw-desk-items" style={{ margin: '10px 0 16px' }} data-testid="shop-desk">
               {today.desk.map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} goal {...itemProps} />)}
             </div>
+            {recordsOnSale(today.records || []).length > 0 && <>
+              <style>{RECORD_CSS}</style>
+              <Heading level={3} title="Пластинки" sub="Пьесы для уроков, на которые стоит копить: послушайте 20 секунд прямо на витрине. Купленные играют миксом «Пластинки» в проигрывателе." />
+              <div className="rw-items rw-desk-items" style={{ margin: '10px 0 16px' }} data-testid="shop-records">
+                {recordsOnSale(today.records || []).map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} goal {...itemProps} />)}
+              </div>
+            </>}
           </>}
 
           {tab === 'rare' && <>

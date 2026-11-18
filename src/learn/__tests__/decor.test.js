@@ -24,7 +24,7 @@ describe('украшения урока в лавке', () => {
     expect(t.desk).toEqual(DESK_ITEMS);
     DESK_ITEMS.forEach((id) => { expect(t.rare).not.toContain(id); expect(t.showcase).not.toContain(id); });
     expect(WARDROBE.some((o) => o.slot === 'desk')).toBe(false);
-    expect(WARDROBE.length + DESK_ITEMS.length + OUTFITS.filter((o) => o.slot === 'theme').length).toBe(OUTFITS.length);
+    expect(WARDROBE.length + DESK_ITEMS.length + OUTFITS.filter((o) => o.slot === 'theme' || o.slot === 'record').length).toBe(OUTFITS.length);
   });
   it('покупка вешает вещицу в уроки, Инфля без изменений; снять и повесить — только купленное; печать «Коллекционер» — не за неё', () => {
     const rich = earn(emptyLearn(), 20000, null, T);

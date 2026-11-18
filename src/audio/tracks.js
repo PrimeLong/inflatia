@@ -3,6 +3,7 @@
    поэтому модуль можно импортировать и проверять в тестах без браузера. Движок, который
    эти пьесы играет, — src/audio/engine.js.
 ========================================================================================= */
+import { RECORDS } from './records.js';
 const NOTE_BASE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const nn = (name) => {
   const m = /^([A-G])([#b]?)(-?\d)$/.exec(name);
@@ -736,6 +737,12 @@ const MOOD_PLAYLISTS = {
 /* в «Волне» — ВСЕ пьесы саундтрека, и тревожные: «Кризис», «Война», «Ручное управление», «Тоталитаризм» (пункт владельца
    18.11: «всё ещё не все треки играют в волне, должны все и война и кризис»). Энергия у тревожных — 3–4: волна начинает
    спокойно и доходит до них постепенно, через ступени, а не прыжком из тишины в марш. */
+// пластинки лавки — src/audio/records.js (лёгкий модуль: его читает и лавка, не загружая музыку)
+export const RECORD_TRACKS = RECORDS.map((r) => r.track);
+export { RECORDS };
+RECORDS.forEach((r) => { const b = TRACKS[r.base] || TRACKS.dawn; TRACKS[r.track] = { ...b, id: r.track, name: r.name, subtitle: r.subtitle, mood: 'records', record: r.id, bpm: r.bpm }; });
+MOOD_PLAYLISTS.records = [...RECORD_TRACKS];
+
 export const WAVE_MOODS = ['calm', 'frost', 'slump', 'stabilization', 'boom', 'campaign', 'stag', 'authoritarian', 'crisis', 'war', 'totalitarian'];
 export const WAVE_ENERGY = { calm: 1, frost: 1, slump: 2, stabilization: 2, boom: 3, campaign: 3, stag: 3, authoritarian: 3, crisis: 4, war: 4, totalitarian: 4 };
 export const WAVE_START = 'calm';
@@ -772,6 +779,7 @@ export function waveNext(history = [], { likes = [], rnd = Math.random } = {}) {
 const MOOD_LABEL = { calm: 'Спокойствие', boom: 'Подъём', slump: 'Спад', stag: 'Стагфляция', crisis: 'Кризис', frost: 'Дефляция',
   war: 'Война', campaign: 'Предвыборная кампания', stabilization: 'Стабилизация', authoritarian: 'Ручное управление',
   totalitarian: 'Тоталитаризм', wave: 'Волна' };
+MOOD_LABEL.records = 'Пластинки';
 const REGIME_MOOD = { normal: 'calm', overheating: 'boom', recession: 'slump', stagflation: 'stag',
   banking: 'crisis', debt: 'crisis', currency: 'crisis', deflation: 'frost', war: 'war', pandemic: 'crisis' };
 /* Плейлисты, привязанные к роли: у инвестора свой репертуар, у обучения — свой */
