@@ -184,6 +184,15 @@ test('музыка в обучении: мини-плашка над вклад�
   const full = page.getByTestId('music-panel');
   await expect(full).toBeVisible();
   await expect.poll(async () => { const f = await full.boundingBox(); return f.y + f.height - (await dock.boundingBox()).y; }).toBeLessThanOrEqual(2);
+  /* замечание владельца 18.11, вечер: «исчезает проигрыватель, когда нажимаешь на нём паузу — считает как выключение музыки»;
+     «пластинка крутится, когда не играет музыка» — пауза в большом проигрывателе: он и плашка на месте, диск стоит */
+  await full.getByTestId('music-play').click();
+  await expect(full).toBeVisible();
+  await expect(dock).toBeVisible();
+  await expect(dock).toHaveAttribute('data-state', 'paused');
+  await expect(full.getByTestId('music-cover')).toHaveAttribute('data-spin', 'false');
+  await full.getByTestId('music-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'playing');
   await full.getByRole('button', { name: 'Закрыть' }).click();
   // в уроке плашки нет, но в шапке урока — своя кнопка музыки (пункт владельца 16.11: «в уроке нигде нет переключения музыки»)
   await openTab(page, 'path');

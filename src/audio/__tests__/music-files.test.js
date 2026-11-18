@@ -149,4 +149,20 @@ describe('записи вместо синтеза', () => {
     expect(duckNode.calls[duckNode.calls.length - 1]).toBe(1);
     expect(DUCK_LEVEL).toBeGreaterThan(0.1); expect(DUCK_LEVEL).toBeLessThan(0.4);
   });
+
+  // замечание владельца 18.11, вечер: «непонятно, когда песня грузится; пластинка крутится, когда не играет музыка»
+  it('пока запись грузится — loading, но не playing; загрузилась — playing; музыка выключена — ни то, ни другое', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx } = fakeContext();
+    let release; const gate = new Promise((r) => { release = r; });
+    const a = createAudioEngine({ context: ctx, musicFiles: ['dawn'], fetchMusic: async () => { await gate; return new ArrayBuffer(8); } });
+    expect(a.nowPlaying()).toMatchObject({ playing: false, loading: false });
+    a.playTrack('dawn');
+    vi.advanceTimersByTime(120); await flush();
+    expect(a.nowPlaying()).toMatchObject({ loading: true, playing: false });
+    release(); await flush(); await flush(); await flush();
+    expect(a.nowPlaying()).toMatchObject({ loading: false, playing: true });
+    a.setMusic(false);
+    expect(a.nowPlaying()).toMatchObject({ loading: false, playing: false });
+  });
 });

@@ -1242,6 +1242,10 @@ export function createAudioEngine(options = {}) {
     nowPlaying: () => ({ id: track.id, name: track.name, subtitle: track.subtitle, mood: track.mood,
       moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood,
       file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), next: peekNext(),
+      /* звучит ли сейчас (а не только включена ли музыка) и грузится ли запись — для диска и анимации загрузки в
+         проигрывателе (замечание владельца 18.11, вечер: «непонятно, когда песня грузится; пластинка крутится, когда не играет») */
+      playing: !!(running && ctx && ctx.state !== 'suspended' && !(fileFor === track.id && !fileSrc)),
+      loading: !!(running && fileFor === track.id && !fileSrc),
       // секунда записи сейчас (для паузы и проверки «продолжить с места»); на паузе — где остановились
       position: fileSrc && fileFor === track.id ? Math.max(0, now() - fileStart) : paused && paused.id === track.id && paused.file ? paused.offset : 0,
       // длительность записи (у синтеза её нет) — для полосы времени в проигрывателе

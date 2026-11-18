@@ -23,4 +23,10 @@ describe('украшения урока в теме', () => {
     expect(skins).toMatch(/\.fd :is\(\.fd-mast, \.fd-set, \.fd-bubble, \.fd-archive\) \{ background: var\(--sk-surface\)/);
     for (const sel of ['.fd .fd-play', '.fd .fd-onair', '.fd .fd-mast-name']) expect(skins, sel).toContain(`.sk-on[data-skin] ${sel} {`);
   });
+  // замечание владельца 18.11, вечер, п. 15: «пластинка в „Сейчас играет“ стала квадратной — от стиля урока „Чертёж“?»
+  it('диск проигрывателя круглый в любой теме: «Чертёж» его не скругляет до квадрата', () => {
+    const mp = readFileSync(new URL('../../MacroSimulator.jsx', import.meta.url), 'utf8');
+    expect(mp).not.toMatch(/\[data-skin="[a-z]+"\] \.mp-cover \{[^}]*border-radius/);
+    expect(mp).toMatch(/\.mp-cover \{ position: relative; width: 112px; height: 112px; border-radius: 50%/);
+  });
 });
