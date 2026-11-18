@@ -1,7 +1,9 @@
 /* Жалоба ученика 16.11, вечер: экран упал с «Failed to fetch dynamically imported module: …/assets/learn-Mk-1KRoX.js» —
    страница была открыта, а на сайт выложили новую сборку. Такая ошибка должна приводить к одной перезагрузке, а не к сбою. */
 import { describe, it, expect, vi } from 'vitest';
-import { isChunkError, reloadOnce, installChunkReload, RELOAD_GAP, RELOAD_KEY } from '../chunk-reload.js';
+import { isChunkError, reloadOnce, installChunkReload, RELOAD_GAP, RELOAD_KEY, reloadPending, _resetPendingForTest } from '../chunk-reload.js';
+import { beforeEach } from 'vitest';
+beforeEach(() => _resetPendingForTest());
 
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v) }; };
 
@@ -18,9 +20,13 @@ describe('новая сборка во время занятия', () => {
     const store = mem(); const reload = vi.fn();
     expect(reloadOnce({ store, now: 1_000_000, reload })).toBe(true);
     expect(store.getItem(RELOAD_KEY)).toBe('1000000');
+    _resetPendingForTest();
     expect(reloadOnce({ store, now: 1_000_000 + 5_000, reload })).toBe(false);
     expect(reload).toHaveBeenCalledTimes(1);
     expect(reloadOnce({ store, now: 1_000_000 + RELOAD_GAP + 1, reload })).toBe(true);
+    // пока перезагрузка идёт, повторные ошибки — тоже «обновление», а не экран сбоя
+    expect(reloadOnce({ store, now: 1_000_000 + RELOAD_GAP + 2, reload })).toBe(true);
+    expect(reload).toHaveBeenCalledTimes(2);
     expect(reload).toHaveBeenCalledTimes(2);
   });
   it('событие Vite о неудачной подгрузке и необработанный отказ import() — перезагрузка', () => {
@@ -29,7 +35,9 @@ describe('новая сборка во время занятия', () => {
     installChunkReload(win, { store: mem(), get now() { t += RELOAD_GAP * 2; return t; }, reload });
     const ev = { preventDefault: vi.fn() };
     handlers['vite:preloadError'](ev);
-    expect(reload).toHaveBeenCalledTimes(1); expect(ev.preventDefault).toHaveBeenCalled();
+    // ошибку Vite не отменяем: иначе import() отдаёт пустой модуль и React.lazy падает на «.default» (сбой в лавке 17.11)
+    expect(reload).toHaveBeenCalledTimes(1); expect(ev.preventDefault).not.toHaveBeenCalled();
+    expect(reloadPending()).toBe(true);
     handlers.unhandledrejection({ reason: new Error('boom'), preventDefault: vi.fn() });
     expect(reload).toHaveBeenCalledTimes(1);
   });

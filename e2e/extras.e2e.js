@@ -1378,3 +1378,19 @@ test('профиль: книга под курсором у нижнего кр�
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll');
   expect(errors).toEqual([]);
 });
+
+// сбой 17.11 на /shop: «Cannot read properties of undefined (reading 'default')» — часть лавки не загрузилась после новой
+// сборки, а отменённая ошибка Vite превращала её в пустой модуль. Теперь — одна перезагрузка, лавка открывается, сбоя нет
+test('новая сборка: часть лавки не загрузилась при переходе — перезагрузка вместо сбоя, лавка открывается', async ({ page }) => {
+  let blocked = 0; const reports = [];
+  page.on('request', (r) => { if (r.url().includes('/api/reports')) reports.push(r.postData() || ''); });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await page.route(/\/assets\/learn-shop-[\w-]+\.js$/, (r) => { if (blocked === 0) { blocked += 1; return r.abort(); } return r.continue(); });
+  await openTab(page, 'shop');
+  await expect(page.getByTestId('shop-panel')).toBeVisible({ timeout: 20000 });
+  expect(blocked).toBe(1);
+  await expect(page.getByText('Экран не открылся')).toHaveCount(0);
+  expect(reports.filter((p) => p.includes('"crash"'))).toEqual([]);
+  expect(errors.filter((e) => /reading 'default'/.test(e))).toEqual([]);
+});
+

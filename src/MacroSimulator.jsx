@@ -17,7 +17,7 @@ import { WORLD_TRIAL, trialActive, trialEnded, tickTrial, trialLeft } from './li
 import { router, useHistoryLayer } from './lib/route.js';
 import { TRACK } from './learn/track.js';
 import { reportCrash } from './lib/crash.js';
-import { isChunkError, reloadOnce } from './lib/chunk-reload.js';
+import { isChunkError, reloadOnce, reloadPending } from './lib/chunk-reload.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
@@ -1289,7 +1289,7 @@ function CrashScreen({ error, onMenu }) {
 class ScreenErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   // на сайт выложили новую сборку, а старой части приложения уже нет — один раз перезагружаемся (src/lib/chunk-reload.js)
-  static getDerivedStateFromError(error) { return { error, reloading: isChunkError(error) && reloadOnce() }; }
+  static getDerivedStateFromError(error) { return { error, reloading: reloadPending() || (isChunkError(error) && reloadOnce()) }; }
   // сбой экрана — и владельцам, обезличенно (src/lib/crash.js)
   componentDidCatch(error, info) { if (this.state.reloading) return; console.error('Экран упал:', error, info); reportCrash(error, 'boundary'); }
   componentDidUpdate(prev) {
