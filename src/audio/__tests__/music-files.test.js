@@ -165,4 +165,32 @@ describe('записи вместо синтеза', () => {
     a.setMusic(false);
     expect(a.nowPlaying()).toMatchObject({ loading: false, playing: false });
   });
+
+  // замечание владельца 18.11, вечер, п. 14: «музыка по режиму экономики не должна так резко переключаться, только в экстренных случаях»
+  it('смена режима: спад — через два квартала и после конца пьесы, без обрыва; война и кризис — сразу', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx } = fakeContext();
+    const { MOOD_PLAYLISTS } = await import('../tracks.js');
+    const a = createAudioEngine({ context: ctx });
+    const base = { politicalRegime: 'democracy', inflationRisk: 0, bankingRisk: 0, debtRisk: 0, recessionRisk: 0, gdpGrowth: 2, regime: 'normal' };
+    a.prime(); a.setMusic(true); a.setMood(base); a.startMusic();
+    vi.advanceTimersByTime(200);
+    const calm = a.playlist().map((p) => p.id); const id0 = a.nowPlaying().id;
+    // один квартал спада — ничего не меняется
+    a.setMood({ ...base, regime: 'recession', recessionRisk: 60, gdpGrowth: -2 });
+    vi.advanceTimersByTime(500);
+    expect(a.playlist().map((p) => p.id)).toEqual(calm);
+    expect(a.nowPlaying().id).toBe(id0);
+    // второй квартал подряд — смена назначена, но пьеса доигрывает; «Далее» — уже из нового настроения
+    a.setMood({ ...base, regime: 'recession', recessionRisk: 61, gdpGrowth: -2.1 });
+    vi.advanceTimersByTime(500);
+    expect(a.nowPlaying().id).toBe(id0);
+    expect(MOOD_PLAYLISTS.slump).toContain(a.nowPlaying().next);
+    // пьеса кончилась (переход к следующей) — играет уже спад
+    a.skip(true); vi.advanceTimersByTime(500);
+    expect(a.playlist().map((p) => p.id)).toEqual(MOOD_PLAYLISTS.slump);
+    // война — сразу: плейлист войны, не дожидаясь конца пьесы
+    a.setMood({ ...base, regime: 'war' });
+    expect(a.playlist().map((p) => p.id)).toEqual(MOOD_PLAYLISTS.war);
+  });
 });
