@@ -280,6 +280,8 @@ export async function passCards(page) {
     n += 1;
     // «Откройте сами»: четыре дня с разными ценами — потом «Дальше»
     if (await card.getAttribute('data-style') === 'discover') { await playDiscover(page); continue; }
+    // «Все слова — ваши»: карточка конца «Слов» сама уходит к упражнениям — кнопка на это время выключена
+    if (await page.getByTestId('word-end').isVisible()) { await expect(page.getByTestId('word-end')).toBeHidden({ timeout: 8000 }); continue; }
     const before = await sig();
     // в «Словах» в подвале две кнопки — «Назад» и «Дальше»: берём последнюю
     await page.getByTestId('lesson').locator('.ln-foot button').last().click();
