@@ -1461,3 +1461,41 @@ test('«Нарисуй сам»: закраска — кисть с кругом
   await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
   expect(errors).toEqual([]);
 });
+
+// жалоба ученика 17.11 («Горка выручки», шаг 1): «тут нет рисования» — линию можно провести: нажать в первой точке и протянуть до второй
+test('«Нарисуй сам»: линию проводят — от первой точки протянули ко второй; после одной точки к курсору тянется резинка', async ({ page, isMobile }) => {
+  test.setTimeout(120000);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum',
+      'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum', 'el-i1', 'el-l1', 'el-i2', 'el-l2', 'el-w', 'el-s1', 'el-radio', 'el-g', 'el-rev', 'el-sum'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), levels: { start: { at } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await showUnit(page, 'elasticity');
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"][data-id="draw-revenue"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  const ink = g.getByTestId('draw-ink');
+  await expect(g.getByTestId('draw-task')).toContainText('Проведите линию');
+  await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const at = async (vx, vy) => ink.evaluate((svg, [x, y]) => { const q = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [vx, vy]);
+  const [[ax, ay], [bx, by]] = JSON.parse(await ink.getAttribute('data-answer')).pts;
+  const [x1, y1] = await at(ax, ay); const [x2, y2] = await at(bx, by);
+  if (!isMobile) {
+    // одна точка — и к курсору тянется резинка
+    await page.mouse.click(x1, y1);
+    await page.mouse.move(x2, y2, { steps: 4 });
+    await expect(g.getByTestId('draw-rubber')).toBeVisible();
+    await g.getByTestId('draw-reset').click();
+  }
+  // одним движением: нажали в первой точке, протянули, отпустили во второй
+  await page.mouse.move(x1, y1); await page.mouse.down();
+  await page.mouse.move((x1 + x2) / 2, (y1 + y2) / 2, { steps: 5 }); await page.mouse.move(x2, y2, { steps: 5 }); await page.mouse.up();
+  await expect(ink).toHaveAttribute('data-ready', 'true');
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+  expect(errors).toEqual([]);
+});

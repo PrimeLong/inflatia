@@ -109,7 +109,7 @@ const CSS = `
 const rich = (t) => String(t).split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : <React.Fragment key={i}>{p}</React.Fragment>));
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const HOW = {
-  line: 'Нажмите на график в двух местах — точки прилипают к сетке; точку можно перетащить, а касанием — убрать.',
+  line: 'Проведите линию: нажмите в первой точке и протяните до второй — или нажмите в двух местах. Точки прилипают к сетке; точку можно перетащить, а касанием — убрать.',
   points: 'Каждая строка таблицы — точка на графике; точки прилипают к сетке, их можно перетащить, а касанием — убрать.',
   point: 'Нажмите на график — точку можно перетащить, а касанием — убрать.',
   shift: 'Потяните график пальцем или мышью вбок — или двигайте ползунок под ним.',
@@ -309,7 +309,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     if (t.do === 'line' || t.do === 'points') {
       // все уже стоят — переставляем ближнюю
       const k = near && pts.length >= maxPts ? near.k : pts.length;
-      const next = [...pts]; next[k] = p; setPts(next); drag.current = { k, before: pts };
+      const next = [...pts]; next[k] = p; setPts(next);
+      /* линия с первой точки — протягивается (пункт ученика 17.11: «тут нет рисования»): ведёте от первой точки, вторая едет
+         за пальцем; отпустили на месте — осталась одна точка, как при касании */
+      drag.current = t.do === 'line' && pts.length === 0 ? { k, before: pts, stretch: true, x: e.clientX, y: e.clientY } : { k, before: pts };
     } else { setPts([p]); drag.current = { k: 0, before: pts }; }
     Audio.play('tick');
   };
@@ -331,6 +334,13 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     if (drag.current.paint) {
       setHover(raw);
       setPts((prev) => { const last = prev[prev.length - 1]; if (last && last.s === strokes.current && Math.hypot((raw.x - last.x) / (x1 - x0), (raw.y - last.y) / (y1 - y0)) < PAINT_BRUSH / 5) return prev; return [...prev, { ...raw, s: strokes.current }]; });
+      return;
+    }
+    // протягивание линии: палец ушёл от первой точки — появилась вторая, дальше она едет за ним
+    if (drag.current.stretch) {
+      if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) < 12) return;
+      const p2 = place(raw);
+      setPts((prev) => [prev[0], p2]); drag.current = { k: 1, before: drag.current.before, drawn: true }; setHover(null);
       return;
     }
     // от касания точки — в перетаскивание, только когда палец сдвинулся заметно
@@ -558,6 +568,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 {/* сетка — в самом графике (GraphStage, grid): линии через шаг задания, подписи — только на них */}
                 {!res?.ok && through()}
                 {full && hover && !resolved && t.do !== 'shift' && !gem && cross(hover)}
+                {/* одна точка линии стоит — к курсору тянется пунктирная «резинка»: видно, какая выйдет линия */}
+                {t.do === 'line' && pts.length === 1 && hover && !drag.current && !resolved && (
+                  <line x1={sx(pts[0].x)} y1={sy(pts[0].y)} x2={sx(hover.x)} y2={sy(hover.y)} stroke={mine} strokeWidth={2.4 * pz} strokeDasharray={`${6 * pz} ${5 * pz}`} strokeLinecap="round" opacity=".6" pointerEvents="none" data-testid="draw-rubber" />
+                )}
                 {hover && !drag.current && pts.length < maxPts && t.do !== 'area' && (
                   <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', gem ? null : coordLabel(hover))}</g>
                 )}
