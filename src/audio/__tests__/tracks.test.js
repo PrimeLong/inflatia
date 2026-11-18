@@ -138,11 +138,11 @@ describe('звуковой движок без Web Audio', () => {
   it('«Волна»: случайный выбор из пяти настроений; начало — всегда спокойное; переходы плавные, без повторов подряд', async () => {
     const { waveNext, WAVE_ENERGY, WAVE_RECENT } = await import('../tracks.js');
     const { seededRandom } = await import('../../research/randomize.js');
-    const moods = ['calm', 'frost', 'slump', 'stabilization', 'boom', 'campaign', 'stag'];
-    // в волне — все пьесы этих настроений, не только из плейлистов (раньше «Гимн», «Первый урок»… в ней не звучали)
-    expect([...MOOD_PLAYLISTS.wave].sort()).toEqual(Object.keys(TRACKS).filter((id) => moods.includes(TRACKS[id].mood)).sort());
-    for (const id of ['anthem', 'firstlesson', 'chalkboard', 'openingbell', 'residence', 'graduation', 'anchor']) expect(MOOD_PLAYLISTS.wave).toContain(id);
-    for (const id of ['warmarch', 'ironmarch', 'collapse', 'decree']) expect(MOOD_PLAYLISTS.wave).not.toContain(id);
+    const moods = [...new Set(Object.values(TRACKS).map((t) => t.mood))];
+    // в волне — ВСЕ пьесы саундтрека, и «Война», и «Кризис» (пункт владельца 18.11: «должны все и война и кризис»)
+    expect([...MOOD_PLAYLISTS.wave].sort()).toEqual(Object.keys(TRACKS).sort());
+    for (const id of ['anthem', 'firstlesson', 'chalkboard', 'openingbell', 'residence', 'graduation', 'anchor', 'warmarch', 'ironmarch', 'collapse', 'decree', 'bankrun', 'marginwire', 'thinvolume']) expect(MOOD_PLAYLISTS.wave).toContain(id);
+    moods.forEach((m) => expect(WAVE_ENERGY[m], m).toBeGreaterThan(0));
     expect(MOOD_LABEL.wave).toBe('Волна');
     // начало — из спокойных, и разное (случайное)
     const firsts = new Set(Array.from({ length: 200 }, (_, k) => waveNext([], { rnd: seededRandom(k + 1) })));
@@ -157,7 +157,7 @@ describe('звуковой движок без Web Audio', () => {
       expect(Math.abs(WAVE_ENERGY[a] - WAVE_ENERGY[b]), `${a}→${b}`).toBeLessThanOrEqual(1);
       expect(hist.slice(Math.max(0, i - WAVE_RECENT), i), `${i}: ${hist[i]}`).not.toContain(hist[i]);
     }
-    // не по списку: звучат все настроения, порядок двух волн разный
+    // не по списку: звучат все настроения, порядок двух волн разный; тревожные — не сразу после спокойных
     expect(new Set(hist.map((id) => TRACKS[id].mood))).toEqual(new Set(moods));
     const other = []; const rnd2 = seededRandom(10);
     for (let i = 0; i < 20; i += 1) other.push(waveNext(other, { rnd: rnd2 }));
@@ -169,7 +169,7 @@ describe('звуковой движок без Web Audio', () => {
     const { seededRandom } = await import('../../research/randomize.js');
     for (const seed of [1, 2, 3, 4, 5]) {
       const rnd = seededRandom(seed); const hist = [];
-      for (let i = 0; i < 120; i += 1) hist.push(waveNext(hist, { rnd }));
+      for (let i = 0; i < 200; i += 1) hist.push(waveNext(hist, { rnd }));
       // первые 18 — без единого повтора (плавные переходы по энергии иногда вынуждают повтор позже — не раньше 19-й пьесы)
       expect(new Set(hist.slice(0, 18)).size, `зерно ${seed}`).toBe(18);
       expect(new Set(hist), `зерно ${seed}`).toEqual(new Set(MOOD_PLAYLISTS.wave));
