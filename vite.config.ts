@@ -8,9 +8,10 @@ import siteMeta from './scripts/site-meta-plugin.js'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-// версия сборки для «Сообщить об ошибке»: коммит и дата (на Vercel коммит — из его переменной)
+// версия сборки для «Сообщить об ошибке»: коммит и дата (на Vercel и ONREZA коммит — из их переменной)
 const commit = (() => {
-  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7)
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.ONREZA_GIT_COMMIT_SHA
+  if (sha) return sha.slice(0, 7)
   try { return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { return 'dev' }
 })()
 const BUILD = `${commit} · ${new Date().toISOString().slice(0, 10)}`
