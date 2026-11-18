@@ -22,7 +22,8 @@ import { createPortal } from 'react-dom';
 import { X, Plus, Minus, Maximize2 } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { themeOf } from './zoom-view.jsx';
-import { niceStep, ticks, fitPlane, toPx, toData, zoomPlane, panPlane, zoomLevel, nearestOnCurves, fmtPlane, lerpPlane } from './lib/plane.js';
+import { niceStep, ticks, fitPlane, toPx, toData, zoomPlane, panPlane, zoomLevel, nearestOnCurves, fmtPlane, lerpPlane, curveOnView, labelOnView, ZOOM_LIMIT } from './lib/plane.js';
+import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 
 const CSS = `
   .pv { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: var(--ds-paper, #FBF6EC); color: var(--ds-ink, #222);
@@ -78,6 +79,11 @@ const CSS = `
   .pv[data-skin="mint"] { --ds-paper: #FBF3DF; --ds-card: #FFFBF0; --ds-ink: #3B2F1A; --ds-ink2: #5E4C2C; --ds-ink3: #8A7550; --ds-rule2: #D9C48F; --pv-blue: #9A7413; --pv-gold: #9A7413; }
   .pv[data-skin="exchange"] .pv-stage, .pv[data-skin="blueprint"] .pv-stage, .pv[data-skin="aurora"] .pv-stage { --pv-grid: rgba(255,255,255,.06); --pv-grid2: rgba(255,255,255,.13); --pv-axis: rgba(255,255,255,.55); }
   @media (prefers-reduced-motion: reduce) { .pv, .pv-draw, .pv-fadein { animation: none !important; stroke-dashoffset: 0; } }
+  .pv-flag { display: inline-flex; } .pv-flag .ln-flag { margin: 0; min-height: 40px; padding: 0 12px; gap: 6px; border-radius: 12px; border: 1px solid var(--ds-rule2, #d9cdb8);
+    background: var(--ds-card, #fff); color: var(--ds-ink2, #555); font: 600 13px var(--ds-sans, sans-serif); display: inline-flex; align-items: center; }
+  .pv-flag .ln-flag:hover { border-color: var(--pv-blue); color: var(--ds-ink, #222); }
+  /* шторка жалобы — над плоскостью */
+  body:has(.pv) .ln-report-root .ds-sheet-back { z-index: 1010; }
 `;
 const COL = { gold: 'var(--pv-gold)', teal: 'var(--pv-teal)', rust: 'var(--pv-rust)', blue: 'var(--pv-blue)' };
 const col = (c) => COL[c] || 'var(--pv-gold)';
@@ -85,12 +91,34 @@ const easeOut = (t) => 1 - (1 - t) ** 3;
 
 const r2 = (x) => (Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 100) / 100);
 const numOf = (v) => { const n = Number(String(v).replace(/\s/g, '').replace(',', '.').replace('−', '-')); return Number.isFinite(n) ? n : null; };
-export function PlaneViewer({ title, scene: scene0, caption = null, from = null, model = null, focus = null, onClose }) {
+/* report — контекст жалобы с открывшего экрана (урок, шаг, задание); без него жалоба уходит с названием графика */
+export function PlaneViewer({ title, scene: scene0, caption = null, from = null, model = null, focus = null, report = null, onClose }) {
   // живая модель: значения ползунков, сцена по ним; сцена «как было» — по исходным
   const [vals, setVals] = useState(() => (model ? { ...model.values } : null));
+  /* Замечание владельца 18.11, вечер: «анимаций нет, когда дёргаешь ползунки». Ползунок встаёт сразу, а модель
+     догоняет его плавно: показанные значения (shown) тянутся к выбранным за ~0,3 с — кривые переезжают, точки
+     равновесия скользят, числа справа бегут. «Как было» возвращает так же плавно. */
+  const [shown, setShown] = useState(vals);
+  const tween = useRef(0);
+  useEffect(() => {
+    if (!model || !vals) return undefined;
+    cancelAnimationFrame(tween.current);
+    const from0 = shown; const t0 = performance.now(); const dur = 320;
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { setShown(vals); return undefined; }
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / dur); const e = 1 - (1 - k) ** 3;
+      setShown(Object.fromEntries(Object.keys(vals).map((id) => [id, (from0[id] ?? vals[id]) + (vals[id] - (from0[id] ?? vals[id])) * e])));
+      if (k < 1) tween.current = requestAnimationFrame(step);
+    };
+    tween.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(tween.current);
+    // shown — откуда начать: берём текущее на момент смены цели
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vals]);
   const [sideOpen, setSideOpen] = useState(true);
   const base = model ? model.build(model.values) : scene0;
-  const scene = model ? model.build(vals) : scene0;
+  const scene = model ? model.build(shown) : scene0;
   const changed = !!model && Object.keys(model.values).some((k) => Math.abs((vals[k] ?? 0) - model.values[k]) > 1e-9);
   const [skin] = useState(() => { const el = from && from.closest ? from.closest('[data-skin]') : null; return el ? el.getAttribute('data-skin') : null; });
   const stage = useRef(null);
@@ -108,12 +136,16 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
   const [drawn, setDrawn] = useState(false);
   useEffect(() => { const t = setTimeout(() => setDrawn(true), 1000); return () => clearTimeout(t); }, []);
   // плавно к виду target (кнопки, «вписать», двойное касание)
+  // goal — куда сейчас едет плавный переход: быстрые нажатия «+» складываются (три нажатия — ×4,1, а не меньше)
+  const goal = useRef(null);
   const glide = (target) => {
     cancelAnimationFrame(anim.current);
+    goal.current = target;
     const a = vRef.current; const t0 = performance.now(); const dur = 260;
-    const step = (now) => { const k = Math.min(1, (now - t0) / dur); set(lerpPlane(a, target, easeOut(k))); if (k < 1) anim.current = requestAnimationFrame(step); };
+    const step = (now) => { const k = Math.min(1, (now - t0) / dur); set(lerpPlane(a, target, easeOut(k))); if (k < 1) anim.current = requestAnimationFrame(step); else goal.current = null; };
     anim.current = requestAnimationFrame(step);
   };
+  const stopGlide = () => { cancelAnimationFrame(anim.current); goal.current = null; };
 
   useLayoutEffect(() => {
     const measure = () => { const st = stage.current; if (!st) return; const s = { w: st.clientWidth, h: st.clientHeight }; sizeRef.current = s; setSize(s); };
@@ -125,7 +157,8 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
   // Esc закрывает только просмотр; страница под слоем не прокручивается; фокус — на крестик
   useEffect(() => {
     const prev = document.activeElement;
-    const esc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); e.stopPropagation(); onClose(); } };
+    // открыта шторка жалобы — Esc закрывает её, а не плоскость
+    const esc = (e) => { if (e.key === 'Escape' && !document.querySelector('.ln-report-root')) { e.stopImmediatePropagation(); e.stopPropagation(); onClose(); } };
     window.addEventListener('keydown', esc, true);
     const over = document.body.style.overflow; document.body.style.overflow = 'hidden';
     if (closeBtn.current) closeBtn.current.focus({ preventScroll: true });
@@ -136,14 +169,14 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
   useEffect(() => {
     const st = stage.current; if (!st) return undefined;
     const wheel = (e) => {
-      e.preventDefault(); cancelAnimationFrame(anim.current);
+      e.preventDefault(); stopGlide();
       const { w, h } = sizeRef.current; if (!w) return;
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; const p = local(e);
-      set(zoomPlane(vRef.current, Math.exp(-dy * 0.0022), p.x, p.y, w, h, { ax: !e.altKey, ay: !e.shiftKey }));
+      set(zoomPlane(vRef.current, Math.exp(-dy * 0.0022), p.x, p.y, w, h, { ax: !e.altKey, ay: !e.shiftKey, fit: fit.current }));
     };
     let gs = 1;
     const gStart = (e) => { e.preventDefault(); gs = 1; };
-    const gChange = (e) => { e.preventDefault(); const { w, h } = sizeRef.current; const f = e.scale / gs; gs = e.scale; set(zoomPlane(vRef.current, f, w / 2, h / 2, w, h)); };
+    const gChange = (e) => { e.preventDefault(); const { w, h } = sizeRef.current; const f = e.scale / gs; gs = e.scale; set(zoomPlane(vRef.current, f, w / 2, h / 2, w, h, { fit: fit.current })); };
     st.addEventListener('wheel', wheel, { passive: false });
     st.addEventListener('gesturestart', gStart, { passive: false });
     st.addEventListener('gesturechange', gChange, { passive: false });
@@ -151,14 +184,14 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
   }, []);
 
   const down = (e) => {
-    cancelAnimationFrame(anim.current);
+    stopGlide();
     pointers.current.set(e.pointerId, local(e));
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* старый браузер */ }
     if (pointers.current.size === 2) { const [a, b] = [...pointers.current.values()]; gesture.current = { pinch: true, d0: Math.hypot(a.x - b.x, a.y - b.y), v0: vRef.current, m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; return; }
     const p = local(e);
     // двойное касание — приблизить вдвое к этому месту
     const now = Date.now(); const lt = lastTap.current;
-    if (now - lt.t < 320 && Math.hypot(p.x - lt.x, p.y - lt.y) < 24) { const { w, h } = sizeRef.current; glide(zoomPlane(vRef.current, 2, p.x, p.y, w, h)); lastTap.current = { t: 0, x: 0, y: 0 }; return; }
+    if (now - lt.t < 320 && Math.hypot(p.x - lt.x, p.y - lt.y) < 24) { const { w, h } = sizeRef.current; glide(zoomPlane(vRef.current, 2, p.x, p.y, w, h, { fit: fit.current })); lastTap.current = { t: 0, x: 0, y: 0 }; return; }
     lastTap.current = { t: now, x: p.x, y: p.y };
     gesture.current = { pan: true, x: p.x, y: p.y, v0: vRef.current, moved: false };
   };
@@ -169,7 +202,7 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
     if (g && g.pinch && pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y); const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      set(panPlane(zoomPlane(g.v0, d / (g.d0 || 1), g.m.x, g.m.y, w, h), m.x - g.m.x, m.y - g.m.y, w, h));
+      set(panPlane(zoomPlane(g.v0, d / (g.d0 || 1), g.m.x, g.m.y, w, h, { fit: fit.current }), m.x - g.m.x, m.y - g.m.y, w, h));
       return;
     }
     if (g && g.pan) {
@@ -184,12 +217,12 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
     if (pointers.current.size < 2 && g && g.pinch) gesture.current = null;
     if (!pointers.current.size) { if (g && g.pan && !g.moved) setHover(p); gesture.current = null; setDragging(false); }
   };
-  const zoomBy = (f) => { Audio.play('tick'); const { w, h } = sizeRef.current; glide(zoomPlane(vRef.current, f, w / 2, h / 2, w, h)); };
+  const zoomBy = (f) => { Audio.play('tick'); const { w, h } = sizeRef.current; glide(zoomPlane(goal.current || vRef.current, f, w / 2, h / 2, w, h, { fit: fit.current })); };
   const fitAll = () => { Audio.play('tick'); glide(fit.current); };
   const keys = (e) => {
     const { w, h } = sizeRef.current;
     const pan = { ArrowLeft: [w * 0.12, 0], ArrowRight: [-w * 0.12, 0], ArrowUp: [0, h * 0.12], ArrowDown: [0, -h * 0.12] }[e.key];
-    if (pan) { e.preventDefault(); glide(panPlane(vRef.current, pan[0], pan[1], w, h)); return; }
+    if (pan) { e.preventDefault(); glide(panPlane(goal.current || vRef.current, pan[0], pan[1], w, h)); return; }
     if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.5); } else if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomBy(1 / 1.5); } else if (e.key === '0') { e.preventDefault(); fitAll(); }
   };
 
@@ -202,8 +235,11 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
   // оси: x = 0 и y = 0, а уехали — деления у края экрана
   const axY = Math.max(16, Math.min(h - 22, P.y(0))); const axX = Math.max(8, Math.min(w - 8, P.x(0)));
   const path = (pts) => pts.map((q, i) => `${i ? 'L' : 'M'}${P.x(q.x).toFixed(1)},${P.y(q.y).toFixed(1)}`).join(' ');
-  const curves = (scene.curves || []).filter((c) => c.points && c.points.length > 1);
-  const hit = hover && ready ? nearestOnCurves(curves.filter((c) => !c.ghost), v, w, h, hover.x, hover.y) : null;
+  // кривые — по всей видимой части плоскости (src/lib/plane.js, curveOnView): функции и прямые не обрываются
+  const pieces = (c) => (ready ? curveOnView(c, v, w, h) : []);
+  const piecePath = (list) => list.map(path).join(' ');
+  const curves = (scene.curves || []).filter((c) => (c.points && c.points.length > 1) || typeof c.fn === 'function').map((c) => ({ c, parts: pieces(c) }));
+  const hit = hover && ready ? nearestOnCurves(curves.filter(({ c }) => !c.ghost).flatMap(({ c, parts }) => parts.map((pts) => ({ ...c, points: pts }))), v, w, h, hover.x, hover.y) : null;
   const read = hit ? hit : hover && ready ? { ...toData(v, w, h, hover.x, hover.y), curve: null } : null;
   const halo = { stroke: 'var(--ds-card, #fff)', strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
   const level = zoomLevel(fit.current, v);
@@ -213,6 +249,9 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
       <style>{CSS}</style>
       <div className="pv-head">
         <div className="pv-title">{title}</div>
+        {/* флажок жалобы (замечание владельца 18.11, вечер, п. 3): шаг, график и значения ползунков уходят в жалобу */}
+        <span className="pv-flag"><ReportFlag withText text="Ошибка?" testid="plane-report" reasons={EXPLAIN_REASONS} sub="Что не так на графике? Название, шаг и положение ползунков приложатся сами."
+          context={() => ({ ...(report ? report() : { screen: 'plane' }), view: 'plane', plane: title, ...(vals ? { values: JSON.stringify(Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Math.round(x * 100) / 100]))) } : {}) })} /></span>
         <button ref={closeBtn} type="button" className="pv-btn" aria-label="Закрыть" data-testid="plane-close" onClick={() => { Audio.play('paper'); onClose(); }}><X size={18} /></button>
       </div>
       <div className="pv-body">
@@ -233,10 +272,11 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
             {(scene.rects || []).map((r, i) => <rect key={`r${i}`} x={P.x(r.x0)} y={P.y(r.y1)} width={Math.max(0, P.x(r.x1) - P.x(r.x0))} height={Math.max(0, P.y(r.y0) - P.y(r.y1))} fill={col(r.tone === 'rust' ? 'rust' : 'gold')} fillOpacity=".18" />)}
             {(scene.polys || []).map((g, i) => <path key={`p${i}`} className="pv-fadein" d={`${path(g.points)} Z`} fill={col(g.tone || 'gold')} fillOpacity=".2" />)}
             {/* «как было»: исходные кривые бледным пунктиром, когда модель сдвинули ползунками */}
-            {changed && (base.curves || []).filter((c) => c.points && c.points.length > 1 && !c.ghost).map((c) => <path key={`was${c.id}`} d={path(c.points)} fill="none" stroke={col(c.color)} strokeWidth="2" strokeOpacity=".32" strokeDasharray="6 6" data-testid="plane-was" />)}
-            {curves.map((c) => {
+            {changed && (base.curves || []).filter((c) => ((c.points && c.points.length > 1) || c.fn) && !c.ghost).map((c) => <path key={`was${c.id}`} d={piecePath(pieces(c))} fill="none" stroke={col(c.color)} strokeWidth="2" strokeOpacity=".32" strokeDasharray="6 6" data-testid="plane-was" />)}
+            {curves.map(({ c, parts }) => {
               const dim = focus && focus.size && !focus.has(c.id);
-              return <path key={c.id} d={path(c.points)} pathLength={drawn ? undefined : 1} className={drawn ? undefined : 'pv-draw'} fill="none" stroke={col(c.color)} strokeWidth={c.ghost ? 2 : dim ? 2.2 : 3.4} strokeOpacity={c.ghost ? 0.4 : dim ? 0.35 : 1} strokeDasharray={c.dashed || c.ghost ? '7 6' : undefined} strokeLinecap="round" strokeLinejoin="round" data-testid="plane-curve" data-curve={c.id} data-focus={focus && focus.has(c.id) ? 'true' : undefined} />;
+              if (!parts.length) return null;
+              return <path key={c.id} d={piecePath(parts)} pathLength={drawn ? undefined : 1} className={drawn ? undefined : 'pv-draw'} fill="none" stroke={col(c.color)} strokeWidth={c.ghost ? 2 : dim ? 2.2 : 3.4} strokeOpacity={c.ghost ? 0.4 : dim ? 0.35 : 1} strokeDasharray={c.dashed || c.ghost ? '7 6' : undefined} strokeLinecap="round" strokeLinejoin="round" data-testid="plane-curve" data-curve={c.id} data-focus={focus && focus.has(c.id) ? 'true' : undefined} />;
             })}
             {(scene.points || []).filter((q) => q.guide).map((q, i) => (
               <g key={`gd${i}`} stroke="var(--pv-axis)" strokeDasharray="4 5" strokeWidth="1.2"><line x1={P.x(q.x)} x2={P.x(q.x)} y1={P.y(q.y)} y2={P.y(0)} /><line x1={P.x(0)} x2={P.x(q.x)} y1={P.y(q.y)} y2={P.y(q.y)} /></g>
@@ -247,9 +287,10 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
             {yt.filter((t) => Math.abs(t) > 1e-12).map((t) => <text key={`ty${t}`} x={axX - 6 < 40 ? axX + 6 : axX - 6} y={P.y(t) + 4} fontSize="12.5" fill="var(--ds-ink3, #888)" textAnchor={axX - 6 < 40 ? 'start' : 'end'} {...halo}>{fmtPlane(t, syStep)}</text>)}
             <text x={w - 12} y={axY - 8} fontSize="14" fontStyle="italic" fill="var(--ds-ink2, #555)" textAnchor="end" {...halo}>{scene.xLabel}</text>
             <text x={axX + 8} y={18} fontSize="14" fontStyle="italic" fill="var(--ds-ink2, #555)" {...halo}>{scene.yLabel}</text>
-            {curves.filter((c) => c.label && !c.ghost).map((c) => {
-              const k = Math.max(0, Math.min(c.points.length - 1, Math.round((c.labelPos ?? 0.85) * (c.points.length - 1)))); const q = c.points[k];
-              return <text key={`l${c.id}`} x={P.x(q.x) + 6} y={P.y(q.y) - 8} fontSize="15" fontWeight="800" fill={col(c.color)} {...halo}>{c.label}</text>;
+            {/* подпись кривой — на её видимой части: уехал конец за край — подпись переезжает, а не пропадает */}
+            {curves.filter(({ c }) => c.label && !c.ghost).map(({ c, parts }) => {
+              const q = labelOnView(parts, v, c.labelPos ?? 0.85); if (!q) return null;
+              return <text key={`l${c.id}`} x={P.x(q.x) + 6} y={P.y(q.y) - 8} fontSize="15" fontWeight="800" fill={col(c.color)} data-testid="plane-curve-label" data-curve={c.id} {...halo}>{c.label}</text>;
             })}
             {(scene.polys || []).filter((g) => g.label).map((g, i) => { const cx = g.points.reduce((s, q) => s + q.x, 0) / g.points.length; const cy = g.points.reduce((s, q) => s + q.y, 0) / g.points.length;
               return <text key={`pl${i}`} x={P.x(cx)} y={P.y(cy)} fontSize="13.5" fontWeight="700" fill={col(g.tone || 'gold')} textAnchor="middle" {...halo}>{g.label}</text>; })}
@@ -304,7 +345,7 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
       </div>
       <div className="pv-foot">
         <button type="button" className="pv-btn" aria-label="Отдалить" data-testid="plane-out" onClick={() => zoomBy(1 / 1.6)}><Minus size={18} /></button>
-        <span className="pv-level" data-testid="plane-level" aria-live="polite">×{(Math.round(level * 10) / 10).toFixed(1).replace('.', ',')}</span>
+        <span className="pv-level" data-testid="plane-level" aria-live="polite">×{(level < 0.95 ? (Math.round(level * 100) / 100).toFixed(2) : (Math.round(level * 10) / 10).toFixed(1)).replace('.', ',')}</span>
         <button type="button" className="pv-btn" aria-label="Приблизить" data-testid="plane-in" onClick={() => zoomBy(1.6)}><Plus size={18} /></button>
         <button type="button" className="pv-btn wide" data-testid="plane-fit" onClick={fitAll}><Maximize2 size={15} aria-hidden="true" />Вписать</button>
       </div>

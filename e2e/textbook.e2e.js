@@ -648,6 +648,80 @@ test('учебник: пока график едет за ползунком, п
   expect(errors).toEqual([]);
 });
 
+// замечания владельца 18.11, вечер: «отдалял, потом приблизил — сломанный график в прямую превратился», «странно обрывается,
+// когда ты что-то сместил, исчезает значение на конце», «зачем такое далёкое отдаление с миллионами», «анимаций нет, когда
+// дёргаешь ползунки», «нет флажка жалобы»
+test('плоскость на весь экран: предел отдаления, после «отдалить-приблизить» кривые те же, линии до края экрана, ползунки — плавно, флажок жалобы', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+  const chart = page.getByTestId('chapter').getByTestId('tb-chart').first();
+  await chart.scrollIntoViewIfNeeded();
+  await chart.getByTestId('tb-chart-zoom').click();
+  const pv = page.getByTestId('plane-view');
+  const st = pv.getByTestId('plane-stage');
+  await page.waitForTimeout(1100);
+  const lvl = async () => Number((await pv.getByTestId('plane-level').textContent()).replace('×', '').replace(',', '.'));
+  const shape = () => st.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return [...el.querySelectorAll('[data-testid=plane-curve]')].map((p) => {
+      const L = p.getTotalLength(); const a = p.getPointAtLength(0); const b = p.getPointAtLength(L);
+      return { id: p.getAttribute('data-curve'), a: [a.x, a.y], b: [b.x, b.y], w: r.width, h: r.height };
+    });
+  });
+  // линии доходят до краёв видимой плоскости (прямые продолжены, а не кончаются на краю маленького графика)
+  await page.keyboard.press('Tab');
+  await st.focus();
+  for (let i = 0; i < 3; i += 1) await page.keyboard.press('-');
+  await page.waitForTimeout(400);
+  const wide = await shape();
+  expect(wide.length).toBeGreaterThan(0);
+  for (const c of wide) {
+    const touches = [c.a, c.b].some(([x, y]) => x < 4 || y < 4 || x > c.w - 4 || y > c.h - 4);
+    expect(touches, `кривая ${c.id} доходит до края экрана`).toBe(true);
+  }
+  // предел отдаления: сколько ни жми «−», не дальше ×0,1 (в 8 раз от «вписать»)
+  for (let i = 0; i < 30; i += 1) await page.keyboard.press('-');
+  await page.waitForTimeout(400);
+  expect(await lvl()).toBeGreaterThanOrEqual(0.12);
+  await expect(pv.getByTestId('plane-curve-label').first()).toBeAttached();
+  // отдалили до предела и вернули — те же кривые, что после «Вписать»
+  await pv.getByTestId('plane-fit').click(); await page.waitForTimeout(400);
+  const fitShape = await shape();
+  for (let i = 0; i < 30; i += 1) await page.keyboard.press('-');
+  for (let i = 0; i < 30; i += 1) await page.keyboard.press('+');
+  await pv.getByTestId('plane-fit').click(); await page.waitForTimeout(400);
+  const back = await shape();
+  expect(back.map((c) => c.id)).toEqual(fitShape.map((c) => c.id));
+  for (const [i, c] of back.entries()) for (const k of ['a', 'b']) for (const j of [0, 1]) expect(Math.abs(c[k][j] - fitShape[i][k][j])).toBeLessThan(2);
+  // ползунок: кривая переезжает плавно — в середине движения она не там, где была, и не там, где будет
+  const ctl = pv.getByTestId('plane-side').getByTestId('plane-ctl').first();
+  const d = () => st.evaluate((el) => [...el.querySelectorAll('[data-testid=plane-curve], circle')].map((p) => p.getAttribute('d') || `${p.getAttribute('cx')},${p.getAttribute('cy')}`).join('|'));
+  const d0 = await d();
+  const frames = await page.evaluate(async () => {
+    const el = document.querySelector('[data-testid=plane-side] [data-testid=plane-ctl]');
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    set.call(el, el.getAttribute('min')); el.dispatchEvent(new Event('input', { bubbles: true }));
+    const seen = [];
+    const t0 = performance.now();
+    await new Promise((r) => { const tick = () => { seen.push([...document.querySelectorAll('[data-testid=plane-stage] [data-testid=plane-curve], [data-testid=plane-stage] circle')].map((p) => p.getAttribute('d') || `${p.getAttribute('cx')},${p.getAttribute('cy')}`).join('|')); if (performance.now() - t0 < 600) requestAnimationFrame(tick); else r(); }; requestAnimationFrame(tick); });
+    return seen;
+  });
+  const d1 = await d();
+  expect(d1).not.toBe(d0);
+  expect(new Set(frames.filter((x) => x !== d0 && x !== d1)).size, 'промежуточные кадры').toBeGreaterThan(2);
+  await expect(ctl).toBeVisible();
+  // флажок жалобы — прямо на плоскости; шторка открывается поверх неё, Esc закрывает шторку, а не плоскость
+  await pv.getByTestId('plane-report').click();
+  const sheet = page.getByTestId('report-sheet');
+  await expect(sheet).toBeVisible();
+  const onTop = await sheet.evaluate((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + 20); return el.contains(top); });
+  expect(onTop).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(pv).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 // пункт владельца 09.11: «хотелось бы, чтобы можно было нажать на картинку и она открылась на весь экран»;
 // 16.11, вечер: «должно быть реально классно, современно, реальная числовая плоскость»
 test('график на весь экран — числовая плоскость: сетка мельчает при приближении, плоскость двигается, у линии — значения; Esc закрывает только её', async ({ page, isMobile }) => {
@@ -695,7 +769,9 @@ test('график на весь экран — числовая плоскос�
   await expect(level).toHaveText('×1,6');
   await pv.getByTestId('plane-in').click(); await pv.getByTestId('plane-in').click();
   await expect.poll(() => num('data-step-x')).toBeLessThan(step0);
-  // тянем — плоскость едет
+  // тянем — плоскость едет (сначала дожидаемся конца плавного приближения)
+  await expect(level).toHaveText('×4,1');
+  await page.waitForTimeout(350);
   const x0 = await num('data-x0');
   const cx = box.x + box.width / 2; const cy = box.y + box.height / 2;
   await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 80, cy, { steps: 4 }); await page.mouse.up();
