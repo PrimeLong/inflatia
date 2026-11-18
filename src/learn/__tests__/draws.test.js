@@ -162,3 +162,25 @@ describe('«Нарисуй сам»: закрасить область', () => {
     expect(checkTask(hh, t, { paint: above }).ok).toBe(false);
   });
 });
+
+// жалобы учеников 17–18.11 на «Разбор графика»: «очень странное движение» (graph-money, шаг 6) и «странная анимация закраски» (graph-tax)
+describe('разбор графика: оси одни на весь урок', () => {
+  it('у мультипликатора верх оси по шагам разный (ceil), а окно урока — одно и покрывает все шаги', async () => {
+    const { lessonDomain } = await import('../../learn-graph.jsx');
+    const { GRAPH_BY_ID, stepView } = await import('../graphs.js');
+    const { CHARTS } = await import('../../textbook/charts.js');
+    const g = GRAPH_BY_ID['graph-money']; const def = CHARTS[g.chart];
+    const defaults = Object.fromEntries(def.controls(g.attrs).map((c) => [c.id, c.def]));
+    const tops = g.steps.map((_, k) => def.build(g.attrs, { ...defaults, ...stepView(g, k).values }).yDomain[1]);
+    expect(new Set(tops).size).toBeGreaterThan(1);
+    const lock = lessonDomain(g, def, defaults);
+    expect(lock.y[1]).toBe(Math.max(...tops));
+    tops.forEach((t) => expect(t).toBeLessThanOrEqual(lock.y[1]));
+  });
+  it('область закрашивается проходом кисти (clip-path слева направо), а не растяжением снизу', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../learn-graph.jsx', import.meta.url), 'utf8');
+    expect(src).toMatch(/<polygon className=\{`sweep/);
+    expect(src).toMatch(/@keyframes g-sweep \{ from \{ clip-path: inset\(0 100% 0 0\)/);
+  });
+});
