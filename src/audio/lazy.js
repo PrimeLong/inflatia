@@ -68,6 +68,8 @@ export const Audio = {
   // загрузить движок без звука и без AudioContext (плашка музыки на паузе после возвращения на сайт)
   preload() { return load(); },
   levels(n) { return real ? real.levels(n) : null; },
+  // приглушить музыку под голос: движок не загружен — музыки и нет
+  duck(on) { if (real && real.duck) real.duck(on); },
   restorePaused: deferred('restorePaused'),
   play: deferred('play', { drop: true }),
   startMusic: deferred('startMusic'),

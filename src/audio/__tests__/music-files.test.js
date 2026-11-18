@@ -1,6 +1,6 @@
 // Музыка: записи вместо синтеза (docs/mechanics.md, «Музыка: записи вместо синтеза»)
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createAudioEngine } from '../engine.js';
+import { createAudioEngine, DUCK_LEVEL } from '../engine.js';
 import { MOOD_PLAYLISTS } from '../tracks.js';
 import { listMusicFiles } from '../../../scripts/voice-files-plugin.js';
 import fs from 'node:fs';
@@ -131,5 +131,22 @@ describe('записи вместо синтеза', () => {
     const { ctx } = fakeContext();
     const a = createAudioEngine({ context: ctx });
     expect(a.playlist().every((x) => x.file === false)).toBe(true);
+  });
+
+  // замечание владельца 18.11, вечер, п. 16: «в „Слушай“ когда воспроизводится запись, музыка должна притихать»
+  it('голос поверх музыки: duck(true) уводит музыку к DUCK_LEVEL, duck(false) возвращает; звуки интерфейса не трогает', () => {
+    const { ctx } = fakeContext();
+    const gains = []; const make = ctx.createGain;
+    ctx.createGain = () => { const g = make(); const calls = []; g.gain = { value: 1, setTargetAtTime: (v) => calls.push(v), setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() {} }; g.calls = calls; gains.push(g); return g; };
+    const a = createAudioEngine({ context: ctx });
+    a.prime(); a.setMusic(true);
+    a.duck(true);
+    expect(a.ducked).toBe(true);
+    const duckNode = gains.find((g) => g.calls.includes(DUCK_LEVEL));
+    expect(duckNode, 'узел приглушения').toBeTruthy();
+    a.duck(false);
+    expect(a.ducked).toBe(false);
+    expect(duckNode.calls[duckNode.calls.length - 1]).toBe(1);
+    expect(DUCK_LEVEL).toBeGreaterThan(0.1); expect(DUCK_LEVEL).toBeLessThan(0.4);
   });
 });

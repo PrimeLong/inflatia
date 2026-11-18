@@ -18,6 +18,8 @@ import MUSIC_FILES from 'virtual:music-files';
    верить, звучит поверх кризиса — слышно, что выход есть; ручное управление и
    предвыборная кампания окрашивают только некризисные времена. */
 // детский режим «Мира» (docs/world.md): без войны, тоталитаризма и ручного управления — и в музыке
+// во сколько раз тише музыка, пока звучит голос в «Слушай»
+export const DUCK_LEVEL = 0.22;
 export const KIDS_HIDDEN_MOODS = ['war', 'totalitarian', 'authoritarian'];
 export const moodFor = (e) => {
   if (e.kidsMode) { const m = moodForAdult(e); return KIDS_HIDDEN_MOODS.includes(m) ? 'calm' : m; }
@@ -52,6 +54,7 @@ export const stingerFor = (prev, cur) => {
 export function createAudioEngine(options = {}) {
   let analyser = null;
   let ctx = null; let master = null; let comp = null; let musicBus = null; let songBus = null; let sfxBus = null; let noiseBuf = null;
+  let duckGain = null; let ducked = false;
   let dry = null; let verbIn = null; let echo = null; let pianoBus = null; let chorusIn = null;
   const opts = { music: true, sfx: true, volume: 0.6 };
   let lastTick = 0; const listeners = [];
@@ -145,7 +148,9 @@ export function createAudioEngine(options = {}) {
       comp.threshold.value = -16; comp.knee.value = 22; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.28;
       master.connect(comp); comp.connect(ctx.destination);
     } catch { master.connect(ctx.destination); }
-    musicBus = ctx.createGain(); musicBus.gain.value = opts.music ? 0.55 : 0; musicBus.connect(master);
+    musicBus = ctx.createGain(); musicBus.gain.value = opts.music ? 0.55 : 0;
+    // приглушение музыки под голос («Слушай», замечание владельца 18.11, вечер, п. 16): отдельный множитель после шины музыки
+    duckGain = ctx.createGain(); duckGain.gain.value = ducked ? DUCK_LEVEL : 1; musicBus.connect(duckGain); duckGain.connect(master);
     // ответвление для спектра проигрывателя: слушает музыку, в выход не идёт
     try { analyser = ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.78; musicBus.connect(analyser); } catch { analyser = null; }
     sfxBus = ctx.createGain(); sfxBus.gain.value = opts.sfx ? 0.9 : 0; sfxBus.connect(master);
@@ -1243,6 +1248,12 @@ export function createAudioEngine(options = {}) {
       duration: fileSrc && fileFor === track.id && fileSrc.buffer ? fileSrc.buffer.duration : null }),
     /* спектр того, что звучит сейчас, — n полос 0…1 (низы слева), по логарифмической шкале частот; тишина и пауза — null.
        Рисует живой круг вокруг обложки проигрывателя (src/MacroSimulator.jsx, «Сейчас играет») */
+    /* голос поверх музыки: on — музыка тихнет до DUCK_LEVEL за ~0,4 с, off — возвращается за ~1,5 с */
+    duck(on) {
+      ducked = !!on;
+      if (duckGain && ctx) duckGain.gain.setTargetAtTime(ducked ? DUCK_LEVEL : 1, now(), ducked ? 0.12 : 0.45);
+    },
+    get ducked() { return ducked; },
     levels(n = 48) {
       if (!analyser || !running) return null;
       const d = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(d);

@@ -231,6 +231,11 @@ function useSpeech() {
   };
   // кнопка сюжета: звучит этот — остановить, иначе — читать сначала
   const toggle = (key, text, who) => { if (now.key === key) stop(); else speak(key, text, who); };
+  /* пока звучит сюжет (запись или голос браузера) — музыка тихнет и возвращается, когда он кончился или его остановили
+     (замечание владельца 18.11, вечер: «в „Слушай“ когда воспроизводится запись, музыка должна притихать») */
+  const speaking = now.key != null && voice;
+  useEffect(() => { Audio.duck(speaking); }, [speaking]);
+  useEffect(() => () => Audio.duck(false), []);
   return { voice, voiced, canVoice, muted, setMuted, now, speak, stop, toggle, caption: voiceCaption(anyRecordings()) };
 }
 
