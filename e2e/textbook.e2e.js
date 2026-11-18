@@ -196,6 +196,44 @@ test('музыка в обучении: мини-плашка над вклад�
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 18.11: «странно, что минипроигрыватель исчезает, если поставил на паузу и ушёл с сайта, ты же не выключал музыку»
+test('музыка: пауза на плашке переживает уход с сайта — плашка возвращается «на паузе» с той же пьесой, «Играть» — с той же секунды', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript((ids) => { window.__INFLATIA_MUSIC_FILES__ = ids; }, Object.keys(TRACKS));
+  const wav = testWav(20);
+  await page.route('**/music/*.mp3', (route) => route.fulfill({ status: 200, contentType: 'audio/mpeg', body: wav }));
+  const { errors } = await openApp(page);
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  await page.getByTestId('prof-music').click();
+  await page.keyboard.press('Escape');
+  const dock = page.getByTestId('music-dock');
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  const pos = async () => Number(await page.evaluate(() => window.__inflatiaAudioPos && window.__inflatiaAudioPos()));
+  await expect.poll(pos, { timeout: 15000 }).toBeGreaterThan(2);
+  await dock.getByTestId('music-dock-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'paused');
+  const title = await dock.getByTestId('music-dock-title').textContent();
+  const at = await pos();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ems-music-paused')).offset)).toBeGreaterThan(1.5);
+  // ушли с сайта и вернулись
+  await page.goto('about:blank');
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(dock).toBeVisible();
+  await expect(dock).toHaveAttribute('data-state', 'paused');
+  await expect(dock.getByTestId('music-dock-title')).toHaveText(title);
+  await dock.getByTestId('music-dock-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'playing');
+  // запись загружается заново; как только зазвучала — она уже на той секунде, где остановились, а не с начала
+  await expect.poll(pos, { timeout: 10000 }).toBeGreaterThan(0);
+  expect(await pos()).toBeGreaterThan(at - 0.3);
+  // «×» — музыка выключена совсем: после возвращения плашки нет
+  await dock.getByTestId('music-dock-close').click();
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(dock).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('учебник: оглавление, формулы KaTeX, график с ползунком, задача и повторение, без внешних запросов', async ({ page }) => {
   const { errors, external } = await openApp(page);
   await openBook(page);

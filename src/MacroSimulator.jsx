@@ -20,7 +20,7 @@ import { isChunkError, reloadOnce } from './lib/chunk-reload.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
-  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike, MOOD_TINT,
+  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike, MOOD_TINT, setMusicPaused,
 } from './ds-tokens.js';
 import { DsRoot, Tabs } from './ds.jsx';
 import {
@@ -610,7 +610,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
           <div className="mp-ctl">
             <button className={`mp-b${kick === 'prev' ? ' kick-prev' : ''}`} aria-label="Предыдущая пьеса" data-testid="music-prev" data-kick={kick === 'prev' ? 'true' : undefined} onClick={() => { Audio.play('tick'); doKick('prev'); Audio.skip(false); }}><SkipBack size={16} /></button>
             <button className="mp-b main" aria-label={music ? 'Пауза' : 'Играть'} data-testid="music-play"
-              onClick={() => { const v = !music; Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); setMusic(v); }}>{music ? <Pause size={20} /> : <Play size={20} />}</button>
+              onClick={() => { const v = !music; if (learn && !v) setMusicPaused({ id: np.id, offset: np.position }); Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); setMusic(v); }}>{music ? <Pause size={20} /> : <Play size={20} />}</button>
             <button className={`mp-b${kick === 'next' ? ' kick-next' : ''}`} aria-label="Следующая пьеса" data-testid="music-next" data-kick={kick === 'next' ? 'true' : undefined} onClick={() => { Audio.play('tick'); doKick('next'); Audio.skip(true); }}><SkipForward size={16} /></button>
           </div>
           {list.length > 1 && (
@@ -633,7 +633,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
             </select>
           </label>
           {wave && (np.locked || 'wave') === 'wave' && <div className="mp-hint" data-testid="music-wave-hint">«Волна» подбирает пьесы сама: начинает спокойно, переходит плавно. ♥ — пьеса будет звучать чаще</div>}
-          {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); if (learn) setLearnMusic(v); else setWorldMusic(v); }, Music],
+          {[['Музыка', music, (v) => { setMusic(v); Audio.setMusic(v); if (learn) { setLearnMusic(v); setMusicPaused(null); } else setWorldMusic(v); }, Music],
             ['Интерфейс и события', sfx, (v) => { setSfx(v); Audio.setSfx(v); if (learn) setLearnSfx(v); else setWorldSfx(v); if (v) Audio.play('click'); }, Volume2]].map(([label, val, set, Icon]) => (
               <div key={label} className="mp-sw-row">
                 <Icon size={14} className={val ? 'on' : ''} />

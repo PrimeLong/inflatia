@@ -1286,6 +1286,14 @@ export function createAudioEngine(options = {}) {
       }, 120);
       notify();
     },
+    /* пауза после возвращения на сайт (пункт владельца 18.11: «минипроигрыватель исчезает, если поставил на паузу и ушёл с
+       сайта»): та же пьеса встаёт на паузу на той же секунде записи — «Играть» продолжит с неё. Не играет и не грузит звук */
+    restorePaused(st) {
+      if (running || !st || !TRACKS[st.id]) return;
+      if (track.id !== st.id) setTrack(st.id);
+      paused = fileTrack(st.id) ? { id: st.id, file: true, offset: Math.max(0, Number(st.offset) || 0) } : { id: st.id, file: false, step: 0 };
+      notify();
+    },
     stopMusic() {
       // где остановились: секунда записи (если звучала запись этой пьесы) или шаг синтеза
       if (running) paused = fileSrc && fileFor === track.id ? { id: track.id, file: true, offset: Math.max(0, now() - fileStart) } : { id: track.id, file: false, step: stepIdx - (stepIdx % 16) };

@@ -21,7 +21,7 @@ import { albumItems, sealItems, monthItems, monthsByYear, shelfOrder, fullDate }
 import { NOTIFY_KINDS, REMIND_HOURS } from './learn/notify.js';
 import { ProgramCard } from './learn-rewards.jsx';
 import { BellButton, browserNotifySupported } from './learn-notify.jsx';
-import { learnDark, setLearnDark, learnMusic, setLearnMusic, learnSfx, setLearnSfx } from './ds-tokens.js';
+import { learnDark, setLearnDark, learnMusic, setLearnMusic, learnSfx, setLearnSfx, setMusicPaused } from './ds-tokens.js';
 import { ProfileModal, loadAccount } from './account.jsx';
 import { reportsMe } from './lib/client.js';
 import { TRACK, rememberTeam, switchTrack } from './learn/track.js';
@@ -507,7 +507,7 @@ export function SettingsView({ learn, update, notify, onBack, onThemeChange, onP
 
         <SetGroup icon={Palette} tone="#C2490B" title="Оформление и звук" testid="prof-settings">
           <SetRow title="Тёмная тема" note="Для обучения и «Мира»" on={dark} testid="prof-dark" onChange={(v) => { setLearnDark(v); setDark(v); onThemeChange(); }} />
-          <SetRow title="Музыка в обучении" on={music} testid="prof-music" onChange={(v) => { setLearnMusic(v); setMusic(v); onThemeChange(); }} />
+          <SetRow title="Музыка в обучении" on={music} testid="prof-music" onChange={(v) => { setLearnMusic(v); setMusicPaused(null); setMusic(v); onThemeChange(); }} />
           <SetRow title="Звуки ответов" on={sfx} testid="prof-sfx" onChange={(v) => { setLearnSfx(v); setSfx(v); onThemeChange(); if (v) Audio.play('coin'); }} />
           <SetRow title="Антистресс" testid="prof-antistress" on={calmOpen && calmOn} disabled={!calmOpen} onChange={(v) => { Audio.play('tick'); setAntistressShown(v); setCalmOn(v); }}
             note={calmOpen ? 'Окошко в углу урока на компьютере: кольца, битва цветов, маятники, лава-лампа, стая, песок, поп-ит, тетрис и змейка'
