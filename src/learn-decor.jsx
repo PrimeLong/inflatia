@@ -283,7 +283,8 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const size = () => { W = Math.max(120, el.clientWidth); cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = `${W}px`; cv.style.height = `${H}px`; };
     size();
-    const col = { ink: css(el, '--ds-ink2', '#5b4a3a') };
+    // рама и нити — цвет темы урока (--sk-frame), без темы — чернила страницы
+    const col = { ink: css(el, '--sk-frame', css(el, '--ds-ink2', '#5b4a3a')) };
     let raf = 0; let last = 0; let calm = 0; let drag = null; let awake = null;
     const mark = (v) => { if (awake !== v) { awake = v; el.dataset.awake = String(v); } };
     const draw = () => { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H); DRAW[m.kind](ctx, m, col, W, H); };
