@@ -344,6 +344,15 @@ export const TEXTBOOK_CSS = `
 export const PLAY_CSS = `
   .lp-chart { width: 100%; max-width: 380px; display: block; margin: 6px auto 10px; touch-action: none; user-select: none; -webkit-user-select: none; }
   .lp-chart text { font: 700 12px var(--ds-mono); fill: var(--ds-ink2); }
+  .lp-chart .lp-axis { font: 700 10.5px var(--ds-sans); letter-spacing: .03em; fill: var(--ds-ink3); paint-order: stroke; stroke: var(--ds-card); stroke-width: 3px; }
+  .lp-chart .lp-eqv { font: 700 11px var(--ds-mono); fill: var(--ds-ink); paint-order: stroke; stroke: var(--ds-card); stroke-width: 3.5px; }
+  .lp-chart .lp-tag text { font: 800 11.5px var(--ds-sans); }
+  .lp-chart .lp-arrow { animation: lp-arrow-in .45s cubic-bezier(.3, 1.4, .5, 1) backwards; }
+  @keyframes lp-arrow-in { from { opacity: 0; transform: translateX(-6px); } }
+  .lp-chart .lp-eq-glow { animation: lp-eq-pulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes lp-eq-pulse { 50% { transform: scale(1.35); opacity: .08; } }
+  .lp-chart .lp-curve { filter: drop-shadow(0 2px 3px color-mix(in srgb, currentColor 20%, transparent)); }
+  @media (prefers-reduced-motion: reduce) { .lp-chart .lp-arrow, .lp-chart .lp-eq-glow { animation: none; } }
   .lp-hit { cursor: grab; }
   .lp-hit:active { cursor: grabbing; }
   .lp-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0; }

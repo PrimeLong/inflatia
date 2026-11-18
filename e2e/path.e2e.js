@@ -416,6 +416,12 @@ test('путь: юнит «Спрос и предложение» — кажды
   // «Мини-игра»: одна игра на время с графиком рынка; проверка — сама по окончании; неудачная не возвращается
   await startLesson(page, 'sd-g');
   await expect(page.getByTestId('ex').getByTestId('market-chart')).toBeVisible();
+  // пункт владельца 18.11: график мини-игры — как в «Разборе графика»: плашки D и S, равновесие с P* и Q*, подписи осей
+  const mk = page.getByTestId('ex').getByTestId('market-chart');
+  await expect(mk.locator('.lp-tag')).toHaveCount(2);
+  await expect(mk.getByTestId('market-eq')).toContainText('P*');
+  await expect(mk.getByTestId('market-eq')).toContainText('Q*');
+  await expect(mk.locator('.lp-axis')).toHaveCount(2);
   const { kinds: gk, retries } = await playLesson(page, { wrongAt: [0] });
   expect([...gk]).toEqual(['rush']);
   expect(retries).toBe(0);

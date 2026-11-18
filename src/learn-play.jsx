@@ -46,6 +46,8 @@ export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghos
   const drag = useRef(null);
   const dm = { ...m, dA: (m.dA || 0) + (shift.D || 0) }; const sm = { ...m, dC: (m.dC || 0) + (shift.S || 0) };
   const fD = (mm) => (p) => qd(mm, p); const fS = (mm) => (p) => qs(mm, p);
+  // цвета и подписи — как в «Разборе графика» (пункт владельца 18.11: «в разборе графиков один график, а в мини-игре самый обычный»)
+  const CD = 'var(--g-blue, #3E6FA8)'; const CS = 'var(--g-rust, #C0602A)';
   const toUnits = (e) => {
     const r = svgRef.current.getBoundingClientRect();
     const sx = VW / r.width; const sy = VH / r.height;
@@ -77,21 +79,43 @@ export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghos
     <svg ref={svgRef} className="lp-chart" viewBox={`0 0 ${VW} ${VH}`} role="img" aria-label={label} data-testid="market-chart"
       data-plot={JSON.stringify({ x0: PL, y0: PT, w: PW, h: PH, vw: VW, vh: VH, qMax: ax.qMax, pMax: ax.pMax })}
       onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={click} style={{ cursor: onPlot ? 'crosshair' : undefined }}>
-      <rect x={PL} y={PT} width={PW} height={PH} fill="none" />
+      <defs>
+        <linearGradient id="lp-plot-bg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--ds-card2)" stopOpacity=".55" /><stop offset="1" stopColor="var(--ds-card)" stopOpacity="0" /></linearGradient>
+      </defs>
+      <rect x={PL} y={PT} width={PW} height={PH} fill="url(#lp-plot-bg)" rx="4" />
+      {/* сетка: основные линии с подписями и тонкие между ними */}
+      {ticksP.slice(0, -1).map((p, i) => <line key={`pm${p}`} x1={PL} x2={PL + PW} y1={yOf(p + (ticksP[i + 1] - p) / 2, ax)} y2={yOf(p + (ticksP[i + 1] - p) / 2, ax)} stroke="var(--ds-rule)" strokeWidth=".6" opacity=".55" />)}
+      {ticksQ.map((q) => <line key={`qg${q}`} x1={xOf(q, ax)} x2={xOf(q, ax)} y1={PT} y2={PT + PH} stroke="var(--ds-rule)" strokeWidth=".6" opacity=".55" />)}
       {ticksP.map((p) => <g key={`p${p}`}><line x1={PL} x2={PL + PW} y1={yOf(p, ax)} y2={yOf(p, ax)} stroke="var(--ds-rule)" strokeWidth="1" /><text x={PL - 6} y={yOf(p, ax) + 4} textAnchor="end">{p}</text></g>)}
       {ticksQ.map((q) => <text key={`q${q}`} x={xOf(q, ax)} y={PT + PH + 16} textAnchor="middle">{q}</text>)}
       <line x1={PL} y1={PT} x2={PL} y2={PT + PH} stroke="var(--ds-ink2)" strokeWidth="2" />
       <line x1={PL} y1={PT + PH} x2={PL + PW} y2={PT + PH} stroke="var(--ds-ink2)" strokeWidth="2" />
-      <text x={PL + 4} y={PT + 10}>P</text><text x={PL + PW - 4} y={PT + PH - 6} textAnchor="end">Q</text>
-      {ghost && show.includes('D') && (shift.D || m.dA) ? <path d={curvePath(fD({ ...m, dA: 0 }), ax)} stroke="#3E6FA8" strokeOpacity=".45" strokeWidth="2.5" strokeDasharray="6 5" fill="none" /> : null}
-      {ghost && show.includes('S') && (shift.S || m.dC) ? <path d={curvePath(fS({ ...m, dC: 0 }), ax)} stroke="#C0602A" strokeOpacity=".45" strokeWidth="2.5" strokeDasharray="6 5" fill="none" /> : null}
-      {show.includes('D') && <path d={curvePath(fD(dm), ax)} stroke="#3E6FA8" strokeWidth="4" fill="none" strokeLinecap="round" data-curve-line="D" />}
-      {show.includes('S') && <path d={curvePath(fS(sm), ax)} stroke="#C0602A" strokeWidth="4" fill="none" strokeLinecap="round" data-curve-line="S" />}
+      <text x={PL + 6} y={PT + 11} className="lp-axis">P, цена</text><text x={PL + PW - 4} y={PT + PH - 7} textAnchor="end" className="lp-axis">Q, количество</text>
+      {ghost && show.includes('D') && (shift.D || m.dA) ? <path d={curvePath(fD({ ...m, dA: 0 }), ax)} stroke={CD} strokeOpacity=".4" strokeWidth="2.5" strokeDasharray="6 5" fill="none" data-testid="curve-ghost" /> : null}
+      {ghost && show.includes('S') && (shift.S || m.dC) ? <path d={curvePath(fS({ ...m, dC: 0 }), ax)} stroke={CS} strokeOpacity=".4" strokeWidth="2.5" strokeDasharray="6 5" fill="none" data-testid="curve-ghost" /> : null}
+      {/* куда сдвинулась кривая: стрелка от прежнего положения к новому на средней цене */}
+      {ghost && show.map((c) => {
+        const sh = c === 'D' ? (shift.D || 0) + (m.dA || 0) : (shift.S || 0) + (m.dC || 0);
+        if (Math.abs(sh) < 3) return null;
+        const pMid = ax.pMax * (c === 'D' ? 0.62 : 0.5); const f = c === 'D' ? qd : qs;
+        const q0 = clampN(f({ ...m, ...(c === 'D' ? { dA: 0 } : { dC: 0 }) }, pMid), 0, ax.qMax); const q1 = clampN(f(c === 'D' ? dm : sm, pMid), 0, ax.qMax);
+        if (Math.abs(xOf(q1, ax) - xOf(q0, ax)) < 10) return null;
+        const y = yOf(pMid, ax); const dir = Math.sign(q1 - q0); const x1 = xOf(q1, ax) - dir * 6;
+        return (
+          <g key={`arr${c}`} data-testid="shift-arrow" data-curve={c} className="lp-arrow" style={{ color: c === 'D' ? CD : CS }}>
+            <line x1={xOf(q0, ax)} y1={y} x2={x1} y2={y} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            <path d={`M${x1 + dir * 6},${y} l${-dir * 8},-5 l0,10 Z`} fill="currentColor" />
+          </g>
+        );
+      })}
+      {show.includes('D') && <path d={curvePath(fD(dm), ax)} stroke={CD} strokeWidth="3.6" fill="none" strokeLinecap="round" data-curve-line="D" className="lp-curve" />}
+      {show.includes('S') && <path d={curvePath(fS(sm), ax)} stroke={CS} strokeWidth="3.6" fill="none" strokeLinecap="round" data-curve-line="S" className="lp-curve" />}
       {onDrag && show.map((c) => (
         <path key={c} d={curvePath(c === 'D' ? fD(dm) : fS(sm), ax)} stroke="transparent" strokeWidth="26" fill="none" className="lp-hit" onPointerDown={down(c)} data-hit={c} />
       ))}
-      {show.includes('D') && (() => { const q = clampN(qd(dm, ax.pMax * 0.12), 0, ax.qMax); return <text x={xOf(q, ax) + 4} y={yOf(ax.pMax * 0.12, ax) - 6} style={{ fill: '#3E6FA8' }}>D</text>; })()}
-      {show.includes('S') && (() => { const p = ax.pMax * 0.9; const q = clampN(qs(sm, p), 0, ax.qMax); return <text x={xOf(q, ax) + 6} y={yOf(p, ax) + 4} style={{ fill: '#C0602A' }}>S</text>; })()}
+      {/* подписи кривых — плашками, как в «Разборе графика» */}
+      {show.includes('D') && (() => { const pp = ax.pMax * 0.14; const q = clampN(qd(dm, pp), 0, ax.qMax); return <g className="lp-tag" transform={`translate(${Math.min(PL + PW - 14, xOf(q, ax) + 12)},${yOf(pp, ax) - 10})`}><rect x="-9" y="-9" width="18" height="17" rx="5" fill={CD} /><text y="4" textAnchor="middle" style={{ fill: '#fff' }}>D</text></g>; })()}
+      {show.includes('S') && (() => { const pp = ax.pMax * 0.88; const q = clampN(qs(sm, pp), 0, ax.qMax); return <g className="lp-tag" transform={`translate(${Math.min(PL + PW - 14, xOf(q, ax) + 14)},${yOf(pp, ax) + 2})`}><rect x="-9" y="-9" width="18" height="17" rx="5" fill={CS} /><text y="4" textAnchor="middle" style={{ fill: '#fff' }}>S</text></g>; })()}
       {price != null && (() => {
         const d = clampN(qd(dm, price), 0, ax.qMax); const s = clampN(qs(sm, price), 0, ax.qMax);
         return (
@@ -102,7 +126,16 @@ export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghos
           </g>
         );
       })()}
-      {e0 && <circle cx={xOf(e0.q, ax)} cy={yOf(e0.p, ax)} r="6" fill="var(--ds-ink)" />}
+      {e0 && (
+        <g data-testid="market-eq">
+          <line x1={PL} x2={xOf(e0.q, ax)} y1={yOf(e0.p, ax)} y2={yOf(e0.p, ax)} stroke="var(--ds-ink2)" strokeWidth="1.2" strokeDasharray="3 4" />
+          <line x1={xOf(e0.q, ax)} x2={xOf(e0.q, ax)} y1={yOf(e0.p, ax)} y2={PT + PH} stroke="var(--ds-ink2)" strokeWidth="1.2" strokeDasharray="3 4" />
+          <circle cx={xOf(e0.q, ax)} cy={yOf(e0.p, ax)} r="11" fill="var(--u, #9A7413)" opacity=".18" className="lp-eq-glow" />
+          <circle cx={xOf(e0.q, ax)} cy={yOf(e0.p, ax)} r="6" fill="var(--ds-ink)" stroke="var(--ds-card)" strokeWidth="2" />
+          <text x={PL + 4} y={yOf(e0.p, ax) - 5} className="lp-eqv">P* {Math.round(e0.p)}</text>
+          <text x={xOf(e0.q, ax) + 5} y={PT + PH - 5} className="lp-eqv">Q* {Math.round(e0.q)}</text>
+        </g>
+      )}
       {good && <circle cx={xOf(good.q, ax)} cy={yOf(good.p, ax)} r="9" fill="none" stroke="var(--ds-ok)" strokeWidth="3" data-testid="point-good" />}
       {mark && <circle cx={xOf(mark.q, ax)} cy={yOf(mark.p, ax)} r="7" fill="var(--u)" stroke="#fff" strokeWidth="2" data-testid="point-mark" />}
     </svg>
