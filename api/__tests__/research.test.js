@@ -271,4 +271,10 @@ describe('исследование: сервер', () => {
     expect((await call(h, { action: 'event', code, event: { event_type: 'lesson_start' } })).status).toBe(404);
     expect(formFor({ form_order: 'BA' }, 'post')).toBe('A');
   });
+  it('информация для участника — той же версии, что принимает сервер, и с контактом ответственного (без ФИО)', () => {
+    const info = readFileSync(new URL('../../research/participant-information.md', import.meta.url), 'utf8');
+    expect(info).toContain(`Версия информации: ${CONSENT_VERSION}`);
+    expect(info).toContain('Discord **privet1**'); expect(info).toContain('Telegram **@Yyyeeeeessssss**');
+    expect(info).not.toMatch(/заполнить при фиксации/);
+  });
 });

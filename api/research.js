@@ -33,7 +33,7 @@ import { armAt, stratumOf } from '../src/research/randomize.js';
 import { researchStore, hasResearchDb } from './_lib/research-store.js';
 
 // версия информации для участника (research/participant-information.md); согласие с другой версией не принимается
-export const CONSENT_VERSION = '0.2';
+export const CONSENT_VERSION = '0.3';
 export const ENROLL_PER_DAY = 300;      // защита от массовой записи без адреса и логина
 export const EVENTS_PER_PARTICIPANT = 3000;
 export const LOCK_SECONDS = 30;
