@@ -10,8 +10,6 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-# сборка для ONREZA (scripts/onreza-pack.mjs)
-.onreza-out
 *.local
 
 # Editor directories and files

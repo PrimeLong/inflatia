@@ -339,24 +339,47 @@ export const TEXTBOOK_CSS = `
     .ln-textbook.wide .tb-body { font-size: 16px; }
     .ln-textbook.wide .tb-ch-main.tb-body { font-size: 18px; }
   }
-  /* РЕДИЗАЙН ОГЛАВЛЕНИЯ И ГЛАВЫ (замечание владельца 18.11, вечер, п. 20: «мне не нравится, как выглядит оглавление в
-     учебнике, нужен редизайн; а ещё очень много лишнего места вместо чтения»).
-     Оглавление — уровни с крупным номером и главы карточками: полоса цвета юнита сверху, номер, название, задачи и
-     разделы, кольцо прогресса; карточка приподнимается под курсором. */
-  .tbl-parts { gap: 22px; }
+  /* ОГЛАВЛЕНИЕ КАК В КНИГЕ (пункт владельца 19.11, п. 3: «мне теперь ещё больше не нравится оглавление» — карточки 18.11
+     читались как плитка приложений). Одна колонка для чтения: заголовок «Оглавление» антиквой и строка итогов; закладка
+     «Продолжить чтение»; уровни — части книги («Уровень 2 · Базовый» и пояснение курсивом); главы — строками: номер антиквой
+     в цвете юнита, название, отточие до счётчика разделов справа, под названием — разделы и задачи, у начатой — тонкая
+     полоска прогресса. Ни коробок, ни теней: тонкие линии между строками, как в оглавлении книги. */
+  .tbl { max-width: 760px; margin: 0 auto; }
+  .tbl-head { margin: 4px 0 14px; }
+  .tbl-head h2 { margin: 0; font: 700 clamp(28px, 4.2vw, 38px)/1.1 var(--ds-head); letter-spacing: -.01em; }
+  .tbl-head .tbl-stats { margin: 8px 0 0; }
+  .tbl-continue { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 18px 14px 26px; margin: 0 0 22px;
+    border-radius: 14px; background: var(--ds-card); color: var(--ds-ink); border: 1px solid var(--ds-rule2); border-bottom-width: 1px; box-shadow: 0 10px 26px -20px rgba(0,0,0,.45); }
+  .tbl-continue::before { content: ''; position: absolute; left: 12px; top: -1px; width: 8px; height: 30px; background: var(--u); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%); }
+  .tbl-continue small { color: var(--u-ink); opacity: 1; }
+  .tbl-continue b { font-size: 19px; }
+  .tbl-continue:hover { border-color: color-mix(in srgb, var(--u) 45%, var(--ds-rule2)); }
+  .tbl-parts { gap: 30px; }
   .tbl-part { background: none; border: 0; padding: 0; }
-  .tbl-part-title { padding: 0 2px 4px; font-size: 13px; }
-  .tbl-level-text { padding: 0 2px 10px; }
-  .tbl-chs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 10px; }
-  .tbl-chs .tbl-ch { position: relative; overflow: hidden; border: 1px solid var(--ds-rule2); border-radius: 14px; background: var(--ds-card); padding: 14px 12px 12px 14px;
-    align-items: start; box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-ink) 5%, transparent); transition: transform .16s ease, box-shadow .16s ease, border-color .16s; }
-  .tbl-chs .tbl-ch::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--u, var(--ds-rule2)); opacity: .85; }
-  .tbl-chs .tbl-ch:hover { background: var(--ds-card); transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(0,0,0,.45); border-color: color-mix(in srgb, var(--u, var(--ds-rule2)) 45%, var(--ds-rule2)); }
-  .tbl-chs .tbl-ch.locked::before { background: var(--ds-rule2); }
-  .tbl-chs .tbl-no { border-color: color-mix(in srgb, var(--u, var(--ds-rule2)) 55%, var(--ds-rule2)); color: color-mix(in srgb, var(--u, var(--ds-ink2)) 75%, var(--ds-ink)); }
-  .tbl-chs .tbl-ch-title { font-size: 15px; }
-  .tbl-chs .tbl-ch-ring .fg { stroke: var(--u, var(--ds-ok)); }
-  @media (prefers-reduced-motion: reduce) { .tbl-chs .tbl-ch { transition: none; } .tbl-chs .tbl-ch:hover { transform: none; } }
+  .tbl-part-title { padding: 0 0 2px; margin: 0; font: 700 22px/1.2 var(--ds-head); letter-spacing: 0; text-transform: none; color: var(--ds-ink); }
+  .tbl-part-k { display: block; font: 800 12px/1.3 var(--ds-sans); letter-spacing: .16em; text-transform: uppercase; color: var(--u-ink); margin-bottom: 2px; }
+  .tbl-part.locked .tbl-part-title { color: var(--ds-ink3); }
+  .tbl-sep { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .tbl-level-text { padding: 0 0 8px; margin: 2px 0 0; font: italic 400 14.5px/1.45 var(--ds-head); color: var(--ds-ink2); }
+  .tbl-chs { display: block; border-top: 1px solid var(--ds-rule2); }
+  .tbl-chs .tbl-ch { grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 12px; padding: 13px 4px 12px; border-top: 0; border-bottom: 1px solid var(--ds-rule); border-radius: 0; background: none; }
+  .tbl-chs .tbl-ch:hover { background: color-mix(in srgb, var(--u, var(--ds-ink)) 5%, transparent); }
+  .tbl-chs .tbl-no { width: auto; height: auto; border: 0; border-radius: 0; justify-content: flex-start; font: 700 22px/1.1 var(--ds-head); color: var(--u, var(--ds-ink2)); font-variant-numeric: lining-nums tabular-nums; }
+  .tbl-chs .tbl-no.done { background: none; color: var(--ds-ok); }
+  /* в тёмной теме цвет юнита у номера — светлее: тёмные цвета юнитов на тёмном фоне не читались */
+  .ds-dark .tbl-chs .tbl-no:not(.done) { color: color-mix(in srgb, var(--u, var(--ds-ink2)) 55%, #fff); }
+  .tbl-ch-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .tbl-chs .tbl-ch-title { font: 600 17px/1.3 var(--ds-head); min-width: 0; }
+  .tbl-chs .tbl-ch:hover .tbl-ch-title { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--u, var(--ds-ink)) 60%, transparent); text-underline-offset: 3px; }
+  .tbl-dots { flex: 1; min-width: 18px; border-bottom: 1.5px dotted color-mix(in srgb, var(--ds-ink) 30%, transparent); transform: translateY(-4px); }
+  .tbl-ch-state { flex: none; font: 700 13px/1 var(--ds-mono, monospace); color: var(--ds-ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tbl-ch-state.done { color: var(--ds-ok); display: inline-flex; align-items: center; gap: 4px; }
+  .tbl-chs .tbl-ch-meta { margin-top: 4px; font-size: 13px; color: var(--ds-ink3); }
+  .tbl-ch-prog { display: block; height: 3px; margin-top: 8px; border-radius: 2px; background: var(--ds-rule); overflow: hidden; max-width: 260px; }
+  .tbl-ch-prog i { display: block; height: 100%; background: var(--u, var(--ds-ok)); border-radius: 2px; }
+  .tbl-chs .tbl-ch.locked .tbl-no { font-size: 16px; padding-top: 3px; color: var(--ds-ink3); }
+  .tbl-part:not(.locked) .tbl-ch.locked { opacity: .62; }
+  @media (max-width: 520px) { .tbl-chs .tbl-ch { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; } .tbl-chs .tbl-no { font-size: 19px; } .tbl-chs .tbl-ch-title { font-size: 16px; } .tbl-dots { display: none; } .tbl-ch-line { justify-content: space-between; } }
   @media (min-width: 1024px) { .ln-textbook.wide .tbl-parts { grid-template-columns: 1fr; } }
   /* Глава на ПК: обложка тоньше, шрифт и музыка — в её строке справа (не отдельной строкой над ней), колонка текста —
      посередине свободного места, оглавление легче: без коробки, у открытой главы — её разделы прямо под ней */
@@ -402,6 +425,10 @@ export const TEXTBOOK_CSS = `
 `;
 
 export const PLAY_CSS = `
+  /* график мини-игры — сцена «Разбора графика» (src/graph-stage.jsx); на телефоне не выше трети экрана */
+  .lp-game-graph { position: relative; }
+  .lp-game-graph svg { display: block; width: 100%; height: auto; max-width: 520px; max-height: 36vh; margin: 0 auto; overflow: visible; }
+  .lp-game-graph svg text { font-family: var(--ds-sans); }
   .lp-chart { width: 100%; max-width: 380px; display: block; margin: 6px auto 10px; touch-action: none; user-select: none; -webkit-user-select: none; }
   .lp-chart text { font: 700 12px var(--ds-mono); fill: var(--ds-ink2); }
   .lp-chart .lp-axis { font: 700 10.5px var(--ds-sans); letter-spacing: .03em; fill: var(--ds-ink3); paint-order: stroke; stroke: var(--ds-card); stroke-width: 3px; }

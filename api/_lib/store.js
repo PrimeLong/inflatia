@@ -3,18 +3,27 @@
    теперь @upstash/redis, а не @vercel/kv (тот считается устаревшим). Переменные окружения
    остаются теми же — KV_REST_API_URL и KV_REST_API_TOKEN, — их подставляет сама интеграция.
    Память оставлена как запасной вариант для локальной разработки: в serverless она НЕ общая
-   между вызовами, играть на ней нельзя. */
-let redis = null;
-try {
-  const { Redis } = await import('@upstash/redis');
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) redis = Redis.fromEnv();
-} catch { redis = null; }
+   между вызовами, играть на ней нельзя.
+   База на ONREZA (docs/onreza.md): если задан DATABASE_URL — управляемый PostgreSQL ONREZA через api/_lib/pgkv.js
+   (те же команды, что у Redis), и Upstash не используется. */
+import { pgKvFromEnv } from './pgkv.js';
+
+let redis = pgKvFromEnv('DATABASE_URL');
+if (!redis) {
+  try {
+    const { Redis } = await import('@upstash/redis');
+    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) redis = Redis.fromEnv();
+  } catch { redis = null; }
+}
 
 const mem = new Map();
 const TTL = 60 * 60 * 24 * 3;   // комната живёт трое суток
 const SOLO_TTL = 60 * 60 * 24 * 180;   // соло-сохранение — не сессия, живёт полгода
 
 export const hasKv = () => !!redis;
+// какая база подключена — для /api/health: postgres (ONREZA), upstash или memory
+export const dbKind = () => (!redis ? 'memory' : redis.kind === 'postgres' ? 'postgres' : 'upstash');
+export const dbPing = async () => { if (!redis) return false; try { await (redis.ping ? redis.ping() : redis.get('ping')); return true; } catch { return false; } };
 export async function getRoom(id) {
   if (redis) return (await redis.get(`room:${id}`)) || null;
   return mem.get(`room:${id}`) || null;

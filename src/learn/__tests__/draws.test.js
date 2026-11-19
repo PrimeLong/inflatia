@@ -179,8 +179,8 @@ describe('разбор графика: оси одни на весь урок', 
   });
   it('область закрашивается проходом кисти (clip-path слева направо), а не растяжением снизу', async () => {
     const { readFileSync } = await import('node:fs');
-    const src = readFileSync(new URL('../../learn-graph.jsx', import.meta.url), 'utf8');
-    expect(src).toMatch(/<polygon className=\{`sweep/);
+    const src = readFileSync(new URL('../../graph-stage.jsx', import.meta.url), 'utf8');
+    expect(src).toMatch(/<polygon className="sweep"/);
     expect(src).toMatch(/@keyframes g-sweep \{ from \{ clip-path: inset\(0 100% 0 0\)/);
   });
 

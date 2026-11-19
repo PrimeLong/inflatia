@@ -8,11 +8,11 @@ import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Sparkles, Lightbulb, Check } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Button } from './ds.jsx';
+import { Button, AnswerBar } from './ds.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { personByName, PEOPLE_BY_ID, MET_XP, isMet, initialsOf, eraPos, galleryOf, quizIdea } from './learn/people.js';
 import { cachedPhoto, loadPhoto, preloadPhotos } from './learn/portraits.js';
-import { tallyAnswer, finishLesson, markMet, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
+import { tallyAnswer, streakNow, finishLesson, markMet, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, REPORT_CSS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -282,7 +282,7 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
   const [k, setK] = useState(() => (was ? was.k : 0));
   const [picked, setPicked] = useState(() => (was ? was.picked : {}));
   const [order] = useState(() => (was && was.order ? was.order : g.people.map((p) => p.ask.options.map((o, i) => ({ ...o, i })).sort(() => Math.random() - 0.5))));
-  const run = useAnswerRun(was ? was.run || 0 : 0, [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
+  const run = useAnswerRun(was ? was.run || 0 : streakNow(learn || {}), [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
   const [finished, setFinished] = useState(false);
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   // алмазный уровень: после людей — «Чья это идея?»; алмаз — без единой ошибки
@@ -396,19 +396,21 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
           <div className="pp-story">{p.story.map((t, i) => <p key={i}>{t}</p>)}</div>
           </div>
           <div className="pp-col-r">
-          <div className="pp-idea" data-testid="people-idea"><Lightbulb size={22} aria-hidden="true" />{p.idea}</div>
-          <div className="pp-fact"><Sparkles size={20} aria-hidden="true" /><b>Знаете ли вы</b>{p.fact}</div>
+          <div className="pp-idea ds-card" data-testid="people-idea"><Lightbulb size={22} aria-hidden="true" />{p.idea}</div>
+          <div className="pp-fact ds-card"><Sparkles size={20} aria-hidden="true" /><b>Знаете ли вы</b>{p.fact}</div>
           <div className="pp-ask">
             <div className="pp-ask-q">{p.ask.prompt}</div>
             <div className="pp-opts" role="group" aria-label="Варианты ответа">
               {order[k].map((o, i) => {
                 const st = choice === i ? (o.ok ? 'ok' : 'bad') : answered && o.ok ? 'ok' : '';
-                return <button key={o.i} type="button" className={`pp-opt ${st}`} disabled={answered} data-testid="people-opt" data-ok={o.ok ? 'true' : 'false'} onClick={() => pick(i)}>{o.text}</button>;
+                return <button key={o.i} type="button" className={`ds-opt ${st === 'ok' ? 'right' : st === 'bad' ? 'wrong' : ''}`} aria-pressed={choice === i} disabled={answered} data-testid="people-opt" data-ok={o.ok ? 'true' : 'false'} onClick={() => pick(i)}>{o.text}</button>;
               })}
             </div>
             {choice != null && (
-              <div ref={fbRef} key={choice} className={`pp-fb ${order[k][choice].ok ? '' : 'bad'}`} role="status" data-testid="people-feedback" data-ok={String(!!order[k][choice].ok)}>
-                {order[k][choice].ok ? <><b>Верно.</b> {p.idea}</> : <><b>Не совсем.</b> {order[k][choice].why} Попробуйте ещё раз.</>}
+              <div ref={fbRef} key={choice}>
+                <AnswerBar ok={!!order[k][choice].ok} className="sp-inline" role="status" data-testid="people-feedback" data-ok={String(!!order[k][choice].ok)}>
+                  <div className="ln-fb-body">{order[k][choice].ok ? p.idea : <>{order[k][choice].why} Попробуйте ещё раз.</>}</div>
+                </AnswerBar>
               </div>
             )}
           </div>
@@ -429,13 +431,13 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
           <div className="ds-sub" style={{ fontSize: 14 }} data-testid="people-count">В галерее: {met} из {galleryOf(learn).length}</div>
         </div>
       )}
-      <div className="pp-foot">
-        <div>
+      <div className="ln-foot sp-foot" data-testid="people-foot">
+        <div className="ln-inner">
           {finished
             ? <Button wide data-testid="people-finish" onClick={() => { Audio.play('click'); onClose(); }}>Дальше</Button>
             : whoStage ? <Button wide icon={Check} disabled={!whoDone} data-testid="people-next" onClick={next}>{whoDone ? 'Готово' : 'Выберите автора у каждой идеи'}</Button>
             : <>
-              <Button variant="ghost" icon={ArrowLeft} disabled={k === 0} data-testid="people-back" onClick={back}>Назад</Button>
+              <Button variant="secondary" icon={ArrowLeft} disabled={k === 0} data-testid="people-back" onClick={back}>Назад</Button>
               <Button wide icon={ArrowRight} disabled={!answered} data-testid="people-next" onClick={next}>{k < g.people.length - 1 ? 'Следующий человек' : gem ? 'Чья это идея?' : 'В галерею'}</Button>
             </>}
         </div>

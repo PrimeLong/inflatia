@@ -143,6 +143,11 @@ describe('алмаз — у всех особых уроков (08.11, вече�
       });
       // верный — не на одном и том же месте у всех идей
       expect(new Set(q.map((it) => it.options.indexOf(it.answer))).size, g.id).toBeGreaterThan(1);
+      // люди урока в вариантах — не в том порядке, в каком их показывали (жалоба 19.11: «буквально по порядку люди идут»)
+      const names = g.people.map((p) => p.name);
+      q.forEach((it) => { const at = names.map((n) => it.options.indexOf(n)); expect(at.every((x, i) => i === 0 || x > at[i - 1]), `${g.id}: ${it.options.join(', ')}`).toBe(false); });
+      // одинаково при каждом заходе — урок можно продолжить
+      expect(quizIdea(g)).toEqual(q);
     });
   });
   it('«Разбор графика» на алмаз: в каждом графике не меньше пяти пропусков; пропуск — выделенное в тексте шага; варианты разные', () => {
@@ -175,5 +180,17 @@ describe('алмаз — у всех особых уроков (08.11, вече�
     expect(extraKey('draw-ppf', true)).toBe('xd:draw-ppf');
     const s = markGem(markGem(emptyLearn(), 'graph-ppf'), 'draw-ppf');
     expect(coinCeiling({ ...s, readGem: { 'read-choice': 1 } }).parts.gems).toBe(3 * (COIN.diamond + COIN.diamondPerfect));
+  });
+});
+
+/* Пункт владельца 19.11, п. 10: «персоналии почему-то сбрасывают серию верных ответов, точнее она там не верная» — особые
+   уроки начинают «верно подряд» с бессрочной серии, как обычный урок (learn-lesson.jsx — streakNow), а не с нуля. */
+describe('особые уроки: серия «верно подряд» продолжает бессрочную', () => {
+  it('каждый особый урок начинает серию со streakNow(learn), если не продолжает сохранённый', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const f of ['learn-people.jsx', 'learn-graph.jsx', 'learn-draw.jsx', 'learn-reading.jsx']) {
+      const src = readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
+      expect(src, f).toMatch(/useAnswerRun\(was \? was\.run \|\| 0 : streakNow\(learn \|\| \{\}\)/);
+    }
   });
 });

@@ -546,6 +546,29 @@ export const READINGS = [
     ],
   },
 ];
+/* Портреты авторов «Чтения» (пункт владельца 19.11, п. 9: «давай в чтении тоже фотки людей»): автор из «Персоналий» — его
+   же фото (public/people/<id>.jpg); остальные — свои id и статьи Википедии: фото скачивает сборка (scripts/fetch-portraits.mjs,
+   только свободные лицензии). Нет фото — печать с инициалами, как раньше. */
+export const READING_AUTHORS = [
+  { id: 'franklin', name: 'Бенджамин Франклин', wiki: 'Benjamin_Franklin' },
+  { id: 'hazlitt', name: 'Генри Хэзлитт', wiki: 'Henry_Hazlitt' },
+  { id: 'keynes', name: 'Джон Мейнард Кейнс', wiki: 'John_Maynard_Keynes' },
+  { id: 'hicks', name: 'Джон Хикс', wiki: 'John_Hicks' },
+  { id: 'hume', name: 'Дэвид Юм', wiki: 'David_Hume' },
+  { id: 'sraffa', name: 'Пьеро Сраффа', wiki: 'Piero_Sraffa' },
+  { id: 'sowell', name: 'Томас Соуэлл', wiki: 'Thomas_Sowell' },
+  { id: 'bastiat', name: 'Фредерик Бастиа', wiki: 'Frédéric_Bastiat' },
+  { id: 'hayek', name: 'Фридрих Хайек', wiki: 'Friedrich_Hayek' },
+];
+// id портрета автора: тот же человек в «Персоналиях» (по имени и фамилии; «Уильям Джевонс» — это «Уильям Стэнли Джевонс»), иначе — свой
+export function readingAuthorId(name, people = []) {
+  const w = String(name).split(/\s+/); const first = w[0]; const last = w[w.length - 1];
+  const all = people.flatMap((g) => g.people);
+  const same = all.find((p) => p.name === name) || all.find((p) => { const v = p.name.split(/\s+/); return v[0] === first && v[v.length - 1] === last; });
+  if (same) return same.id;
+  const own = READING_AUTHORS.find((a) => a.name === name);
+  return own ? own.id : null;
+}
 export const READING_BY_ID = Object.fromEntries(READINGS.map((r) => [r.id, r]));
 export const READING_BY_UNIT = Object.fromEntries(READINGS.map((r) => [r.unitId, r]));
 

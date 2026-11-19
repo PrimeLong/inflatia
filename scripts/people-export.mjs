@@ -6,6 +6,7 @@
    Запуск: npm run people:export */
 import { writeFile, mkdir, access } from 'node:fs/promises';
 import { PEOPLE } from '../src/learn/people.js';
+import { READINGS, READING_AUTHORS } from '../src/learn/reading.js';
 import { listPeoplePhotos, readPhotoCredits } from './voice-files-plugin.js';
 
 const out = new URL('../people/', import.meta.url);
@@ -18,6 +19,12 @@ PEOPLE.forEach((g) => g.people.forEach((p) => {
   if (seen) seen.group += `, ${g.title}`;
   else all.push({ ...p, group: g.title });
 }));
+// авторы «Чтения», которых нет в «Персоналиях»: те же правила, их портрет — на странице цитаты
+READING_AUTHORS.forEach((a) => {
+  if (all.find((x) => x.id === a.id)) return;
+  const page = READINGS.flatMap((r) => r.pages).find((pg) => pg.author === a.name);
+  all.push({ ...a, years: page ? page.years : '', group: '«Чтение»' });
+});
 let n = 0;
 const rows = all.map((p) => {
   n += 1;

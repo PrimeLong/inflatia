@@ -765,6 +765,8 @@ describe('мини-игра: одна на урок, карточки двига
         if (g.chart === 'power') expect(it.side, `${it.raw}: ${it.effect}`).toBe(it.effect === 'pt' ? 'left' : 'right');
         // наценка: больше заменителей — влево, товар заметнее — вправо
         if (g.chart === 'markup') expect(it.side, `${it.raw}: ${it.effect}`).toBe(it.effect === 'lo' ? 'left' : 'right');
+        // производство: лучше станки или больше людей — выпуск растёт
+        if (g.chart === 'product') expect(it.side, `${it.raw}: ${it.effect}`).toBe(it.effect.endsWith('+') ? 'up' : 'down');
       });
       // эффект виден на графике: каждая сторона и оба направления встречаются
       const effs = new Set(g.items.map((it) => it.effect));

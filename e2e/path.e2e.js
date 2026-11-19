@@ -415,13 +415,11 @@ test('путь: юнит «Спрос и предложение» — кажды
 
   // «Мини-игра»: одна игра на время с графиком рынка; проверка — сама по окончании; неудачная не возвращается
   await startLesson(page, 'sd-g');
-  await expect(page.getByTestId('ex').getByTestId('market-chart')).toBeVisible();
-  // пункт владельца 18.11: график мини-игры — как в «Разборе графика»: плашки D и S, равновесие с P* и Q*, подписи осей
-  const mk = page.getByTestId('ex').getByTestId('market-chart');
-  await expect(mk.locator('.lp-tag')).toHaveCount(2);
-  await expect(mk.getByTestId('market-eq')).toContainText('P*');
-  await expect(mk.getByTestId('market-eq')).toContainText('Q*');
-  await expect(mk.locator('.lp-axis')).toHaveCount(2);
+  // пункт владельца 19.11: график мини-игры — сцена «Разбора графика» юнита: спрос, предложение, равновесие E
+  const mk = page.getByTestId('ex').getByTestId('game-chart');
+  await expect(mk).toHaveAttribute('data-model', 'supply-demand');
+  for (const el of ['D', 'S']) await expect(mk.locator(`[data-el="${el}"]`)).toHaveCount(1);
+  await expect(mk.getByTestId('graph-stage')).toContainText('E');
   const { kinds: gk, retries } = await playLesson(page, { wrongAt: [0] });
   expect([...gk]).toEqual(['rush']);
   expect(retries).toBe(0);
@@ -489,7 +487,7 @@ test('путь: юнит «Порт» (провалы рынка) — кажды
   await playLesson(page);
   await finish();
   await startLesson(page, 'mf-g');
-  await expect(page.getByTestId('ex').getByTestId('market-chart')).toBeVisible();
+  await expect(page.getByTestId('ex').getByTestId('game-chart')).toHaveAttribute('data-model', 'supply-demand');
   await playLesson(page);
   await finish();
   for (const id of ['mf-rev', 'mf-sum']) { await startLesson(page, id); await playLesson(page); await finish(); }
@@ -529,7 +527,7 @@ test('путь: юнит «Банк» (деньги и банки) — кажд�
   await playLesson(page);
   await finish();
   await startLesson(page, 'mb-g');
-  await expect(page.getByTestId('ex').getByTestId('market-chart')).toBeVisible();
+  await expect(page.getByTestId('ex').getByTestId('game-chart')).toHaveAttribute('data-model', 'credit');
   await playLesson(page);
   await finish();
   for (const id of ['mb-rev', 'mb-sum']) { await startLesson(page, id); await playLesson(page); await finish(); }
@@ -759,7 +757,7 @@ test('путь: юнит «Биржа труда» (рынок труда) — �
   await finish();
   // игра: зарплата вверх или вниз — график рынка
   await startLesson(page, 'lm-g');
-  await expect(page.getByTestId('ex').getByTestId('market-chart')).toBeVisible();
+  await expect(page.getByTestId('ex').getByTestId('game-chart')).toHaveAttribute('data-model', 'labor');
   await playLesson(page);
   await finish();
   for (const id of ['lm-rev', 'lm-sum']) { await startLesson(page, id); await playLesson(page); await finish(); }

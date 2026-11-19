@@ -660,13 +660,21 @@ test('учебник: пока график едет за ползунком, п
 // замечание владельца 18.11, вечер, п. 20: «не нравится, как выглядит оглавление в учебнике, нужен редизайн; очень много лишнего
 // места вместо чтения»: главы — карточками с цветом юнита; у главы шрифт и музыка — в строке обложки (ПК), разделы — лентой
 // (телефон), текст главы начинается на первом экране
-test('учебник: оглавление карточками, глава без лишнего места — текст на первом экране', async ({ page, isMobile }) => {
+// пункт владельца 19.11, п. 3: «мне теперь ещё больше не нравится оглавление» — оглавление как в книге: строки без карточек,
+// номер антиквой в цвете юнита, отточие до счётчика разделов
+test('учебник: оглавление как в книге — строки глав с номером, отточием и разделами; глава без лишнего места — текст на первом экране', async ({ page, isMobile }) => {
   const { errors } = await openApp(page);
   await openBook(page);
-  const cards = page.getByTestId('textbook').locator('.tbl-chs .tbl-ch');
-  expect(await cards.count()).toBeGreaterThan(10);
-  expect(await cards.first().evaluate((el) => getComputedStyle(el).getPropertyValue('--u').trim())).not.toBe('');
-  expect(await cards.first().evaluate((el) => getComputedStyle(el, '::before').height)).toBe('4px');
+  const rows = page.getByTestId('textbook').locator('.tbl-chs .tbl-ch[data-chapter]');
+  expect(await rows.count()).toBeGreaterThan(10);
+  const first = rows.first();
+  expect(await first.evaluate((el) => getComputedStyle(el).getPropertyValue('--u').trim())).not.toBe('');
+  // без карточек: ни рамки, ни тени, ни скругления — строка с линией снизу
+  expect(await first.evaluate((el) => { const st = getComputedStyle(el); return [st.borderTopWidth, st.borderRadius, st.boxShadow]; })).toEqual(['0px', '0px', 'none']);
+  // номер — в цвете юнита, не цветом текста
+  expect(await first.locator('.tbl-no').evaluate((el) => getComputedStyle(el).color)).not.toBe(await first.locator('.tbl-ch-title').evaluate((el) => getComputedStyle(el).color));
+  await expect(first.locator('.tbl-ch-state')).toHaveText(/\d+ \/ \d+|прочитана/);
+  if (!isMobile) await expect(first.locator('.tbl-dots')).toBeVisible();
   await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
   const ch = page.getByTestId('chapter');
   await expect(ch).toBeVisible();
@@ -717,9 +725,12 @@ test('плоскость на весь экран: предел отдалени
   await page.waitForTimeout(400);
   const wide = await shape();
   expect(wide.length).toBeGreaterThan(0);
+  // где на экране оси x = 0 и y = 0: прямые из первой четверти кончаются на них, а не уходят в «минус» (жалоба 19.11, копилка)
+  const ax = await st.evaluate((el) => { const n = (k) => Number(el.dataset[k]); const r = el.getBoundingClientRect(); return { x: ((0 - n('x0')) / (n('x1') - n('x0'))) * r.width, y: r.height - ((0 - n('y0')) / (n('y1') - n('y0'))) * r.height }; });
   for (const c of wide) {
-    const touches = [c.a, c.b].some(([x, y]) => x < 4 || y < 4 || x > c.w - 4 || y > c.h - 4);
-    expect(touches, `кривая ${c.id} доходит до края экрана`).toBe(true);
+    const touches = [c.a, c.b].some(([x, y]) => x < 4 || y < 4 || x > c.w - 4 || y > c.h - 4 || Math.abs(x - ax.x) < 3 || Math.abs(y - ax.y) < 3);
+    expect(touches, `кривая ${c.id} доходит до края экрана или до оси`).toBe(true);
+    for (const [x, y] of [c.a, c.b]) { expect(x, `кривая ${c.id} не левее оси P`).toBeGreaterThan(ax.x - 3); expect(y, `кривая ${c.id} не ниже оси Q`).toBeLessThan(ax.y + 3); }
   }
   // предел отдаления: сколько ни жми «−», не дальше ×0,1 (в 8 раз от «вписать»)
   for (let i = 0; i < 30; i += 1) await page.keyboard.press('-');

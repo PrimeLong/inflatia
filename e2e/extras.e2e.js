@@ -814,7 +814,7 @@ test('«Персоналии на ПК»: страница в две колон�
     expect(ask.x).toBeGreaterThan(story.x + story.width);
     await pg.locator('[data-testid=people-opt][data-ok="false"]').first().click();
     const fb = await page.getByTestId('people-feedback').boundingBox();
-    const foot = await page.locator('.pp-foot').boundingBox();
+    const foot = await page.getByTestId('people-foot').boundingBox();
     expect(fb.y + fb.height).toBeLessThanOrEqual(foot.y);
     await pg.locator('[data-testid=people-opt][data-ok="true"]').click();
     await page.getByTestId('people-next').click();
@@ -889,7 +889,8 @@ test('«Персоналии»: портрет — свой файл из public
 
 // «Нарисуй сам» на телефоне (пункт владельца 08.11, вечер): ровная сетка и «На весь экран»
 // пункт владельца 15.11: «раскрытие на весь экран в „Нарисуй“ всё ещё отвратительное — полный редизайн и куча фич»
-test('«Нарисуй сам» на весь экран: шаги, задание сворачивается, перекрестие к осям, точки списком с удалением, «Отменить», клавиатура', async ({ page, isMobile }) => {
+// пункт владельца 19.11: «почему всё ещё в „Нарисуй сам“ на весь экран нет числовой плоскости, как в разборе»
+test('«Нарисуй сам» на весь экран — числовая плоскость разбора: точки касанием, список с удалением, «Отменить» и Ctrl+Z, масштаб и «Двигать», «Проверить», Esc сворачивает', async ({ page, isMobile }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
@@ -902,37 +903,63 @@ test('«Нарисуй сам» на весь экран: шаги, задани
   await page.getByTestId('extra-start').click();
   const g = page.getByTestId('draw-lesson');
   await g.getByTestId('draw-full').click();
+  const pv = page.getByTestId('plane-view');
+  await expect(pv).toBeVisible();
   await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'true');
-  await expect(g.getByTestId('draw-full-head')).toContainText('Шаг 1 из');
-  // задание сворачивается — графику больше места
-  const ink = g.getByTestId('draw-ink');
-  const h0 = (await ink.boundingBox()).height;
-  await g.getByTestId('draw-task-toggle').click();
-  await expect(g.getByTestId('draw-full-task')).toHaveCount(0);
-  await expect.poll(async () => (await ink.boundingBox()).height).toBeGreaterThanOrEqual(h0);
-  // клавиатура: стрелки — курсор по сетке, Enter — точка; перекрестие к осям
-  await ink.focus();
-  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Shift+ArrowUp');
-  await expect(g.getByTestId('draw-cross')).toHaveCount(1);
-  await page.keyboard.press('Enter');
-  await expect(g.getByTestId('draw-pt')).toHaveCount(1);
-  await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter');
-  await expect(g.getByTestId('draw-pt')).toHaveCount(2);
+  const side = pv.getByTestId('plane-side');
+  await expect(side).toContainText('Шаг 1 из');
+  await expect(side.getByTestId('draw-full-task')).toBeVisible();
+  const st = pv.getByTestId('plane-stage');
+  const ink = pv.getByTestId('draw-ink');
+  // точки решения — в точках плоскости (от её левого верхнего угла)
+  const at = async ([x, y]) => { const b = await st.boundingBox(); return [b.x + x, b.y + y]; };
+  const ans = async () => JSON.parse(await ink.getAttribute('data-answer')).pts;
+  let pts = await ans();
+  expect(pts).toHaveLength(3);
+  for (const q of pts.slice(0, 2)) { const [cx, cy] = await at(q); await page.mouse.click(cx, cy); await page.waitForTimeout(120); }
+  await expect(side.getByTestId('draw-pt')).toHaveCount(2);
   // Ctrl+Z и «Отменить» — последняя точка уходит; касание точки в списке — убирает её
   await page.keyboard.press('Control+z');
-  await expect(g.getByTestId('draw-pt')).toHaveCount(1);
-  await page.keyboard.press('Enter');
-  await expect(g.getByTestId('draw-pt')).toHaveCount(2);
-  await g.getByTestId('draw-undo').click();
-  await expect(g.getByTestId('draw-pt')).toHaveCount(1);
-  await g.getByTestId('draw-pt').first().click();
-  await expect(g.getByTestId('draw-pts')).toHaveCount(0);
-  // мышью: под курсором — перекрестие с подписями значений на осях
-  if (!isMobile) {
-    const b = await ink.boundingBox();
-    await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.45);
-    await expect(g.getByTestId('draw-cross').locator('text')).toHaveCount(2);
+  await expect(side.getByTestId('draw-pt')).toHaveCount(1);
+  { const [cx, cy] = await at(pts[1]); await page.mouse.click(cx, cy); }
+  await expect(side.getByTestId('draw-pt')).toHaveCount(2);
+  await side.getByTestId('draw-undo').click();
+  await expect(side.getByTestId('draw-pt')).toHaveCount(1);
+  await side.getByTestId('draw-pt').first().click();
+  await expect(side.getByTestId('draw-pts')).toHaveCount(0);
+  // мышью: курсор плоскости показывает значения
+  if (!isMobile) { const b = await st.boundingBox(); await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.45); await expect(pv.getByTestId('plane-read')).toBeVisible(); }
+  // масштаб — кнопками плоскости; «Двигать» — тянем плоскость, точки не ставятся
+  await pv.getByTestId('plane-in').click();
+  await expect(pv.getByTestId('plane-level')).toHaveText('×1,6');
+  await side.getByTestId('draw-hand').click();
+  await expect(side.getByTestId('draw-hand')).toHaveAttribute('aria-pressed', 'true');
+  const x0 = Number(await st.getAttribute('data-x0'));
+  { const b = await st.boundingBox(); const mx = b.x + b.width / 2; const my = b.y + b.height / 2;
+    await page.mouse.move(mx, my); await page.mouse.down(); await page.mouse.move(mx + 30, my, { steps: 3 }); await page.mouse.move(mx + 60, my, { steps: 3 }); await page.mouse.up(); }
+  await expect.poll(async () => Number(await st.getAttribute('data-x0'))).toBeLessThan(x0);
+  await expect(side.getByTestId('draw-pts')).toHaveCount(0);
+  await side.getByTestId('draw-hand').click();
+  // целиком — и решить: три точки и «Проверить»
+  await pv.getByTestId('plane-fit').click(); await page.waitForTimeout(500);
+  pts = await ans();
+  // плоскость не переезжает, пока ставят точки: размер поля тот же после каждой
+  const size0 = await st.boundingBox();
+  for (const [j, q] of pts.entries()) {
+    await expect(ink).toHaveAttribute('data-ready', 'false');
+    const [cx, cy] = await at(q); await page.mouse.click(cx, cy); await page.waitForTimeout(120);
+    expect(Math.abs((await st.boundingBox()).height - size0.height)).toBeLessThan(1);
+    if (j < pts.length - 1) await expect(side.getByTestId('draw-full-check')).toBeDisabled();
   }
+  await expect(ink).toHaveAttribute('data-ready', 'true');
+  await side.getByTestId('draw-full-check').click();
+  await expect(side.getByTestId('draw-full-feedback')).toContainText('Верно.');
+  await expect(side.getByTestId('draw-full-next')).toBeVisible();
+  // Esc — сворачивает плоскость, урок открыт
+  await page.keyboard.press('Escape');
+  await expect(pv).toHaveCount(0);
+  await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'false');
+  await expect(g).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -958,36 +985,20 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   // подпись у края может спрятаться под названием оси — остальные кратны 40, а не 50
   expect(nums.length).toBeGreaterThanOrEqual(4);
   nums.forEach((x) => expect(x % 40, String(x)).toBe(0));
-  const small = (await g.getByTestId('draw-ink').boundingBox()).width;
   await g.getByTestId('draw-full').click();
-  const box = g.getByTestId('draw-box');
-  await expect(box).toHaveAttribute('data-full', 'true');
+  // на весь экран — плоскость во весь экран, крестик сворачивает
+  const pv = page.getByTestId('plane-view');
   const vp = page.viewportSize();
-  const bb = await box.boundingBox();
-  expect(bb.height).toBeGreaterThan(vp.height - 4);
-  await expect(g.getByTestId('draw-full-head')).toContainText('Шаг 1 из');
-  expect((await g.getByTestId('draw-ink').boundingBox()).width).toBeGreaterThanOrEqual(small - 1);
-  // во весь экран — и решать: точки и «Проверить»
-  const ink = g.getByTestId('draw-ink');
-  const pts = JSON.parse(await ink.getAttribute('data-answer')).pts;
-  expect(pts).toHaveLength(3);
-  for (const [j, [x, y]] of pts.entries()) {
-    await expect(ink).toHaveAttribute('data-ready', 'false');
-    // во весь экран график вписан в поле с полями по краям — координаты переводим так же, как само приложение (getScreenCTM)
-    const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x, y]);
-    await page.mouse.click(cx, cy);
-    if (j < pts.length - 1) await expect(g.getByTestId('draw-full-check')).toBeDisabled();
-  }
-  await expect(ink).toHaveAttribute('data-ready', 'true');
-  await g.getByTestId('draw-full-check').click();
-  await expect(g.getByTestId('draw-full-feedback')).toHaveText('Верно.');
-  await g.getByTestId('draw-full-exit').click();
-  await expect(box).toHaveAttribute('data-full', 'false');
+  // плоскость открывается с лёгким приближением (0,2 с) — меряем, когда встала
+  await expect.poll(async () => (await pv.boundingBox()).height).toBeGreaterThan(vp.height - 4);
+  await expect.poll(async () => (await pv.boundingBox()).width).toBeGreaterThan(vp.width - 4);
+  await pv.getByTestId('draw-full-exit').click();
+  await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'false');
   expect(errors).toEqual([]);
 });
 
 // пункт владельца 09.11: «открытие графика на весь экран странно выглядит, а приближать всё так же нельзя»
-test('«Нарисуй сам»: во весь экран график — по своим пропорциям, не раздут; приближается кнопками и щипком, «Двигать» сдвигает, точки — того же размера; Esc сворачивает', async ({ page }) => {
+test('«Нарисуй сам»: в уроке приближается кнопками и «Вписать»; на весь экран — плоскость, щипок приближает и точку не ставит; Esc сворачивает', async ({ page }) => {
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
@@ -1011,69 +1022,22 @@ test('«Нарисуй сам»: во весь экран график — по 
   await expect(level).toHaveText('×1,0');
   await expect(g.getByTestId('draw-zoom-fit')).toHaveCount(0);
 
+  // на весь экран — числовая плоскость: щипок двумя пальцами приближает, точку первый палец не оставляет
   await g.getByTestId('draw-full').click();
-  const box = g.getByTestId('draw-box');
-  await expect(box).toHaveAttribute('data-full', 'true');
-  // график — с пропорциями 360 × 290, посередине и не крупнее, чем вдвое; условие — обычного размера
-  const wrap = await g.getByTestId('draw-wrap').boundingBox();
-  const vp = page.viewportSize();
-  expect(Math.abs(wrap.width / wrap.height - 360 / 290)).toBeLessThan(0.02);
-  expect(wrap.width).toBeLessThanOrEqual(720 + 2);
-  expect(Math.abs(wrap.x + wrap.width / 2 - vp.width / 2)).toBeLessThan(3);
-  const fs = await g.getByTestId('draw-full-task').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(fs).toBeGreaterThanOrEqual(13.5);
-  if (vp.width >= 720) expect(fs).toBeGreaterThanOrEqual(16);
-
-  const pts = JSON.parse(await ink.getAttribute('data-answer')).pts;
-  const at = (x, y) => ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x, y]);
-  const placed = ink.locator('g[data-pin^="p"]');
-  const pinBox = () => placed.first().locator('circle').boundingBox();
-  // точка на ×1
-  let [cx, cy] = await at(...pts[1]);
-  await page.mouse.click(cx, cy);
-  await expect(placed).toHaveCount(1);
-  const b1 = await pinBox();
-  // приблизили — точка на экране того же размера, график крупнее
-  await g.getByTestId('draw-zoom-in').click();
-  await expect(level).toHaveText('×1,6');
-  await expect(box).toHaveAttribute('data-zoom', '1.60');
-  const b2 = await pinBox();
-  expect(Math.abs(b2.width - b1.width)).toBeLessThan(1.5);
-  // «Двигать»: мышь сдвигает график, точки не ставятся
-  await g.getByTestId('draw-hand').click();
-  await expect(g.getByTestId('draw-hand')).toHaveAttribute('aria-pressed', 'true');
-  const mid = await ink.boundingBox();
-  const mx = mid.x + mid.width / 2; const my = mid.y + mid.height / 2;
-  await page.mouse.move(mx, my);
-  await page.mouse.down();
-  await page.mouse.move(mx + 20, my, { steps: 2 });
-  await page.mouse.move(mx + 40, my, { steps: 2 });
-  await page.mouse.up();
-  await expect(placed).toHaveCount(1);
-  await expect.poll(async () => (await pinBox()).x).toBeGreaterThan(b2.x + 25);
-  await g.getByTestId('draw-hand').click();
-  await expect(g.getByTestId('draw-hand')).toHaveAttribute('aria-pressed', 'false');
-  // щипок двумя пальцами: приближает к месту между ними, точку первый палец не оставляет
-  await g.getByTestId('draw-zoom-fit').click();
-  await expect(level).toHaveText('×1,0');
-  await ink.evaluate((svg) => {
-    const r = svg.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2;
-    const ev = (type, id, px) => svg.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: id === 11, clientX: px, clientY: y, bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+  const pv = page.getByTestId('plane-view');
+  const st = pv.getByTestId('plane-stage');
+  await expect(pv.getByTestId('plane-level')).toHaveText('×1,0');
+  await st.evaluate((el) => {
+    const r = el.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2;
+    const ev = (type, id, px) => el.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: id === 11, clientX: px, clientY: y, bubbles: true, cancelable: true, button: 0, buttons: 1 }));
     ev('pointerdown', 11, x - 20); ev('pointerdown', 12, x + 20);
     for (let k = 1; k <= 5; k += 1) { ev('pointermove', 11, x - 20 - k * 12); ev('pointermove', 12, x + 20 + k * 12); }
     ev('pointerup', 11, x - 80); ev('pointerup', 12, x + 80);
   });
-  await expect(level).toHaveText('×4,0');
-  await expect(placed).toHaveCount(1);
-  // целиком — и дорешать: оставшиеся точки и «Проверить»
-  await g.getByTestId('draw-zoom-fit').click();
-  for (const p of [pts[0], pts[2]]) { [cx, cy] = await at(...p); await page.mouse.click(cx, cy); }
-  await expect(ink).toHaveAttribute('data-ready', 'true');
-  await g.getByTestId('draw-full-check').click();
-  await expect(g.getByTestId('draw-full-feedback')).toHaveText('Верно.');
-  // Esc — сворачивает график, урок открыт
+  await expect.poll(async () => Number((await pv.getByTestId('plane-level').textContent()).replace('×', '').replace(',', '.'))).toBeGreaterThan(2);
+  await expect(pv.getByTestId('draw-pts')).toHaveCount(0);
   await page.keyboard.press('Escape');
-  await expect(box).toHaveAttribute('data-full', 'false');
+  await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'false');
   await expect(g).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -1176,9 +1140,9 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await page.getByTestId('extra-gem').click();
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
-  // жалоба ученика 18.11: «а в чём отличие от обычного урока» — у алмаза свои правила, они написаны, поле в алмазной рамке,
-  // координат под курсором нет
-  await expect(g.getByTestId('draw-gem-rules')).toContainText('Одна попытка на шаг');
+  // у алмаза — алмазная рамка поля; отдельной плашки правил нет, координаты под курсором есть (жалоба 19.11: «к чему это
+  // пояснение про алмазный урок, а про то, что не пишутся координаты, — бред»)
+  await expect(g.getByTestId('draw-gem-rules')).toHaveCount(0);
   await expect(g.getByTestId('draw-box')).toHaveAttribute('data-gem', 'true');
   expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
   const ink = g.getByTestId('draw-ink');
@@ -1186,7 +1150,7 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   if (!isMobile) {
     const b = await ink.boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
-    await expect(ink.locator('.dl-coord')).toHaveCount(0);
+    await expect(ink.locator('.dl-coord')).toHaveCount(1);
   }
   for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
     const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x + 40, Math.max(30, y - 40)]);
@@ -1530,9 +1494,13 @@ test('«Нарисуй сам», сложный процент: пунктир �
   await expect(g.getByTestId('draw-full')).toHaveClass(/accent/);
   await expect(g.locator('.dl-seg')).toBeVisible();
   await g.getByTestId('draw-full').click();
-  const head = g.getByTestId('draw-full-head');
-  await expect(head).toContainText('Нарисуй сам'); await expect(head).toContainText('Цены и вклад'); await expect(head).toContainText('Шаг 1 из 4');
-  await head.getByTestId('draw-full-exit').click();
+  const pv = page.getByTestId('plane-view');
+  await expect(pv).toHaveAttribute('aria-label', /Нарисуй сам · Цены и вклад/);
+  await expect(pv.getByTestId('plane-side')).toContainText('Шаг 1 из 4');
+  // точки, поставленные в уроке, — и на плоскости; пунктир через них — та же дуга
+  await expect(pv.getByTestId('draw-pt')).toHaveCount(2);
+  await expect(pv.getByTestId('draw-through')).toHaveAttribute('data-shape', 'curve');
+  await pv.getByTestId('draw-full-exit').click();
   await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'false');
   expect(errors).toEqual([]);
 });

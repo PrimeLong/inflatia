@@ -30,3 +30,22 @@ describe('украшения урока в теме', () => {
     expect(mp).toMatch(/\.mp-cover \{ position: relative; width: 112px; height: 112px; border-radius: 50%/);
   });
 });
+
+/* Жалобы 19.11 («Персоналии» в «Чертеже»: «портрет почему-то стал квадратным»; «Нарисуй сам» и «Разбор»: «ужасная закраска
+   текста», «всё светится»): радиус темы не трогает арку портрета; выделенное слово — без маркера; без свечения выделенного. */
+describe('особые уроки в теме: портрет, выделенное, свечение', () => {
+  const special = readFileSync(new URL('../../graph-stage.jsx', import.meta.url), 'utf8');
+  const draw = readFileSync(new URL('../../learn-draw.jsx', import.meta.url), 'utf8');
+  it('рамка портрета (.pp-frame) не получает радиус темы', () => {
+    const rules = skins.split('\n').filter((l) => l.includes('.pp-frame') && l.includes('border-radius'));
+    expect(rules).toEqual([]);
+  });
+  it('выделенное в задании «Нарисуй сам» и в тексте шага — без маркерной закраски', () => {
+    expect(draw).not.toMatch(/\.dl-task b \{[^}]*linear-gradient/);
+    expect(skins).not.toMatch(/\.gl-text b \{[^}]*linear-gradient/);
+  });
+  it('у выделенного элемента графика нет свечения (drop-shadow) и пульсации', () => {
+    expect(special).not.toMatch(/\.g-el\.on \{ filter: drop-shadow/);
+    expect(special).not.toMatch(/className=\{`sweep\$\{view\.focus\.has\(id\) \? ' g-pulse'/);
+  });
+});

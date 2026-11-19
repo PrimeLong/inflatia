@@ -161,7 +161,7 @@ describe('портреты «Персоналий»: проверка свобо
     try {
       globalThis.fetch = (url) => { calls.push(String(url)); return Promise.reject(new Error('нельзя')); };
       expect(await loadPhoto({ id: 'test-a', wiki: 'Adam_Smith' })).toBeNull();
-      expect(await loadPhoto({ id: 'king', wiki: 'Gregory_King' })).toBeNull();
+      expect(await loadPhoto({ id: 'hotelling', wiki: 'Harold_Hotelling' })).toBeNull();
       expect(calls).toEqual([]);
     } finally { globalThis.fetch = real; }
   });

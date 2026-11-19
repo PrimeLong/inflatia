@@ -1,5 +1,6 @@
 /* ИССЛЕДОВАТЕЛЬСКАЯ БАЗА — отдельная от базы аккаунтов (research/data-dictionary.md, «Где хранится»). Подключается только
-   своими переменными окружения RESEARCH_KV_REST_API_URL и RESEARCH_KV_REST_API_TOKEN: к базе аккаунтов (KV_REST_API_*)
+   своими переменными окружения RESEARCH_KV_REST_API_URL и RESEARCH_KV_REST_API_TOKEN (или, после переезда базы на ONREZA,
+   RESEARCH_DATABASE_URL — отдельной базой PostgreSQL, docs/onreza.md): к базе аккаунтов (KV_REST_API_*)
    этот файл не обращается и на неё не переключается, даже если своей базы нет. Без своей базы исследование закрыто
    (api/research.js). Память — только для локальной разработки и тестов.
    Ключи: rp:<код> — участник, re:<код> — события, rt:<код>:<pre|post|delayed> — ответы теста (пишутся один раз, setNx),
@@ -12,8 +13,12 @@
    (issue:<вид>, живёт 4 часа, стирается при отправке теста): по ним сервер сам считает время, а не верит клиенту.
    В выгрузку rx:… не идёт. Логинов, адресов и токенов здесь нет.
    Атомарность: incr и setNx — одна команда базы; у памяти — синхронный участок без await, тоже неделимый. */
-let redis = null;
-try {
+import { pgKvFromEnv } from './pgkv.js';
+
+/* База исследования на ONREZA — отдельная база PostgreSQL: RESEARCH_DATABASE_URL (не та же строка, что DATABASE_URL). */
+let redis = process.env.RESEARCH_DATABASE_URL && process.env.RESEARCH_DATABASE_URL !== process.env.DATABASE_URL
+  ? pgKvFromEnv('RESEARCH_DATABASE_URL') : null;
+if (!redis) try {
   const url = process.env.RESEARCH_KV_REST_API_URL;
   const token = process.env.RESEARCH_KV_REST_API_TOKEN;
   if (url && token && url !== process.env.KV_REST_API_URL) {
@@ -23,6 +28,7 @@ try {
 } catch { redis = null; }
 
 export const hasResearchDb = () => !!redis;
+export const researchDbKind = () => (!redis ? 'none' : redis.kind === 'postgres' ? 'postgres' : 'upstash');
 
 // хранилище в памяти: те же операции, что и у Redis
 export function memoryStore() {

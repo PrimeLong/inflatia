@@ -701,11 +701,12 @@ test('«Пыльная витрина»: микрофибра — на вкла�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } }, coins: { '2026-10-01': 50 } } }));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } }, coins: { '2026-10-01': 80 } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
   await page.getByTestId('shop-tabs').locator('[data-tab="dust"]').click();
   const shop = page.getByTestId('shop');
+  await expect(shop.getByTestId('dust-polish')).toHaveCount(0);
   // карточка улучшения — на вкладке, под пыльной витриной; в окне игры её нет
   const cloth = shop.getByTestId('dust-cloth');
   await expect(cloth).toHaveAttribute('data-owned', 'false');
@@ -737,6 +738,14 @@ test('«Пыльная витрина»: микрофибра — на вкла�
   const after = await glassSwipe(0.3);
   expect(after.hint).toContain('из 6');
   expect(after.p).toBeGreaterThan(before.p * 1.25);
+  // второе улучшение — «Полироль»: появляется только после микрофибры (пункт владельца 19.11, п. 11)
+  const polish = shop.getByTestId('dust-polish');
+  await expect(polish).toHaveAttribute('data-owned', 'false');
+  await expect(polish).toContainText('Блестит!');
+  await expect(polish).toContainText('Окупится за 6 дней');
+  await polish.getByTestId('dust-polish-buy').click();
+  await expect(polish).toHaveAttribute('data-owned', 'true');
+  await expect(polish).toContainText('Вернула 0 из 36');
   expect(errors).toEqual([]);
 });
 
@@ -1159,5 +1168,65 @@ test('сад грузится — росток в горшке и «Сад пр�
   release();
   await expect(page.getByTestId('garden')).toBeVisible();
   await expect(load).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// пункт владельца 19.11: «пластинка в лавке должна давать послушать фрагмент, это должно быть видно; пока она играет — в
+// проигрывателе ничего не должно играть». Записи «Монетного фанка» и «Золотого стандарта» уже лежат — они в продаже
+test('лавка: пластинки — дешёвые, на витрине фрагмент 20 секунд: тонарм, кольцо, отсчёт; второе касание — стоп', async ({ page }) => {
+  await page.addInitScript(() => {
+    // в тестовом браузере звук не играет — «играет» сразу, как настоящий элемент
+    const M = window.HTMLMediaElement.prototype;
+    M.play = function play() { return Promise.resolve(); };
+    M.pause = function pause() { this.dispatchEvent(new Event('pause')); };
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await shopTab(page, 'lesson');
+  const shelf = page.getByTestId('shop-records');
+  await expect(shelf).toBeVisible();
+  await expect(shelf.getByTestId('shop-item')).toHaveCount(2);
+  for (const price of await shelf.locator('.rw-price').allTextContents()) expect(Number(price.match(/(\d+)\s*мон/)[1])).toBeLessThanOrEqual(300);
+  const item = shelf.getByTestId('shop-item').first();
+  await expect(item.getByTestId('record-status')).toContainText('20 секунд');
+  await item.getByTestId('record-preview').click();
+  await expect(item.getByTestId('record-deck')).toHaveAttribute('data-on', 'true');
+  await expect(item.getByTestId('record-ring')).toBeAttached();
+  await expect(item.getByTestId('record-status')).toContainText(/играет · \d+ с/);
+  await item.getByTestId('record-preview').click();
+  await expect(item.getByTestId('record-deck')).toHaveAttribute('data-on', 'false');
+  expect(errors).toEqual([]);
+});
+
+// пункт владельца 19.11, п. 12: новая работа — «Шахта», инкременталка: забой, руда, скупщик, улучшения, монеты
+test('лавка: «Шахта» — удары по забою ведут вглубь и дают руду; скупщик — жетоны; кирка — улучшение; монета — по растущей цене', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await shopTab(page, 'mine');
+  const mine = page.getByTestId('mine');
+  await expect(mine).toBeVisible();
+  const face = mine.getByTestId('mine-face');
+  for (let i = 0; i < 40; i += 1) await face.click();
+  await expect.poll(async () => Number(await mine.getAttribute('data-depth'))).toBeGreaterThan(5);
+  await expect(mine.getByTestId('mine-bag').locator('[data-ore="coal"]')).toContainText(/Уголь [1-9]/);
+  await mine.getByTestId('mine-sell').click();
+  await expect.poll(async () => Number(await mine.getAttribute('data-tokens'))).toBeGreaterThan(20);
+  // кирка: уровень растёт, жетоны списываются
+  const pick = mine.locator('[data-testid=mine-upgrade][data-id="pick"]');
+  await pick.getByTestId('mine-buy').click();
+  await expect(pick).toHaveAttribute('data-level', '1');
+  // монета: копим на первую (30 жетонов) и меняем
+  for (let k = 0; k < 6 && Number(await mine.getAttribute('data-tokens')) < 30; k += 1) {
+    for (let i = 0; i < 25; i += 1) await face.click();
+    await mine.getByTestId('mine-sell').click();
+  }
+  await expect(mine.getByTestId('mine-ladder').locator('span')).toHaveCount(8);
+  await mine.getByTestId('mine-exchange').click();
+  await expect(mine.getByTestId('mine-exchange')).toContainText('сегодня 1 из 8');
+  await expect(mine.getByTestId('mine-exchange')).toContainText('за 44 жетонов');
+  // прогресс шахты — на устройстве: после перезагрузки та же глубина
+  const depth = Number(await mine.getAttribute('data-depth'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await shopTab(page, 'mine');
+  await expect.poll(async () => Number(await page.getByTestId('mine').getAttribute('data-depth'))).toBeGreaterThanOrEqual(depth);
+  await expectNoSidewaysScroll(page);
   expect(errors).toEqual([]);
 });

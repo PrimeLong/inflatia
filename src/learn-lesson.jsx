@@ -171,7 +171,7 @@ function MiniChart({ type, attrs, values = null, tween = false, zoom = false }) 
   if (zoom) {
     return (
       <Zoomable title={def.title} testid="card-chart-zoom" style={{ maxWidth: 360, margin: '8px auto' }} plane={() => scene}
-        model={def.controls ? () => ({ controls: def.controls(attrs), values: { ...target }, build: (vv) => sceneInCrowns(def.build(attrs, vv)) }) : null}>
+        model={def.controls ? () => ({ controls: def.controls(attrs), values: Object.fromEntries(Object.entries(target).filter(([k]) => !(def.controls(attrs).find((c) => c.id === k) || {}).button)), build: (vv) => sceneInCrowns(def.build(attrs, vv)), onButton: def.onButton ? (vv) => def.onButton(attrs, vv) : null }) : null}>
         <ChartSvg scene={scene} />{legend}
       </Zoomable>
     );

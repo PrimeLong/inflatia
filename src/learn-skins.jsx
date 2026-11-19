@@ -54,7 +54,9 @@ export const SKIN_CSS = `
   .sk-on[data-skin="aurora"] { --sk-surface: rgba(16,22,52,.74); --sk-edge: rgba(140,200,255,.22); --sk-radius: 22px; --sk-accent: #2BE3A0; --chart-halo: #10163A; }
   .sk-on[data-skin="blueprint"] { --sk-surface: rgba(14,58,102,.9); --sk-edge: rgba(255,255,255,.5); --sk-radius: 4px; --sk-accent: #FFD166; --chart-halo: #0E3A66; }
   .sk-on[data-skin="mint"] { --sk-surface: #FFFBF0; --sk-edge: #D9C48F; --sk-radius: 14px; --sk-accent: #9A7413; --chart-halo: #FFFBF0; }
-  .sk-on :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task, .dl-table, .pp-frame) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); }
+  .sk-on :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task, .dl-table, .pp-frame) { background: var(--sk-surface); border-color: var(--sk-edge); }
+  /* радиус темы — у карточек; рамка портрета остаётся аркой (жалоба 19.11, «Персоналии» в «Чертеже»: «портрет стал квадратным») */
+  .sk-on :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task, .dl-table) { border-radius: var(--sk-radius); }
   /* и задания (жалобы учеников 17.11: «карточки „Слов“ не под тему урока», «странный дизайн пар не по теме», «сортировка не по
      стилю урока», «инструкция мини-игры не в стиле»): карточка слова, «Как играть», строки пар, карточки сортировки и фишки —
      поверхность и рамка темы; цвет юнита (розовый у «Сберкассы») в теме заменяет её акцент */
@@ -95,7 +97,7 @@ export const SKIN_CSS = `
   .sk-on[data-skin="exchange"] :is(.ds-card, .gl-stage, .gl-text, .rd-sheet, .dl-task) { box-shadow: 0 0 0 1px rgba(25,195,125,.08), 0 0 30px rgba(25,195,125,.06); }
   .sk-on[data-skin="exchange"] :is(.ds-card .ds-h1, .ds-card .ds-h2, .gl-text, .ds-eyebrow, .sp-label > span) { font-family: var(--ds-mono); }
   .sk-on :is(.ds-eyebrow, .sp-label > span, .gl-step) { color: var(--sk-accent); }
-  .sk-on .gl-text b { background: linear-gradient(transparent 60%, color-mix(in srgb, var(--sk-accent) 30%, transparent) 60%); }
+  .sk-on .gl-text b { background: none; }
   /* итоги урока: реплика и счётчики — акцентом темы, не розовым и не золотым по умолчанию */
   .sk-on [data-testid="lesson-result"] [data-testid="result-say"] { color: var(--sk-accent) !important; }
   .sk-on [data-testid="lesson-result"] .ln-tickets > div { background: transparent; border-color: var(--sk-edge); border-radius: calc(var(--sk-radius) * .7); }
