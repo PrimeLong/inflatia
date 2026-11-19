@@ -1977,6 +1977,13 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     // вышли посреди «Работы над ошибками» — она продолжается с того же места (сутки, как обычный урок)
     else if (x.type === 'fix') start({ mode: 'fix', unitId: x.unitId, resume: getResume(`fix:${x.unitId}`) });
   };
+  // только в тестах (window.__INFLATIA_TEST__): открыть особый урок сразу, без дороги юнита — для снимков экранов
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.__INFLATIA_TEST__) return undefined;
+    const on = (e) => { if (e.detail && e.detail.id) openExtra({ open: true, ...e.detail }); };
+    window.addEventListener('inflatia:test-open-extra', on);
+    return () => window.removeEventListener('inflatia:test-open-extra', on);
+  });
   // гость: после выбора цели — сразу первый урок Пути, без карточки урока
   useEffect(() => { if (firstLesson) { onFirstLesson(); start({ mode: 'lesson', lessonId: LESSONS[0].id }); } // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstLesson]);

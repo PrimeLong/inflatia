@@ -73,15 +73,18 @@ describe('числовая плоскость', () => {
     for (let i = 0; i < 50; i += 1) v = zoomPlane(v, 0.5, 0, 0, 100, 100);
     expect((v.x1 - v.x0) / (v.y1 - v.y0)).toBeCloseTo(1e7, 0);
   });
-  it('прямая продолжается за свои концы до краёв экрана в обе стороны', () => {
+  it('прямая продолжается за свои концы до краёв экрана, но из первой четверти за оси не уходит (копилка — не в минус-годы)', () => {
     const v = { x0: -50, x1: 150, y0: -20, y1: 120 };
+    // спрос: кончается на осях, вверх — до края экрана нет (он упирается в ось P)
     const [part] = curveOnView({ points: [{ x: 0, y: 100 }, { x: 50, y: 0 }] }, v, 800, 600);
     expect(part).toHaveLength(2);
-    expect(Math.min(part[0].y, part[1].y)).toBeLessThan(v.y0);
-    expect(Math.max(part[0].y, part[1].y)).toBeGreaterThan(v.y1);
-    // горизонталь — от края до края
+    expect(Math.min(part[0].x, part[1].x)).toBeCloseTo(0, 9); expect(Math.min(part[0].y, part[1].y)).toBeCloseTo(0, 9);
+    // копилка (1000 кр. ровно) — от 0 лет вправо до края экрана, влево — не дальше нуля
     const [hz] = curveOnView({ points: [{ x: 0, y: 40 }, { x: 10, y: 40 }] }, v, 800, 600);
-    expect(Math.min(hz[0].x, hz[1].x)).toBeLessThan(v.x0); expect(Math.max(hz[0].x, hz[1].x)).toBeGreaterThan(v.x1);
+    expect(Math.min(hz[0].x, hz[1].x)).toBeCloseTo(0, 9); expect(Math.max(hz[0].x, hz[1].x)).toBeGreaterThan(v.x1);
+    // прямая, у которой уже есть точки левее нуля, продолжается в обе стороны
+    const [both] = curveOnView({ points: [{ x: -10, y: -10 }, { x: 10, y: 10 }] }, v, 800, 600);
+    expect(Math.min(both[0].x, both[1].x)).toBeLessThan(-20); expect(Math.max(both[0].x, both[1].x)).toBeGreaterThan(100);
     expect(isStraight([{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 4 }])).toBe(false);
   });
   it('функция считается на всей видимой ширине в своей области и гладко: при приближении — не ломаная из узлов', () => {

@@ -36,7 +36,13 @@ const CSS = `
   .sp-run > :last-child { max-height: 40px; }
   /* вид урока над заданием — как «Выбор ответа» в уроке */
   .sp-label { max-width: 592px; margin: 6px auto 0; padding: 0 14px; display: flex; align-items: center; gap: 8px; }
+  .sp-label > span.ln-kind { margin: 0; }
   .sp-label > span { flex: 1; min-width: 0; font: 800 11.5px/1.3 var(--ds-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ds-accent, var(--ds-ok)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* нижняя полоса особого урока — та же, что у урока (.ln-foot): страница особого урока прокручивается, полоса — поверх, у низа */
+  .sp-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; }
+  .sp-foot > .ln-inner { display: flex; gap: 10px; }
+  .sp-foot > .ln-inner > :last-child { flex: 1; }
+  .sp-foot.fb > .ds-answer { max-height: 62vh; overflow-y: auto; }
   .sp-label .sp-gem { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; font: 800 11px var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: #fff; background: #3A8FB7; }
 `;
 
@@ -103,7 +109,7 @@ export function SpecialHead({ closeLabel = 'Выйти из урока', closeTe
 export function SpecialLabel({ kind, title, gem = false, gemTestid, children = null }) {
   return (
     <div className="sp-label" data-testid="special-label">
-      <span>{kind} · {title}</span>
+      <span className="ln-kind">{kind} · {title}</span>
       {gem && <b className="sp-gem" data-testid={gemTestid}>алмаз</b>}
       {children}
     </div>

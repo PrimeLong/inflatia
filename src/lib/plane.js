@@ -130,7 +130,11 @@ export function curveOnView(c, v, w, h) {
       return true;
     };
     const mx = (v.x1 - v.x0) * 0.05; const my = (v.y1 - v.y0) * 0.05;
-    if (!clip(dx, p.x, v.x0 - mx, v.x1 + mx) || !clip(dy, p.y, v.y0 - my, v.y1 + my) || !(t1 > t0)) return [];
+    /* прямая модели, которая вся лежит в первой четверти (годы, количества, цены), за оси не продолжается: копилка не уходит
+       в «минус-годы», спрос кончается на осях (жалоба 19.11, «Вклад и копилка» на весь экран) */
+    const xMin = pts.every((q) => q.x >= -1e-9) ? Math.max(0, v.x0 - mx) : v.x0 - mx;
+    const yMin = pts.every((q) => q.y >= -1e-9) ? Math.max(0, v.y0 - my) : v.y0 - my;
+    if (!clip(dx, p.x, xMin, Math.max(xMin, v.x1 + mx)) || !clip(dy, p.y, yMin, Math.max(yMin, v.y1 + my)) || !(t1 > t0)) return [];
     return [[{ x: p.x + dx * t0, y: p.y + dy * t0 }, { x: p.x + dx * t1, y: p.y + dy * t1 }]];
   }
   return pts.length > 1 ? [pts] : [];

@@ -31,6 +31,9 @@ const CSS = `
     --pv-blue: #2459A6; --pv-rust: #B4441A; --pv-teal: #0E7A72; --pv-gold: #9A6A00; --pv-grid: color-mix(in srgb, var(--ds-ink, #222) 7%, transparent);
     --pv-grid2: color-mix(in srgb, var(--ds-ink, #222) 15%, transparent); --pv-axis: color-mix(in srgb, var(--ds-ink, #222) 55%, transparent); }
   .ds-dark .pv, .pv.ds-dark, .pv.dark { --pv-blue: #8DB6F2; --pv-rust: #F29A6E; --pv-teal: #5ED3C4; --pv-gold: #E9C25A; }
+  /* цвета сцены «Разбора графика» (точки и линии ученика в «Нарисуй сам») — цветами плоскости и её темы */
+  .pv { --g-blue: var(--pv-blue); --g-rust: var(--pv-rust); --g-teal: var(--pv-teal); --g-gold: var(--pv-gold); }
+  .pv .dl-coord { font: 700 12.5px var(--ds-sans, sans-serif); }
   @keyframes pv-in { from { opacity: 0; transform: scale(.985); } }
   .pv-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px 6px; }
   .pv-title { flex: 1; min-width: 0; font: 700 15px/1.3 var(--ds-sans, sans-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -41,6 +44,7 @@ const CSS = `
   .pv-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; overscroll-behavior: contain;
     border-top: 1px solid var(--ds-rule2, #d9cdb8); border-bottom: 1px solid var(--ds-rule2, #d9cdb8); background: var(--ds-card, #fff); }
   .pv-stage.dragging { cursor: grabbing; }
+  .pv-stage.drawing { cursor: crosshair; }
   .pv-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .pv-stage text { font-family: var(--ds-sans, sans-serif); }
   .pv-foot { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px 12px; flex-wrap: wrap; }
@@ -67,6 +71,25 @@ const CSS = `
   .pv-readout div { display: flex; justify-content: space-between; gap: 10px; font: 500 13px var(--ds-sans, sans-serif); }
   .pv-readout b { font: 800 13.5px var(--ds-mono, monospace); font-variant-numeric: tabular-nums; }
   .pv-readout b.up { color: var(--pv-teal); } .pv-readout b.down { color: var(--pv-rust); }
+  .pv-act { height: auto; min-height: 40px; padding: 8px 12px; justify-content: center; text-align: center; white-space: normal; line-height: 1.3; }
+  .pv-btn.primary { background: var(--pv-blue); border-color: var(--pv-blue); color: var(--ds-card, #fff); font-weight: 800; }
+  .pv-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--pv-blue) 16%, var(--ds-card, #fff)); border-color: var(--pv-blue); }
+  .pv-btn:disabled { opacity: .45; cursor: default; transform: none; }
+  .pv-fb { padding: 10px 12px; border-radius: 12px; font: 400 13.5px/1.45 var(--ds-sans, sans-serif); border: 1px solid var(--ds-rule2, #d9cdb8); background: var(--ds-card, #fff); }
+  .pv-fb.ok { border-color: var(--pv-teal); background: color-mix(in srgb, var(--pv-teal) 12%, var(--ds-card, #fff)); }
+  .pv-fb.bad { border-color: var(--pv-rust); background: color-mix(in srgb, var(--pv-rust) 10%, var(--ds-card, #fff)); }
+  .dl-pside { display: flex; flex-direction: column; gap: 10px; }
+  .dl-pside .pv-step b { font-weight: 800; color: var(--ds-ink, #222); }
+  .dl-prow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .dl-prow .pv-btn.wide { height: 36px; }
+  .dl-pact { margin-top: auto; } .dl-pact > :last-child { flex: 1; justify-content: center; }
+  .dl-fdots { display: inline-flex; gap: 4px; margin-left: 6px; } .dl-fdots i { width: 7px; height: 7px; border-radius: 50%; background: var(--ds-rule2, #d9cdb8); }
+  .dl-fdots i.on { background: var(--pv-blue); } .dl-fdots i.ok { background: var(--pv-teal); }
+  .dl-pts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .dl-pt { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px 4px 10px; border-radius: 999px; border: 1px solid var(--ds-rule2, #d9cdb8); background: var(--ds-card, #fff); color: var(--ds-ink, #222); font: 600 13px var(--ds-mono, monospace); cursor: pointer; }
+  .dl-mini-rows { margin-top: 4px; font: 600 12.5px var(--ds-mono, monospace); }
+  .pv-side-draw { width: 340px; }
+  @media (max-width: 760px) { .pv-side-draw { width: auto; max-height: 46vh; } }
   .pv-was { font: 500 12px/1.35 var(--ds-sans, sans-serif); color: var(--ds-ink3, #888); }
   .pv-step { font: 400 13.5px/1.45 var(--ds-sans, sans-serif); color: var(--ds-ink2, #555); padding: 10px 12px; border-radius: 12px; border-left: 3px solid var(--pv-gold); background: color-mix(in srgb, var(--pv-gold) 8%, transparent); }
   .pv-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pv-draw .9s cubic-bezier(.45,.05,.25,1) forwards; }
@@ -92,30 +115,46 @@ const easeOut = (t) => 1 - (1 - t) ** 3;
 const r2 = (x) => (Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 100) / 100);
 const numOf = (v) => { const n = Number(String(v).replace(/\s/g, '').replace(',', '.').replace('−', '-')); return Number.isFinite(n) ? n : null; };
 /* report — контекст жалобы с открывшего экрана (урок, шаг, задание); без него жалоба уходит с названием графика */
-export function PlaneViewer({ title, scene: scene0, caption = null, from = null, model = null, focus = null, report = null, onClose }) {
+/* draw — «Нарисуй сам» на плоскости (src/learn-draw.jsx; жалоба владельца 19.11: «почему в „Нарисуй сам“ на весь экран всё ещё
+   нет числовой плоскости, как в разборе»): касание одним пальцем или мышью — рисование (draw.down → true), щипок, средняя
+   кнопка и режим «Двигать» (draw.hand) — сдвиг и масштаб; draw.overlay(P) — точки, линии и мазки ученика поверх графика.
+   side — своя боковая панель (задание и кнопки) вместо ползунков модели. */
+export function PlaneViewer({ title, scene: scene0, caption = null, from = null, model = null, focus = null, report = null, onClose, draw = null, side = null, closeLabel = 'Закрыть', closeTestid = 'plane-close' }) {
   // живая модель: значения ползунков, сцена по ним; сцена «как было» — по исходным
   const [vals, setVals] = useState(() => (model ? { ...model.values } : null));
   /* Замечание владельца 18.11, вечер: «анимаций нет, когда дёргаешь ползунки». Ползунок встаёт сразу, а модель
      догоняет его плавно: показанные значения (shown) тянутся к выбранным за ~0,3 с — кривые переезжают, точки
      равновесия скользят, числа справа бегут. «Как было» возвращает так же плавно. */
+  /* Жалоба 19.11 («Вклад и копилка» на весь экран): «очень дёргано, когда двигаю ползунки, а когда возвращаю — пролаг».
+     Раньше каждое движение ползунка заново запускало переход на 0,3 с от текущего места — модель отставала и рывками
+     догоняла. Теперь показанное значение следует за ползунком непрерывно (экспоненциально, τ ≈ 70 мс): при перетаскивании
+     кривая идёт за пальцем, при прыжке (клавиша, «Как было», «Длинный период») — плавно доезжает. */
   const [shown, setShown] = useState(vals);
-  const tween = useRef(0);
+  const shownRef = useRef(vals); const target = useRef(vals); const loop = useRef(0);
   useEffect(() => {
     if (!model || !vals) return undefined;
-    cancelAnimationFrame(tween.current);
-    const from0 = shown; const t0 = performance.now(); const dur = 320;
+    target.current = vals;
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) { setShown(vals); return undefined; }
+    if (reduce) { shownRef.current = vals; setShown(vals); return undefined; }
+    if (loop.current) return undefined;
+    let last = performance.now();
     const step = (now) => {
-      const k = Math.min(1, (now - t0) / dur); const e = 1 - (1 - k) ** 3;
-      setShown(Object.fromEntries(Object.keys(vals).map((id) => [id, (from0[id] ?? vals[id]) + (vals[id] - (from0[id] ?? vals[id])) * e])));
-      if (k < 1) tween.current = requestAnimationFrame(step);
+      const dt = Math.min(64, now - last); last = now;
+      const k = 1 - Math.exp(-dt / 70); const goal = target.current; const cur = shownRef.current;
+      let done = true;
+      const next = Object.fromEntries(Object.keys(goal).map((id) => {
+        const a = cur[id] ?? goal[id]; const b = goal[id]; const span = Math.abs(b - a);
+        const x = span < 1e-6 * (Math.abs(b) + 1) ? b : a + (b - a) * k;
+        if (x !== b) done = false;
+        return [id, x];
+      }));
+      shownRef.current = next; setShown(next);
+      loop.current = done ? 0 : requestAnimationFrame(step);
     };
-    tween.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(tween.current);
-    // shown — откуда начать: берём текущее на момент смены цели
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vals]);
+    loop.current = requestAnimationFrame(step);
+    return undefined;
+  }, [vals]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (loop.current) cancelAnimationFrame(loop.current); loop.current = 0; }, []);
   const [sideOpen, setSideOpen] = useState(true);
   const base = model ? model.build(model.values) : scene0;
   const scene = model ? model.build(shown) : scene0;
@@ -187,8 +226,14 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
     stopGlide();
     pointers.current.set(e.pointerId, local(e));
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* старый браузер */ }
-    if (pointers.current.size === 2) { const [a, b] = [...pointers.current.values()]; gesture.current = { pinch: true, d0: Math.hypot(a.x - b.x, a.y - b.y), v0: vRef.current, m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; return; }
+    if (pointers.current.size === 2) { if (draw && draw.cancel) draw.cancel(); const [a, b] = [...pointers.current.values()]; gesture.current = { pinch: true, d0: Math.hypot(a.x - b.x, a.y - b.y), v0: vRef.current, m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; return; }
     const p = local(e);
+    // рисование: одно касание или левая кнопка мыши, пока не включено «Двигать»
+    if (draw && !draw.hand && e.button !== 1 && e.button !== 2) {
+      const { w, h } = sizeRef.current;
+      if (draw.down(toData(vRef.current, w, h, p.x, p.y), e, toPx(vRef.current, w, h))) { gesture.current = { draw: true }; setHover(p); return; }
+    }
+    if (draw) { gesture.current = { pan: true, x: p.x, y: p.y, v0: vRef.current, moved: false }; return; }
     // двойное касание — приблизить вдвое к этому месту
     const now = Date.now(); const lt = lastTap.current;
     if (now - lt.t < 320 && Math.hypot(p.x - lt.x, p.y - lt.y) < 24) { const { w, h } = sizeRef.current; glide(zoomPlane(vRef.current, 2, p.x, p.y, w, h, { fit: fit.current })); lastTap.current = { t: 0, x: 0, y: 0 }; return; }
@@ -205,6 +250,8 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
       set(panPlane(zoomPlane(g.v0, d / (g.d0 || 1), g.m.x, g.m.y, w, h, { fit: fit.current }), m.x - g.m.x, m.y - g.m.y, w, h));
       return;
     }
+    if (g && g.draw) { if (draw) draw.move(toData(vRef.current, w, h, p.x, p.y), e, toPx(vRef.current, w, h)); setHover(p); return; }
+    if (!g && draw && draw.hover && e.pointerType === 'mouse') draw.hover(toData(vRef.current, w, h, p.x, p.y));
     if (g && g.pan) {
       if (!g.moved && Math.hypot(p.x - g.x, p.y - g.y) > 4) { g.moved = true; setDragging(true); }
       if (g.moved) { set(panPlane(g.v0, p.x - g.x, p.y - g.y, w, h)); setHover(null); return; }
@@ -214,6 +261,7 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
   const up = (e) => {
     const g = gesture.current; const p = local(e);
     pointers.current.delete(e.pointerId);
+    if (g && g.draw && draw) draw.up(e);
     if (pointers.current.size < 2 && g && g.pinch) gesture.current = null;
     if (!pointers.current.size) { if (g && g.pan && !g.moved) setHover(p); gesture.current = null; setDragging(false); }
   };
@@ -252,10 +300,10 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
         {/* флажок жалобы (замечание владельца 18.11, вечер, п. 3): шаг, график и значения ползунков уходят в жалобу */}
         <span className="pv-flag"><ReportFlag withText text="Ошибка?" testid="plane-report" reasons={EXPLAIN_REASONS} sub="Что не так на графике? Название, шаг и положение ползунков приложатся сами."
           context={() => ({ ...(report ? report() : { screen: 'plane' }), page: `на весь экран: ${title}`.slice(0, 200), ...(vals ? { numbers: JSON.stringify(Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Math.round(x * 100) / 100]))) } : {}) })} /></span>
-        <button ref={closeBtn} type="button" className="pv-btn" aria-label="Закрыть" data-testid="plane-close" onClick={() => { Audio.play('paper'); onClose(); }}><X size={18} /></button>
+        <button ref={closeBtn} type="button" className="pv-btn" aria-label={closeLabel} title={closeLabel} data-testid={closeTestid} onClick={() => { Audio.play('paper'); onClose(); }}><X size={18} /></button>
       </div>
       <div className="pv-body">
-      <div ref={stage} className={`pv-stage${dragging ? ' dragging' : ''}`} tabIndex={0} aria-label="График: двигайте и приближайте. Стрелки — сдвиг, плюс и минус — масштаб, ноль — вписать"
+      <div ref={stage} className={`pv-stage${dragging ? ' dragging' : ''}${draw && !draw.hand ? ' drawing' : ''}`} tabIndex={0} aria-label="График: двигайте и приближайте. Стрелки — сдвиг, плюс и минус — масштаб, ноль — вписать"
         data-testid="plane-stage" data-x0={v.x0} data-x1={v.x1} data-y0={v.y0} data-y1={v.y1} data-step-x={sxStep} data-step-y={syStep}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null); }} onKeyDown={keys}>
         {ready && (
@@ -295,6 +343,7 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
             {(scene.polys || []).filter((g) => g.label).map((g, i) => { const cx = g.points.reduce((s, q) => s + q.x, 0) / g.points.length; const cy = g.points.reduce((s, q) => s + q.y, 0) / g.points.length;
               return <text key={`pl${i}`} x={P.x(cx)} y={P.y(cy)} fontSize="13.5" fontWeight="700" fill={col(g.tone || 'gold')} textAnchor="middle" {...halo}>{g.label}</text>; })}
             {(scene.points || []).filter((q) => q.label).map((q, i) => <text key={`ptl${i}`} x={P.x(q.x) + 9} y={P.y(q.y) - 9} fontSize="13.5" fontWeight="700" fill="var(--ds-ink, #222)" {...halo}>{q.label}</text>)}
+            {draw && draw.overlay(P, v, w, h)}
             {/* курсор: ближайшая точка линии и значения на осях */}
             {read && (
               <g pointerEvents="none" data-testid="plane-cursor">
@@ -311,15 +360,22 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
             {scene.xLabel || 'x'} <b>{fmtPlane(read.x, sxStep / 10)}</b> · {scene.yLabel || 'y'} <b>{fmtPlane(read.y, syStep / 10)}</b>
           </div>
         )}
-        <div className="pv-hint">тяните — двигать · колёсико или щипок — масштаб</div>
+        <div className="pv-hint">{draw ? (draw.hand ? 'тяните — двигать · колёсико или щипок — масштаб' : 'касание — точка · двумя пальцами или колёсиком — двигать и масштаб') : 'тяните — двигать · колёсико или щипок — масштаб'}</div>
       </div>
-      {(model || (scene.readout && scene.readout.length) || caption) && (
+      {side && <aside className="pv-side pv-side-draw" data-testid="plane-side" aria-label="Задание">{side}</aside>}
+      {!side && (model || (scene.readout && scene.readout.length) || caption) && (
         <aside className={`pv-side${sideOpen ? '' : ' closed'}`} data-testid="plane-side" aria-label="Модель графика">
           <div className="pv-side-t">{model ? 'Меняйте модель' : 'Значения'}
             <button type="button" className="pv-btn wide" style={{ height: 30 }} data-testid="plane-side-toggle" aria-expanded={sideOpen} onClick={() => setSideOpen((o) => !o)}>{sideOpen ? 'Свернуть' : 'Модель'}</button>
           </div>
           {caption && <div className="pv-step" data-testid="plane-caption">{caption}</div>}
           {model && model.controls.map((c) => {
+            /* кнопка модели («Длинный период: фирмы входят, пока прибыль не ноль») — кнопка, а не ползунок (жалоба 19.11:
+               «что за странный ползунок, зачем он») */
+            if (c.button) {
+              return <button key={c.id} type="button" className="pv-btn wide pv-act" data-testid="plane-ctl-button" data-ctl={c.id} disabled={!model.onButton}
+                onClick={() => { Audio.play('tick'); setVals((cur) => model.onButton(cur)); }}>{c.label}</button>;
+            }
             const val = vals[c.id]; const p = c.max > c.min ? ((val - c.min) / (c.max - c.min)) * 100 : 0;
             return (
               <div key={c.id} className="pv-ctl">

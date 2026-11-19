@@ -78,7 +78,7 @@ export const SKETCH_CSS = `
   /* док — над нижней панелью разбора («Назад» / «Дальше»): в окне 1280 px панель начинается у 280 px, и док её закрывал бы */
   .sk-dock.sk-fixed { position: fixed; z-index: 4; bottom: calc(96px + env(safe-area-inset-bottom)); }
   /* черновик включён — страница разбора чуть уже (680 вместо 720 px): в окне 1280 px поле слева шире дока (316 > 302 px) */
-  .gl[data-sketch] > .gl-page { max-width: 680px; }
+  /* колонка разбора не сужается, когда включают черновик (жалоба 19.11, graph-product: «урок сдвигается») */
   .gl[data-sketch] { cursor: var(--sk-cursor, crosshair); }
   .gl[data-sketch] > * { cursor: auto; }
   .gl[data-sketching] * { cursor: inherit !important; user-select: none; }
