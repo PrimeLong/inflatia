@@ -151,7 +151,7 @@ export const RECORD_CSS = `
   .rw-ring .fg { stroke: var(--rv, #C9A43A); stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
   .rw-arm { position: absolute; right: 0; top: 0; width: 34px; height: 60px; transform-origin: 26px 8px; transform: rotate(-28deg); transition: transform .6s cubic-bezier(.3,1.3,.5,1); pointer-events: none; }
   .rw-deck.on .rw-arm { transform: rotate(0deg); }
-  .rw-vinyl-t { display: flex; align-items: center; justify-content: center; gap: 6px; font: 600 11.5px var(--ds-sans); color: var(--ds-ink3); text-align: center; min-height: 16px; }
+  .rw-vinyl-t { display: flex; align-items: center; justify-content: center; gap: 6px; font: 600 12px var(--ds-sans); color: var(--ds-ink3); text-align: center; min-height: 16px; }
   .rw-deck.on + .rw-vinyl-t { color: var(--ds-ink); }
   .rw-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
   .rw-eq i { width: 3px; border-radius: 1px; background: var(--rv, #C9A43A); animation: rw-eq .9s ease-in-out infinite; }

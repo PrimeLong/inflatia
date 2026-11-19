@@ -357,7 +357,7 @@ export const TEXTBOOK_CSS = `
   .tbl-parts { gap: 30px; }
   .tbl-part { background: none; border: 0; padding: 0; }
   .tbl-part-title { padding: 0 0 2px; margin: 0; font: 700 22px/1.2 var(--ds-head); letter-spacing: 0; text-transform: none; color: var(--ds-ink); }
-  .tbl-part-k { display: block; font: 800 11.5px/1.3 var(--ds-sans); letter-spacing: .16em; text-transform: uppercase; color: var(--u-ink); margin-bottom: 2px; }
+  .tbl-part-k { display: block; font: 800 12px/1.3 var(--ds-sans); letter-spacing: .16em; text-transform: uppercase; color: var(--u-ink); margin-bottom: 2px; }
   .tbl-part.locked .tbl-part-title { color: var(--ds-ink3); }
   .tbl-sep { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .tbl-level-text { padding: 0 0 8px; margin: 2px 0 0; font: italic 400 14.5px/1.45 var(--ds-head); color: var(--ds-ink2); }
@@ -366,6 +366,8 @@ export const TEXTBOOK_CSS = `
   .tbl-chs .tbl-ch:hover { background: color-mix(in srgb, var(--u, var(--ds-ink)) 5%, transparent); }
   .tbl-chs .tbl-no { width: auto; height: auto; border: 0; border-radius: 0; justify-content: flex-start; font: 700 22px/1.1 var(--ds-head); color: var(--u, var(--ds-ink2)); font-variant-numeric: lining-nums tabular-nums; }
   .tbl-chs .tbl-no.done { background: none; color: var(--ds-ok); }
+  /* в тёмной теме цвет юнита у номера — светлее: тёмные цвета юнитов на тёмном фоне не читались */
+  .ds-dark .tbl-chs .tbl-no:not(.done) { color: color-mix(in srgb, var(--u, var(--ds-ink2)) 55%, #fff); }
   .tbl-ch-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   .tbl-chs .tbl-ch-title { font: 600 17px/1.3 var(--ds-head); min-width: 0; }
   .tbl-chs .tbl-ch:hover .tbl-ch-title { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--u, var(--ds-ink)) 60%, transparent); text-underline-offset: 3px; }

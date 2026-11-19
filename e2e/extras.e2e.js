@@ -814,7 +814,7 @@ test('«Персоналии на ПК»: страница в две колон�
     expect(ask.x).toBeGreaterThan(story.x + story.width);
     await pg.locator('[data-testid=people-opt][data-ok="false"]').first().click();
     const fb = await page.getByTestId('people-feedback').boundingBox();
-    const foot = await page.locator('.pp-foot').boundingBox();
+    const foot = await page.getByTestId('people-foot').boundingBox();
     expect(fb.y + fb.height).toBeLessThanOrEqual(foot.y);
     await pg.locator('[data-testid=people-opt][data-ok="true"]').click();
     await page.getByTestId('people-next').click();
@@ -991,7 +991,7 @@ test('«Нарисуй сам»: подписи осей — на линиях �
   const vp = page.viewportSize();
   // плоскость открывается с лёгким приближением (0,2 с) — меряем, когда встала
   await expect.poll(async () => (await pv.boundingBox()).height).toBeGreaterThan(vp.height - 4);
-  expect((await pv.boundingBox()).width).toBeGreaterThan(vp.width - 4);
+  await expect.poll(async () => (await pv.boundingBox()).width).toBeGreaterThan(vp.width - 4);
   await pv.getByTestId('draw-full-exit').click();
   await expect(g.getByTestId('draw-box')).toHaveAttribute('data-full', 'false');
   expect(errors).toEqual([]);

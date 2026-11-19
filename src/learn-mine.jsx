@@ -22,7 +22,7 @@ export const MINE_CSS = `
   .mn-top { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
   .mn-depth { font: 800 30px/1 var(--ds-mono, monospace); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
   .mn-depth small { font: 600 13px var(--ds-sans); color: var(--mn-dim); margin-left: 4px; }
-  .mn-layer { font: 700 11px var(--ds-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--mn-dim); }
+  .mn-layer { font: 700 12px var(--ds-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--mn-dim); }
   .mn-tokens { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: rgba(243,197,83,.12); border: 1px solid rgba(243,197,83,.35);
     font: 800 15px var(--ds-mono, monospace); color: var(--mn-gold); font-variant-numeric: tabular-nums; }
   .mn-tokens i { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #FFF1B8, #E2AE2A 60%, #8A6410); box-shadow: 0 0 0 2px rgba(0,0,0,.25) inset; }
@@ -35,8 +35,8 @@ export const MINE_CSS = `
   .mn-shaft { display: grid; grid-template-columns: 54px 1fr; gap: 10px; margin-top: 12px; }
   .mn-gauge { position: relative; border-radius: 12px; overflow: hidden; background: #0C0A09; border: 1px solid rgba(255,255,255,.08); min-height: 280px; }
   .mn-gauge > div { position: absolute; left: 0; right: 0; }
-  .mn-gauge b { position: absolute; left: 3px; display: inline-flex; align-items: center; gap: 2px; margin-top: -6px; font: 700 10px var(--ds-mono, monospace); color: rgba(255,255,255,.85); text-shadow: 0 1px 2px #000; white-space: nowrap; }
-  .mn-gauge b .mn-gem { width: 10px; height: 10px; flex: none; }
+  .mn-gauge b { position: absolute; left: 3px; display: inline-flex; align-items: center; gap: 2px; margin-top: -6px; font: 700 12px var(--ds-mono, monospace); letter-spacing: -.04em; color: rgba(255,255,255,.85); text-shadow: 0 1px 2px #000; white-space: nowrap; }
+  .mn-gauge b .mn-gem { width: 9px; height: 9px; flex: none; }
   .mn-gauge .now { position: absolute; left: -2px; right: -2px; height: 3px; background: var(--mn-gold); box-shadow: 0 0 10px var(--mn-gold); transition: top .4s; }
   .mn-face { position: relative; border-radius: 16px; overflow: hidden; min-height: 280px; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation;
     background: var(--rock); box-shadow: inset 0 0 60px rgba(0,0,0,.65), inset 0 -40px 50px rgba(0,0,0,.4); border: 0; padding: 0; width: 100%; display: block; color: inherit; }
@@ -70,11 +70,11 @@ export const MINE_CSS = `
   .mn-sec { margin-top: 16px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
   .mn-sec h4 { margin: 0 0 6px; font: 800 12px var(--ds-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--mn-dim); }
   .mn-sec p { margin: 0 0 8px; font: 400 13.5px/1.45 var(--ds-sans); color: var(--mn-dim); }
-  .mn-ladder { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin: 6px 0 8px; }
+  .mn-ladder { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin: 20px 0 8px; }
   .mn-ladder span { flex: 1; border-radius: 4px 4px 0 0; background: rgba(243,197,83,.25); position: relative; }
   .mn-ladder span.done { background: rgba(243,197,83,.7); }
   .mn-ladder span.next { background: var(--mn-gold); box-shadow: 0 0 12px rgba(243,197,83,.6); }
-  .mn-ladder small { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font: 700 9.5px var(--ds-mono, monospace); color: var(--mn-dim); }
+  .mn-ladder small { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font: 700 12px var(--ds-mono, monospace); letter-spacing: -.05em; color: var(--mn-dim); }
   .mn-ups { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
   .mn-up { display: grid; grid-template-columns: 34px 1fr; gap: 4px 10px; align-items: center; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
   .mn-up > svg { grid-row: span 2; color: var(--mn-gold); }
