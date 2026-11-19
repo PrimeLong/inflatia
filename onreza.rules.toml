@@ -1,0 +1,53 @@
+# EDGE RULES ДЛЯ ONREZA (docs/onreza.md) — то же, что rewrites и headers в vercel.json.
+# Порядок правил — порядок исполнения. Проверка: nrz functions check; тест — api/__tests__/onreza.test.js.
+schema = "EDGE_RULE_SET_V1"
+
+[[rule]]
+id = "spa-book"
+when.path = { exact = "/book" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "spa-league"
+when.path = { exact = "/league" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "spa-shop"
+when.path = { exact = "/shop" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "spa-profile"
+when.path = { exact = "/profile" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "spa-world"
+when.path = { exact = "/world" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "spa-news"
+when.path = { exact = "/news" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "spa-research"
+when.path = { exact = "/research" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "spa-book-chapter"
+when.path = { glob = "/book/*" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+[[rule]]
+id = "security-headers"
+action.set_headers = { headers = {
+  "content-security-policy" = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' data: blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+  "x-content-type-options" = "nosniff",
+  "referrer-policy" = "strict-origin-when-cross-origin",
+  "permissions-policy" = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+  "x-frame-options" = "DENY",
+} }

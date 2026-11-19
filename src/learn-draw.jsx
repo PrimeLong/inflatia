@@ -13,7 +13,7 @@ import { Audio } from './MacroSimulator.jsx';
 import { Button } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { CHARTS } from './textbook/charts.js';
-import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour, paintCoverage, PAINT_BRUSH } from './learn/draws.js';
+import { DRAW_BY_ID, DRAW_XP, isDrawDone, checkTask, solveTask, snapTo, drawScene, drawTour, paintCoverage, PAINT_BRUSH, previewCurve } from './learn/draws.js';
 import { tallyAnswer, finishLesson, markDraw, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
@@ -103,7 +103,40 @@ const CSS = `
   .dl-box.full .dl-ink:focus-visible { outline: 3px solid var(--g-blue); outline-offset: -3px; }
   .dl-full-btn:disabled { opacity: .45; cursor: default; }
   .dl-full-row > :last-child { flex: 1; }
-  @media (prefers-reduced-motion: reduce) { .dl-task, .dl-fb { animation: none; } }
+  /* Редизайн 18.11 (жалобы mwm30dxk и mwm31hpr, draw-inflation: «кнопки на весь экран не по стилю», «почему тут страшное
+     открытие на весь экран, а не красивое современное, как с числовой плоскостью»). Одна система кнопок с числовой
+     плоскостью (src/plane-view.jsx): 36 px, скругление 12, карточка с рамкой; масштаб — одной капсулой «− ×1,0 +». */
+  .dl-full-btn { height: 36px; padding: 0 12px; border-radius: 12px; gap: 6px; font: 600 13px var(--ds-sans); background: var(--ds-card);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-ink) 6%, transparent); transition: border-color .15s, background .15s, transform .12s; }
+  .dl-full-btn:active:not(:disabled) { transform: scale(.96); }
+  .dl-full-btn svg { width: 15px !important; height: 15px; }
+  .dl-full-btn.accent { color: var(--g-blue); border-color: color-mix(in srgb, var(--g-blue) 45%, var(--ds-rule2)); }
+  .dl-full-btn.accent:hover { background: color-mix(in srgb, var(--g-blue) 8%, var(--ds-card)); }
+  .dl-seg { display: inline-flex; align-items: stretch; height: 36px; border: 1px solid var(--ds-rule2); border-radius: 12px; background: var(--ds-card); overflow: hidden;
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-ink) 6%, transparent); }
+  .dl-seg .dl-zbtn { width: 38px; height: auto; border: 0; border-radius: 0; background: none; }
+  .dl-seg .dl-zbtn:not(:disabled):hover { background: color-mix(in srgb, var(--g-blue) 10%, transparent); color: var(--g-blue); }
+  .dl-seg .dl-zlevel { display: grid; place-items: center; min-width: 3.6em; border-left: 1px solid var(--ds-rule2); border-right: 1px solid var(--ds-rule2); font: 700 12.5px var(--ds-mono, monospace); }
+  .dl-tools { gap: 8px; margin: 0 0 8px; }
+  .dl-zoom { gap: 8px; }
+  /* во весь экран — как числовая плоскость: шапка с названием, шагом и крестиком; задание — карточкой с полосой темы;
+     поле — крупной карточкой с тенью; внизу — «Сбросить» и «Проверить» */
+  .dl-box.full { gap: 10px; animation: dl-full-in .22s ease-out;
+    background: radial-gradient(120% 70% at 50% -20%, color-mix(in srgb, var(--g-blue) 10%, var(--ds-paper)), var(--ds-paper) 62%), var(--ds-paper); }
+  @keyframes dl-full-in { from { opacity: 0; } }
+  .dl-fhead { gap: 10px; min-height: 40px; }
+  .dl-ftitle { flex: 1; min-width: 0; font: 800 15px/1.25 var(--ds-sans); color: var(--ds-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dl-ftitle small { display: block; font: 800 10.5px var(--ds-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ds-ink3); }
+  .dl-fstep { padding: 5px 10px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--g-blue) 12%, var(--ds-card)); white-space: nowrap; }
+  .dl-fdots { flex: none; }
+  .dl-fclose { width: 40px; height: 40px; flex: none; display: grid; place-items: center; padding: 0; border-radius: 12px; cursor: pointer; border: 1px solid var(--ds-rule2);
+    background: var(--ds-card); color: var(--ds-ink); transition: border-color .15s, transform .12s; }
+  .dl-fclose:hover { border-color: var(--g-blue); } .dl-fclose:active { transform: scale(.92); }
+  .dl-box.full .dl-mini { padding: 10px 14px; border-radius: 14px; background: var(--ds-card); border: 1px solid var(--ds-rule2); border-left: 4px solid var(--g-blue); }
+  .dl-box.full .dl-wrap { border-radius: 18px; box-shadow: 0 22px 44px -30px rgba(0,0,0,.5); }
+  .dl-box.full .dl-full-row { align-items: stretch; }
+  @media (max-width: 560px) { .dl-fdots { display: none; } .dl-ftitle { font-size: 14px; } }
+  @media (prefers-reduced-motion: reduce) { .dl-task, .dl-fb, .dl-box.full { animation: none; } }
 `;
 
 const rich = (t) => String(t).split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : <React.Fragment key={i}>{p}</React.Fragment>));
@@ -479,13 +512,21 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
       {label && <text className="dl-coord" style={{ fontSize: `${11.5 * pz}px` }} x={sx(q.x) + (nearRight(q) ? -10 : 10) * pz} y={sy(q.y) - 10 * pz} textAnchor={nearRight(q) ? 'end' : 'start'} fill={col} stroke="var(--ds-card)" strokeWidth={4 * pz} paintOrder="stroke">{label}</text>}
     </g>
   );
-  // линия через две точки ученика — до краёв поля, пунктиром: видно, куда она пойдёт
+  // линия через две точки ученика — до краёв поля, пунктиром: видно, куда она пойдёт; у кривой (сложный процент,
+  // выручка, издержки) — той же формы, что нужная кривая (previewCurve в src/learn/draws.js)
+  const targetCurve = t.do === 'line' ? (drawScene(d, t.values || {}).curves || []).find((c) => c.id === t.el) : null;
+  const curvePath = (a, b) => {
+    const cp = previewCurve(targetCurve, a, b, [x0, x1]);
+    return cp ? cp.map((q, k) => `${k ? 'L' : 'M'}${sx(q.x).toFixed(1)},${sy(q.y).toFixed(1)}`).join(' ') : null;
+  };
   const through = () => {
     if (t.do !== 'line' || pts.length !== 2 || (pts[0].x === pts[1].x && pts[0].y === pts[1].y)) return null;
+    const cd = curvePath(pts[0], pts[1]);
+    if (cd) return <path d={cd} fill="none" stroke={mine} strokeWidth={2.2 * pz} strokeDasharray={`${7 * pz} ${6 * pz}`} strokeOpacity=".75" clipPath={`url(#dlc${id})`} data-testid="draw-through" data-shape="curve" />;
     const [a, b] = pts; const dx = b.x - a.x; const dy = b.y - a.y;
     const far = 4 * Math.max(x1 - x0, y1 - y0) / Math.max(1e-9, Math.hypot(dx, dy));
     const p = { x: a.x - dx * far, y: a.y - dy * far }; const q = { x: a.x + dx * far, y: a.y + dy * far };
-    return <line x1={sx(p.x)} y1={sy(p.y)} x2={sx(q.x)} y2={sy(q.y)} stroke={mine} strokeWidth={2.2 * pz} strokeDasharray={`${7 * pz} ${6 * pz}`} strokeOpacity=".75" clipPath={`url(#dlc${id})`} />;
+    return <line x1={sx(p.x)} y1={sy(p.y)} x2={sx(q.x)} y2={sy(q.y)} stroke={mine} strokeWidth={2.2 * pz} strokeDasharray={`${7 * pz} ${6 * pz}`} strokeOpacity=".75" clipPath={`url(#dlc${id})`} data-testid="draw-through" data-shape="line" />;
   };
 
   const body = (
@@ -527,10 +568,12 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
           <div className={`dl-box${full ? ' full' : ''}`} data-testid="draw-box" data-full={String(full)} data-zoom={z.toFixed(2)} data-gem={String(!!gem)}>
           {full && (
             <div className="dl-fhead" data-testid="draw-full-head">
+              <span className="dl-ftitle"><small>Нарисуй сам</small>{d.title}</span>
               <span className="dl-fstep">Шаг {i + 1} из {n}</span>
               <span className="dl-fdots" aria-hidden="true">{d.tasks.map((_, j) => <i key={j} className={j < i || (j === i && resolved) ? 'ok' : j === i ? 'on' : ''} />)}</span>
               <button type="button" className="dl-full-btn" aria-expanded={taskOpen} data-testid="draw-task-toggle" onClick={() => { Audio.play('tick'); setTaskOpen(!taskOpen); }}>
                 {taskOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}{taskOpen ? 'Скрыть задание' : 'Задание'}</button>
+              <button type="button" className="dl-fclose" aria-label="Свернуть график" title="Свернуть (Esc)" data-testid="draw-full-exit" onClick={leaveFull}><Minimize2 size={18} aria-hidden="true" /></button>
             </div>
           )}
           {full && taskOpen && <div className="dl-mini" data-testid="draw-full-task">{rich(t.text)}
@@ -539,9 +582,11 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
             <div className="dl-fit" ref={fitArea}>
             <div className="dl-tools" style={full && fitBox ? { width: fitBox.w } : undefined}>
               <div className="dl-zoom" role="group" aria-label="Масштаб графика" data-testid="draw-zoom">
+                <span className="dl-seg">
                 <button type="button" className="dl-zbtn" aria-label="Отдалить график" title="Отдалить" data-testid="draw-zoom-out" disabled={!zoomed} onClick={() => zoomBy(1 / 1.6)}><Minus size={15} aria-hidden="true" /></button>
                 <span className="dl-zlevel" data-testid="draw-zoom-level" aria-live="polite">×{(Math.round(z * 10) / 10).toFixed(1).replace('.', ',')}</span>
                 <button type="button" className="dl-zbtn" aria-label="Приблизить график" title="Приблизить (щипок двумя пальцами, колёсико во весь экран)" data-testid="draw-zoom-in" disabled={z >= ZOOM_MAX - 0.01} onClick={() => zoomBy(1.6)}><Plus size={15} aria-hidden="true" /></button>
+                </span>
                 {zoomed && <button type="button" className="dl-full-btn" data-testid="draw-zoom-fit" onClick={zoomFit}><Expand size={14} aria-hidden="true" />Вписать</button>}
                 {zoomed && <button type="button" className="dl-full-btn" aria-pressed={hand} data-testid="draw-hand" title="Двигать график, а не ставить точки"
                   onClick={() => { Audio.play('tick'); setHand(!hand); setHover(null); }}><Hand size={14} aria-hidden="true" />Двигать</button>}
@@ -552,7 +597,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                   <button type="button" className="dl-full-btn" aria-pressed={tool === 'erase'} data-testid="draw-eraser" onClick={() => { Audio.play('tick'); setTool('erase'); }}><Eraser size={14} aria-hidden="true" />Ластик</button>
                 </div>
               )}
-              {!full && <button type="button" className="dl-full-btn" data-testid="draw-full" onClick={goFull}><Maximize2 size={14} aria-hidden="true" />На весь экран</button>}
+              {!full && <button type="button" className="dl-full-btn accent" data-testid="draw-full" onClick={goFull}><Maximize2 size={14} aria-hidden="true" />На весь экран</button>}
               {(full || t.do === 'area') && t.do !== 'shift' && (
                 <button type="button" className="dl-full-btn" data-testid="draw-undo" disabled={resolved || (!pts.length && !(t.do === 'area' && history.current.length))} title="Отменить (Ctrl+Z)" onClick={undoPt}><Undo2 size={14} aria-hidden="true" />Отменить</button>
               )}
@@ -569,9 +614,9 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 {!res?.ok && through()}
                 {full && hover && !resolved && t.do !== 'shift' && !gem && cross(hover)}
                 {/* одна точка линии стоит — к курсору тянется пунктирная «резинка»: видно, какая выйдет линия */}
-                {t.do === 'line' && pts.length === 1 && hover && !drag.current && !resolved && (
-                  <line x1={sx(pts[0].x)} y1={sy(pts[0].y)} x2={sx(hover.x)} y2={sy(hover.y)} stroke={mine} strokeWidth={2.4 * pz} strokeDasharray={`${6 * pz} ${5 * pz}`} strokeLinecap="round" opacity=".6" pointerEvents="none" data-testid="draw-rubber" />
-                )}
+                {t.do === 'line' && pts.length === 1 && hover && !drag.current && !resolved && (curvePath(pts[0], hover)
+                  ? <path d={curvePath(pts[0], hover)} fill="none" stroke={mine} strokeWidth={2.4 * pz} strokeDasharray={`${6 * pz} ${5 * pz}`} strokeLinecap="round" opacity=".6" pointerEvents="none" clipPath={`url(#dlc${id})`} data-testid="draw-rubber" />
+                  : <line x1={sx(pts[0].x)} y1={sy(pts[0].y)} x2={sx(hover.x)} y2={sy(hover.y)} stroke={mine} strokeWidth={2.4 * pz} strokeDasharray={`${6 * pz} ${5 * pz}`} strokeLinecap="round" opacity=".6" pointerEvents="none" data-testid="draw-rubber" />)}
                 {hover && !drag.current && pts.length < maxPts && t.do !== 'area' && (
                   <g opacity=".55" pointerEvents="none">{pin(hover, 'hover', 'var(--g-blue)', gem ? null : coordLabel(hover))}</g>
                 )}
@@ -620,7 +665,6 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
           )}
           {full && (
             <div className="dl-full-row">
-              <Button variant="ghost" icon={Minimize2} data-testid="draw-full-exit" onClick={leaveFull}>Свернуть</Button>
               <Button variant="ghost" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} onClick={reset}>Сбросить</Button>
               {resolved
                 ? <Button wide icon={i < n - 1 ? ArrowRight : Check} data-testid="draw-full-next" onClick={() => { if (i >= n - 1) leaveFull(); next(); }}>{i < n - 1 ? 'Дальше' : 'Готово'}</Button>

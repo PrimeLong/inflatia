@@ -1,4 +1,6 @@
 import { ruNum, ruDots } from './lib/num.js';
+import { WorldReportButton, worldReportContext } from './world-report.jsx';
+import { capitalShown } from './lib/politics/president.js';
 import { noteWorldQuarter } from './textbook/progress.js';
 import React, { useState, useMemo, useCallback, useRef, Suspense } from 'react';
 import { fetchSoloSlots, fetchSoloSlot, saveSoloSlot, renameSoloSlot, deleteSoloSlot, submitDailyResult } from './lib/client.js';
@@ -21,7 +23,7 @@ import {
   electionForecast, botDefenseOrder, botFrontOrder, DEF_ENEMY, botTreaty, botDiplomacy, neighborEventView, WAR_TARGETS, warTargetOf, SOCIAL_GROUPS, ACTION_GROUP_EFFECTS, leverGroupEffects,
   botPresident, directiveProgress, directiveVerdict, militaryCoupRisk, parliamentBlocksReform, scaleLever, currencyUnionRate, taylorRate, botPresidentRegion, regionEventOwner,
 } from './lib/engine.js';
-import { Audio, stingerFor } from './audio/engine.js';
+import { Audio } from './audio/engine.js';
 import { BookLink, useHiddenBookLinks, restoreBookLinks } from './booklink.jsx';
 import { LEVER_BOOK, WHY_BOOK, COMPASS_BOOK } from './lib/booklinks.js';
 import { advancedOpen, readLearnLevel, ADVANCED_TABS, ADVANCED_ROWS, ADVANCED_CHAPTERS, ADVANCED_QUARTER } from './lib/disclosure.js';
@@ -1161,7 +1163,7 @@ export function PresidentWatchPanel({ economy, plan, last, branch }) {
         <span className="bar-track">
           <span style={{ display: 'block', width: `${clamp(economy.politicalCapital || 0, 0, 100)}%`, height: '100%', background: COLOR.gold }} />
         </span>
-        <span className="ems-mono t-goldsoft">{Math.floor((economy.politicalCapital || 0) + 1e-9)}</span>
+        <span className="ems-mono t-goldsoft">{capitalShown(economy.politicalCapital)}</span>
       </div>
       {/* у трейдера президента не за что увольнять — «отношение к вам» там не про что */}
       {branch && (
@@ -1239,8 +1241,8 @@ function CapitalBar({ value, reserved, gain }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
         {/* вниз, а не до ближайшего: капитал дробный, и «26 свободно» при 25,6 обещало
             решение за 26, которое на деле недоступно */}
-        <span className="ems-mono" style={{ fontSize: 25, color: COLOR.gold, fontWeight: 600, lineHeight: 1 }}>{Math.floor(left + 1e-9)}</span>
-        <span className="fs-12 t-muted">из {Math.floor(v + 1e-9)} свободно</span>
+        <span className="ems-mono" style={{ fontSize: 25, color: COLOR.gold, fontWeight: 600, lineHeight: 1 }}>{capitalShown(left)}</span>
+        <span className="fs-12 t-muted">из {capitalShown(v)} свободно</span>
         <span className="ems-mono" style={{ marginLeft: 'auto', fontSize: 12, color: gain >= 0 ? COLOR.teal : COLOR.rust }}>
           {gain >= 0 ? '+' : ''}{fmt1(gain)} за квартал
         </span>
@@ -1410,6 +1412,25 @@ function PresActionCard({ action, economy, cooldowns, selected, affordable, onTo
   );
 }
 
+/* Внешняя политика президента — на карте, в карточке «Наша страна» (src/countrymap.jsx): те же решения-указы
+   (санкции, торговый блок), та же бронь капитала, что в кабинете. reservedElse — капитал, уже забронированный в кабинете
+   (кадры, указание), чтобы «хватает ли» считалось по тому же остатку. */
+export function ForeignPolicyBlock({ economy, cooldowns, selected, setSelected, reservedElse = 0 }) {
+  const capital = Number.isFinite(economy.politicalCapital) ? economy.politicalCapital : 55;
+  const reserved = selected.reduce((sum, id) => sum + ((PRES_BY_ID[id] || {}).cost || 0), 0) + reservedElse;
+  const free = capital - reserved;
+  const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const list = PRESIDENT_ACTIONS.filter((a) => a.group === 'diplomacy' && !(economy.kidsMode && kidsBlocked(a)));
+  return (
+    <div data-testid="map-foreign-policy">
+      {list.map((a) => (
+        <PresActionCard key={a.id} action={a} economy={economy} cooldowns={cooldowns}
+          selected={selected.includes(a.id)} affordable={free >= a.cost} onToggle={() => toggle(a.id)} />
+      ))}
+      <div style={{ fontSize: 12, color: COLOR.faint }}>Свободно {capitalShown(free)} ПК — бронь общая с кабинетом.</div>
+    </div>
+  );
+}
 export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPersonaId, mofPersonaId,
   appointCb, setAppointCb, appointMof, setAppointMof, directive, setDirective, lastDirective,
   directiveStrength, setDirectiveStrength }) {
@@ -1496,7 +1517,12 @@ export function PresidentPanel({ economy, cooldowns, selected, setSelected, cbPe
 
       {tab === 'public' && (
         <div>
-          {['public', 'diplomacy', 'power'].map((g) => {
+          {/* внешняя политика — на карте (замечание владельца 18.11, вечер, п. 12: «странно, что внешняя политика есть в кабинете,
+              хотя должна быть на карте»): здесь только подсказка, куда идти */}
+          <div data-testid="pres-foreign-hint" style={{ fontSize: 12, color: COLOR.muted, lineHeight: 1.45, margin: '0 0 10px', padding: '8px 10px', border: `1px dashed ${COLOR.border}`, borderRadius: 4 }}>
+            <Globe2 size={12} style={{ verticalAlign: -2, marginRight: 5 }} />Внешняя политика — на вкладке «Карта»: в карточке «Наша страна» — санкции и торговый блок, в карточке соседа — договор, помощь, ультиматум и санкции против него.
+          </div>
+          {['public', 'power'].map((g) => {
             const Icon = PRES_GROUP_ICON[g];
             return (
               <React.Fragment key={g}>
@@ -3719,7 +3745,7 @@ export const INDICATOR_TABS = [
       hint: 'Кредит доверия правительству национального спасения — есть только в сценарии «Гиперинфляция». Пока он действует, рейтинг держится выше, а напряжение ниже, чем говорит экономика. Полную силу даёт, только пока стабилизационная программа работает; при бездействии — треть силы и сгорает вдвое быстрее.' },
     { label: 'Беспорядки в стране', get: (e) => !!e.unrestActive, text: true, map: { true: 'да', false: 'нет' } },
     { label: 'Парламент', get: (e) => !!e.parliamentDissolved, text: true, map: { true: 'распущен', false: 'работает' } },
-    { key: 'politicalCapital', label: 'Политический капитал', fmt: (v) => v.toFixed(0) },
+    { key: 'politicalCapital', label: 'Политический капитал', fmt: (v) => String(capitalShown(v)) },
     { key: 'cbTenure', label: 'Глава ЦБ в должности, кв.', fmt: (v) => v.toFixed(0), noDelta: true },
     { key: 'mofTenure', label: 'Министр финансов в должности, кв.', fmt: (v) => v.toFixed(0), noDelta: true },
     { label: 'Проведённые реформы', text: true,
@@ -4932,13 +4958,8 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
     if (newCrisis) { setFlashKey(quarterIndex); setShake(true); haptic([45, 70, 45, 70, 90]); setTimeout(() => setShake(false), 950); }
     else if (result.economy.regime !== economy.regime) { setFlashKey(quarterIndex); haptic([28, 60, 28]); }
     else haptic(14);
-    Audio.quarterSequence({
-      wellbeingDelta: result.economy.wellbeing - economy.wellbeing,
-      newCrisis,
-      bigNews: result.newsEntries.some((n) => n.priority >= 8),
-      // выборы, переворот, падение режима, остановленные цены — у каждого своя музыкальная заставка
-      stinger: stingerFor(economy, result.economy),
-    });
+    // итог квартала — только «штамп»: звуков событий (выборы, кризис, новости) нет (замечание владельца 18.11, вечер, п. 13)
+    Audio.quarterSequence();
     // без этого directiveProgress следующего квартала сравнивал бы решения с
     // тем, какими они были в САМОМ ПЕРВОМ квартале партии: базовая точка ни разу
     // не обновлялась, и «выполнено ли требование» проверялось не с начала этого
@@ -5129,6 +5150,8 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
               <Newspaper size={14} />Газета
             </button>
           )}
+          {/* «Сообщить об ошибке» (замечание владельца 18.11, вечер, п. 10: «в мире нет кнопки жалобы») */}
+          <WorldReportButton context={() => worldReportContext({ economy, role: setup.role, mode: 'solo', scenario: setup.scenario || 'sandbox', quarter: quarterIndex, view })} />
           <AudioControls />
           <HeaderOverflowMenu items={[
             ...(narrow ? [
@@ -5306,7 +5329,9 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
             treatyPlanner={presEnabled ? `президент (бот, ${getPresPersona(presPersonaId).name.toLowerCase()})` : 'МИД по поручению правительства'}
             diploPlan={diploPlan} onDiploPlan={isPresident && !defeat ? setDiploPlan : null}
             warPlan={presActions.includes('war_start') ? (warTarget || 'north') : null} onWarPlan={isPresident && !defeat ? planWar : null}
-            diploPlanner={presEnabled ? `президент (бот, ${getPresPersona(presPersonaId).name.toLowerCase()})` : 'МИД по поручению правительства'} />
+            diploPlanner={presEnabled ? `президент (бот, ${getPresPersona(presPersonaId).name.toLowerCase()})` : 'МИД по поручению правительства'}
+            foreignPolicy={isPresident && !defeat ? <ForeignPolicyBlock economy={economy} cooldowns={eventCooldowns} selected={presActions} setSelected={setPresActions}
+              reservedElse={(presAppointCb ? APPOINT_COST.central_bank : 0) + (presAppointMof ? APPOINT_COST.ministry_finance : 0) + (presDirective ? PRES_DIRECTIVE_COST : 0)} /> : null} />
         </Suspense>
       </KeepAlive>
 

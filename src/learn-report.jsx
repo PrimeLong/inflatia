@@ -24,6 +24,11 @@ export const THEORY_REASONS = [
   ['unclear', 'Непонятно объяснено'], ['visual', 'Что-то выглядит не так'], ['broken', 'Не работает'],
 ];
 // разборы (график по шагам, чтение): ошибиться может объяснение или график, а не ответ ученика
+// «Мир»: ошибиться может экономика, текст события или экран — ответа ученика там нет
+export const WORLD_REASONS = [
+  ['broken', 'Не работает'], ['visual', 'Что-то выглядит не так'], ['theory', 'Экономика ведёт себя странно'],
+  ['unclear', 'Непонятно объяснено'], ['typo', 'Опечатка или ошибка в тексте'],
+];
 export const EXPLAIN_REASONS = [
   ['formula', 'Ошибка в формуле или на графике'], ['theory', 'Ошибка в теории или примере'], ['typo', 'Опечатка или ошибка в тексте'],
   ['unclear', 'Непонятно объяснено'], ['visual', 'Что-то выглядит не так'], ['broken', 'Не работает'],
@@ -67,7 +72,7 @@ export function exerciseContext(inst, { lesson = null, resp = null, correct = ''
   };
 }
 
-function ReportSheet({ context, onClose, reasons = REASONS, sub = null }) {
+export function ReportSheet({ context, onClose, reasons = REASONS, sub = null }) {
   const [reason, setReason] = useState(null);
   const [comment, setComment] = useState('');
   const [state, setState] = useState({ busy: false, done: false, error: '' });

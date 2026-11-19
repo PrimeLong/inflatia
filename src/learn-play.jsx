@@ -40,7 +40,10 @@ const yOf = (p, ax) => PT + PH - (p / ax.pMax) * PH;
 /* m — рынок упражнения; shift — { D, S } сдвиг кривых поверх m; show — какие кривые рисовать;
    ghost — исходные кривые пунктиром; price — горизонталь цены с объёмами; mark — точка ученика;
    good — верная точка (после ответа); onDrag / onPlot — перетаскивание кривой и нажатие по полю. */
-export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghost = false, price = null, mark = null, good = null, onDrag = null, onPlot = null, eq = false, label = 'График рынка' }) {
+export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghost = false, price = null, mark = null, good = null, onDrag = null, onPlot = null, eq = false, label = 'График рынка', names = null }) {
+  // названия осей и кривых — из раунда (процент, вклады, кредиты…), иначе общие
+  const nm = { x: 'Q, количество', y: 'P, цена', d: null, s: null, unit: '', ...(names || {}) };
+  if (!nm.x) nm.x = 'Q, количество'; if (!nm.y) nm.y = 'P, цена';
   const ax = marketAxes(m);
   const svgRef = useRef(null);
   const drag = useRef(null);
@@ -90,7 +93,7 @@ export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghos
       {ticksQ.map((q) => <text key={`q${q}`} x={xOf(q, ax)} y={PT + PH + 16} textAnchor="middle">{q}</text>)}
       <line x1={PL} y1={PT} x2={PL} y2={PT + PH} stroke="var(--ds-ink2)" strokeWidth="2" />
       <line x1={PL} y1={PT + PH} x2={PL + PW} y2={PT + PH} stroke="var(--ds-ink2)" strokeWidth="2" />
-      <text x={PL + 6} y={PT + 11} className="lp-axis">P, цена</text><text x={PL + PW - 4} y={PT + PH - 7} textAnchor="end" className="lp-axis">Q, количество</text>
+      <text x={PL + 6} y={PT + 11} className="lp-axis" data-testid="market-y">{nm.y}</text><text x={PL + PW - 4} y={PT + PH - 7} textAnchor="end" className="lp-axis" data-testid="market-x">{nm.x}</text>
       {ghost && show.includes('D') && (shift.D || m.dA) ? <path d={curvePath(fD({ ...m, dA: 0 }), ax)} stroke={CD} strokeOpacity=".4" strokeWidth="2.5" strokeDasharray="6 5" fill="none" data-testid="curve-ghost" /> : null}
       {ghost && show.includes('S') && (shift.S || m.dC) ? <path d={curvePath(fS({ ...m, dC: 0 }), ax)} stroke={CS} strokeOpacity=".4" strokeWidth="2.5" strokeDasharray="6 5" fill="none" data-testid="curve-ghost" /> : null}
       {/* куда сдвинулась кривая: стрелка от прежнего положения к новому на средней цене */}
@@ -114,8 +117,14 @@ export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghos
         <path key={c} d={curvePath(c === 'D' ? fD(dm) : fS(sm), ax)} stroke="transparent" strokeWidth="26" fill="none" className="lp-hit" onPointerDown={down(c)} data-hit={c} />
       ))}
       {/* подписи кривых — плашками, как в «Разборе графика» */}
-      {show.includes('D') && (() => { const pp = ax.pMax * 0.14; const q = clampN(qd(dm, pp), 0, ax.qMax); return <g className="lp-tag" transform={`translate(${Math.min(PL + PW - 14, xOf(q, ax) + 12)},${yOf(pp, ax) - 10})`}><rect x="-9" y="-9" width="18" height="17" rx="5" fill={CD} /><text y="4" textAnchor="middle" style={{ fill: '#fff' }}>D</text></g>; })()}
-      {show.includes('S') && (() => { const pp = ax.pMax * 0.88; const q = clampN(qs(sm, pp), 0, ax.qMax); return <g className="lp-tag" transform={`translate(${Math.min(PL + PW - 14, xOf(q, ax) + 14)},${yOf(pp, ax) + 2})`}><rect x="-9" y="-9" width="18" height="17" rx="5" fill={CS} /><text y="4" textAnchor="middle" style={{ fill: '#fff' }}>S</text></g>; })()}
+      {/* плашка кривой: буква и, если раунд назвал кривую, её смысл («D · кредиты») */}
+      {show.map((c) => {
+        const isD = c === 'D'; const name = isD ? nm.d : nm.s; const txt = name ? `${c} · ${name}` : c;
+        const wdt = name ? Math.round(txt.length * 6.4 + 12) : 18;
+        const pp = ax.pMax * (isD ? 0.14 : 0.88); const q = clampN(isD ? qd(dm, pp) : qs(sm, pp), 0, ax.qMax);
+        const x = Math.max(PL + wdt / 2 + 4, Math.min(PL + PW - wdt / 2 - 2, xOf(q, ax) + (isD ? 12 : 14) + (name ? wdt / 2 - 9 : 0)));
+        return <g key={`tag${c}`} className="lp-tag" data-testid="market-tag" data-curve={c} transform={`translate(${x},${yOf(pp, ax) + (isD ? -10 : 2)})`}><rect x={-wdt / 2} y="-9" width={wdt} height="17" rx="5" fill={isD ? CD : CS} /><text y="4" textAnchor="middle" style={{ fill: '#fff' }}>{txt}</text></g>;
+      })}
       {price != null && (() => {
         const d = clampN(qd(dm, price), 0, ax.qMax); const s = clampN(qs(sm, price), 0, ax.qMax);
         return (
@@ -132,8 +141,9 @@ export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghos
           <line x1={xOf(e0.q, ax)} x2={xOf(e0.q, ax)} y1={yOf(e0.p, ax)} y2={PT + PH} stroke="var(--ds-ink2)" strokeWidth="1.2" strokeDasharray="3 4" />
           <circle cx={xOf(e0.q, ax)} cy={yOf(e0.p, ax)} r="11" fill="var(--u, #9A7413)" opacity=".18" className="lp-eq-glow" />
           <circle cx={xOf(e0.q, ax)} cy={yOf(e0.p, ax)} r="6" fill="var(--ds-ink)" stroke="var(--ds-card)" strokeWidth="2" />
-          <text x={PL + 4} y={yOf(e0.p, ax) - 5} className="lp-eqv">P* {Math.round(e0.p)}</text>
-          <text x={xOf(e0.q, ax) + 5} y={PT + PH - 5} className="lp-eqv">Q* {Math.round(e0.q)}</text>
+          <text x={PL + 4} y={yOf(e0.p, ax) - 5} className="lp-eqv">P* {Math.round(e0.p)}{nm.unit}</text>
+          {/* длинное название оси — справа у оси: Q* тогда слева от пунктира, чтобы не налезать */}
+          <text x={xOf(e0.q, ax) + (names && names.x ? -5 : 5)} y={PT + PH - 5} textAnchor={names && names.x ? 'end' : 'start'} className="lp-eqv">Q* {Math.round(e0.q)}</text>
         </g>
       )}
       {good && <circle cx={xOf(good.q, ax)} cy={yOf(good.p, ax)} r="9" fill="none" stroke="var(--ds-ok)" strokeWidth="3" data-testid="point-good" />}
@@ -502,16 +512,16 @@ function PpfGameChart({ st }) {
   );
 }
 // история цены за игру: маленькая линия под графиком рынка
-function PriceTicker({ prices }) {
+function PriceTicker({ prices, name = 'Цена', unit = '' }) {
   if (prices.length < 2) return null;
   const W = 300; const H = 34; const lo = Math.min(...prices) - 1; const hi = Math.max(...prices) + 1;
   const pts = prices.map((p, i) => `${((i / (prices.length - 1)) * (W - 8) + 4).toFixed(1)},${(H - 4 - ((p - lo) / (hi - lo)) * (H - 8)).toFixed(1)}`);
   const last = prices[prices.length - 1]; const prev = prices[prices.length - 2];
   return (
     <div className="lp-ticker" data-testid="price-ticker">
-      <span className="ds-eyebrow" style={{ fontSize: 12 }}>Цена</span>
+      <span className="ds-eyebrow" style={{ fontSize: 12 }}>{name}</span>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true"><polyline points={pts.join(' ')} fill="none" stroke="var(--u)" strokeWidth="2.5" strokeLinejoin="round" /></svg>
-      <b className="ds-num" style={{ color: last > prev ? 'var(--ds-bad)' : last < prev ? 'var(--ds-ok)' : 'inherit' }}>{fmtResult(Math.round(last * 10) / 10)} {last > prev ? '↑' : last < prev ? '↓' : ''}</b>
+      <b className="ds-num" style={{ color: last > prev ? 'var(--ds-bad)' : last < prev ? 'var(--ds-ok)' : 'inherit' }}>{fmtResult(Math.round(last * 10) / 10)}{unit} {last > prev ? '↑' : last < prev ? '↓' : ''}</b>
     </div>
   );
 }
@@ -591,7 +601,7 @@ export function GameRound({ inst, onDone, locked, result = null, best = 0, intro
   const sideHint = inst.kind === 'swipe' ? `кнопки внизу, стрелки ← → или смахните карточку` : 'кнопки внизу или стрелки ↑ ↓ на клавиатуре';
   const r = result || (phase === 'over' ? { right: answers.filter(Boolean).length, answered: answers.length, score: score + bonus, timeBonus: bonus, bestRun, record: false } : null);
   const chart = inst.chart === 'market'
-    ? <><MarketChart m={inst.market} shift={{ D: shown.D || 0, S: shown.S || 0 }} ghost eq label="Рынок в игре: спрос и предложение" /><PriceTicker prices={prices} /></>
+    ? <><MarketChart m={inst.market} names={inst.names || null} shift={{ D: shown.D || 0, S: shown.S || 0 }} ghost eq label="Рынок в игре: спрос и предложение" /><PriceTicker prices={prices} name={inst.names && inst.names.y ? inst.names.y.split(',')[0].replace(/^./, (c) => c.toUpperCase()) : 'Цена'} unit={(inst.names && inst.names.unit) || ''} /></>
     : inst.chart === 'ppf' ? <PpfGameChart st={shown} /> : inst.chart === 'budget' ? <BudgetGameChart st={shown} /> : inst.chart === 'elastic' ? <ElasticGameChart st={shown} />
       : inst.chart === 'costs' ? <CostsGameChart st={shown} /> : inst.chart === 'power' ? <PowerGameChart st={shown} /> : inst.chart === 'markup' ? <PowerGameChart st={shown} markup /> : null;
   return (

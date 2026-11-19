@@ -528,6 +528,12 @@ export const playerCss = () => `
       conic-gradient(from 210deg, var(--mp), var(--mp2), var(--mp));
     box-shadow: 0 16px 34px -12px color-mix(in srgb, var(--mp) 75%, #000), inset 0 0 0 3px rgba(255,255,255,.18); }
   .mp-cover.on { animation: mp-spin 9s linear infinite; }
+  /* запись грузится: вокруг диска бежит дуга, под диском — «Загружаем…»; диск стоит */
+  .mp-load { position: absolute; inset: 30px; display: grid; place-items: center; pointer-events: none; }
+  .mp-load svg { position: absolute; inset: 0; width: 100%; height: 100%; animation: mp-spin 1.1s linear infinite; }
+  .mp-load circle { fill: none; stroke: var(--mp); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 70 220; filter: drop-shadow(0 0 6px var(--mp)); }
+  .mp-load span { position: absolute; bottom: -24px; font: 700 10.5px var(--ds-sans, sans-serif); letter-spacing: .12em; text-transform: uppercase; color: var(--mp); animation: mp-breathe 1.2s ease-in-out infinite alternate; }
+  @keyframes mp-breathe { from { opacity: .45; } }
   .mp-cover::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(135deg, rgba(255,255,255,.35), transparent 45%); pointer-events: none; }
   @keyframes mp-spin { to { transform: rotate(360deg); } }
   .mp-now { display: flex; align-items: center; gap: 10px; }
@@ -597,12 +603,12 @@ export const playerCss = () => `
   [data-skin="aurora"] .mp-aura i { opacity: .5; }
   [data-skin="blueprint"] .mp { --mp: #FFD166 !important; --mp2: #6FB4FF !important; background-color: #123E70; color: #EAF2FF; border-radius: 6px; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.55), 0 30px 60px -24px #000; font-family: var(--ds-mono, monospace);
     background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px); background-size: 16px 16px; }
-  [data-skin="blueprint"] .mp-cover { border-radius: 8px; } [data-skin="blueprint"] .mp-b.main { color: #123E70; }
+  [data-skin="blueprint"] .mp-b.main { color: #123E70; }
   [data-skin="mint"] .mp { --mp: #9A7413 !important; --mp2: #C9A24A !important; background-color: #FFF8E6; color: #3B2F1A; box-shadow: inset 0 0 0 2px #D9C48F, inset 0 0 0 5px #FFF8E6, inset 0 0 0 6px #D9C48F, 0 30px 60px -24px rgba(60,40,10,.4); }
   [data-skin="mint"] .mp .mp-title { font-family: var(--ds-head, serif); }
   :is([data-skin="exchange"], [data-skin="aurora"], [data-skin="blueprint"]) .mp :is(.mp-b:not(.main), .mp-x) { background: rgba(255,255,255,.09); }
   [data-skin] .mp .mp-mood[aria-checked="true"] { box-shadow: 0 0 0 2px rgba(0,0,0,.3), 0 0 0 4px var(--m); }
-  @media (prefers-reduced-motion: reduce) { .mp, .mp-aura i, .mp-cover.on, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .mp, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
 `;
 
 // лайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
@@ -740,7 +746,9 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
   const { MOOD_LABEL = {}, TRACKS: TRACK_META = {} } = Audio.meta() || {};
   const TRACK_NAMES = Object.fromEntries(Object.entries(TRACK_META).map(([id, t]) => [id, t.name]));
   const moods = [wave ? ['wave', 'Волна'] : ['auto', 'По режиму экономики'], ['calm', MOOD_LABEL.calm], ['boom', MOOD_LABEL.boom],
-    ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war]];
+    ['slump', MOOD_LABEL.slump], ['stag', MOOD_LABEL.stag], ['crisis', MOOD_LABEL.crisis], ['frost', MOOD_LABEL.frost], ['war', MOOD_LABEL.war],
+    // купленные пластинки лавки — свой микс (в обучении)
+    ...(learn && Audio.records().length ? [['records', MOOD_LABEL.records || 'Пластинки']] : [])];
   return (
     <div style={{ position: 'relative' }}>
       <button ref={btnRef} className={className} style={{ padding: '7px 9px', minWidth: 44, minHeight: 44, display: 'inline-grid', placeItems: 'center', ...buttonStyle }} title={`Музыка: ${np.name}`} data-testid={testid} aria-label={label}
@@ -762,8 +770,10 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
           </div>
           {/* диск-обложка и кольцо спектра того, что звучит (Audio.levels) */}
           <div className="mp-stage">
-            <MusicViz on={music} />
-            <div className={`mp-cover${music ? ' on' : ''}`} aria-hidden="true" />
+            <MusicViz on={music && !!np.playing} />
+            {/* диск крутится, только пока музыка правда звучит; грузится запись — бегущее кольцо и «Загружаем…» */}
+            <div className={`mp-cover${music && np.playing ? ' on' : ''}`} aria-hidden="true" data-testid="music-cover" data-spin={String(!!(music && np.playing))} />
+            {music && np.loading && <div className="mp-load" data-testid="music-loading" aria-live="polite"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" /></svg><span>Загружаем…</span></div>}
           </div>
           {/* название и настроение; описаний пьес нет (пункт владельца 15.11: «убери описание песен») */}
           <div className="mp-now" data-testid="music-now" data-track={np.id || ''} data-next={np.next || ''} data-file={String(!!np.file)}>

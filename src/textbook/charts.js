@@ -7,7 +7,12 @@
    Это учебные модели — линейные кривые из стандартного курса, а не формулы игры. */
 
 const num = (attrs, k, def) => (attrs[k] != null && Number.isFinite(Number(attrs[k])) ? Number(attrs[k]) : def);
-const line = (f, x0, x1, n = 2) => Array.from({ length: n }, (_, i) => { const x = x0 + (x1 - x0) * i / (n - 1); return { x, y: f(x) }; });
+/* Кривая-функция: точки для маленького графика плюс сама функция (fn) и её область (dom) — на весь экран линия
+   считается заново на всей видимой части плоскости (src/lib/plane.js, curveOnView; замечание владельца 18.11, вечер:
+   «где очевидно можно сделать его бесконечным, это же функции»). Свойства не перечисляемые: точки остаются массивом. */
+const tag = (pts, fn, dom = [-Infinity, Infinity]) => Object.defineProperties(pts, { fn: { value: fn }, dom: { value: dom } });
+const POS = [1e-9, Infinity];   // количество, время, доход — больше нуля
+const line = (f, x0, x1, n = 2) => tag(Array.from({ length: n }, (_, i) => { const x = x0 + (x1 - x0) * i / (n - 1); return { x, y: f(x) }; }), f);
 const r1 = (v) => (Math.round(v * 10) / 10).toString().replace('.', ',');
 const r2 = (v) => (Math.round(v * 100) / 100).toString().replace('.', ',');
 const clampV = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -237,8 +242,8 @@ const revenueCurve = {
     return {
       xDomain: [0, Pm], yDomain: [0, Math.ceil((Rmax * 1.2) / 100) * 100], xLabel: 'P', yLabel: 'выручка',
       curves: [
-        { id: 'inel', label: 'неэластичный участок', labelPos: 0.2, points: curve.filter((c) => c.x <= Pm / 2 + 1e-9), color: 'teal' },
-        { id: 'el', label: 'эластичный', labelPos: 0.75, points: curve.filter((c) => c.x >= Pm / 2 - 1e-9), color: 'rust' },
+        { id: 'inel', label: 'неэластичный участок', labelPos: 0.2, points: tag(curve.filter((c) => c.x <= Pm / 2 + 1e-9), R, [0, Pm / 2]), color: 'teal' },
+        { id: 'el', label: 'эластичный', labelPos: 0.75, points: tag(curve.filter((c) => c.x >= Pm / 2 - 1e-9), R, [Pm / 2, Pm]), color: 'rust' },
       ],
       points: [{ x: v.P, y: R(v.P), label: `R = ${r1(R(v.P))}`, guide: true }, { x: Pm / 2, y: Rmax, label: 'максимум', small: true }],
       readout: [
@@ -442,7 +447,7 @@ const costs = {
     const f = costFns(p); const m = costMinima(p);
     const Qmax = Math.ceil(costMinima(p0).qAtc * 1.9);
     const yMax = Math.ceil((costMinima(p0).atcMin * 2.4) / 10) * 10;
-    const samp = (fn, q0) => Array.from({ length: 60 }, (_, i) => { const q = q0 + (Qmax - q0) * i / 59; return { x: q, y: fn(q) }; });
+    const samp = (fn, q0) => tag(Array.from({ length: 60 }, (_, i) => { const q = q0 + (Qmax - q0) * i / 59; return { x: q, y: fn(q) }; }), fn, POS);
     const curves = [
       { id: 'MC', label: 'MC', points: samp(f.MC, 0), color: 'rust' },
       { id: 'ATC', label: 'ATC', points: samp(f.ATC, Math.max(0.3, p.fc / yMax)), color: 'blue' },
@@ -586,7 +591,7 @@ const monCompChart = {
   build: (A, v) => {
     const p = mcParams(A); const m = monComp({ ...p, A: v.A });
     const Qmax = Math.ceil((m.qEff * 1.5) / 5) * 5; const yMax = Math.ceil((Math.max(p.A, v.A) * 1.08) / 10) * 10;
-    const samp = (fn, q0, q1 = Qmax) => Array.from({ length: 60 }, (_, i) => { const q = q0 + (q1 - q0) * i / 59; return { x: q, y: fn(q) }; });
+    const samp = (fn, q0, q1 = Qmax) => tag(Array.from({ length: 60 }, (_, i) => { const q = q0 + (q1 - q0) * i / 59; return { x: q, y: fn(q) }; }), fn, POS);
     const atc = (q) => p.F / q + p.c + p.d * q;
     const curves = [
       { id: 'ATC', label: 'ATC', points: samp(atc, Math.max(0.5, p.F / yMax)), color: 'gold' },
@@ -688,7 +693,7 @@ const ppf = {
   build: (A, v) => {
     const p = ppfParams(A); const X = p.X * (1 + v.tx / 100); const Y = p.Y * (1 + v.ty / 100);
     const x = Math.min(v.x, X); const y = ppfY(X, Y, x); const oc = ppfCost(X, Y, x);
-    const curve = (XX, YY) => Array.from({ length: 60 }, (_, i) => { const xx = XX * i / 59; return { x: xx, y: ppfY(XX, YY, xx) }; });
+    const curve = (XX, YY) => tag(Array.from({ length: 60 }, (_, i) => { const xx = XX * i / 59; return { x: xx, y: ppfY(XX, YY, xx) }; }), (xx) => ppfY(XX, YY, xx), [0, XX]);
     const moved = v.tx !== 0 || v.ty !== 0;
     const max = Math.ceil((Math.max(p.X, p.Y) * 1.55) / 10) * 10;
     return {
@@ -738,7 +743,7 @@ const consumer = {
     const c = cdChoice({ a: p.a, I: v.I, px: v.px, py: p.py });
     const max = Math.ceil((Math.max(p.I * 1.8 / p.px, p.I * 1.8 / p.py) * 0.75) / 10) * 10;
     const budget = (I, px) => [{ x: 0, y: I / p.py }, { x: I / px, y: 0 }];
-    const indiff = (U) => Array.from({ length: 70 }, (_, i) => { const x = max * (0.02 + 0.98 * i / 69); return { x, y: Math.pow(U / Math.pow(x, p.a), 1 / (1 - p.a)) }; });
+    const indiff = (U) => tag(Array.from({ length: 70 }, (_, i) => { const x = max * (0.02 + 0.98 * i / 69); return { x, y: Math.pow(U / Math.pow(x, p.a), 1 / (1 - p.a)) }; }), (x) => Math.pow(U / Math.pow(x, p.a), 1 / (1 - p.a)), POS);
     const curves = [];
     const points = [{ x: c.x, y: c.y, label: 'E', guide: true }];
     const readout = [{ label: 'Товар X', value: r1(c.x) }, { label: 'Товар Y', value: r1(c.y) }, { label: 'Полезность', value: r1(c.U) }];
@@ -851,7 +856,7 @@ const lrac = {
   build: (A, v) => {
     const p = lracParams(A); const f = lracFns(p);
     const Qmax = p.m * 2; const yMax = Math.ceil((p.c + p.a * p.m * p.m * 1.1) / 5) * 5;
-    const samp = (fn) => Array.from({ length: 80 }, (_, i) => { const q = 2 + (Qmax - 2) * i / 79; return { x: q, y: fn(q) }; });
+    const samp = (fn) => tag(Array.from({ length: 80 }, (_, i) => { const q = 2 + (Qmax - 2) * i / 79; return { x: q, y: fn(q) }; }), fn, POS);
     const sizes = [p.m / 3, (2 * p.m) / 3, p.m, (4 * p.m) / 3, (5 * p.m) / 3].map(Math.round).filter((K) => K !== v.K);
     const q = f.sracMinQ(v.K);
     const part = v.K < p.m ? 'положительный эффект масштаба' : v.K > p.m ? 'отрицательный эффект масштаба' : 'минимально эффективный масштаб';
@@ -934,7 +939,7 @@ const choiceChart = {
     const U = Math.pow(x, p.a) * Math.pow(y, 1 - p.a);
     const mrs = (p.a / (1 - p.a)) * (y / x);
     const max = Math.ceil((Math.max(p.I / p.px, p.I / p.py) * 1.05) / 10) * 10;
-    const indiff = (u) => Array.from({ length: 70 }, (_, i) => { const xx = max * (0.02 + 0.98 * i / 69); return { x: xx, y: Math.pow(u / Math.pow(xx, p.a), 1 / (1 - p.a)) }; });
+    const indiff = (u) => tag(Array.from({ length: 70 }, (_, i) => { const xx = max * (0.02 + 0.98 * i / 69); return { x: xx, y: Math.pow(u / Math.pow(xx, p.a), 1 / (1 - p.a)) }; }), (xx) => Math.pow(u / Math.pow(xx, p.a), 1 / (1 - p.a)), POS);
     const ratio = p.px / p.py;
     const hint = Math.abs(mrs - ratio) < 0.05 * ratio ? 'это оптимум' : mrs > ratio ? 'выгоднее купить больше X' : 'выгоднее купить больше Y';
     const at = Math.abs(x - c.x) < 0.5;
@@ -968,7 +973,7 @@ const indiffChart = {
   measure: (A, v) => ({ x: v.x, y: 400 / v.x }),
   build: (A, v) => {
     const max = 60;
-    const curve = (u) => Array.from({ length: 70 }, (_, i) => { const x = max * (0.04 + 0.96 * i / 69); return { x, y: (u * u) / x }; });
+    const curve = (u) => tag(Array.from({ length: 70 }, (_, i) => { const x = max * (0.04 + 0.96 * i / 69); return { x, y: (u * u) / x }; }), (x) => (u * u) / x, POS);
     return {
       xDomain: [0, max], yDomain: [0, max], xLabel: 'X', yLabel: 'Y',
       curves: [
@@ -1263,7 +1268,7 @@ const gdpChart = {
     const p = gdpParams(A);
     const real = (t) => p.y0 * Math.pow(1 + v.g / 100, t);
     const nom = (t) => real(t) * Math.pow(1 + v.pi / 100, t);
-    const pts = (f) => Array.from({ length: p.n * 4 + 1 }, (_, i) => ({ x: i / 4, y: f(i / 4) }));
+    const pts = (f) => tag(Array.from({ length: p.n * 4 + 1 }, (_, i) => ({ x: i / 4, y: f(i / 4) })), f);
     const top = Math.max(nom(p.n), real(p.n), p.y0);
     return {
       xDomain: [0, p.n], yDomain: [0, Math.ceil((top * 1.15) / 20) * 20], xLabel: 'год', yLabel: 'ВВП',
@@ -1307,7 +1312,7 @@ const inflationChart = {
     const p = inflParams(A);
     const price = (t) => p.p0 * Math.pow(1 + v.pi / 100, t);
     const dep = (t) => p.p0 * Math.pow(1 + v.i / 100, t);
-    const pts = (fn) => Array.from({ length: p.n * 4 + 1 }, (_, k) => ({ x: k / 4, y: fn(k / 4) }));
+    const pts = (fn) => tag(Array.from({ length: p.n * 4 + 1 }, (_, k) => ({ x: k / 4, y: fn(k / 4) })), fn);
     const r = inflationPath(p.p0, v.pi, v.i, p.n);
     const top = Math.max(r.price, r.deposit, p.p0);
     return {
@@ -1542,7 +1547,7 @@ const productChart = {
   build: (A, v) => {
     const p = prodParams(A); const tech = v.A || 1; const f = prodFns(p, tech); const f0 = prodFns(p, 1);
     const Lend = f.tpMaxL * 1.12; const L = Math.min(v.L || 1, f.tpMaxL);
-    const samp = (fn, from = 0, to = Lend) => Array.from({ length: 80 }, (_, i) => { const x = from + ((to - from) * i) / 79; return { x, y: fn(x) }; });
+    const samp = (fn, from = 0, to = Lend) => tag(Array.from({ length: 80 }, (_, i) => { const x = from + ((to - from) * i) / 79; return { x, y: fn(x) }; }), fn, [0, Infinity]);
     const avg = A.view === 'avg';
     const stage = f.mp(L) > f.ap(L) ? 'AP растёт: MP > AP' : f.mp(L) > 0.01 ? 'AP падает: MP < AP' : 'выпуск не растёт: MP = 0';
     // что двигает ползунок и что такое выпуск — первыми строками (жалоба mw6v38k3: «что меняется на графике, что за выпуск»)
@@ -1609,7 +1614,7 @@ const isoquantChart = {
     const p0 = isoParams(A); const p = { ...p0, w: v.w ?? p0.w, r: v.r ?? p0.r };
     const o = isoOptimum(p); const o0 = isoOptimum(p0);
     const Lmax = Math.ceil((p0.C / p0.w) * 1.15 / 10) * 10; const Kmax = Math.ceil((p0.C / p0.r) * 1.6 / 5) * 5;
-    const iso = (Q) => Array.from({ length: 90 }, (_, i) => { const L = 1 + ((Lmax - 1) * i) / 89; return { x: L, y: (Q / p.A) ** 2 / L }; }).filter((q) => q.y <= Kmax * 1.05);
+    const iso = (Q) => tag(Array.from({ length: 90 }, (_, i) => { const L = 1 + ((Lmax - 1) * i) / 89; return { x: L, y: (Q / p.A) ** 2 / L }; }).filter((q) => q.y <= Kmax * 1.05), (L) => (Q / p.A) ** 2 / L, POS);
     const cost = (pp) => [{ x: 0, y: pp.C / pp.r }, { x: pp.C / pp.w, y: 0 }];
     const moved = p.w !== p0.w || p.r !== p0.r;
     return {
@@ -1634,6 +1639,11 @@ const isoquantChart = {
 isoquantChart.measureNames = { L: 'рабочих', K: 'станков', Q: 'выпуск' };
 
 export const CHARTS = { product: productChart, isoquant: isoquantChart, 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, savings: savingsChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
+/* функция кривой (tag выше) — свойством кривой: так её видит плоскость на весь экран, и она переживает обработку сцены
+   (sceneInCrowns копирует массивы точек, а функции в полях объектов сохраняет) */
+const liftFns = (scene) => (scene && Array.isArray(scene.curves)
+  ? { ...scene, curves: scene.curves.map((c) => (c && c.points && typeof c.points.fn === 'function' && !c.fn ? { ...c, fn: c.points.fn, dom: c.points.dom } : c)) } : scene);
+for (const def of Object.values(CHARTS)) { const b = def.build; def.build = (A, v) => liftFns(b(A, v)); }
 /* Переменные подписи: {{имя}} в тексте подписи заменяется числом из модели графика при
    текущих ползунках — величины measure и свои vars графика; с приставкой d_ — при исходных. */
 const fmtVar = (x) => (typeof x === 'number' ? (Number.isInteger(Math.round(x * 100) / 100) ? String(Math.round(x)) : r1(x)).replace('-', '−') : String(x));

@@ -507,7 +507,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
             return (
               <React.Suspense fallback={null}>
                 <PlaneViewer title={`${g.title} · шаг ${k + 1} из ${n}`} scene={build(values)} caption={String(v.text || '').replace(/\*\*/g, '')}
-                  model={def.controls ? { controls: def.controls(g.attrs), values, build } : null} focus={v.focus} from={root.current} onClose={() => setFull(false)} />
+                  model={def.controls ? { controls: def.controls(g.attrs), values, build } : null} focus={v.focus} from={root.current} onClose={() => setFull(false)}
+                  report={() => ({ screen: 'graph', lesson: id, unit: g.unitId, kind: 'graph', step: `шаг ${k + 1} из ${n}${gem ? ' (алмаз)' : ''}`, prompt: String(v.text || '').replace(/\*\*/g, '').slice(0, 1500) })} />
               </React.Suspense>
             );
           })()}

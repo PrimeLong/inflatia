@@ -1139,3 +1139,25 @@ test('марка идущего месяца в тёмной теме: зубч�
   expect(Math.min(r, g, b)).toBeGreaterThan(190);
   expect(errors).toEqual([]);
 });
+
+// замечание владельца 18.11, вечер, п. 8: «когда загружается сад, нужна приятная анимация»
+test('сад грузится — росток в горшке и «Сад просыпается», потом сам сад', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const now = Date.now();
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at: now - 86400000, runs: 1, best: 90 }, 'sc-i1b': { at: now - 86400000, runs: 1, best: 90 } }, coins: { '2026-01-01': 500 } } }));
+  });
+  // чанк сада придерживаем, чтобы заставку было видно
+  let release; const gate = new Promise((r) => { release = r; });
+  await page.route(/learn-garden[^/]*\.js$/, async (route) => { await gate; await route.continue(); });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await page.getByTestId('shop').getByTestId('shop-switch').locator('[data-view="garden"]').click();
+  const load = page.getByTestId('garden-loading');
+  await expect(load).toBeVisible();
+  await expect(load).toContainText('Сад просыпается');
+  expect(await load.locator('.stem').evaluate((el) => getComputedStyle(el).animationName)).toBe('gd-grow');
+  release();
+  await expect(page.getByTestId('garden')).toBeVisible();
+  await expect(load).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

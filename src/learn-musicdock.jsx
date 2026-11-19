@@ -30,6 +30,12 @@ const DOCK_CSS = `
     background: transparent !important; box-shadow: none !important; color: var(--ds-ink2); cursor: pointer; }
   .lm-dock .lm-open:hover { background: color-mix(in srgb, var(--b) 12%, transparent) !important; color: var(--ds-ink); }
   @media (max-width: 420px) { .lm-dock .lm-like { display: none; } }
+  /* запись грузится: вокруг кнопки бежит дуга (замечание владельца 18.11, вечер: «непонятно, когда песня грузится») */
+  .lm-dock .lb-mini-play { position: relative; }
+  .lm-dock .lb-mini-play.loading::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2.5px solid transparent; border-top-color: var(--b); border-right-color: var(--b);
+    animation: lm-load 0.9s linear infinite; }
+  @keyframes lm-load { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .lm-dock .lb-mini-play.loading::after { animation-duration: 3s; } }
   @media (prefers-reduced-motion: reduce) { .lm-dock .lb-mini-t b, .lm-dock .lm-skip, .lm-dock .lm-skip svg { animation: none !important; } }
 `;
 
@@ -55,7 +61,10 @@ export function MusicDock() {
   }, []);
   useEffect(() => () => window.clearTimeout(kickT.current), []);
   const on = !!Audio.opts.music && learnMusic();
-  const show = Audio.loaded() && (on || paused);
+  /* пауза из большого проигрывателя (открыт с плашки) — тоже пауза, а не выключение: плашка остаётся, и проигрыватель над
+     ней не пропадает (замечание владельца 18.11, вечер: «исчезает проигрыватель, когда нажимаешь на нём паузу») */
+  const pausedNow = paused || (!on && !!musicPaused());
+  const show = Audio.loaded() && (on || pausedNow);
   const np = Audio.nowPlaying();
   // в обучении экономики нет — играет «Волна», если музыку не закрепили за настроением
   useEffect(() => { if (on && Audio.loaded() && !Audio.nowPlaying().locked) Audio.setPlaylist('wave'); }, [on]);
@@ -89,14 +98,14 @@ export function MusicDock() {
         <button type="button" className={`lb-mini-skip lm-skip${kick === 'prev' ? ' kick prev' : ''}`} onClick={() => skip(false)} aria-label="Предыдущая пьеса" data-testid="music-dock-prev" data-kick={kick === 'prev' ? 'true' : undefined}>
           <SkipBack size={17} aria-hidden="true" />
         </button>
-        <button type="button" className="lb-mini-play" onClick={() => play(!on)} aria-label={on ? 'Пауза' : 'Играть'} data-testid="music-dock-play">
+        <button type="button" className={`lb-mini-play${on && np.loading ? ' loading' : ''}`} onClick={() => play(!on)} aria-label={on ? 'Пауза' : 'Играть'} data-testid="music-dock-play" data-loading={on && np.loading ? 'true' : undefined}>
           {on ? <Pause size={19} fill="currentColor" aria-hidden="true" /> : <Play size={19} fill="currentColor" style={{ marginLeft: 3 }} aria-hidden="true" />}
         </button>
         <button type="button" className={`lb-mini-skip lm-skip${kick === 'next' ? ' kick next' : ''}`} onClick={() => skip(true)} aria-label="Следующая пьеса" data-testid="music-dock-next" data-kick={kick === 'next' ? 'true' : undefined}>
           <SkipForward size={17} aria-hidden="true" />
         </button>
         <button type="button" className="lb-mini-t" onClick={expand} aria-label="Развернуть проигрыватель" data-testid="music-dock-title-btn">
-          <small>{on ? <><Bars />Музыка</> : 'На паузе'} · {label}</small>
+          <small>{on ? (np.loading ? 'Загружаем…' : <><Bars />Музыка</>) : 'На паузе'} · {label}</small>
           <b key={np.id || 'none'} className={kick ? `in-${kick}` : ''} data-testid="music-dock-title">{np.name}</b>
         </button>
         <button type="button" className={`lb-mini-skip lm-like${np.liked ? ' on' : ''}`} aria-pressed={!!np.liked} aria-label={np.liked ? 'Убрать лайк' : 'Нравится — чаще в «Волне»'} data-testid="music-dock-like"

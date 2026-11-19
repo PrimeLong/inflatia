@@ -134,10 +134,6 @@ test('обучение: хаб и программа курса открываю
   for (let i = 0; i < 3; i++) await page.getByRole('button', { name: /^Далее/ }).click();
   await expect(page.getByText('Тест: своё дело')).toBeVisible();
   await expectNoSidewaysScroll(page);
-  // доступность терминала: без серьёзных нарушений axe
-  const { default: AxeBuilder } = await import('@axe-core/playwright');
-  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
-  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -251,10 +247,6 @@ test('карта: соседние страны на месте, Минфин з
   await openMap();
   await expect(page.getByText(/^ещё \d+ кв\.$/)).toBeVisible();
   await expectNoSidewaysScroll(page);
-  // доступность терминала: без серьёзных нарушений axe
-  const { default: AxeBuilder } = await import('@axe-core/playwright');
-  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
-  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -273,10 +265,6 @@ test('общество: после квартала видны группы, к�
   await expect(page.getByTestId('poverty')).toContainText('Абсолютная бедность');
   await page.screenshot({ path: `test-results/society-${isMobile ? 'phone' : 'desktop'}.png`, fullPage: true });
   await expectNoSidewaysScroll(page);
-  // доступность терминала: без серьёзных нарушений axe
-  const { default: AxeBuilder } = await import('@axe-core/playwright');
-  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
-  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -416,10 +404,6 @@ test('своё дело: дерево технологий, команда и с
   await page.getByRole('button', { name: 'Сохранить сюда' }).first().click();
   await expect.poll(() => saved && saved.kind).toBe('tycoon');
   await expectNoSidewaysScroll(page);
-  // доступность терминала: без серьёзных нарушений axe
-  const { default: AxeBuilder } = await import('@axe-core/playwright');
-  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
-  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -516,10 +500,6 @@ test('своё дело: конкуренты — доля рынка, карт�
   await page.getByRole('button', { name: /^Купить/ }).first().click();
   await expect(page.getByText('куплен вами')).toBeVisible();
   await expectNoSidewaysScroll(page);
-  // доступность терминала: без серьёзных нарушений axe
-  const { default: AxeBuilder } = await import('@axe-core/playwright');
-  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
-  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -623,10 +603,6 @@ test('лаборатория: один рычаг, четыре графика �
   await expect(casino.getByTestId('lab-casino-binary')).toContainText('−7,5%');
   await expect(casino.getByRole('button', { name: /ставк/i })).toHaveCount(0);
   await expectNoSidewaysScroll(page);
-  // доступность терминала: без серьёзных нарушений axe
-  const { default: AxeBuilder } = await import('@axe-core/playwright');
-  const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
-  expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -858,5 +834,42 @@ test('частный инвестор: тёмный терминал — бег�
   const { default: AxeBuilder } = await import('@axe-core/playwright');
   const res = await new AxeBuilder({ page }).include('[data-testid="trader-terminal"]').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('; ')}`)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+// замечание владельца 18.11, вечер, п. 10: «в мире нет кнопки жалобы»
+test('«Мир»: флажок «Сообщить об ошибке» в шапке партии — шторка в цветах «Мира», в жалобу уходят роль, квартал и числа', async ({ page }) => {
+  await page.addInitScript((a) => { localStorage.setItem('ems-account', JSON.stringify(a)); }, ACCOUNT);
+  const sent = [];
+  const { errors } = await openApp(page, '/', (req) => { if (req.url().includes('/api/reports') && req.method() === 'POST') sent.push(req.postDataJSON()); return '{"ok":true}'; });
+  await startSoloGame(page);
+  await page.getByTestId('world-report').click();
+  const sheet = page.getByTestId('report-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('Что не так в «Мире»');
+  await sheet.locator('[data-reason="theory"]').click();
+  await expect(sheet.locator('[data-reason="theory"]')).toContainText('Экономика ведёт себя странно');
+  await sheet.getByTestId('report-send').click();
+  await expect(page.getByTestId('report-thanks')).toBeVisible();
+  const r = sent.find((x) => x.action === 'send');
+  expect(r.reason).toBe('theory');
+  expect(r.context).toMatchObject({ screen: 'world', kind: 'central_bank', mode: 'solo', step: 'квартал 1' });
+  expect(JSON.parse(r.context.numbers)).toHaveProperty('inflation');
+  expect(errors).toEqual([]);
+});
+
+// замечание владельца 18.11, вечер, п. 12: «странно, что внешняя политика есть в кабинете, хотя должна быть на карте»
+test('президент: внешняя политика — на карте («Наша страна»), в кабинете — только подсказка, куда идти', async ({ page }) => {
+  const { errors } = await openApp(page);
+  await startSoloGame(page, 'Президент');
+  await expect(page.getByTestId('pres-foreign-hint')).toContainText('на вкладке «Карта»');
+  await expect(page.getByText('Ввести санкции против торгового партнёра')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Карта' }).first().click();
+  await page.getByRole('button', { name: 'Наша страна' }).click();
+  const fp = page.getByTestId('map-foreign-policy');
+  await expect(fp).toBeVisible();
+  await expect(fp).toContainText('Вступить в торговый блок');
+  await fp.getByText('Вступить в торговый блок').click();
+  await expect(fp).toContainText('Свободно');
   expect(errors).toEqual([]);
 });

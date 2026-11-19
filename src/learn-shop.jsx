@@ -15,9 +15,46 @@ import { Rosette } from './ds-art.jsx';
 import { ShopSwitch, RateWeek } from './learn-rate.jsx';
 import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
 import { DeskDecor } from './learn-decor.jsx';
+import MUSIC_FILES from 'virtual:music-files';
+import { setLearnMusic, setMusicPaused } from './ds-tokens.js';
 import { SkinPreview, SKIN_CSS } from './learn-skins.jsx';
 // сад — отдельный ленивый чанк: грузится, только когда открыли «Сад»
 const GardenView = React.lazy(() => import('./learn-garden.jsx').then((m) => ({ default: m.GardenView })));
+/* Пока грузится сад (замечание владельца 18.11, вечер, п. 8: «когда загружается сад, нужна приятная анимация»): из земли
+   в горшке тянется росток, разворачиваются два листка, сверху падают капли полива; подпись — «Сад просыпается». */
+const GARDEN_LOAD_CSS = `
+  .gd-load { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 34px 16px 40px; color: var(--ds-ink2); animation: gd-load-in .3s ease-out .15s both; }
+  .gd-load svg { width: 120px; height: 120px; overflow: visible; }
+  .gd-load .stem { stroke: #4E9A52; stroke-width: 4; stroke-linecap: round; fill: none; stroke-dasharray: 48; stroke-dashoffset: 48; animation: gd-grow 2.4s cubic-bezier(.4,0,.2,1) infinite; }
+  .gd-load .leaf { fill: #6DBB5F; transform-box: fill-box; transform: scale(0); animation: gd-leaf 2.4s cubic-bezier(.3,1.5,.5,1) infinite; }
+  .gd-load .leaf.l { transform-origin: 100% 100%; } .gd-load .leaf.r { transform-origin: 0% 100%; animation-delay: .12s; }
+  .gd-load .drop { fill: #5AA7E6; opacity: 0; animation: gd-drop 2.4s ease-in infinite; } .gd-load .drop.b { animation-delay: .35s; } .gd-load .drop.c { animation-delay: .7s; }
+  .gd-load .pot { fill: #C46A3C; } .gd-load .rim { fill: #A8552D; } .gd-load .soil { fill: #6B4A2E; }
+  .gd-load-t { font: 700 13px var(--ds-sans); letter-spacing: .06em; display: flex; align-items: baseline; gap: 2px; }
+  .gd-load-t i { display: inline-block; width: 4px; height: 4px; margin-left: 3px; border-radius: 50%; background: currentColor; animation: gd-dot 1.2s ease-in-out infinite; }
+  .gd-load-t i:nth-child(2) { animation-delay: .15s; } .gd-load-t i:nth-child(3) { animation-delay: .3s; }
+  @keyframes gd-load-in { from { opacity: 0; } }
+  @keyframes gd-grow { 0% { stroke-dashoffset: 48; } 45%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes gd-leaf { 0%, 38% { transform: scale(0); } 55%, 85% { transform: scale(1); } 100% { transform: scale(1); opacity: 0; } }
+  @keyframes gd-drop { 0% { opacity: 0; transform: translateY(-14px); } 15% { opacity: .9; } 40% { opacity: 0; transform: translateY(16px); } 100% { opacity: 0; } }
+  @keyframes gd-dot { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-4px); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .gd-load, .gd-load .stem, .gd-load .leaf, .gd-load .drop, .gd-load-t i { animation: none !important; stroke-dashoffset: 0; transform: none; } }
+`;
+export function GardenLoading() {
+  return (
+    <div className="gd-load" role="status" aria-live="polite" data-testid="garden-loading">
+      <style>{GARDEN_LOAD_CSS}</style>
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <ellipse className="drop" cx="44" cy="18" rx="3" ry="4.5" /><ellipse className="drop b" cx="62" cy="12" rx="3" ry="4.5" /><ellipse className="drop c" cx="78" cy="20" rx="3" ry="4.5" />
+        <path className="stem" d="M60 88 C60 74 58 64 60 46" />
+        <path className="leaf l" d="M60 60 C48 58 40 50 38 40 C50 40 58 48 60 60 Z" />
+        <path className="leaf r" d="M60 52 C72 50 80 42 82 32 C70 32 62 40 60 52 Z" />
+        <path className="pot" d="M36 88 H84 L78 112 H42 Z" /><rect className="rim" x="32" y="82" width="56" height="10" rx="3" /><ellipse className="soil" cx="60" cy="84" rx="24" ry="3.5" />
+      </svg>
+      <div className="gd-load-t">Сад просыпается<span><i /><i /><i /></span></div>
+    </div>
+  );
+}
 const DustGame = React.lazy(() => import('./learn-dust.jsx'));
 import {
   balance, rateOn, rateHistory, priceOf, crownsOn, inflationInfo, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF,
@@ -88,9 +125,53 @@ function RateChart({ hist }) {
 /* ------------------------------ ЛАВКА ------------------------------ */
 // до полуночи по всемирному времени — когда обновится витрина
 const untilMidnight = (now) => { const m = dayStart(now) + 24 * 3600000 - now; const hh = Math.floor(m / 3600000); const mm = Math.floor((m % 3600000) / 60000); return `${hh} ч ${mm} мин`; };
+/* ПЛАСТИНКИ (замечание владельца 18.11, вечер, п. 4): в продаже — только те, чей файл уже лежит в public/music
+   (src/audio/records.js, music/README.md). Пластинка на витрине крутится и даёт послушать 20 секунд; купленная —
+   «Поставить»: музыка обучения включается миксом «Пластинки» с этой пьесы. */
+const MUSIC_HAVE = new Set(MUSIC_FILES || []);
+export const recordsFor = (ids, files) => ids.filter((id) => OUTFIT_BY_ID[id] && files.has(OUTFIT_BY_ID[id].track));
+export const recordsOnSale = (ids) => recordsFor(ids, MUSIC_HAVE);
+export const RECORD_CSS = `
+  .rw-vinyl { position: relative; width: 74px; height: 74px; margin: 2px auto 6px; border-radius: 50%; cursor: pointer; border: 0; padding: 0;
+    background: radial-gradient(circle, var(--rv, #C9A43A) 0 13px, #111 14px 15px, transparent 16px), repeating-radial-gradient(circle, #1d1d1d 0 1px, #2a2a2a 1px 3px);
+    box-shadow: 0 10px 20px -10px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.06); }
+  .rw-vinyl::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(130deg, rgba(255,255,255,.18), transparent 40%); }
+  .rw-vinyl.spin { animation: rw-vinyl 2.4s linear infinite; }
+  .rw-vinyl i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #111; }
+  .rw-vinyl-t { font: 600 11.5px var(--ds-sans); color: var(--ds-ink3); text-align: center; margin-top: -2px; }
+  @keyframes rw-vinyl { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .rw-vinyl.spin { animation: none; } }
+`;
+const RECORD_TINT = { 'rec-nights': '#7A5BD8', 'rec-gold': '#C9A43A', 'rec-aurora': '#2BE3A0', 'rec-gong': '#D2503C', 'rec-rain': '#5B8EC8', 'rec-funk': '#E07A2E' };
+let previewAudio = null;
+function RecordDisc({ o }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => () => { if (previewAudio && previewAudio.dataset && previewAudio.dataset.rec === o.id) { previewAudio.pause(); previewAudio = null; } }, [o.id]);
+  const toggle = () => {
+    if (on && previewAudio) { previewAudio.pause(); previewAudio = null; setOn(false); return; }
+    if (previewAudio) previewAudio.pause();
+    const a = new window.Audio(`/music/${o.track}.mp3`); a.dataset.rec = o.id; a.volume = 0.8; previewAudio = a;
+    Audio.duck(true);
+    const stop = () => { if (previewAudio === a) previewAudio = null; a.pause(); setOn(false); Audio.duck(false); };
+    a.addEventListener('ended', stop); a.addEventListener('pause', () => { setOn(false); Audio.duck(false); });
+    a.play().then(() => { setOn(true); setTimeout(() => { if (previewAudio === a) stop(); }, 20000); }).catch(() => stop());
+  };
+  return (
+    <>
+      <button type="button" className={`rw-vinyl${on ? ' spin' : ''}`} style={{ '--rv': RECORD_TINT[o.id] }} onClick={toggle} aria-pressed={on}
+        aria-label={on ? `Остановить: ${o.title}` : `Послушать 20 секунд: ${o.title}`} data-testid="record-preview"><i /></button>
+      <div className="rw-vinyl-t">{on ? 'играет — коснитесь, чтобы остановить' : 'коснитесь — 20 секунд'}</div>
+    </>
+  );
+}
+function playRecord(o) {
+  Audio.prime(); Audio.play('paper');
+  setMusicPaused(null); setLearnMusic(true);
+  Audio.setMusic(true); Audio.setPlaylist('records'); Audio.playTrack(o.track);
+}
 // карточка вещи: Инфля в ней, цена по курсу (со скидкой — старая зачёркнута), купить / надеть
 function ShopItem({ o, learn, day, wear, b, onBuy, onToggle, deal = false, goal = false, hw = null, calm = false }) {
-  const desk = o.slot === 'desk'; const theme = o.slot === 'theme';
+  const desk = o.slot === 'desk'; const theme = o.slot === 'theme'; const rec = o.slot === 'record';
   const owned = !!(learn.owned || {})[o.id]; const on = (desk ? deskOf(learn) : theme ? themeOf(learn) : wear[o.slot]) === o.id;
   const price = priceOf(o.id, day, learn); const full = priceOf(o.id, day);
   return (
@@ -98,12 +179,13 @@ function ShopItem({ o, learn, day, wear, b, onBuy, onToggle, deal = false, goal 
       {deal && !owned && !calm && <span className="rw-deal" data-testid="shop-deal">−{Math.round(DEAL_OFF * 100)}%</span>}
       {o.season ? <span className="rw-rare rw-season"><Ghost size={11} aria-hidden="true" />хеллоуин</span> : theme ? <span className="rw-rare rw-theme-tag"><Palette size={11} aria-hidden="true" />тема урока</span> : desk ? <span className="rw-rare rw-desk-tag"><Gem size={11} aria-hidden="true" />в урок</span> : o.rare && <span className="rw-rare"><Gem size={11} aria-hidden="true" />редкое</span>}
       {/* украшение урока — живое прямо на витрине: его можно потрогать до покупки */}
-      {theme ? <SkinPreview id={o.id} /> : desk ? <div className="rw-desk-stage"><DeskDecor id={o.id} height={64} preview label={`${o.title}: потрогайте`} /></div>
+      {rec ? <RecordDisc o={o} /> : theme ? <SkinPreview id={o.id} /> : desk ? <div className="rw-desk-stage"><DeskDecor id={o.id} height={64} preview label={`${o.title}: потрогайте`} /></div>
         : <Mascot mood="hello" size={o.rare ? 62 : 50} outfit={{ [o.slot]: o.id }} label={`Инфля: ${o.title}`} />}
       <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.25 }}>{o.title}</div>
       {o.note && <div className="rw-note">{o.note}</div>}
       {owned
-        ? <Button small variant={on ? 'secondary' : 'primary'} onClick={() => onToggle(o)} data-testid={desk ? 'desk-toggle' : theme ? 'theme-toggle' : undefined}>{on ? (desk ? 'Убрать из уроков' : theme ? 'Выключить' : 'Снять') : (desk ? 'Повесить в уроки' : theme ? 'Включить в уроках' : 'Надеть')}</Button>
+        ? rec ? <Button small onClick={() => playRecord(o)} data-testid="record-play">Поставить</Button>
+        : <Button small variant={on ? 'secondary' : 'primary'} onClick={() => onToggle(o)} data-testid={desk ? 'desk-toggle' : theme ? 'theme-toggle' : undefined}>{on ? (desk ? 'Убрать из уроков' : theme ? 'Выключить' : 'Снять') : (desk ? 'Повесить в уроки' : theme ? 'Включить в уроках' : 'Надеть')}</Button>
         : o.reward ? <>
           {/* награда события: не продаётся — собирается тыквами за уроки */}
           <div className="rw-forgone" data-testid="shop-reward">Не продаётся: {hw ? `тыкв ${hw.pumpkins} из ${hw.goal}` : 'награда за 13 тыкв'}</div>
@@ -183,11 +265,11 @@ function Wardrobe({ learn, wear, onWear }) {
               <div className="rw-slots" role="tablist" aria-label="Место вещи">
                 {slots.map((k) => {
                   const n = list.filter((o) => o.slot === k).length;
-                  return <button key={k} type="button" role="tab" aria-selected={slot === k} disabled={!n} data-slot={k} onClick={() => { Audio.play('tick'); setSlot(k); }}>{SLOT_LABEL[k]} <b>{n}</b></button>;
+                  return <button key={k} type="button" role="tab" aria-selected={slot === k} disabled={!n} data-slot={k} onClick={() => { if (slot === k) return; Audio.play('tick'); setSlot(k); }}>{SLOT_LABEL[k]} <b>{n}</b></button>;
                 })}
               </div>
               <div className="rw-tiles" role="group" aria-label={`Вещи: ${SLOT_LABEL[slot].toLowerCase()}`}>
-                <button type="button" className="rw-tile none" aria-pressed={!wear[slot]} data-testid="wardrobe-none" onClick={() => onWear(slot, null)}>Без вещи</button>
+                <button type="button" className="rw-tile none" aria-pressed={!wear[slot]} data-testid="wardrobe-none" onClick={() => { if (wear[slot]) onWear(slot, null); }}>Без вещи</button>
                 {here.map((o) => {
                   const on = wear[o.slot] === o.id;
                   return (
@@ -348,6 +430,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
     setMsg({ ok: true, text: id === BOOST.id ? `Двойной опыт на ${BOOST.minutes} минут — за ${r.price} ${coinsWord(r.price)}.`
       : slot === 'desk' ? `Куплено за ${r.price} ${coinsWord(r.price)} — украшение уже висит в уроках на ПК и планшете.`
         : slot === 'theme' ? `Куплено за ${r.price} ${coinsWord(r.price)} — тема уже включена: откройте любой урок.`
+          : slot === 'record' ? `Куплено за ${r.price} ${coinsWord(r.price)} — пластинка ваша: «Поставить» или микс «Пластинки» в проигрывателе.`
           : `Куплено за ${r.price} ${coinsWord(r.price)} — Инфля уже в обновке. Снять и переодеть — во вкладке «Гардероб».` });
   };
   const toggle = (o) => { Audio.play('paper'); trackDaily('wardrobe_wear'); update((s) => setWear(s, o.slot, (s.wear || {})[o.slot] === o.id ? null : o.id, now)); };
@@ -362,10 +445,10 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
     <div className="ln-wrap" data-testid="shop" data-view={view} data-tab={view === 'shop' ? tab : undefined}>
       <h1 className="ds-sr">{view === 'garden' ? 'Сад Инфли' : 'Лавка'}</h1>
       <div>
-        <ShopSwitch view={view} onView={(v) => { Audio.play('paper'); setView(v); setMsg(null); }} learn={learn} gardenLocked={!featureOpen(learn, 'garden')} />
+        <ShopSwitch view={view} onView={(v) => { if (v === view) return; Audio.play('paper'); setView(v); setMsg(null); }} learn={learn} gardenLocked={!featureOpen(learn, 'garden')} />
         {/* сад и копилка открываются не сразу (src/learn/unlocks.js): до того — карточка «откроется после N-го урока» */}
         {view === 'garden' ? (featureOpen(learn, 'garden')
-          ? <React.Suspense fallback={<div className="ds-sub" style={{ padding: 20 }}>Сад загружается…</div>}><GardenView learn={learn} update={update} /></React.Suspense>
+          ? <React.Suspense fallback={<GardenLoading />}><GardenView learn={learn} update={update} /></React.Suspense>
           : <FeatureLocked id="garden" learn={learn} />) : <>
         <Card className="sh-head-card" data-testid="rate">
           <div className="sh-head">
@@ -465,6 +548,13 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <div className="rw-items rw-desk-items" style={{ margin: '10px 0 16px' }} data-testid="shop-desk">
               {today.desk.map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} goal {...itemProps} />)}
             </div>
+            {recordsOnSale(today.records || []).length > 0 && <>
+              <style>{RECORD_CSS}</style>
+              <Heading level={3} title="Пластинки" sub="Пьесы для уроков, на которые стоит копить: послушайте 20 секунд прямо на витрине. Купленные играют миксом «Пластинки» в проигрывателе." />
+              <div className="rw-items rw-desk-items" style={{ margin: '10px 0 16px' }} data-testid="shop-records">
+                {recordsOnSale(today.records || []).map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} goal {...itemProps} />)}
+              </div>
+            </>}
           </>}
 
           {tab === 'rare' && <>
@@ -729,13 +819,13 @@ function PiggyCard({ learn, update, now, b, onMsg }) {
             </div>
             {/* вид вклада — с итогом для этой суммы: сравнение честное, цифрами */}
             <div className="rw-kinds" role="group" aria-label="Вид вклада">
-              <button type="button" aria-pressed={!topup} data-testid="piggy-kind-fixed" onClick={() => { Audio.play('tick'); setTopup(false); }}>
+              <button type="button" aria-pressed={!topup} data-testid="piggy-kind-fixed" onClick={() => { if (!topup) return; Audio.play('tick'); setTopup(false); }}>
                 <span className="t"><Lock size={14} aria-hidden="true" /> Срочный</span>
                 <b>{fmtPct(rateNow)} в день</b>
                 <span className="res">{n} → <em>{fixedEnd}</em> <i>+{fixedEnd - n}</i></span>
                 <small>Больше процент, но докладывать нельзя</small>
               </button>
-              <button type="button" aria-pressed={topup} data-testid="piggy-kind-topup" onClick={() => { Audio.play('tick'); setTopup(true); }}>
+              <button type="button" aria-pressed={topup} data-testid="piggy-kind-topup" onClick={() => { if (topup) return; Audio.play('tick'); setTopup(true); }}>
                 <span className="t"><Plus size={14} aria-hidden="true" /> Пополняемый</span>
                 <b>{fmtPct(rTop)} в день</b>
                 <span className="res">{n} → <em>{topEnd}</em> <i>+{topEnd - n}</i></span>

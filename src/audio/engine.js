@@ -18,6 +18,10 @@ import MUSIC_FILES from 'virtual:music-files';
    верить, звучит поверх кризиса — слышно, что выход есть; ручное управление и
    предвыборная кампания окрашивают только некризисные времена. */
 // детский режим «Мира» (docs/world.md): без войны, тоталитаризма и ручного управления — и в музыке
+// во сколько раз тише музыка, пока звучит голос в «Слушай»
+export const DUCK_LEVEL = 0.22;
+// настроения, ради которых музыка «Мира» меняется сразу, посреди пьесы: экстренные режимы
+export const URGENT_MOODS = ['war', 'crisis', 'totalitarian'];
 export const KIDS_HIDDEN_MOODS = ['war', 'totalitarian', 'authoritarian'];
 export const moodFor = (e) => {
   if (e.kidsMode) { const m = moodForAdult(e); return KIDS_HIDDEN_MOODS.includes(m) ? 'calm' : m; }
@@ -52,10 +56,13 @@ export const stingerFor = (prev, cur) => {
 export function createAudioEngine(options = {}) {
   let analyser = null;
   let ctx = null; let master = null; let comp = null; let musicBus = null; let songBus = null; let sfxBus = null; let noiseBuf = null;
+  let duckGain = null; let ducked = false;
   let dry = null; let verbIn = null; let echo = null; let pianoBus = null; let chorusIn = null;
   const opts = { music: true, sfx: true, volume: 0.6 };
   let lastTick = 0; const listeners = [];
   let track = TRACKS.dawn; let mood = 'calm'; let lockedMood = null; let playlistIdx = 0;
+  // настроение, которое наступит, когда доиграет нынешняя пьеса (не экстренная смена режима), и счёт кварталов до него
+  let softMood = null; let softSeen = null; let softCount = 0;
   /* «Волна» (tracks.js, waveNext): история сыгранного (для «назад» и чтобы не повторяться), следующая пьеса — выбрана
      заранее (её запись загружается до конца текущей), пьесы с лайком — чаще */
   let waveHist = []; let waveUp = null; let waveBack = false; let likes = [];
@@ -63,8 +70,11 @@ export function createAudioEngine(options = {}) {
   const isWave = () => lockedMood === 'wave';
   const waveUpcoming = () => waveUp || (waveUp = waveNext(waveHist, { likes, rnd }));
   let roleId = null;
+  // купленные пластинки лавки (src/audio/tracks.js, RECORDS): микс «Пластинки» — только из них
+  let ownedRecords = [];
   const listOf = (m) => (
-    (roleId && ROLE_PLAYLISTS[roleId] && ROLE_PLAYLISTS[roleId][m])
+    m === 'records' ? (ownedRecords.length ? ownedRecords : MOOD_PLAYLISTS.calm)
+      : (roleId && ROLE_PLAYLISTS[roleId] && ROLE_PLAYLISTS[roleId][m])
     || MOOD_PLAYLISTS[m] || MOOD_PLAYLISTS.calm
   );
   let pending = null; let tempoMod = 1; let tempoTarget = 1; let intensity = 0.3;
@@ -145,7 +155,9 @@ export function createAudioEngine(options = {}) {
       comp.threshold.value = -16; comp.knee.value = 22; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.28;
       master.connect(comp); comp.connect(ctx.destination);
     } catch { master.connect(ctx.destination); }
-    musicBus = ctx.createGain(); musicBus.gain.value = opts.music ? 0.55 : 0; musicBus.connect(master);
+    musicBus = ctx.createGain(); musicBus.gain.value = opts.music ? 0.55 : 0;
+    // приглушение музыки под голос («Слушай», замечание владельца 18.11, вечер, п. 16): отдельный множитель после шины музыки
+    duckGain = ctx.createGain(); duckGain.gain.value = ducked ? DUCK_LEVEL : 1; musicBus.connect(duckGain); duckGain.connect(master);
     // ответвление для спектра проигрывателя: слушает музыку, в выход не идёт
     try { analyser = ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.78; musicBus.connect(analyser); } catch { analyser = null; }
     sfxBus = ctx.createGain(); sfxBus.gain.value = opts.sfx ? 0.9 : 0; sfxBus.connect(master);
@@ -715,6 +727,8 @@ export function createAudioEngine(options = {}) {
       }
       pending = waveUpcoming(); waveUp = null; return;
     }
+    // доиграла пьеса — пора неэкстренной смене настроения: следующая — уже из нового плейлиста
+    if (softMood && !lockedMood && forward !== false) { mood = softMood; softMood = null; softSeen = null; softCount = 0; playlistIdx = -1; }
     const list = listOf(lockedMood || mood);
     playlistIdx = (playlistIdx + (forward === false ? -1 : 1) + list.length) % list.length;
     pending = list[playlistIdx]; pendingKind = 'cut';
@@ -899,7 +913,7 @@ export function createAudioEngine(options = {}) {
     return fileBufs[id];
   };
   // следующая пьеса плейлиста (без перехода к ней)
-  const peekNext = () => { if (isWave()) return waveUpcoming(); const list = listOf(lockedMood || mood); return list[(playlistIdx + 1) % list.length]; };
+  const peekNext = () => { if (isWave()) return waveUpcoming(); if (softMood && !lockedMood) return listOf(softMood)[0]; const list = listOf(lockedMood || mood); return list[(playlistIdx + 1) % list.length]; };
   // заранее — следующую запись: к концу этой она уже декодирована
   const prefetchNext = () => { const id = peekNext(); if (id && fileTrack(id)) loadFile(id).catch(() => {}); };
   const stopFile = (at) => {
@@ -1237,12 +1251,25 @@ export function createAudioEngine(options = {}) {
     nowPlaying: () => ({ id: track.id, name: track.name, subtitle: track.subtitle, mood: track.mood,
       moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood,
       file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), next: peekNext(),
+      /* звучит ли сейчас (а не только включена ли музыка) и грузится ли запись — для диска и анимации загрузки в
+         проигрывателе (замечание владельца 18.11, вечер: «непонятно, когда песня грузится; пластинка крутится, когда не играет») */
+      playing: !!(running && ctx && ctx.state !== 'suspended' && !(fileFor === track.id && !fileSrc)),
+      loading: !!(running && fileFor === track.id && !fileSrc),
       // секунда записи сейчас (для паузы и проверки «продолжить с места»); на паузе — где остановились
       position: fileSrc && fileFor === track.id ? Math.max(0, now() - fileStart) : paused && paused.id === track.id && paused.file ? paused.offset : 0,
       // длительность записи (у синтеза её нет) — для полосы времени в проигрывателе
       duration: fileSrc && fileFor === track.id && fileSrc.buffer ? fileSrc.buffer.duration : null }),
     /* спектр того, что звучит сейчас, — n полос 0…1 (низы слева), по логарифмической шкале частот; тишина и пауза — null.
        Рисует живой круг вокруг обложки проигрывателя (src/MacroSimulator.jsx, «Сейчас играет») */
+    /* голос поверх музыки: on — музыка тихнет до DUCK_LEVEL за ~0,4 с, off — возвращается за ~1,5 с */
+    duck(on) {
+      ducked = !!on;
+      if (duckGain && ctx) duckGain.gain.setTargetAtTime(ducked ? DUCK_LEVEL : 1, now(), ducked ? 0.12 : 0.45);
+    },
+    get ducked() { return ducked; },
+    // какие пластинки куплены (id пьес): экран передаёт их из прогресса ученика
+    setRecords(ids) { ownedRecords = (Array.isArray(ids) ? ids : []).filter((id) => TRACKS[id] && TRACKS[id].mood === 'records'); notify(); },
+    records: () => [...ownedRecords],
     levels(n = 48) {
       if (!analyser || !running) return null;
       const d = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(d);
@@ -1270,7 +1297,7 @@ export function createAudioEngine(options = {}) {
     playTrack(id) { if (!ensure()) return; resume(); pending = id; pendingKind = 'cut'; const list = listOf(lockedMood || mood); const i = list.indexOf(id); if (i >= 0) playlistIdx = i; if (!running) this.startMusic(); },
     setPlaylist(moodId) {
       lockedMood = moodId || null;
-      const list = MOOD_PLAYLISTS[lockedMood || mood] || MOOD_PLAYLISTS.calm;
+      const list = listOf(lockedMood || mood);
       // «Волна» начинается заново: спокойная пьеса, случайная (лайкнутые — чаще)
       if (isWave()) { waveHist = []; waveUp = null; waveBack = false; playlistIdx = 0; queue(waveNext([], { likes, rnd })); notify(); if (!running && opts.music) this.startMusic(); return; }
       playlistIdx = 0; queue(list[0]); notify();
@@ -1351,6 +1378,17 @@ export function createAudioEngine(options = {}) {
       tempoTarget = clamp(0.95 + (e.gdpGrowth - 2.0) * 0.012 + intensity * 0.05 + inflPush, 0.9, 1.22);
       if (!running) tempoMod = tempoTarget;
       this.setAmbience(e.regime, intensity);
+      /* Замечание владельца 18.11, вечер, п. 14: «музыка по режиму экономики не должна так резко переключаться, только в
+         экстренных случаях». Резко — только война, кризис и тоталитаризм (URGENT_MOODS) или пока музыка молчит. Прочее
+         (подъём, спад, кампания, стабилизация, ручное управление…) ждёт: новое настроение должно продержаться два квартала
+         подряд, и тогда наступает, когда доиграет нынешняя пьеса, — без обрыва (softMood, см. advancePlaylist). */
+      if (m === mood) { softSeen = null; softCount = 0; softMood = null; return; }
+      if (!URGENT_MOODS.includes(m) && running && !lockedMood) {
+        if (softSeen === m) softCount += 1; else { softSeen = m; softCount = 1; }
+        if (softCount >= 2 && softMood !== m) { softMood = m; notify(); }
+        return;
+      }
+      softSeen = null; softCount = 0; softMood = null;
       if (m !== mood) {
         mood = m; playlistIdx = 0;
         if (!lockedMood) {
@@ -1382,19 +1420,12 @@ export function createAudioEngine(options = {}) {
       running = false;
       return nextTime;
     },
-    quarterSequence({ wellbeingDelta, newCrisis, bigNews, stinger }) {
+    /* итог квартала — один «штамп» нажатия (замечание владельца 18.11, вечер, п. 13: «звуки при каких-то событиях
+       сохранились, при выборах там, нужно убрать»): ни заставок событий (выборы, переворот, падение режима), ни сигналов
+       кризиса, новостей, роста и спада. Параметры оставлены, чтобы экраны не менять */
+    quarterSequence() {
       if (!ensure()) return; resume();
-      // заставка — это музыка: звучит, если включена музыка, даже при выключенных звуках интерфейса
-      const staged = !!(stinger && opts.music && playStinger(stinger));
-      if (!opts.sfx) return;
-      playSfx('stamp');
-      setTimeout(() => { if (bigNews && !staged) playSfx('news'); }, 240);
-      setTimeout(() => {
-        if (staged) return;
-        if (newCrisis) playSfx('alarm');
-        else if (wellbeingDelta > 0.6) playSfx('up');
-        else if (wellbeingDelta < -0.6) playSfx('down');
-      }, 430);
+      if (opts.sfx) playSfx('stamp');
     },
   };
 }

@@ -176,6 +176,8 @@ async function passCards(page) {
   const card = page.getByTestId('lesson-card');
   for (let i = 0; i < 24 && await card.isVisible(); i += 1) {
     if (await card.getAttribute('data-style') === 'discover') await playDiscover(page);
+    // «Все слова — ваши»: конец «Слов» сам уходит к упражнениям, кнопка на это время выключена
+    if (await page.getByTestId('word-end').isVisible()) { await expect(page.getByTestId('word-end')).toBeHidden({ timeout: 8000 }); continue; }
     await foot(page).click(); await page.waitForTimeout(320);
   }
 }

@@ -274,7 +274,7 @@ describe('исследование: сервер', () => {
   it('информация для участника — той же версии, что принимает сервер, и с контактом ответственного (без ФИО)', () => {
     const info = readFileSync(new URL('../../research/participant-information.md', import.meta.url), 'utf8');
     expect(info).toContain(`Версия информации: ${CONSENT_VERSION}`);
-    expect(info).toContain('Discord **privet1**'); expect(info).toContain('Telegram **@Yyyeeeeessssss**');
+    expect(info).toContain('Discord `_privet1_`'); expect(info).toContain('Telegram **@Yyyeeeeessssss**');
     expect(info).not.toMatch(/заполнить при фиксации/);
   });
   it('удаление набора при фиксации: только по ключу и фразе подтверждения; стирает все ключи исследования', async () => {

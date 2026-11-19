@@ -21,7 +21,8 @@
     "books:export": "node scripts/books-export.mjs",
     "people:export": "node scripts/people-export.mjs",
     "people:optimize": "node scripts/people-optimize.mjs",
-    "portraits": "node scripts/fetch-portraits.mjs"
+    "portraits": "node scripts/fetch-portraits.mjs",
+    "build:onreza": "node scripts/fetch-portraits.mjs --soft && npm run build && node scripts/onreza-pack.mjs"
   },
   "dependencies": {
     "@fontsource/fragment-mono": "^5.3.0",

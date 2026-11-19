@@ -610,7 +610,7 @@ export function ProgramCard({ learn, update, onPlacement }) {
       <div className="ds-h3" style={{ marginBottom: 8 }}>Моя программа</div>
       <div className="ds-eyebrow" style={{ marginBottom: 6 }}>Цель</div>
       <div className="rw-chip-row" role="group" aria-label="Цель">
-        {PROFILE_GOALS.map((g) => <button key={g} type="button" className="ds-chip" aria-pressed={p.goal === g} onClick={() => { Audio.play('tick'); update((s) => setProfile(s, { goal: g })); }}>{PROFILE_GOAL_LABEL[g]}</button>)}
+        {PROFILE_GOALS.map((g) => <button key={g} type="button" className="ds-chip" aria-pressed={p.goal === g} onClick={() => { if (p.goal === g) return; Audio.play('tick'); update((s) => setProfile(s, { goal: g })); }}>{PROFILE_GOAL_LABEL[g]}</button>)}
       </div>
       <div className="ds-eyebrow" style={{ margin: '12px 0 6px' }}>Цель дня · минут занятий</div>
       <div className="rw-chip-row" role="group" aria-label="Минут в день">

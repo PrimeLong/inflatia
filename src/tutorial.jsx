@@ -6,6 +6,7 @@
 
    COLOR/Audio/COURSE_PROGRESS_KEY/... — те же самые общие объекты/функции,
    что и в MacroSimulator.jsx (экспортированы оттуда), а не копия. */
+import { capitalShown } from './lib/politics/president.js';
 import { ruNum } from './lib/num.js';
 import React, { useState, useMemo, useCallback, Suspense } from 'react';
 import {
@@ -1336,7 +1337,7 @@ const PRESIDENT_MODULES = [
         body: ({ economy }) => (
           <>
             <p>Ни ставки, ни налогов, ни расходов: ЦБ и Минфин ведут боты со своими характерами. Вы влияете на экономику только через людей, которых назначаете, указания, которые они могут не выполнить, и реформы, которые окупятся не в этот срок.</p>
-            <p>Единственный ваш ресурс — <Term k="polcapital">политический капитал</Term>, сейчас {Math.round(economy.politicalCapital)} из 100. Он копится рейтингом и ростом, тает в кризисах и при беспорядках, и у него есть равновесие: накопить на одну большую реформу можно, на все сразу — нет.</p>
+            <p>Единственный ваш ресурс — <Term k="polcapital">политический капитал</Term>, сейчас {capitalShown(economy.politicalCapital)} из 100. Он копится рейтингом и ростом, тает в кризисах и при беспорядках, и у него есть равновесие: накопить на одну большую реформу можно, на все сразу — нет.</p>
           </>
         ),
       },
@@ -1780,7 +1781,7 @@ const COURSE_CHECKS = {
       ),
       levers: [], maxQuarters: 8,
       goal: (c) => Object.keys(c.economy.reforms || {}).length >= 2 && shown0(c.economy.approval) >= 42,
-      goalText: (c) => `Проведено реформ: ${Object.keys(c.economy.reforms || {}).length}. Рейтинг ${Math.round(c.economy.approval)}, капитал ${Math.round(c.economy.politicalCapital)}.`,
+      goalText: (c) => `Проведено реформ: ${Object.keys(c.economy.reforms || {}).length}. Рейтинг ${Math.round(c.economy.approval)}, капитал ${capitalShown(c.economy.politicalCapital)}.`,
       hint: 'Начните с дешёвых и не самых болезненных: дерегулирование и судебная реформа стоят меньше и по рейтингу почти не бьют. Обращение к нации восстанавливает поддержку быстро — но работает тем хуже, чем сильнее слова расходятся с ценами.',
     },
   },
@@ -2142,7 +2143,7 @@ const EXAM_MODULES = [
         levers: [], maxQuarters: 10,
         goal: (c) => shown0(c.economy.approval) >= 48 && shown1(c.economy.inflation) <= 6.5
           && Object.keys(c.economy.reforms || {}).length >= 1 && !c.economy.parliamentDissolved,
-        goalText: (c) => `Рейтинг ${Math.round(c.economy.approval)}, инфляция ${pctFmt(c.economy.inflation)}, реформ ${Object.keys(c.economy.reforms || {}).length}, капитал ${Math.round(c.economy.politicalCapital)}.`,
+        goalText: (c) => `Рейтинг ${Math.round(c.economy.approval)}, инфляция ${pctFmt(c.economy.inflation)}, реформ ${Object.keys(c.economy.reforms || {}).length}, капитал ${capitalShown(c.economy.politicalCapital)}.`,
         hint: 'Начните с ЦБ: с Голубем инфляцию не сбить, а без этого рейтинг не вырастет — реальные доходы съедаются ценами. Дальше рейтинг чинится тем же, чем чинится экономика, плюс обращением к нации, которое работает тем лучше, чем ближе цифры к обещаниям.',
       },
       {

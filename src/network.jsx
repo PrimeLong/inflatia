@@ -4,6 +4,7 @@
    газета и торговый терминал. Общие компоненты, тема (COLOR), звук и
    помощники сохранений — те же объекты, что в MacroSimulator.jsx
    (экспортированы оттуда), а не копии. */
+import { WorldReportButton, worldReportContext } from './world-report.jsx';
 import { AlertTriangle, BookOpen, Check, ChevronDown, Clock, Copy, Crown, Info, Map as MapIcon, Megaphone, Newspaper, RotateCcw, Share2, ShieldAlert, Trophy, Users, X } from 'lucide-react';
 import { CB_PERSONAS, SCENARIOS, DIFFICULTIES, FX_REGIMES, GOALS, LEVERS, MOF_PERSONAS, POLITICAL_REGIME_INFO, PRESIDENT_PERSONAS, clamp, defaultDecisions, fmtSignedPct, leverPreview, pctFmt, pickPressQuestion, pressSpeakerSeat, quarterLabel, scaleLever } from './lib/engine.js';
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
@@ -29,7 +30,6 @@ import {
   seatsForMode, settleQuarter, tradeBook, unlockAchievements, useAchievementToasts, useChartView,
   useLayoutColumns, usePinnedStrip,
 } from './game.jsx';
-import { stingerFor } from './audio/engine.js';
 
 const CRISIS_SHORT = { banking: 'банковский кризис', debt: 'долговой кризис', currency: 'валютный кризис',
   stagflation: 'стагфляция', overheating: 'перегрев', recession: 'рецессия', deflation: 'дефляция',
@@ -643,8 +643,7 @@ export function NetworkGameScreen({ network, theme, setTheme, onExit }) {
       setSent(false);
       setDecisions((d) => defaultDecisions(r.economy, d));
       if (autoPaperRef.current) setShowPaper(true);
-      Audio.quarterSequence({ wellbeingDelta: 0, newCrisis: false, bigNews: r.news.some((n) => n.priority >= 8),
-        stinger: stingerFor(prevEconomyRef.current, r.economy) });
+      Audio.quarterSequence();
       markNetworkPlayed();
       pushAch(unlockAchievements(questProgressAchievementIds({
         quarterIndex: r.quarterIndex, economy: r.economy, history: r.history,
@@ -989,6 +988,7 @@ export function NetworkGameScreen({ network, theme, setTheme, onExit }) {
               <Newspaper size={14} />Газета
             </button>
           )}
+          <WorldReportButton context={() => worldReportContext({ economy: room.economy, role: roleDef.id, mode: 'network', scenario: room.scenario || null, quarter: room.quarterIndex })} />
           <AudioControls />
           <HeaderOverflowMenu items={[
             ...(narrow ? [

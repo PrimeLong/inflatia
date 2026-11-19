@@ -17,6 +17,8 @@ let loading = null;
 let earlyCtx = null;
 // лайки пьес — ждут движка, не загружая его
 let likes = [];
+// купленные пластинки — тоже ждут движка, не загружая его
+let records = [];
 const queue = [];
 const listeners = new Set();
 const notify = () => listeners.forEach((f) => { try { f(); } catch { /* подписчик сам разберётся */ } });
@@ -31,6 +33,7 @@ function load() {
     real.setVolume(opts.volume); real.setSfx(opts.sfx);
     if (!opts.music) real.setMusic(false);
     real.setLikes(likes);
+    if (real.setRecords) real.setRecords(records);
     listeners.forEach((f) => real.onChange(f));
     queue.splice(0).forEach(([name, args]) => { try { real[name](...args); } catch { /* тихо */ } });
     notify();
@@ -68,6 +71,10 @@ export const Audio = {
   // загрузить движок без звука и без AudioContext (плашка музыки на паузе после возвращения на сайт)
   preload() { return load(); },
   levels(n) { return real ? real.levels(n) : null; },
+  // приглушить музыку под голос: движок не загружен — музыки и нет
+  duck(on) { if (real && real.duck) real.duck(on); },
+  setRecords(ids) { records = Array.isArray(ids) ? [...ids] : []; if (real && real.setRecords) real.setRecords(records); notify(); },
+  records() { return real && real.records ? real.records() : [...records]; },
   restorePaused: deferred('restorePaused'),
   play: deferred('play', { drop: true }),
   startMusic: deferred('startMusic'),

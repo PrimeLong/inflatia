@@ -61,6 +61,28 @@ export const SKIN_CSS = `
   .sk-on:not(.sk-preview) :is(.lp-word, .lp-howto, .ln-m2-row, .ln-m2-bank, .lp-game-stage, .lp-trial) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); }
   .sk-on :is(.lp-word, .lp-word-dots, .lp-howto, .ln-m2-rows, .ln-m2-bank, .ln-sort-item, .lp-game, .lp-trial) { --u: var(--sk-accent); --u-ink: var(--sk-accent); }
   .sk-on:not(.sk-preview) .lp-word { border-top: 4px solid var(--sk-accent); box-shadow: 0 14px 30px -18px rgba(0,0,0,.6); }
+  /* колыбель Ньютона на подставке и «Черновик» — тоже в теме (жалоба 18.11, graph-labor: «как-то не по теме выглядят кнопки и
+     менюшка шаров Ньютона»): подставка — поверхность темы, ручка и основание — её линии и акцент, рама — цвет акцента */
+  .sk-on[data-skin] { --sk-frame: var(--sk-accent); }
+  /* «Слушай» и «История» — в теме урока (жалоба 18.11, lm-radio: «чёт не по стилю урока выглядит»): шапка эфира, приёмник,
+     реплики и архив — поверхность и линии темы, кнопка «слушать», эквалайзер и «в эфире» — её акцент */
+  .sk-on[data-skin="exchange"] { --sk-on-accent: #04120B; } .sk-on[data-skin="aurora"] { --sk-on-accent: #0B1035; }
+  .sk-on[data-skin="blueprint"] { --sk-on-accent: #0E3A66; } .sk-on[data-skin="mint"] { --sk-on-accent: #FFFBF0; }
+  .sk-on[data-skin] .fd { --u: var(--sk-accent); --u-ink: var(--sk-accent); }
+  .sk-on[data-skin]:not(.sk-preview) .fd :is(.fd-mast, .fd-set, .fd-bubble, .fd-archive) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius);
+    box-shadow: 0 14px 30px -18px rgba(0,0,0,.6); }
+  .sk-on[data-skin]:not(.sk-preview) .fd .fd-set { border-top: 3px solid var(--sk-accent); }
+  .sk-on[data-skin] .fd :is(.fd-mast-name, .fd-set-top) { font-family: var(--sk-font, var(--ds-sans)); }
+  .sk-on[data-skin] .fd .fd-mast-name { color: var(--sk-accent); }
+  .sk-on[data-skin] .fd .fd-mast svg { color: var(--sk-accent); opacity: .55; }
+  .sk-on[data-skin] .fd .fd-play { background: var(--sk-accent); color: var(--sk-on-accent, #fff); box-shadow: 0 10px 24px -12px var(--sk-accent), inset 0 0 0 3px color-mix(in srgb, var(--sk-on-accent, #fff) 18%, transparent); }
+  .sk-on[data-skin] .fd .fd-onair { color: var(--sk-accent); }
+  .sk-on[data-skin] .fd .fd-onair::before { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sk-accent) 25%, transparent); }
+  .sk-on[data-skin] .ln-cradle-stand { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); box-shadow: 0 16px 34px -18px rgba(0,0,0,.7); }
+  .sk-on[data-skin] .ln-cradle-grip i { background: var(--sk-edge); }
+  .sk-on[data-skin] .ln-cradle-base { background: linear-gradient(90deg, color-mix(in srgb, var(--sk-accent) 70%, transparent), var(--sk-accent), color-mix(in srgb, var(--sk-accent) 70%, transparent)); }
+  .sk-on[data-skin] .sk-glass { background: var(--sk-surface); border-color: var(--sk-edge); }
+  .sk-on[data-skin] .sk-dock.on .sk-switch { background: var(--sk-accent); box-shadow: 0 4px 12px -4px var(--sk-accent); }
   .sk-on :is(.ln-sort-item .ds-chip, .ln-m2-slot) { background: color-mix(in srgb, var(--sk-surface) 70%, transparent); border-color: var(--sk-edge); color: inherit; border-radius: calc(var(--sk-radius) * .7); }
   .sk-on .ln-sort-item .ds-chip[aria-pressed="true"] { background: var(--sk-accent); border-color: var(--sk-accent); color: var(--sk-on-accent, #04140C); }
   .sk-on .ds-btn--secondary:not(:disabled) { background: var(--sk-surface); border-color: var(--sk-edge); color: inherit; border-radius: var(--sk-radius); }
