@@ -1,1 +1,0 @@
-import"./react-B8XoyoxP.js";import"./learn-styles-CnElH9Jc.js";import"./model-DodFHwra.js";import{a as e,r as t}from"./learn-model-rJbUsOuX.js";await e();export{t as MarketModel};
