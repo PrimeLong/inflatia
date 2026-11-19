@@ -660,13 +660,21 @@ test('учебник: пока график едет за ползунком, п
 // замечание владельца 18.11, вечер, п. 20: «не нравится, как выглядит оглавление в учебнике, нужен редизайн; очень много лишнего
 // места вместо чтения»: главы — карточками с цветом юнита; у главы шрифт и музыка — в строке обложки (ПК), разделы — лентой
 // (телефон), текст главы начинается на первом экране
-test('учебник: оглавление карточками, глава без лишнего места — текст на первом экране', async ({ page, isMobile }) => {
+// пункт владельца 19.11, п. 3: «мне теперь ещё больше не нравится оглавление» — оглавление как в книге: строки без карточек,
+// номер антиквой в цвете юнита, отточие до счётчика разделов
+test('учебник: оглавление как в книге — строки глав с номером, отточием и разделами; глава без лишнего места — текст на первом экране', async ({ page, isMobile }) => {
   const { errors } = await openApp(page);
   await openBook(page);
-  const cards = page.getByTestId('textbook').locator('.tbl-chs .tbl-ch');
-  expect(await cards.count()).toBeGreaterThan(10);
-  expect(await cards.first().evaluate((el) => getComputedStyle(el).getPropertyValue('--u').trim())).not.toBe('');
-  expect(await cards.first().evaluate((el) => getComputedStyle(el, '::before').height)).toBe('4px');
+  const rows = page.getByTestId('textbook').locator('.tbl-chs .tbl-ch[data-chapter]');
+  expect(await rows.count()).toBeGreaterThan(10);
+  const first = rows.first();
+  expect(await first.evaluate((el) => getComputedStyle(el).getPropertyValue('--u').trim())).not.toBe('');
+  // без карточек: ни рамки, ни тени, ни скругления — строка с линией снизу
+  expect(await first.evaluate((el) => { const st = getComputedStyle(el); return [st.borderTopWidth, st.borderRadius, st.boxShadow]; })).toEqual(['0px', '0px', 'none']);
+  // номер — в цвете юнита, не цветом текста
+  expect(await first.locator('.tbl-no').evaluate((el) => getComputedStyle(el).color)).not.toBe(await first.locator('.tbl-ch-title').evaluate((el) => getComputedStyle(el).color));
+  await expect(first.locator('.tbl-ch-state')).toHaveText(/\d+ \/ \d+|прочитана/);
+  if (!isMobile) await expect(first.locator('.tbl-dots')).toBeVisible();
   await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
   const ch = page.getByTestId('chapter');
   await expect(ch).toBeVisible();

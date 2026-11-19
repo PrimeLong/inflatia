@@ -2017,23 +2017,25 @@ function LearnToc({ ctx }) {
   return (
     <div data-testid="textbook" className="tbl">
       <h1 className="ds-sr">Учебник: оглавление</h1>
+      <div className="tbl-head">
+        <div className="tbl-stats" data-testid="tb-stats">
+          <span>Глав прочитано: <b>{readCount}</b> из {ready.length}</span>
+          <span>Задач решено: <b>{solved}</b> из {allProblems.length}</span>
+          {due > 0 && <button type="button" className="tb-link" data-testid="tb-review-link" onClick={() => { Audio.play('click'); ctx.go({ kind: 'review' }); }}>На повторение: {due}</button>}
+        </div>
+      </div>
       {last && (
-        <button type="button" className="tbl-continue" data-testid="tb-continue" aria-label={`Продолжить чтение главы ${chapterNo(last.id)}`} onClick={() => { Audio.play('click'); ctx.go({ kind: 'chapter', id: last.id }); }}>
+        <button type="button" className="tbl-continue" style={{ '--u': (placeOf(last.id) || {}).color }} data-testid="tb-continue" aria-label={`Продолжить чтение главы ${chapterNo(last.id)}`} onClick={() => { Audio.play('click'); ctx.go({ kind: 'chapter', id: last.id }); }}>
           <BookOpen size={26} aria-hidden="true" />
           <span style={{ flex: 1, minWidth: 0 }}><small>Продолжить чтение</small><b>{last.title}</b></span>
           <ChevronRight size={22} aria-hidden="true" />
         </button>
       )}
-      <div className="tbl-stats" data-testid="tb-stats">
-        <span>Глав прочитано: <b>{readCount}</b> из {ready.length}</span>
-        <span>Задач решено: <b>{solved}</b> из {allProblems.length}</span>
-        {due > 0 && <button type="button" className="tb-link" data-testid="tb-review-link" onClick={() => { Audio.play('click'); ctx.go({ kind: 'review' }); }}>На повторение: {due}</button>}
-      </div>
       {/* главы — по уровням курса и в его порядке: глава учебника и юнит Пути — одно место */}
       <div className="tbl-parts">
         {TOC_LEVELS.map((lv) => (
           <section key={lv.id} className={`tbl-part${ctx.levelOpen(lv.id) ? '' : ' locked'}`} data-testid="tb-level-group" data-level={lv.id} data-locked={ctx.levelOpen(lv.id) ? undefined : 'true'}>
-            <h2 className="tbl-part-title">{!ctx.levelOpen(lv.id) && <Lock size={13} aria-hidden="true" />}Уровень {lv.no} · {lv.title}</h2>
+            <h2 className="tbl-part-title"><span className="tbl-part-k">{!ctx.levelOpen(lv.id) && <Lock size={11} aria-hidden="true" style={{ marginRight: 4, verticalAlign: -1 }} />}Уровень {lv.no}<span className="tbl-sep"> · </span></span>{lv.title}</h2>
             <div className="tbl-level-text">{ctx.levelOpen(lv.id) ? lv.text : 'Откроется, когда вы дойдёте до этого уровня на Пути.'}</div>
             <div className="tbl-chs">
             {lv.chapters.map((c) => {
@@ -2044,7 +2046,6 @@ function LearnToc({ ctx }) {
                     onClick={() => { Audio.play('tick'); ctx.go({ kind: 'chapter', id: c.id }); }}>
                     <span className="tbl-no"><Lock size={13} aria-hidden="true" /></span>
                     <span className="tbl-ch-title" style={{ minWidth: 0 }}>{c.title}</span>
-                    <span />
                   </button>
                 );
               }
@@ -2053,23 +2054,22 @@ function LearnToc({ ctx }) {
               // процент — путь по главе: пройденные разделы (прочитанная глава — 100%); задачи — отдельной строкой
               const sc = chapterScore(ctx.progress, problemsOf(c.id));
               const share = chapterShare(ctx.progress, c.id);
-              const R = 17; const L = 2 * Math.PI * R;
               return (
                 <button key={c.id} type="button" className="tbl-ch tb-toc-row" data-status={c.status} data-chapter={c.id} style={{ '--u': (placeOf(c.id) || {}).color }} onClick={() => { Audio.play('click'); ctx.go({ kind: 'chapter', id: c.id }); }}>
                   <span className={`tbl-no${readMark ? ' done' : ''}`} aria-label={readMark ? 'прочитана' : undefined}>{readMark ? <Check size={14} aria-hidden="true" /> : n}</span>
                   <span style={{ minWidth: 0 }}>
-                    <span className="tbl-ch-title" style={{ display: 'block' }}>{c.title}</span>
+                    <span className="tbl-ch-line">
+                      <span className="tbl-ch-title">{c.title}</span>
+                      <span className="tbl-dots" aria-hidden="true" />
+                      {readMark ? <span className="tbl-ch-state done" data-share="100"><Check size={14} strokeWidth={3} aria-hidden="true" />прочитана</span>
+                        : sp.total > 0 ? <span className="tbl-ch-state" data-share={Math.round(share * 100)}>{sp.done} / {sp.total}</span> : null}
+                    </span>
                     <span className="tbl-ch-meta" data-testid="tb-ch-meta">
-                      {sc.total > 0 && <span data-testid="tb-ch-tasks" data-solved={sc.solved} data-total={sc.total}>Задачи: <b>{sc.solved}</b> из {sc.total}</span>}
                       {sp.total > 0 && <span data-testid="tb-ch-sections" data-done={sp.done} data-total={sp.total}>Разделы: <b>{sp.done}</b> из {sp.total}</span>}
+                      {sc.total > 0 && <span data-testid="tb-ch-tasks" data-solved={sc.solved} data-total={sc.total}>Задачи: <b>{sc.solved}</b> из {sc.total}</span>}
                     </span>
+                    {share > 0 && share < 1 && <span className="tbl-ch-prog" aria-hidden="true"><i style={{ width: `${Math.round(share * 100)}%` }} /></span>}
                   </span>
-                  {sp.total > 0 || readMark ? (
-                    <span className="tbl-ch-ring" data-full={String(share >= 1)} data-share={Math.round(share * 100)} aria-hidden="true">
-                      <svg width="42" height="42" viewBox="0 0 42 42"><circle cx="21" cy="21" r={R} className="bg" /><circle cx="21" cy="21" r={R} className="fg" strokeDasharray={L} strokeDashoffset={L * (1 - share)} style={{ '--len': L }} /></svg>
-                      <b>{share >= 1 ? <Check size={17} strokeWidth={3} /> : <>{Math.round(share * 100)}<small>%</small></>}</b>
-                    </span>
-                  ) : <span />}
                 </button>
               );
             })}
@@ -2078,14 +2078,15 @@ function LearnToc({ ctx }) {
         ))}
         <PlannedList />
         <section className="tbl-part">
-          <h2 className="tbl-part-title">Приложения</h2>
+          <h2 className="tbl-part-title"><span className="tbl-part-k">В конце книги</span>Приложения</h2>
+          <div className="tbl-chs">
           {APPENDICES.map((a, i) => (
             <button key={a.id} type="button" className="tbl-ch tb-toc-row" onClick={() => { Audio.play('click'); ctx.go({ kind: 'appendix', id: a.id }); }}>
               <span className="tbl-no">{String.fromCharCode(1040 + i)}</span>
               <span className="tbl-ch-title">{a.title}</span>
-              <span />
             </button>
           ))}
+          </div>
         </section>
       </div>
       <div className="tbl-more">
