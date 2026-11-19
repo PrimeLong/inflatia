@@ -12,15 +12,15 @@ import { recordsFor } from '../../learn-shop.jsx';
 const T = Date.UTC(2026, 10, 18, 12);
 
 describe('пластинки лавки', () => {
-  it('шесть пластинок: своя пьеса-запись, редкая вещь, дороже вещей Инфли, но по силам за курс; не в гардеробе', () => {
+  it('шесть пластинок: своя пьеса-запись, своя полка, по карману — 150–240 монет, не «редкая» вещь (пункт владельца 19.11: «слишком дорогие»); не в гардеробе', () => {
     expect(RECORD_ITEMS).toHaveLength(RECORDS.length);
     expect(RECORDS.length).toBeGreaterThanOrEqual(6);
     const wardrobeMax = Math.max(...WARDROBE.map((o) => o.crowns));
     for (const id of RECORD_ITEMS) {
       const o = OUTFIT_BY_ID[id];
-      expect(o.slot).toBe('record'); expect(o.rare).toBe(true);
+      expect(o.slot).toBe('record'); expect(o.rare).toBeFalsy();
       expect(TRACKS[o.track].mood).toBe('records');
-      expect(o.crowns).toBeGreaterThan(wardrobeMax);
+      expect(o.crowns).toBeGreaterThanOrEqual(150); expect(o.crowns).toBeLessThanOrEqual(240); expect(o.crowns).toBeLessThan(wardrobeMax);
       expect(Math.ceil(o.crowns * RATE_MAX)).toBeLessThanOrEqual(0.7 * courseIncome().total);
     }
     expect(WARDROBE.some((o) => o.slot === 'record')).toBe(false);

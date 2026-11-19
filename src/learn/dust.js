@@ -39,6 +39,36 @@ export function buyCloth(s, now = Date.now()) {
   return { s: { ...s, spent: { ...s.spent, [day]: ((s.spent || {})[day] || 0) + CLOTH.price }, owned: { ...s.owned, [CLOTH.id]: now } }, ok: true, price: CLOTH.price };
 }
 
+/* УЛУЧШЕНИЕ «ПОЛИРОЛЬ» (пункт владельца 19.11, п. 11: «придумай новое улучшение для протирки витрины»). Второе после
+   микрофибры и только с ней: витрина, дотёртая до «Блестит!» (всё стекло чистое, не 90%), приносит ещё POLISH.bonus монету
+   за ту же оплаченную витрину — ключ dust:<день>:<n>:shine, второй раз не выплатить. Окупается за
+   POLISH.price / (bonus × витрин в день) = 6 дней, если каждую витрину дня дотирать до блеска; что уже вернула — polishReturn. */
+export const POLISH = { id: 'dust-polish', price: 36, bonus: 1 };
+export const hasPolish = (s) => !!((s && s.owned) || {})[POLISH.id];
+export const shineKey = (day, n) => `${dustKey(day, n)}:shine`;
+export const polishPaybackDays = () => Math.ceil(POLISH.price / (POLISH.bonus * (DUST.perDay + CLOTH.extra)));
+export function polishReturn(s) {
+  if (!hasPolish(s)) return 0;
+  return Object.keys(s.claimed || {}).filter((k) => /^dust:\d{4}-\d{2}-\d{2}:\d+:shine$/.test(k)).length * POLISH.bonus;
+}
+export function buyPolish(s, now = Date.now()) {
+  if (hasPolish(s)) return { s, ok: false, reason: 'Полироль уже куплена' };
+  if (!hasCloth(s)) return { s, ok: false, reason: 'Сначала — микрофибра' };
+  if (balance(s) < POLISH.price) return { s, ok: false, reason: `Не хватает ${POLISH.price - balance(s)} мон.` };
+  const day = dayOf(now);
+  return { s: { ...s, spent: { ...s.spent, [day]: ((s.spent || {})[day] || 0) + POLISH.price }, owned: { ...s.owned, [POLISH.id]: now } }, ok: true, price: POLISH.price };
+}
+// «Блестит!»: с полиролью — бонус за последнюю оплаченную сегодня витрину, если за её блеск ещё не платили
+export function dustShine(s, now = Date.now()) {
+  if (!hasPolish(s)) return s;
+  const day = dayOf(now);
+  for (let k = dustPerDay(s); k >= 1; k -= 1) {
+    if (!hasClaim(s, dustKey(day, k))) continue;
+    return hasClaim(s, shineKey(day, k)) ? s : earn(s, POLISH.bonus, shineKey(day, k), now);
+  }
+  return s;
+}
+
 // сколько витрин уже оплачено сегодня и сколько ещё можно
 export function dustDone(s, now = Date.now()) {
   const day = dayOf(now);

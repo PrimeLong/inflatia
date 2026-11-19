@@ -174,7 +174,7 @@ export const OUTFITS = [
   { id: 'desk-cradle', slot: 'desk', title: 'Колыбель Ньютона', note: 'Оттяните один шарик или сразу несколько — столько же вылетит с другой стороны; толкните крайний внутрь — закачаются все; верный ответ щёлкает сам', crowns: 1500, rare: true },
   { id: 'desk-mobile', slot: 'desk', title: 'Мобиле из монет', note: 'Коснитесь монетки — закрутится; верный ответ — все вспыхнут', crowns: 1650, rare: true },
   // пластинки: запись-пьеса для обучения — микс «Пластинки» в проигрывателе (замечание владельца 18.11, вечер, п. 4)
-  ...RECORDS.map((r) => ({ id: r.id, slot: 'record', title: `Пластинка «${r.name}»`, note: r.subtitle, crowns: r.crowns, rare: true, track: r.track })),
+  ...RECORDS.map((r) => ({ id: r.id, slot: 'record', title: `Пластинка «${r.name}»`, note: r.subtitle, crowns: r.crowns, track: r.track })),
   /* ТЕМЫ УРОКА (src/learn-skins.jsx): урок целиком — живой фон, свои кнопки вариантов и отклик на ответ.
      Место «theme», одна на все уроки; тоже не на Инфле и не в гардеробе. */
   { id: 'theme-mint', slot: 'theme', title: 'Тема «Монетный двор»', note: 'Гильош вращается, золотая пыль; варианты — банкноты; верный ответ — падает монета', crowns: 1350, rare: true },
@@ -214,7 +214,7 @@ const itemOf = (id) => (id === FREEZE.id ? FREEZE : id === BOOST.id ? BOOST : OU
 export function shopDay(s, day) {
   const owned = {};
   Object.entries((s && s.owned) || {}).forEach(([id, at]) => { if (!(typeof at === 'number' && at > 0 && dayOf(at) === day)) owned[id] = at; });
-  const order = OUTFITS.filter((o) => !o.rare && !o.season).map((o) => ({ o, k: hash01(`shop:${day}:${o.id}`) })).sort((a, b) => a.k - b.k).map((x) => x.o.id);
+  const order = OUTFITS.filter((o) => !o.rare && !o.season && !LESSON_SLOTS.includes(o.slot)).map((o) => ({ o, k: hash01(`shop:${day}:${o.id}`) })).sort((a, b) => a.k - b.k).map((x) => x.o.id);
   const showcase = order.filter((id) => !owned[id]).slice(0, SHOWCASE_SIZE);
   return { showcase, deal: showcase[0] || null, rare: OUTFITS.filter((o) => o.rare && !o.season && !LESSON_SLOTS.includes(o.slot)).map((o) => o.id), desk: DESK_ITEMS, theme: THEME_ITEMS, records: RECORD_ITEMS, season: halloweenOn(day) ? SEASON_ITEMS : [] };
 }
@@ -271,7 +271,8 @@ export function buy(s, id, now = Date.now()) {
   if (outfit && (s.owned || {})[id]) return { s, ok: false, reason: 'Уже куплено' };
   if (outfit && item.reward) return { s, ok: false, reason: 'Эту рамку не купить: она — награда за 13 тыкв на Хеллоуин' };
   if (outfit && item.season && !halloweenOn(day)) return { s, ok: false, reason: 'Хеллоуинские вещи продаются только на Хеллоуин — с 16 октября по 2 ноября' };
-  if (outfit && !item.rare && !item.season && !shopDay(s, day).showcase.includes(id)) return { s, ok: false, reason: 'Сегодня этого нет на витрине — загляните завтра' };
+  // вещи урока (тема, украшение, пластинка) продаются всегда — на своих полках, не на витрине дня
+  if (outfit && !item.rare && !item.season && !LESSON_SLOTS.includes(item.slot) && !shopDay(s, day).showcase.includes(id)) return { s, ok: false, reason: 'Сегодня этого нет на витрине — загляните завтра' };
   if (balance(s) < price) return { s, ok: false, reason: `Не хватает ${price - balance(s)} ${coinsWord(price - balance(s))}` };
   let t = { ...s, spent: { ...s.spent, [day]: ((s.spent || {})[day] || 0) + price } };
   if (id === BOOST.id) t = { ...t, boost: now + BOOST.minutes * 60000 };

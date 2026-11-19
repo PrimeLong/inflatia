@@ -4,10 +4,10 @@
    отдельный микс «Пластинки» в проигрывателе обучения; в «Волну» и в музыку «Мира» по режиму экономики они не входят.
    Синтез у пластинки — запасной (сбой загрузки файла): взят у спокойной пьесы того же склада, чтобы не было тишины. */
 export const RECORDS = [
-  { id: 'rec-nights', track: 'velnights', bpm: 84, name: 'Ночи Велеграда', subtitle: 'нео-соул, электропиано Rhodes, тёплый бас', base: 'cabinet', crowns: 1200 },
-  { id: 'rec-gold', track: 'goldstandard', bpm: 132, name: 'Золотой стандарт', subtitle: 'биг-бэнд, медные, свинг', base: 'fullhouse', crowns: 1300 },
-  { id: 'rec-aurora', track: 'aurorasynth', bpm: 100, name: 'Северное сияние', subtitle: 'синтвейв, арпеджио, широкие пады', base: 'northlight', crowns: 1250 },
-  { id: 'rec-gong', track: 'openinggong', bpm: 96, name: 'Гонг открытия', subtitle: 'оркестр и барабаны тайко, эпик', base: 'anthem', crowns: 1450 },
-  { id: 'rec-rain', track: 'rainledger', bpm: 70, name: 'Дождь над бухгалтерией', subtitle: 'неоклассика: рояль и виолончель', base: 'ledger', crowns: 1200 },
-  { id: 'rec-funk', track: 'coinfunk', bpm: 108, name: 'Монетный фанк', subtitle: 'фанк, слэп-бас, вау-гитара, медь', base: 'boulevard', crowns: 1350 },
+  { id: 'rec-nights', track: 'velnights', bpm: 84, name: 'Ночи Велеграда', subtitle: 'нео-соул, электропиано Rhodes, тёплый бас', base: 'cabinet', crowns: 180 },
+  { id: 'rec-gold', track: 'goldstandard', bpm: 132, name: 'Золотой стандарт', subtitle: 'биг-бэнд, медные, свинг', base: 'fullhouse', crowns: 220 },
+  { id: 'rec-aurora', track: 'aurorasynth', bpm: 100, name: 'Северное сияние', subtitle: 'синтвейв, арпеджио, широкие пады', base: 'northlight', crowns: 200 },
+  { id: 'rec-gong', track: 'openinggong', bpm: 96, name: 'Гонг открытия', subtitle: 'оркестр и барабаны тайко, эпик', base: 'anthem', crowns: 240 },
+  { id: 'rec-rain', track: 'rainledger', bpm: 70, name: 'Дождь над бухгалтерией', subtitle: 'неоклассика: рояль и виолончель', base: 'ledger', crowns: 160 },
+  { id: 'rec-funk', track: 'coinfunk', bpm: 108, name: 'Монетный фанк', subtitle: 'фанк, слэп-бас, вау-гитара, медь', base: 'boulevard', crowns: 230 },
 ];

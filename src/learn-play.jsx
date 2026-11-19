@@ -279,6 +279,8 @@ const ELASTIC_LABEL = { in: 'Неэластичный: выручка растё
 const COSTS_LABEL = { fc: 'Постоянные: поднялись только средние', vc: 'Переменные: поднялись все три кривые' };
 const POWER_LABEL = { pt: 'Ценополучатель: цена с рынка, P = MC', mp: 'Власть над ценой: цена выше MC' };
 const PRODUCT_LABEL = { 'A+': 'Технологии лучше: вся кривая TP выше', 'A-': 'Станки хуже: вся кривая TP ниже', 'L+': 'Работников больше: точка идёт вверх по TP', 'L-': 'Работников меньше: точка идёт вниз по TP' };
+// «Сберкасса» и «Банк»: рынок кредитов — словами ставки, а не «спрос вправо»
+const CREDIT_LABEL = { 'D+': 'Кредиты нужнее: ставка выше', 'D-': 'Кредиты меньше нужны: ставка ниже', 'S+': 'Вкладов больше: ставка ниже', 'S-': 'Вкладов меньше: ставка выше' };
 const MARKUP_LABEL = { lo: 'Заменителей больше: спрос эластичнее, наценка ниже', hi: 'Товар заметнее: спрос менее эластичен, наценка выше' };
 /* подпись эффекта в пробной карточке: «Власть над ценой: цена выше MC» после ответа «Власть над ценой» —
    без повтора ответа, и MC не превращается в «mc» (было «власть над ценой: власть над ценой: цена выше mc») */
@@ -287,7 +289,7 @@ const trialEffect = (answer, label) => {
   const rest = t.toLowerCase().startsWith(`${String(answer).toLowerCase()}:`) ? t.slice(answer.length + 1).trim() : t;
   return rest.charAt(0).toLowerCase() + rest.slice(1);
 };
-const effectLabel = (chart, eff) => (chart === 'product' ? PRODUCT_LABEL[eff] : chart === 'budget' ? BUDGET_LABEL[eff] : chart === 'elastic' ? ELASTIC_LABEL[eff] : chart === 'costs' ? COSTS_LABEL[eff] : chart === 'power' ? POWER_LABEL[eff] : chart === 'markup' ? MARKUP_LABEL[eff] : EFFECT_LABEL[eff]);
+const effectLabel = (chart, eff, unit = '') => (chart === 'market' && (unit === 'hh' || unit === 'mb') ? CREDIT_LABEL[eff] : chart === 'product' ? PRODUCT_LABEL[eff] : chart === 'budget' ? BUDGET_LABEL[eff] : chart === 'elastic' ? ELASTIC_LABEL[eff] : chart === 'costs' ? COSTS_LABEL[eff] : chart === 'power' ? POWER_LABEL[eff] : chart === 'markup' ? MARKUP_LABEL[eff] : EFFECT_LABEL[eff]);
 const BUDGET0 = { I: 100, px: 1.25, py: 1.25 };
 const MARKET_STEP = 16;
 // состояние графика после карточки: сдвиги понемногу забываются, чтобы график не уезжал за край
@@ -430,7 +432,7 @@ export function GameRound({ inst, onDone, locked, result = null, best = 0, intro
     setTimeout(() => setFlash(null), 260);
     if (item.effect) {
       const ns = applyEffect(inst.chart, st, item.effect);
-      setSt(ns); setTag({ k: next.length, text: effectLabel(inst.chart, item.effect) });
+      setSt(ns); setTag({ k: next.length, text: effectLabel(inst.chart, item.effect, String(inst.id || '').split('-')[0]) });
       if (inst.market) setPrices((p) => [...p, equilibrium({ ...inst.market, dA: ns.D, dC: ns.S }).p].slice(-24));
     }
     if (idx + 1 >= deck.current.length) setTimeout(() => finish(true), 280);
@@ -491,7 +493,7 @@ export function GameRound({ inst, onDone, locked, result = null, best = 0, intro
             ) : (
               <div style={{ fontSize: 14.5, lineHeight: 1.45 }} data-testid="game-trial-result" data-ok={String(trial.ok)}>
                 <b style={{ color: trial.ok ? 'var(--ds-ok)' : 'var(--ds-bad)' }}>{trial.ok ? 'Верно.' : 'Не совсем.'}</b>{' '}
-                Ответ — «{inst.labels[sample.side]}»{sample.effect ? `: ${trialEffect(inst.labels[sample.side], effectLabel(inst.chart, sample.effect))}, это видно на графике` : ''}. В игре так же — только быстро.
+                Ответ — «{inst.labels[sample.side]}»{sample.effect ? `: ${trialEffect(inst.labels[sample.side], effectLabel(inst.chart, sample.effect, String(inst.id || '').split('-')[0]))}, это видно на графике` : ''}. В игре так же — только быстро.
               </div>
             )}
           </div>

@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { trackDaily } from './lib/client.js';
 import { loadAccount } from './account.jsx';
 import { noScarcity } from './lib/age.js';
-import { ShieldCheck, Check, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles } from 'lucide-react';
+import { ShieldCheck, Check, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles, Play, Pause } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Mascot } from './mascot.jsx';
 import { Button, Card, Heading } from './ds.jsx';
@@ -62,7 +62,7 @@ import {
   yearGrowth, rewardInfo,
 } from './learn/rewards.js';
 import { Rag } from './learn-rag.jsx';
-import { DUST, dustDone, dustItem, dustPerDay, CLOTH, hasCloth, buyCloth, clothReturn, clothPaybackDays } from './learn/dust.js';
+import { DUST, dustDone, dustItem, dustPerDay, CLOTH, hasCloth, buyCloth, clothReturn, clothPaybackDays, POLISH, hasPolish, buyPolish, polishReturn, polishPaybackDays } from './learn/dust.js';
 import { dayOf, addDays, dayStart, ownedFreezes, rolloverLocal } from './textbook/learn-state.js';
 
 
@@ -132,35 +132,73 @@ const MUSIC_HAVE = new Set(MUSIC_FILES || []);
 export const recordsFor = (ids, files) => ids.filter((id) => OUTFIT_BY_ID[id] && files.has(OUTFIT_BY_ID[id].track));
 export const recordsOnSale = (ids) => recordsFor(ids, MUSIC_HAVE);
 export const RECORD_CSS = `
-  .rw-vinyl { position: relative; width: 74px; height: 74px; margin: 2px auto 6px; border-radius: 50%; cursor: pointer; border: 0; padding: 0;
+  /* проигрыватель на витрине (пункт владельца 19.11: «пластинка должна давать послушать фрагмент, это должно быть видно»):
+     тонарм опускается на пластинку, она крутится, кольцо — сколько осталось из 20 секунд, ниже — отсчёт и «эквалайзер» */
+  .rw-deck { position: relative; width: 96px; height: 84px; margin: 2px auto 4px; }
+  .rw-vinyl { position: absolute; left: 4px; top: 4px; width: 76px; height: 76px; border-radius: 50%; cursor: pointer; border: 0; padding: 0;
     background: radial-gradient(circle, var(--rv, #C9A43A) 0 13px, #111 14px 15px, transparent 16px), repeating-radial-gradient(circle, #1d1d1d 0 1px, #2a2a2a 1px 3px);
-    box-shadow: 0 10px 20px -10px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.06); }
+    box-shadow: 0 10px 20px -10px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.06); transition: transform .3s; }
   .rw-vinyl::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(130deg, rgba(255,255,255,.18), transparent 40%); }
-  .rw-vinyl.spin { animation: rw-vinyl 2.4s linear infinite; }
+  .rw-vinyl:hover { transform: scale(1.04); }
+  .rw-vinyl.spin { animation: rw-vinyl 1.8s linear infinite; }
   .rw-vinyl i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #111; }
-  .rw-vinyl-t { font: 600 11.5px var(--ds-sans); color: var(--ds-ink3); text-align: center; margin-top: -2px; }
+  .rw-vinyl b { position: absolute; inset: 31px; border-radius: 50%; display: grid; place-items: center; color: #111; }
+  .rw-ring { position: absolute; left: 0; top: 0; width: 84px; height: 84px; pointer-events: none; transform: rotate(-90deg); }
+  .rw-ring circle { fill: none; stroke-width: 3; }
+  .rw-ring .bg { stroke: color-mix(in srgb, var(--ds-ink) 10%, transparent); }
+  .rw-ring .fg { stroke: var(--rv, #C9A43A); stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
+  .rw-arm { position: absolute; right: 0; top: 0; width: 34px; height: 60px; transform-origin: 26px 8px; transform: rotate(-28deg); transition: transform .6s cubic-bezier(.3,1.3,.5,1); pointer-events: none; }
+  .rw-deck.on .rw-arm { transform: rotate(0deg); }
+  .rw-vinyl-t { display: flex; align-items: center; justify-content: center; gap: 6px; font: 600 11.5px var(--ds-sans); color: var(--ds-ink3); text-align: center; min-height: 16px; }
+  .rw-deck.on + .rw-vinyl-t { color: var(--ds-ink); }
+  .rw-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .rw-eq i { width: 3px; border-radius: 1px; background: var(--rv, #C9A43A); animation: rw-eq .9s ease-in-out infinite; }
+  .rw-eq i:nth-child(2) { animation-delay: -.3s; } .rw-eq i:nth-child(3) { animation-delay: -.6s; } .rw-eq i:nth-child(4) { animation-delay: -.15s; }
+  @keyframes rw-eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
   @keyframes rw-vinyl { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .rw-vinyl.spin { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .rw-vinyl.spin, .rw-eq i { animation: none; } .rw-arm { transition: none; } }
 `;
 const RECORD_TINT = { 'rec-nights': '#7A5BD8', 'rec-gold': '#C9A43A', 'rec-aurora': '#2BE3A0', 'rec-gong': '#D2503C', 'rec-rain': '#5B8EC8', 'rec-funk': '#E07A2E' };
+export const PREVIEW_SECONDS = 20;
 let previewAudio = null;
+/* фрагмент 20 секунд; пока он звучит, в проигрывателе ничего не играет («пока она играет, в проигрывателе ничего не должно
+   играть»): музыка встаёт на паузу на той же секунде и после фрагмента продолжается с неё */
 function RecordDisc({ o }) {
   const [on, setOn] = useState(false);
-  useEffect(() => () => { if (previewAudio && previewAudio.dataset && previewAudio.dataset.rec === o.id) { previewAudio.pause(); previewAudio = null; } }, [o.id]);
+  const [left, setLeft] = useState(PREVIEW_SECONDS);
+  const held = useRef(false);
+  const release = () => { if (held.current) { held.current = false; setMusicPaused(null); Audio.setMusic(true); } };
+  useEffect(() => () => { if (previewAudio && previewAudio.dataset && previewAudio.dataset.rec === o.id) { previewAudio.pause(); previewAudio = null; } release(); }, [o.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!on) return undefined;
+    const t0 = Date.now();
+    const id = setInterval(() => setLeft(Math.max(0, PREVIEW_SECONDS - (Date.now() - t0) / 1000)), 250);
+    return () => clearInterval(id);
+  }, [on]);
   const toggle = () => {
-    if (on && previewAudio) { previewAudio.pause(); previewAudio = null; setOn(false); return; }
+    if (on && previewAudio) { previewAudio.pause(); previewAudio = null; setOn(false); release(); return; }
     if (previewAudio) previewAudio.pause();
+    const np = Audio.loaded() ? Audio.nowPlaying() : null;
+    if (np && Audio.opts.music && np.playing) { setMusicPaused({ id: np.id, offset: np.position }); Audio.setMusic(false); held.current = true; }
     const a = new window.Audio(`/music/${o.track}.mp3`); a.dataset.rec = o.id; a.volume = 0.8; previewAudio = a;
-    Audio.duck(true);
-    const stop = () => { if (previewAudio === a) previewAudio = null; a.pause(); setOn(false); Audio.duck(false); };
-    a.addEventListener('ended', stop); a.addEventListener('pause', () => { setOn(false); Audio.duck(false); });
-    a.play().then(() => { setOn(true); setTimeout(() => { if (previewAudio === a) stop(); }, 20000); }).catch(() => stop());
+    const stop = () => { if (previewAudio === a) previewAudio = null; a.pause(); setOn(false); release(); };
+    a.addEventListener('ended', stop); a.addEventListener('pause', () => { setOn(false); release(); });
+    setLeft(PREVIEW_SECONDS);
+    a.play().then(() => { setOn(true); setTimeout(() => { if (previewAudio === a) stop(); }, PREVIEW_SECONDS * 1000); }).catch(() => stop());
   };
+  const C = 2 * Math.PI * 39;
   return (
     <>
-      <button type="button" className={`rw-vinyl${on ? ' spin' : ''}`} style={{ '--rv': RECORD_TINT[o.id] }} onClick={toggle} aria-pressed={on}
-        aria-label={on ? `Остановить: ${o.title}` : `Послушать 20 секунд: ${o.title}`} data-testid="record-preview"><i /></button>
-      <div className="rw-vinyl-t">{on ? 'играет — коснитесь, чтобы остановить' : 'коснитесь — 20 секунд'}</div>
+      <div className={`rw-deck${on ? ' on' : ''}`} style={{ '--rv': RECORD_TINT[o.id] }} data-testid="record-deck" data-on={String(on)}>
+        <svg className="rw-ring" viewBox="0 0 84 84" aria-hidden="true"><circle className="bg" cx="42" cy="42" r="39" />
+          {on && <circle className="fg" cx="42" cy="42" r="39" strokeDasharray={C} strokeDashoffset={C * (1 - left / PREVIEW_SECONDS)} data-testid="record-ring" />}</svg>
+        <button type="button" className={`rw-vinyl${on ? ' spin' : ''}`} onClick={toggle} aria-pressed={on}
+          aria-label={on ? `Остановить: ${o.title}` : `Послушать ${PREVIEW_SECONDS} секунд: ${o.title}`} data-testid="record-preview"><i /><b>{on ? <Pause size={12} aria-hidden="true" /> : <Play size={12} aria-hidden="true" />}</b></button>
+        <svg className="rw-arm" viewBox="0 0 34 60" aria-hidden="true"><circle cx="26" cy="8" r="6" fill="var(--ds-ink3)" /><path d="M26 8 L26 40 L14 54" stroke="var(--ds-ink2)" strokeWidth="3" fill="none" strokeLinecap="round" /><rect x="8" y="50" width="10" height="7" rx="2" fill="var(--ds-ink2)" transform="rotate(-35 13 53)" /></svg>
+      </div>
+      <div className="rw-vinyl-t" data-testid="record-status" aria-live="polite">
+        {on ? <><span className="rw-eq" aria-hidden="true"><i /><i /><i /><i /></span>играет · {Math.ceil(left)} с</> : `коснитесь — ${PREVIEW_SECONDS} секунд`}
+      </div>
     </>
   );
 }
@@ -352,6 +390,34 @@ function ClothCard({ learn, update }) {
   );
 }
 
+/* «Полироль» — второе улучшение витрины (пункт владельца 19.11, п. 11): после микрофибры; «Блестит!» — ещё монета за витрину */
+function PolishCard({ learn, update }) {
+  const [msg, setMsg] = useState(null);
+  if (!hasCloth(learn)) return null;
+  const own = hasPolish(learn);
+  const back = polishReturn(learn);
+  const buy = () => {
+    let r = null;
+    update((s) => { r = buyPolish(s, Date.now()); return r.ok ? r.s : s; });
+    if (r && !r.ok) setMsg(r.reason); else { Audio.play('register'); setMsg(null); }
+  };
+  return (
+    <div className="dg-cloth" data-testid="dust-polish" data-owned={String(own)}>
+      <div className="dg-cloth-ico" aria-hidden="true"><Sparkles size={26} /></div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <b>Полироль</b>
+        {own ? (
+          <div data-testid="dust-polish-return">Дотёрли до «Блестит!» — +{POLISH.bonus} мон. за витрину. Вернула {back} из {POLISH.price} мон.{back >= POLISH.price ? ' — окупилась.' : '.'}</div>
+        ) : (
+          <div>Витрина, дотёртая до «Блестит!» (всё стекло, а не 90%), приносит ещё +{POLISH.bonus} мон. Окупится за {polishPaybackDays()} дней, если дотирать каждую.</div>
+        )}
+        {msg && <div className="dg-cloth-msg" role="alert">{msg}</div>}
+      </div>
+      {!own && <Button variant="secondary" onClick={buy} data-testid="dust-polish-buy">{POLISH.price} мон.</Button>}
+    </div>
+  );
+}
+
 function DustCard({ learn, onOpen }) {
   const done = dustDone(learn);
   // полосок — сколько витрин оплачивается в день: с микрофиброй шесть (пункт владельца 16.11: «всё ещё 5 показывает»)
@@ -535,6 +601,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <div style={{ marginTop: 10 }}><DustCard learn={learn} onOpen={() => setDust(true)} /></div>
             <style>{CLOTH_CSS}</style>
             <ClothCard learn={learn} update={update} />
+            <PolishCard learn={learn} update={update} />
           </>}
 
           {tab === 'lesson' && <>
@@ -550,7 +617,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             </div>
             {recordsOnSale(today.records || []).length > 0 && <>
               <style>{RECORD_CSS}</style>
-              <Heading level={3} title="Пластинки" sub="Пьесы для уроков, на которые стоит копить: послушайте 20 секунд прямо на витрине. Купленные играют миксом «Пластинки» в проигрывателе." />
+              <Heading level={3} title="Пластинки" sub="Пьесы для уроков: коснитесь пластинки — 20 секунд прямо на витрине, проигрыватель на это время молчит. Купленные играют миксом «Пластинки»." />
               <div className="rw-items rw-desk-items" style={{ margin: '10px 0 16px' }} data-testid="shop-records">
                 {recordsOnSale(today.records || []).map((id) => <ShopItem key={id} o={OUTFIT_BY_ID[id]} goal {...itemProps} />)}
               </div>

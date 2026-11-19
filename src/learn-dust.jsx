@@ -11,7 +11,7 @@ import { Mascot } from './mascot.jsx';
 import { Button } from './ds.jsx';
 import { Rag } from './learn-rag.jsx';
 import { CoinShower, useReducedMotion } from './ds-art.jsx';
-import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent, dustCounted, dustPerDay, dustRag } from './learn/dust.js';
+import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent, dustCounted, dustPerDay, dustRag, hasPolish, dustShine, POLISH } from './learn/dust.js';
 import { OUTFIT_BY_ID, priceOf, coinsWord, outfitOf } from './learn/rewards.js';
 import { dayOf } from './textbook/learn-state.js';
 
@@ -56,6 +56,7 @@ const CSS = `
   .dg-fx { pointer-events: none; }
   .dg-rag { position: absolute; left: 0; top: 0; width: 60px; height: 46px; margin: -22px 0 0 -30px; pointer-events: none; opacity: 0; transition: opacity .15s; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
   .dg-rag.on { opacity: 1; }
+  .dg-polish { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font: 700 12.5px var(--ds-sans); color: #F3D98E; }
   .dg-shine { position: absolute; top: -20%; bottom: -20%; left: -60%; width: 38%; pointer-events: none; transform: skewX(-18deg);
     background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent); animation: dg-sweep 1.1s cubic-bezier(.4, 0, .2, 1) forwards; }
   @keyframes dg-sweep { to { left: 130%; } }
@@ -163,6 +164,7 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
   const [pct, setPct] = useState(0);
   const [size, setSize] = useState(null);
   const [paid, setPaid] = useState(0);
+  const [shineBonus, setShineBonus] = useState(0); const paidRef = useRef(0);
   const [counted, setCounted] = useState(false);
   const glass = useRef(null); const dust = useRef(null); const fx = useRef(null); const rag = useRef(null);
   const grid = useRef(null); const down = useRef(null); const phaseRef = useRef('play'); const pctRef = useRef(0); const countedRef = useRef(false);
@@ -235,12 +237,14 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
     countedRef.current = true; setCounted(true);
     const pay = dustLeft(learn) > 0;
     if (pay) update((s) => dustClaim(s, Date.now()), { settle: true });
-    setPaid(pay ? DUST.coins : 0);
+    setPaid(pay ? DUST.coins : 0); paidRef.current = pay ? DUST.coins : 0;
     if (pay) Audio.play('coin');
   };
   // 100% — чисто всё стекло: блик, искры, «Блестит!»; монеты уже выплачены на 90%
   const finish = () => {
     phaseRef.current = 'shine'; setPhase('shine'); setPct(100);
+    // полироль: за блеск оплаченной витрины — ещё монета (src/learn/dust.js, dustShine)
+    if (hasPolish(learn) && countedRef.current && paidRef.current > 0) { update((s) => dustShine(s, Date.now()), { settle: true }); setShineBonus(POLISH.bonus); }
     Audio.play('shine');
     try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* нет вибрации */ }
     sparkle();
@@ -306,6 +310,7 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
     for (let pass = 0; pass < 2 && phaseRef.current === 'play'; pass += 1) wipeTo({ x: size.w + R, y }, { x: -R, y });
   };
   const again = () => {
+    setShineBonus(0); paidRef.current = 0;
     Audio.play('paper');
     phaseRef.current = 'play'; setPhase('play'); setPaid(0); countedRef.current = false; setCounted(false);
     setN((k) => k + 1); setSeed((s) => s + 101);
@@ -358,7 +363,8 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
             <Sparkles size={26} color="#F3D98E" aria-hidden="true" />
             <h3>Блестит!</h3>
             <p style={{ marginTop: 0 }}>Чисто до последнего пятнышка.</p>
-            {paid > 0 && <div className="dg-coins" data-testid="dust-coins"><i aria-hidden="true"><Coins size={15} /></i>+{paid} {coinsWord(paid)}</div>}
+            {paid > 0 && <div className="dg-coins" data-testid="dust-coins"><i aria-hidden="true"><Coins size={15} /></i>+{paid + shineBonus} {coinsWord(paid + shineBonus)}</div>}
+            {shineBonus > 0 && <div className="dg-polish" data-testid="dust-polish-bonus"><Sparkles size={14} aria-hidden="true" />полироль: +{shineBonus} за блеск</div>}
             <p>{o ? <>За стеклом — Инфля в «{o.title}». На витрине дня — {price} мон.</> : 'Витрина как новая.'}</p>
             <p style={{ fontSize: 13 }}>{dustLeft(learn) > 0 ? `Сегодня можно протереть ещё ${dustLeft(learn)} из ${dustPerDay(learn)}.` : 'Монеты за сегодня собраны — дальше только ради удовольствия.'}</p>
             <div className="dg-acts">
