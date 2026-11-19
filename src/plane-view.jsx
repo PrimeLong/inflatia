@@ -89,7 +89,9 @@ const CSS = `
   .dl-pt { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px 4px 10px; border-radius: 999px; border: 1px solid var(--ds-rule2, #d9cdb8); background: var(--ds-card, #fff); color: var(--ds-ink, #222); font: 600 13px var(--ds-mono, monospace); cursor: pointer; }
   .dl-mini-rows { margin-top: 4px; font: 600 12.5px var(--ds-mono, monospace); }
   .pv-side-draw { width: 340px; }
-  @media (max-width: 760px) { .pv-side-draw { width: auto; max-height: 46vh; } }
+  /* на телефоне панель задания — под плоскостью, постоянной высоты: точки в списке и разбор ответа не сжимают плоскость, и она
+     не переезжает, пока рисуют */
+  @media (max-width: 760px) { .pv-side-draw { width: auto; height: 40vh; max-height: 40vh; flex: none; } }
   .pv-was { font: 500 12px/1.35 var(--ds-sans, sans-serif); color: var(--ds-ink3, #888); }
   .pv-step { font: 400 13.5px/1.45 var(--ds-sans, sans-serif); color: var(--ds-ink2, #555); padding: 10px 12px; border-radius: 12px; border-left: 3px solid var(--pv-gold); background: color-mix(in srgb, var(--pv-gold) 8%, transparent); }
   .pv-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pv-draw .9s cubic-bezier(.45,.05,.25,1) forwards; }

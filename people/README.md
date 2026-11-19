@@ -5,7 +5,7 @@
 `public/people/` под именем из таблицы. После сборки на Vercel портрет появится сам —
 сайт отдаёт его со своего адреса, поэтому Википедия ученику не нужна.
 
-Сейчас лежит 33 из 36. Этот файл пишет команда `npm run people:export`.
+Сейчас лежит 33 из 45. Этот файл пишет команда `npm run people:export`.
 
 ## Как добавить портрет
 
@@ -62,7 +62,7 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 | 10 | Адам Смит | 1723–1790 | Люди рынка | `smith.jpg` | [статья](https://en.wikipedia.org/wiki/Adam_Smith) | ✓ smith.jpg, подпись есть |
 | 11 | Флеминг Дженкин | 1833–1885 | Люди рынка | `jenkin.jpg` | [статья](https://en.wikipedia.org/wiki/Fleeming_Jenkin) | ✓ jenkin.jpg, подпись есть |
 | 12 | Альфред Маршалл | 1842–1924 | Люди рынка | `marshall.jpg` | [статья](https://en.wikipedia.org/wiki/Alfred_Marshall) | ✓ marshall.jpg, подпись есть |
-| 13 | Грегори Кинг | 1648–1712 | Люди чисел | `king.jpg` | [статья](https://en.wikipedia.org/wiki/Gregory_King) | — |
+| 13 | Торстейн Веблен | 1857–1929 | Люди чисел | `veblen.jpg` | [статья](https://en.wikipedia.org/wiki/Thorstein_Veblen) | — |
 | 14 | Эрнст Энгель | 1821–1896 | Люди чисел | `engel.jpg` | [статья](https://en.wikipedia.org/wiki/Ernst_Engel) | ✓ engel.jpg, подпись есть |
 | 15 | Роберт Гиффен | 1837–1910 | Люди чисел | `giffen.jpg` | [статья](https://en.wikipedia.org/wiki/Robert_Giffen) | ✓ giffen.jpg, подпись есть |
 | 16 | Артур Пигу | 1877–1959 | Люди общего | `pigou.jpg` | [статья](https://en.wikipedia.org/wiki/Arthur_Cecil_Pigou) | ✓ pigou.jpg, подпись есть |
@@ -86,3 +86,12 @@ robbins;Имя Фамилия автора;CC BY-SA 4.0;https://commons.wikimedi
 | 34 | Анн Робер Жак Тюрго | 1727–1781 | Люди отдачи | `turgot.jpg` | [статья](https://en.wikipedia.org/wiki/Anne_Robert_Jacques_Turgot) | ✓ turgot.jpg, подпись есть |
 | 35 | Иоганн Генрих фон Тюнен | 1783–1850 | Люди отдачи | `thunen.jpg` | [статья](https://en.wikipedia.org/wiki/Johann_Heinrich_von_Thunen) | ✓ thunen.jpg, подпись есть |
 | 36 | Пол Дуглас | 1892–1976 | Люди отдачи | `douglas.jpg` | [статья](https://en.wikipedia.org/wiki/Paul_Douglas) | ✓ douglas.jpg, подпись есть |
+| 37 | Бенджамин Франклин | 1706–1790 | «Чтение» | `franklin.jpg` | [статья](https://en.wikipedia.org/wiki/Benjamin_Franklin) | — |
+| 38 | Генри Хэзлитт | 1894–1993 | «Чтение» | `hazlitt.jpg` | [статья](https://en.wikipedia.org/wiki/Henry_Hazlitt) | — |
+| 39 | Джон Мейнард Кейнс | 1883–1946 | «Чтение» | `keynes.jpg` | [статья](https://en.wikipedia.org/wiki/John_Maynard_Keynes) | — |
+| 40 | Джон Хикс | 1904–1989 | «Чтение» | `hicks.jpg` | [статья](https://en.wikipedia.org/wiki/John_Hicks) | — |
+| 41 | Дэвид Юм | 1711–1776 | «Чтение» | `hume.jpg` | [статья](https://en.wikipedia.org/wiki/David_Hume) | — |
+| 42 | Пьеро Сраффа | 1898–1983 | «Чтение» | `sraffa.jpg` | [статья](https://en.wikipedia.org/wiki/Piero_Sraffa) | — |
+| 43 | Томас Соуэлл | род. 1930 | «Чтение» | `sowell.jpg` | [статья](https://en.wikipedia.org/wiki/Thomas_Sowell) | — |
+| 44 | Фредерик Бастиа | 1801–1850 | «Чтение» | `bastiat.jpg` | [статья](https://en.wikipedia.org/wiki/Fr%C3%A9d%C3%A9ric_Bastiat) | — |
+| 45 | Фридрих Хайек | 1899–1992 | «Чтение» | `hayek.jpg` | [статья](https://en.wikipedia.org/wiki/Friedrich_Hayek) | — |

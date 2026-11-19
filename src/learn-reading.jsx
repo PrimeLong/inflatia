@@ -7,11 +7,13 @@ import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ArrowRight, Gem } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Button } from './ds.jsx';
+import { Button, AnswerBar } from './ds.jsx';
 import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
-import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho } from './learn/reading.js';
-import { tallyAnswer, finishLesson, markRead, markReadGem, countAnswers, addStudySeconds } from './textbook/learn-state.js';
+import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho, readingAuthorId } from './learn/reading.js';
+import { PEOPLE } from './learn/people.js';
+import { cachedPhoto } from './learn/portraits.js';
+import { tallyAnswer, streakNow, finishLesson, markRead, markReadGem, countAnswers, addStudySeconds } from './textbook/learn-state.js';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
 
 const CSS = `
@@ -29,6 +31,8 @@ const CSS = `
   .rd-sheet::before { content: ''; position: absolute; inset: 10px; border-radius: 15px; border: 1px solid color-mix(in srgb, var(--rd) 22%, transparent); pointer-events: none; }
   @keyframes rd-turn { from { opacity: 0; transform: translateX(26px) rotate(.6deg); } }
   .rd-who { display: flex; align-items: center; gap: 14px; }
+  .rd-face { overflow: hidden; padding: 0; }
+  .rd-face img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block; filter: sepia(.25) contrast(1.04); }
   .rd-seal { flex: none; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; color: var(--rd-ink); font: 700 19px var(--ds-news, Georgia, serif); letter-spacing: .04em;
     background: radial-gradient(circle, color-mix(in srgb, var(--rd) 10%, var(--ds-card)) 58%, transparent 59%);
     box-shadow: inset 0 0 0 2px var(--rd), inset 0 0 0 5px var(--ds-card), inset 0 0 0 6px color-mix(in srgb, var(--rd) 55%, transparent); }
@@ -105,7 +109,7 @@ function Page({ p, i, n, answered, onAnswer, gem = false }) {
   return (
     <article className="rd-sheet" key={i} data-testid="reading-page" data-page={i + 1} data-kind={p.ask.kind}>
       <div className="rd-who">
-        <span className="rd-seal" aria-hidden="true">{p.initials}</span>
+        <AuthorSeal p={p} />
         <div style={{ minWidth: 0 }}>
           <div className="rd-name">{p.author} <span style={{ fontWeight: 400, color: 'var(--ds-ink3)', fontSize: 14 }}>· {p.years}</span></div>
           <div className="rd-meta"><em>{p.book}</em>, {p.year} · страница {i + 1} из {n}</div>
@@ -138,23 +142,35 @@ function Page({ p, i, n, answered, onAnswer, gem = false }) {
             {opts.map((o) => {
               const state = !answered ? '' : o.ok ? 'ok' : pick === o.k ? 'bad' : '';
               return (
-                <button key={o.k} type="button" className={`rd-opt ${state}`} disabled={!!answered} data-testid="reading-opt" data-ok={o.ok ? '1' : undefined}
+                <button key={o.k} type="button" className={`ds-opt ${state === 'ok' ? 'right' : state === 'bad' ? 'wrong' : ''}`} aria-pressed={pick === o.k} disabled={!!answered} data-testid="reading-opt" data-ok={o.ok ? '1' : undefined}
                   onClick={() => onAnswer({ pick: o.k, ok: !!o.ok })}>{o.text}</button>
               );
             })}
           </div>
         )}
         {answered && (
-          <div ref={fbRef} style={{ scrollMarginBottom: 96 }} className={`rd-fb${answered.ok ? '' : ' bad'}`} role="status" data-testid="reading-feedback" data-ok={String(answered.ok)}>
-            <b>{answered.ok ? 'Верно.' : 'Не совсем.'}</b>{' '}
-            {!answered.ok && !mark && (p.ask.options[answered.pick] || {}).why ? <>{p.ask.options[answered.pick].why} </> : null}
-            {!answered.ok && mark ? <>Нужные слова подчёркнуты. </> : null}
-            {p.ask.explain}
+          <div ref={fbRef} style={{ scrollMarginBottom: 96 }}>
+            <AnswerBar ok={answered.ok} className="sp-inline" role="status" data-testid="reading-feedback" data-ok={String(answered.ok)}>
+              <div className="ln-fb-body">
+                {!answered.ok && !mark && (p.ask.options[answered.pick] || {}).why ? <>{p.ask.options[answered.pick].why} </> : null}
+                {!answered.ok && mark ? <>Нужные слова подчёркнуты. </> : null}
+                {p.ask.explain}
+              </div>
+            </AnswerBar>
           </div>
         )}
       </div>
     </article>
   );
+}
+
+// портрет автора страницы: фото из «Персоналий» или своё (src/learn/reading.js, READING_AUTHORS), иначе — печать с инициалами
+function AuthorSeal({ p }) {
+  const id = readingAuthorId(p.author, PEOPLE);
+  const ph = id ? cachedPhoto({ id }) : null;
+  const [bad, setBad] = useState(false);
+  if (!ph || bad) return <span className="rd-seal" aria-hidden="true" data-testid="reading-seal">{p.initials}</span>;
+  return <span className="rd-seal rd-face" data-testid="reading-face"><img src={ph.file} alt={`Портрет: ${p.author}`} loading="lazy" decoding="async" onError={() => setBad(true)} /></span>;
 }
 
 /* полка: все подборки, прочитанные — книгами; прочитанная впервые (fresh) падает на место, перечитанная (here) просто
@@ -202,7 +218,7 @@ function WhoPage({ items, picks, onPick }) {
               {opts[k].map((o) => {
                 const ok = o.text === it.answer;
                 const state = pick == null ? '' : ok ? 'ok' : pick === o.text ? 'bad' : '';
-                return <button key={o.text} type="button" className={`rd-opt ${state}`} disabled={pick != null} data-testid="reading-who-opt" data-ok={ok ? '1' : undefined}
+                return <button key={o.text} type="button" className={`ds-opt ${state === 'ok' ? 'right' : state === 'bad' ? 'wrong' : ''}`} aria-pressed={pick === o.text} disabled={pick != null} data-testid="reading-who-opt" data-ok={ok ? '1' : undefined}
                   onClick={() => onPick(k, o.text)}>{o.text}</button>;
               })}
             </div>
@@ -218,7 +234,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   // вышли посреди чтения — продолжаем с той же страницы, с теми же ответами (learn-special.jsx)
   const resume = useSpecialResume('read', id, gem);
   const was = resumedState(resume);
-  const run = useAnswerRun(was ? was.run || 0 : 0, [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
+  const run = useAnswerRun(was ? was.run || 0 : streakNow(learn || {}), [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
   const [idx, setIdx] = useState(() => (was ? was.idx : 0));
   const [answers, setAnswers] = useState(() => (was ? was.answers : []));
   const [done, setDone] = useState(false);
@@ -328,8 +344,8 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
           </div>
         </div>
       )}
-      <div className="rd-foot">
-        <div>
+      <div className="ln-foot sp-foot" data-testid="reading-foot">
+        <div className="ln-inner">
           {done
             ? <Button wide icon={Check} data-testid="reading-finish" onClick={() => { Audio.play('click'); onClose(); }}>{gem ? 'Готово' : 'Дальше'}</Button>
             : whoStage ? <Button wide icon={Check} disabled={!whoDone} data-testid="reading-next" onClick={next}>{whoDone ? 'Готово' : 'Выберите автора у каждой цитаты'}</Button>

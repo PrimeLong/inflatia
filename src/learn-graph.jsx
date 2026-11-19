@@ -15,7 +15,7 @@ import { Sketch, SKETCH_CSS, SKETCH_QUERY } from './learn-sketch.jsx';
 import { CHARTS } from './textbook/charts.js';
 import { sceneInCrowns } from './learn/money.js';
 import { GRAPH_BY_ID, GRAPH_XP, isGraphDone, stepView, graphCloze } from './learn/graphs.js';
-import { tallyAnswer, finishLesson, markGraph, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
+import { tallyAnswer, streakNow, finishLesson, markGraph, countAnswers, markGem, hasGem, addStudySeconds } from './textbook/learn-state.js';
 import { DIAMOND_COLOR } from './ds-tokens.js';
 import { ReportFlag, EXPLAIN_REASONS } from './learn-report.jsx';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -87,7 +87,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
   // вышли посреди разбора — продолжаем с того же шага (learn-special.jsx); подсказка из урока (peek) — без этого
   const resume = useSpecialResume('graph', id, gem);
   const was = peek ? null : resumedState(resume);
-  const run = useAnswerRun(was ? was.run || 0 : 0, [], (ok) => { if (update && !peek) update((st) => tallyAnswer(st, ok)); });
+  const run = useAnswerRun(was ? was.run || 0 : streakNow(learn || {}), [], (ok) => { if (update && !peek) update((st) => tallyAnswer(st, ok)); });
   const [k, setK] = useState(() => (was ? was.k : 0));
   const [replay, setReplay] = useState(0);
   const [phase, setPhase] = useState(() => (was ? was.phase : 'tour')); // tour → quiz → done

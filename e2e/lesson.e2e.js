@@ -120,7 +120,7 @@ test('урок: после перезагрузки продолжается с 
 });
 
 // жалоба mw83dngv (09.11): «график всё ещё сломан» — в «Наценке» каждый ответ двигает график, подписи видны всегда
-test('игра «Наценка ниже или выше?»: каждое событие сдвигает наценку, подписи «наценка» и MR на месте и не на оси', async ({ page }) => {
+test('игра «Наценка ниже или выше?»: каждое событие сдвигает наценку; график — сцена «Разбора» (D, MR, MC, наценка), MR не на оси', async ({ page }) => {
   await withTestFlag(page);
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
@@ -142,19 +142,44 @@ test('игра «Наценка ниже или выше?»: каждое соб
     await ex.locator(`button[data-side="${side}"]`).click();
     await expect.poll(async () => JSON.parse(await chart.getAttribute('data-state')).m).not.toBe(states[states.length - 1]);
     states.push(JSON.parse(await chart.getAttribute('data-state')).m);
-    await expect(chart.getByTestId('game-markup-label')).toBeVisible();
-    await expect(chart.getByTestId('game-mr-label')).toBeVisible();
+    await expect(chart.locator('text', { hasText: /^MR$/ })).toHaveCount(1);
   }
-  // полосы от оси цен нет, отрезок наценки — ровно на пунктире выпуска (владелец 09.11: «полоса не ровная, она слева»)
-  await expect(chart.locator('rect')).toHaveCount(0);
-  // график доезжает до нового состояния плавно — сравниваем в один момент, когда он встал
-  await expect.poll(() => chart.evaluate((svg) => {
-    const bar = svg.querySelector('[data-testid=game-markup-bar]'); const q = svg.querySelector('line[stroke-dasharray="3 3"]');
-    return Math.abs(Number(bar.getAttribute('x1')) - Number(q.getAttribute('x1')));
-  })).toBeLessThan(0.01);
-  // подпись MR не на оси Q: её низ выше оси
-  const axisY = await chart.evaluate((svg) => { const r = svg.getBoundingClientRect(); const vb = svg.viewBox.baseVal; return r.top + ((200 - 26) / vb.height) * r.height; });
-  expect((await chart.getByTestId('game-mr-label').boundingBox()).y + (await chart.getByTestId('game-mr-label').boundingBox()).height).toBeLessThanOrEqual(axisY + 1);
+  /* график — сцена «Разбора графика» (пункт владельца 19.11: «в мини-игре должен быть график, такой же как в разборе»):
+     спрос на товар фирмы, MR и MC, наценка — прямоугольник от MC до цены; подпись MR — не на оси Q */
+  await expect(chart).toHaveAttribute('data-model', 'markup');
+  await expect(chart.getByTestId('graph-stage')).toBeVisible();
+  await expect(chart.locator('[data-el="rect:0"]')).toHaveCount(1);
+  for (const c of ['D', 'MR', 'MC']) await expect(chart.locator(`[data-el="${c}"]`)).toHaveCount(1);
+  const axis = await chart.locator('[data-el="axes"] line').first().boundingBox();
+  const mr = await chart.locator('text', { hasText: /^MR$/ }).boundingBox();
+  expect(mr.y + mr.height).toBeLessThanOrEqual(axis.y + 1);
+  expect(errors).toEqual([]);
+});
+
+// пункт владельца 19.11: «в главе про производственную функцию — спрос и предложение» — теперь общий продукт цеха, как в «Разборе»
+test('игра «Завода»: на графике — общий продукт TP сценой «Разбора графика»; станки двигают кривую, работники — точку', async ({ page }) => {
+  await withTestFlag(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const units = ['scarcity', 'labor', 'household', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer'];
+    const ids = ['pr-i1', 'pr-l1', 'pr-i2', 'pr-l2', 'pr-w', 'pr-s1', 'pr-radio'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { units: Object.fromEntries(units.map((u) => [u, { tested: at }])),
+      lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'pr-g');
+  const ex = page.getByTestId('ex');
+  const chart = ex.getByTestId('game-chart');
+  await expect(chart).toHaveAttribute('data-model', 'product');
+  await expect(chart.getByTestId('graph-stage')).toBeVisible();
+  await expect(chart.locator('[data-el="TP"]')).toHaveCount(1);
+  await expect(chart.locator('[data-el="D"], [data-el="S"]')).toHaveCount(0);
+  await ex.getByTestId('game-start').click();
+  const card = ex.getByTestId('game-card');
+  const st0 = JSON.parse(await chart.getAttribute('data-state'));
+  for (let i = 0; i < 4; i += 1) { const side = await card.getAttribute('data-answer'); await ex.locator(`button[data-side="${side}"]`).click(); }
+  await expect.poll(async () => JSON.stringify(JSON.parse(await chart.getAttribute('data-state')))).not.toBe(JSON.stringify(st0));
   expect(errors).toEqual([]);
 });
 

@@ -619,13 +619,15 @@ function parseExercise(kind, attrs, body) {
    на бюджетной линии (chart=budget) — out / in (доход вырос или упал: сдвиг параллельно),
    ox / ix и oy / iy (товар X или Y подешевел или подорожал: поворот);
    на эластичности (chart=elastic) — in / el (спрос неэластичный: кривая крутая, выручка от
-   подорожания растёт; эластичный: кривая пологая, выручка падает).
+   подорожания растёт; эластичный: кривая пологая, выручка падает);
+   на общем продукте цеха (chart=product, «Завод») — A+ / A- (технологии лучше или хуже: кривая TP выше или ниже),
+   L+ / L- (работников больше или меньше: точка идёт по кривой).
    Текст до пунктов — условие игры.
      wallet — «Сбереги кошелёк» (src/learn/wallet.js): новости «- текст >> high|mid|low» — какую
      инфляцию сулит новость; игра сама подбирает к каждой прогноз и ставку банка. */
 const ROUND_KINDS = ['swipe', 'rush', 'wallet'];
 const WALLET_LEVELS = ['high', 'mid', 'low'];
-export const ROUND_EFFECTS = { market: ['D+', 'D-', 'S+', 'S-'], ppf: ['out', 'in', 'ox', 'oy', 'ix', 'iy', 'x', 'y'], budget: ['out', 'in', 'ox', 'ix', 'oy', 'iy'], elastic: ['in', 'el'], costs: ['fc', 'vc'], power: ['pt', 'mp'], markup: ['lo', 'hi'] };
+export const ROUND_EFFECTS = { market: ['D+', 'D-', 'S+', 'S-'], ppf: ['out', 'in', 'ox', 'oy', 'ix', 'iy', 'x', 'y'], budget: ['out', 'in', 'ox', 'ix', 'oy', 'iy'], elastic: ['in', 'el'], costs: ['fc', 'vc'], power: ['pt', 'mp'], markup: ['lo', 'hi'], product: ['A+', 'A-', 'L+', 'L-'] };
 function parseRound(kind, attrs, body) {
   if (!ROUND_KINDS.includes(kind)) throw new Error(`Неизвестный раунд :::round ${kind}`);
   if (!attrs.id) throw new Error(`У игры ${kind} нет id`);

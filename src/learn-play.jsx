@@ -18,7 +18,8 @@ import { CAST } from './learn/cast.js';
 import { useReducedMotion } from './ds-art.jsx';
 import { Button } from './ds.jsx';
 import { evalExpr, fmtResult, pressRoot } from './learn/calc.js';
-import { powerModel, powerMc } from './learn/power-chart.js';
+import { gameGraph } from './learn/game-graph.js';
+import { GraphStage, STAGE_CSS } from './graph-stage.jsx';
 
 export { PLAY_CSS } from './learn-styles.js';
 
@@ -277,6 +278,7 @@ const BUDGET_LABEL = { out: 'Доход вырос', in: 'Доход упал', 
 const ELASTIC_LABEL = { in: 'Неэластичный: выручка растёт', el: 'Эластичный: выручка падает' };
 const COSTS_LABEL = { fc: 'Постоянные: поднялись только средние', vc: 'Переменные: поднялись все три кривые' };
 const POWER_LABEL = { pt: 'Ценополучатель: цена с рынка, P = MC', mp: 'Власть над ценой: цена выше MC' };
+const PRODUCT_LABEL = { 'A+': 'Технологии лучше: вся кривая TP выше', 'A-': 'Станки хуже: вся кривая TP ниже', 'L+': 'Работников больше: точка идёт вверх по TP', 'L-': 'Работников меньше: точка идёт вниз по TP' };
 const MARKUP_LABEL = { lo: 'Заменителей больше: спрос эластичнее, наценка ниже', hi: 'Товар заметнее: спрос менее эластичен, наценка выше' };
 /* подпись эффекта в пробной карточке: «Власть над ценой: цена выше MC» после ответа «Власть над ценой» —
    без повтора ответа, и MC не превращается в «mc» (было «власть над ценой: власть над ценой: цена выше mc») */
@@ -285,13 +287,20 @@ const trialEffect = (answer, label) => {
   const rest = t.toLowerCase().startsWith(`${String(answer).toLowerCase()}:`) ? t.slice(answer.length + 1).trim() : t;
   return rest.charAt(0).toLowerCase() + rest.slice(1);
 };
-const effectLabel = (chart, eff) => (chart === 'budget' ? BUDGET_LABEL[eff] : chart === 'elastic' ? ELASTIC_LABEL[eff] : chart === 'costs' ? COSTS_LABEL[eff] : chart === 'power' ? POWER_LABEL[eff] : chart === 'markup' ? MARKUP_LABEL[eff] : EFFECT_LABEL[eff]);
+const effectLabel = (chart, eff) => (chart === 'product' ? PRODUCT_LABEL[eff] : chart === 'budget' ? BUDGET_LABEL[eff] : chart === 'elastic' ? ELASTIC_LABEL[eff] : chart === 'costs' ? COSTS_LABEL[eff] : chart === 'power' ? POWER_LABEL[eff] : chart === 'markup' ? MARKUP_LABEL[eff] : EFFECT_LABEL[eff]);
 const BUDGET0 = { I: 100, px: 1.25, py: 1.25 };
 const MARKET_STEP = 16;
 // состояние графика после карточки: сдвиги понемногу забываются, чтобы график не уезжал за край
 // границы «Наценки»: спрос никогда не горизонтален (это уже совершенная конкуренция) и не круче монопольного
 const MARKUP_LO = 0.08; const MARKUP_HI = 1;
 function applyEffect(chart, st, eff) {
+  // производство: технологии поднимают и опускают всю кривую общего продукта, работники двигают точку вдоль неё; понемногу — назад
+  if (chart === 'product') {
+    let L = 3 + (st.L - 3) * 0.85; let A = 1.1 + (st.A - 1.1) * 0.85;
+    if (eff === 'A+') A = clampN(A + 0.12, 0.8, 1.5); if (eff === 'A-') A = clampN(A - 0.12, 0.8, 1.5);
+    if (eff === 'L+') L = clampN(L + 1.2, 1, 7.5); if (eff === 'L-') L = clampN(L - 1.2, 1, 7.5);
+    return { L, A };
+  }
   // эластичность: крутая или пологая кривая спроса через одну точку
   if (chart === 'elastic') return { e: eff === 'in' ? 0.4 : eff === 'el' ? 2.5 : st.e };
   // издержки: постоянная трата поднимает только средние общие, переменная — все три кривые
@@ -327,7 +336,7 @@ function applyEffect(chart, st, eff) {
   if (eff === 'y') t = clampN(t + 0.16, 0.08, 0.92);
   return { rx, ry, t };
 }
-const startState = (chart) => (chart === 'market' ? { D: 0, S: 0 } : chart === 'budget' ? { ...BUDGET0 } : chart === 'elastic' ? { e: 1 } : chart === 'costs' ? { fc: 0, vc: 0 } : chart === 'power' || chart === 'markup' ? { m: 0.5 } : { rx: 100, ry: 100, t: 0.5 });
+const startState = (chart) => (chart === 'product' ? { L: 3, A: 1.1 } : chart === 'market' ? { D: 0, S: 0 } : chart === 'budget' ? { ...BUDGET0 } : chart === 'elastic' ? { e: 1 } : chart === 'costs' ? { fc: 0, vc: 0 } : chart === 'power' || chart === 'markup' ? { m: 0.5 } : { rx: 100, ry: 100, t: 0.5 });
 // плавный переход к новому состоянию графика (при «уменьшить движение» — сразу)
 function useTween(target, ms = 420) {
   const reduced = useReducedMotion();
@@ -348,167 +357,16 @@ function useTween(target, ms = 420) {
   }, [JSON.stringify(target), reduced]);
   return v;
 }
-// бюджетная линия игры: от «всё на Y» до «всё на X», закрашены доступные наборы; пунктир — с чего начинали
-function BudgetGameChart({ st }) {
-  const W = 300; const H = 200; const L = 34; const B = 26; const T = 10; const R = 12; const M = 170;
-  const sx = (v) => L + (Math.min(v, M) / M) * (W - L - R); const sy = (v) => H - B - (Math.min(v, M) / M) * (H - B - T);
-  const xm = st.I / st.px; const ym = st.I / st.py;
-  const x0 = BUDGET0.I / BUDGET0.px; const y0 = BUDGET0.I / BUDGET0.py;
+// график мини-игры сценой «Разбора графика»: всё видно сразу, оси одни на всю игру, кривые едут за состоянием игры
+const roundSt = (st) => Object.fromEntries(Object.entries(st).map(([k, v]) => [k, Math.round(v * 100) / 100]));
+function GameGraph({ inst, st }) {
+  const gg = gameGraph(inst, st);
+  if (!gg) return null;
   return (
-    <svg className="lp-chart lp-game-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Бюджетная линия: всё на X — ${Math.round(xm)}, всё на Y — ${Math.round(ym)}`} data-testid="game-chart" data-chart="budget"
-      data-state={JSON.stringify({ x: Math.round(xm), y: Math.round(ym) })}>
-      <path d={`M${sx(0)},${sy(0)}L${sx(0)},${sy(ym)}L${sx(xm)},${sy(0)}Z`} fill="var(--u)" opacity=".12" />
-      <line x1={sx(0)} y1={sy(y0)} x2={sx(x0)} y2={sy(0)} stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 5" />
-      <line x1={sx(0)} y1={sy(ym)} x2={sx(xm)} y2={sy(0)} stroke="var(--u)" strokeWidth="4" strokeLinecap="round" />
-      <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <line x1={L} y1={T} x2={L} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <text x={W - R} y={H - 8} textAnchor="end" className="lp-ax">X</text>
-      <text x={L - 6} y={T + 8} textAnchor="end" className="lp-ax">Y</text>
-      <circle cx={sx(xm)} cy={sy(0)} r="4.5" fill="var(--u)" /><circle cx={sx(0)} cy={sy(ym)} r="4.5" fill="var(--u)" />
-      <text x={sx(xm)} y={H - B - 8} textAnchor="middle" className="lp-ax">{Math.round(xm)}</text>
-      <text x={L + 8} y={sy(ym) + 4} className="lp-ax">{Math.round(ym)}</text>
-    </svg>
-  );
-}
-/* Эластичность в игре: спрос через точку «цена 20, покупают 60». Крутая кривая — неэластичный
-   спрос, пологая — эластичный. Прямоугольники — выручка сейчас и после подорожания на 10%. */
-function ElasticGameChart({ st }) {
-  const W = 300; const H = 200; const L = 34; const B = 26; const T = 10; const R = 12;
-  const QM = 140; const PM = 40;
-  const sx = (q) => L + (Math.max(0, Math.min(q, QM)) / QM) * (W - L - R); const sy = (p) => H - B - (Math.max(0, Math.min(p, PM)) / PM) * (H - B - T);
-  const b = 3 * st.e; // |E| = b·P/Q в точке (60, 20)
-  const qAt = (p) => 60 - b * (p - 20);
-  const pAt = (q) => 20 - (q - 60) / b;
-  // концы прямой — там, где она входит в рамку графика и выходит из неё (а не по отдельности по осям: иначе наклон врёт)
-  const top = qAt(PM) >= 0 ? { q: qAt(PM), p: PM } : { q: 0, p: pAt(0) };
-  const bottom = qAt(0) <= QM ? { q: qAt(0), p: 0 } : { q: QM, p: pAt(QM) };
-  const p1 = 22; const q1 = Math.max(0, qAt(p1));
-  const r0 = 20 * 60; const r1 = p1 * q1;
-  const up = r1 >= r0;
-  return (
-    <svg className="lp-chart lp-game-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Спрос ${st.e < 1 ? 'неэластичный' : 'эластичный'}: выручка после подорожания ${Math.round(r1)} против ${r0}`}
-      data-testid="game-chart" data-chart="elastic" data-state={JSON.stringify({ e: Math.round(st.e * 100) / 100, up })}>
-      <rect x={sx(0)} y={sy(20)} width={sx(60) - sx(0)} height={sy(0) - sy(20)} fill="var(--ds-ink3)" opacity=".12" />
-      <rect x={sx(0)} y={sy(p1)} width={sx(q1) - sx(0)} height={sy(0) - sy(p1)} fill="none" stroke={up ? 'var(--ds-ok)' : 'var(--ds-bad)'} strokeWidth="2" strokeDasharray="5 4" />
-      <line x1={sx(top.q)} y1={sy(top.p)} x2={sx(bottom.q)} y2={sy(bottom.p)} stroke="var(--u)" strokeWidth="4" strokeLinecap="round" data-testid="elastic-demand" />
-      <circle cx={sx(60)} cy={sy(20)} r="4.5" fill="var(--u)" />
-      <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <line x1={L} y1={T} x2={L} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <text x={W - R} y={H - 8} textAnchor="end" className="lp-ax">Q</text>
-      <text x={L - 6} y={T + 8} textAnchor="end" className="lp-ax">P</text>
-      {/* подложка цвета фона: крутая кривая спроса проходит под надписью, но не перечёркивает её */}
-      <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: up ? 'var(--ds-ok)' : 'var(--ds-bad)', fontWeight: 700, stroke: 'var(--ds-paper)', strokeWidth: 5, paintOrder: 'stroke', strokeLinejoin: 'round' }}>
-        выручка при +10% цены: {up ? '↑' : '↓'} {Math.round(r1)}
-      </text>
-    </svg>
-  );
-}
-/* Издержки игры: средние общие (ATC), средние переменные (AVC) и предельные (MC) пекарни; пунктир —
-   с чего начинали. Постоянная трата поднимает только ATC, переменная — все три кривые: так видно,
-   почему аренда не меняет цену ещё одной партии. fc и vc — доля сдвига от 0 до 1 (плавный переход). */
-function CostsGameChart({ st }) {
-  const W = 300; const H = 200; const L = 34; const B = 26; const T = 10; const R = 12;
-  const QM = 8; const PM = 60;
-  const sx = (q) => L + (q / QM) * (W - L - R); const sy = (p) => H - B - (Math.max(0, Math.min(p, PM)) / PM) * (H - B - T);
-  const curve = (f) => { const pts = []; for (let k = 0; k <= 40; k += 1) { const q = 0.6 + (k / 40) * (QM - 0.6); pts.push(`${sx(q).toFixed(1)},${sy(f(q)).toFixed(1)}`); } return `M${pts.join('L')}`; };
-  const fc = 30 + 25 * (st.fc || 0); const v = 6 * (st.vc || 0);
-  const avc = (q, dv) => 14 - 3 * q + 0.5 * q * q + dv;
-  const mc = (q, dv) => 14 - 6 * q + 1.5 * q * q + dv;
-  const atc = (q, f, dv) => f / q + avc(q, dv);
-  return (
-    <svg className="lp-chart lp-game-chart" viewBox={`0 0 ${W} ${H}`} role="img"
-      aria-label={st.fc > 0.5 ? 'Постоянные издержки выросли: поднялись только средние общие' : st.vc > 0.5 ? 'Переменные издержки выросли: поднялись все три кривые' : 'Кривые издержек пекарни'}
-      data-testid="game-chart" data-chart="costs" data-state={JSON.stringify({ fc: Math.round((st.fc || 0) * 100) / 100, vc: Math.round((st.vc || 0) * 100) / 100 })}>
-      <path d={curve((q) => atc(q, 30, 0))} fill="none" stroke="var(--ds-ink3)" strokeWidth="1.5" strokeDasharray="4 4" />
-      <path d={curve((q) => mc(q, 0))} fill="none" stroke="var(--ds-ink3)" strokeWidth="1.5" strokeDasharray="4 4" opacity=".7" />
-      <path d={curve((q) => avc(q, v))} fill="none" stroke="var(--ds-ok)" strokeWidth="2.5" data-testid="costs-avc" />
-      <path d={curve((q) => mc(q, v))} fill="none" stroke="var(--ds-bad)" strokeWidth="2.5" data-testid="costs-mc" />
-      <path d={curve((q) => atc(q, fc, v))} fill="none" stroke="var(--u)" strokeWidth="3.5" strokeLinecap="round" data-testid="costs-atc" />
-      <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <line x1={L} y1={T} x2={L} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <text x={W - R} y={H - 8} textAnchor="end" className="lp-ax">Q</text>
-      <text x={L - 6} y={T + 8} textAnchor="end" className="lp-ax">C</text>
-      {[['ATC', atc(7.2, fc, v), 'var(--u)'], ['AVC', avc(7.2, v), 'var(--ds-ok)'], ['MC', mc(6.1, v), 'var(--ds-bad)']].map(([t, y, c], k) => (
-        <text key={t} x={k === 2 ? sx(6.1) - 4 : sx(7.6)} y={sy(y) - 4} textAnchor="end" className="lp-ax" style={{ fill: c, fontWeight: 700, stroke: 'var(--ds-paper)', strokeWidth: 4, paintOrder: 'stroke' }}>{t}</text>
-      ))}
-    </svg>
-  );
-}
-/* Рыночная власть: спрос на товар фирмы. У ценополучателя он горизонтален на уровне рыночной цены —
-   фирма продаёт там, где цена равна MC. У монополиста спрос падает, предельная выручка MR ниже
-   него, выпуск — где MR = MC, а цена со спроса выше MC: между ними — наценка. m — от 0 к 1. */
-/* markup — та же картинка для игры «Наценка ниже или выше?» (монополистическая конкуренция): спрос
-   никогда не горизонтален, каждое событие делает его чуть положе (больше заменителей) или круче */
-function PowerGameChart({ st, markup: mk = false }) {
-  const W = 300; const H = 200; const L = 34; const B = 26; const T = 10; const R = 12;
-  const QM = 12; const PM = 64;
-  const sx = (q) => L + (Math.max(0, Math.min(q, QM)) / QM) * (W - L - R); const sy = (p) => H - B - (Math.max(0, Math.min(p, PM)) / PM) * (H - B - T);
-  // спрос, MR и выпуск — по одной модели (src/learn/power-chart.js): цена лежит на спросе, выпуск — где MR = MC
-  const pm = powerModel(st.m);
-  const { m, q, p, dem, mr } = pm; const mc = powerMc;
-  const line = (f, q0, q1) => `M${sx(q0).toFixed(1)},${sy(f(q0)).toFixed(1)}L${sx(q1).toFixed(1)},${sy(f(q1)).toFixed(1)}`;
-  const markup = Math.round(pm.markup);
-  // подпись MR — у дальнего конца её линии, а не у точки MR = MC (там и так тесно)
-  // в «Наценке» наценка есть всегда — её подпись и MR не бледнеют до невидимости
-  const op = mk ? Math.max(m, 0.7) : m;
-  const mrTo = Math.min(QM, pm.mrEnd); const mrLabelQ = Math.min(QM - 1, mrTo) - 1;
-  const halo = { stroke: 'var(--ds-paper)', strokeWidth: 4, paintOrder: 'stroke', strokeLinejoin: 'round' };
-  return (
-    <svg className="lp-chart lp-game-chart" viewBox={`0 0 ${W} ${H}`} role="img"
-      aria-label={mk ? `Наценка над предельными издержками: ${markup}` : m > 0.5 ? `Власть над ценой: цена ${Math.round(p)} выше предельных издержек на ${markup}` : 'Ценополучатель: цена с рынка равна предельным издержкам'}
-      data-testid="game-chart" data-chart={mk ? 'markup' : 'power'} data-state={JSON.stringify({ m: Math.round(m * 100) / 100, markup })}>
-      {/* в «Наценке» полосы от оси нет: она висела слева и ни с чем на графике не совпадала (владелец 09.11: «эта полоса
-          не ровная, она слева») — наценка видна отрезком на линии выпуска */}
-      {!mk && <rect x={sx(0)} y={sy(p)} width={sx(q) - sx(0)} height={Math.max(0, sy(mc(q)) - sy(p))} fill="var(--u)" opacity={0.14 * m} />}
-      <path d={line(mc, 0, 9.6)} fill="none" stroke="var(--ds-ok)" strokeWidth="2.5" />
-      <path d={line(mr, 0, mrTo)} fill="none" stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 4" opacity={op} />
-      <path d={line(dem, 0, QM - 0.6)} fill="none" stroke="var(--u)" strokeWidth="4" strokeLinecap="round" data-testid="power-demand" />
-      <line x1={sx(q)} y1={sy(p)} x2={sx(q)} y2={sy(0)} stroke="var(--ds-ink3)" strokeDasharray="3 3" />
-      {/* наценка — отрезок от цены до MC ровно на линии выпуска (в «Наценке»), а не сбоку от неё */}
-      <line x1={sx(q) + (mk ? 0 : 7)} y1={sy(p)} x2={sx(q) + (mk ? 0 : 7)} y2={sy(mc(q))} stroke="var(--u)" strokeWidth={mk ? 4 : 2} strokeLinecap="round" opacity={op} data-testid="game-markup-bar" />
-      <circle cx={sx(q)} cy={sy(p)} r="5" fill="var(--u)" />
-      <circle cx={sx(q)} cy={sy(mc(q))} r="3.5" fill="var(--ds-ok)" opacity={m} />
-      <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <line x1={L} y1={T} x2={L} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="1.5" />
-      <text x={W - R} y={H - 8} textAnchor="end" className="lp-ax">Q</text>
-      <text x={L - 6} y={T + 8} textAnchor="end" className="lp-ax">P</text>
-      <text x={sx(1.2)} y={sy(mc(1.2)) - 7} className="lp-ax" style={{ fill: 'var(--ds-ok)', fontWeight: 700, ...halo }}>MC</text>
-      <text x={sx(1)} y={sy(dem(1)) - 8} className="lp-ax" style={{ fill: 'var(--u-ink)', fontWeight: 700, ...halo }}>спрос</text>
-      {/* подписи не на линиях (жалоба mvuaw8zo «что за ужас с графиком»): MR — слева от своей линии над осью,
-          наценка — над точкой цены, где нет ни спроса, ни MC */}
-      {/* в «Наценке» подписи — при любой наценке (на малой они пропадали, жалоба mw83dngv); MR — не на оси: у самой оси
-          подпись встаёт над линией */}
-      {/* в «Наценке» MR подписана у конца своей линии: дошла до оси Q внутри графика — справа от этой точки, над осью;
-          ушла за правый край — у края, над линией. Подпись не лежит ни на оси, ни на самой линии */}
-      {mk ? <text x={pm.mrEnd < QM - 1 ? sx(pm.mrEnd) + 6 : sx(QM) - 2} y={pm.mrEnd < QM - 1 ? H - B - 10 : Math.min(sy(mr(QM)) - 8, H - B - 10)} textAnchor={pm.mrEnd < QM - 1 ? 'start' : 'end'}
-        className="lp-ax" style={{ opacity: op, ...halo }} data-testid="game-mr-label">MR</text>
-        : m > 0.15 && <text x={sx(mrLabelQ) + 6} y={sy(mr(mrLabelQ)) + 12} className="lp-ax" style={{ opacity: op, ...halo }}>MR</text>}
-      {(mk || m > 0.15) && <text x={sx(q) + 10} y={sy(p) - 9} className="lp-ax" style={{ opacity: op, fill: 'var(--u-ink)', fontWeight: 700, ...halo }} data-testid="game-markup-label">наценка +{markup}</text>}
-      {/* в «Наценке» подпись — только при явном перевесе: на старте спрос средний, «много заменителей» было неправдой */}
-      {(!mk || Math.abs(m - 0.5) > 0.05) && <text x={W - R - 4} y={T + 14} textAnchor="end" className="lp-ax" style={{ fill: m > 0.5 ? 'var(--u-ink)' : 'var(--ds-ok)', fontWeight: 700, ...halo }}>{mk ? (m > 0.5 ? 'мало заменителей' : 'много заменителей') : m > 0.5 ? 'цена выше MC' : 'цена = MC'}</text>}
-    </svg>
-  );
-}
-// КПВ игры: четверть эллипса с концами rx (хлеб) и ry (станки); пунктир — с чего начинали
-function PpfGameChart({ st }) {
-  const W = 300; const H = 200; const L = 34; const B = 26; const T = 10; const R = 12;
-  const sx = (v) => L + (v / 140) * (W - L - R); const sy = (v) => H - B - (v / 140) * (H - B - T);
-  const path = (rx, ry) => { const pts = []; for (let k = 0; k <= 40; k += 1) { const a = (k / 40) * (Math.PI / 2); pts.push(`${sx(rx * Math.cos(a)).toFixed(1)},${sy(ry * Math.sin(a)).toFixed(1)}`); } return `M${pts.join('L')}`; };
-  const a = st.t * (Math.PI / 2);
-  const px = sx(st.rx * Math.cos(a)); const py = sy(st.ry * Math.sin(a));
-  return (
-    <svg className="lp-chart lp-game-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`КПВ: хлеба до ${Math.round(st.rx)}, станков до ${Math.round(st.ry)}`} data-testid="game-chart" data-chart="ppf"
-      data-state={JSON.stringify({ rx: Math.round(st.rx), ry: Math.round(st.ry), t: Math.round(st.t * 100) / 100 })}>
-      <path d={`${path(st.rx, st.ry)}L${sx(0)},${sy(0)}Z`} fill="var(--u)" opacity=".1" />
-      <path d={path(100, 100)} stroke="var(--ds-ink3)" strokeWidth="2" strokeDasharray="5 5" fill="none" />
-      <path d={path(st.rx, st.ry)} stroke="var(--u)" strokeWidth="4" fill="none" strokeLinecap="round" />
-      <line x1={L} y1={T} x2={L} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="2" />
-      <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--ds-ink2)" strokeWidth="2" />
-      <text x={L + 4} y={T + 10}>станки</text><text x={W - R} y={H - B - 6} textAnchor="end">хлеб</text>
-      <line x1={px} y1={py} x2={px} y2={H - B} stroke="var(--u)" strokeDasharray="3 4" opacity=".6" />
-      <line x1={L} y1={py} x2={px} y2={py} stroke="var(--u)" strokeDasharray="3 4" opacity=".6" />
-      <circle cx={px} cy={py} r="8" fill="var(--ds-card)" stroke="var(--u)" strokeWidth="4" />
-    </svg>
+    <div className="lp-game-graph gs-vars" data-testid="game-chart" data-chart={inst.chart} data-model={gg.g.chart} data-state={JSON.stringify(roundSt(st))}>
+      <style>{STAGE_CSS}</style>
+      <GraphStage g={gg.g} k={0} live={gg.live} showAll lockLive />
+    </div>
   );
 }
 // история цены за игру: маленькая линия под графиком рынка
@@ -600,10 +458,15 @@ export function GameRound({ inst, onDone, locked, result = null, best = 0, intro
   const begin = () => { Audio.play('click'); setSt(startState(inst.chart)); t0.current = Date.now(); setPhase('play'); };
   const sideHint = inst.kind === 'swipe' ? `кнопки внизу, стрелки ← → или смахните карточку` : 'кнопки внизу или стрелки ↑ ↓ на клавиатуре';
   const r = result || (phase === 'over' ? { right: answers.filter(Boolean).length, answered: answers.length, score: score + bonus, timeBonus: bonus, bestRun, record: false } : null);
-  const chart = inst.chart === 'market'
-    ? <><MarketChart m={inst.market} names={inst.names || null} shift={{ D: shown.D || 0, S: shown.S || 0 }} ghost eq label="Рынок в игре: спрос и предложение" /><PriceTicker prices={prices} name={inst.names && inst.names.y ? inst.names.y.split(',')[0].replace(/^./, (c) => c.toUpperCase()) : 'Цена'} unit={(inst.names && inst.names.unit) || ''} /></>
-    : inst.chart === 'ppf' ? <PpfGameChart st={shown} /> : inst.chart === 'budget' ? <BudgetGameChart st={shown} /> : inst.chart === 'elastic' ? <ElasticGameChart st={shown} />
-      : inst.chart === 'costs' ? <CostsGameChart st={shown} /> : inst.chart === 'power' ? <PowerGameChart st={shown} /> : inst.chart === 'markup' ? <PowerGameChart st={shown} markup /> : null;
+  /* график игры — тот же, что в «Разборе графика» юнита (src/learn/game-graph.js): модель учебника, сцена GraphStage */
+  const unit = String(inst.id || '').split('-')[0];
+  const tickerName = unit === 'hh' ? 'Ставка' : unit === 'mb' ? 'Ставка по кредитам' : inst.names && inst.names.y ? inst.names.y.split(',')[0].replace(/^./, (c) => c.toUpperCase()) : 'Цена';
+  const chart = inst.chart ? (
+    <>
+      <GameGraph inst={inst} st={shown} />
+      {inst.chart === 'market' && <PriceTicker prices={prices} name={tickerName} unit={unit === 'hh' || unit === 'mb' ? '%' : (inst.names && inst.names.unit) || ''} />}
+    </>
+  ) : null;
   return (
     <div data-testid="game" data-phase={phase} className="lp-game">
       {phase === 'ready' && (

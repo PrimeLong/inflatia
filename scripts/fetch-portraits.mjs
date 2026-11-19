@@ -18,6 +18,7 @@
    и upload.wikimedia.org). */
 import { writeFile, mkdir } from 'node:fs/promises';
 import { PEOPLE } from '../src/learn/people.js';
+import { READING_AUTHORS } from '../src/learn/reading.js';
 import { commonsFile, photoFromCommons } from '../src/learn/commons.js';
 import { PHOTOS } from '../src/learn/people-photos.js';
 import { listPeoplePhotos } from './voice-files-plugin.js';
@@ -31,7 +32,8 @@ let reached = false;
 await mkdir(new URL('../public/people/', import.meta.url), { recursive: true });
 // положенные руками: файл есть, а в прошлом списке скачанных его нет
 const manual = new Set(Object.keys(listPeoplePhotos()).filter((id) => !PHOTOS[id]));
-for (const p of PEOPLE.flatMap((g) => g.people)) {
+// люди «Персоналий» и авторы «Чтения», которых в «Персоналиях» нет
+for (const p of [...PEOPLE.flatMap((g) => g.people), ...READING_AUTHORS]) {
   if (!p.wiki) continue;
   if (manual.has(p.id)) { console.log(`· ${p.id}: фото положено руками — не трогаю`); continue; }
   try {

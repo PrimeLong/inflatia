@@ -717,9 +717,12 @@ test('плоскость на весь экран: предел отдалени
   await page.waitForTimeout(400);
   const wide = await shape();
   expect(wide.length).toBeGreaterThan(0);
+  // где на экране оси x = 0 и y = 0: прямые из первой четверти кончаются на них, а не уходят в «минус» (жалоба 19.11, копилка)
+  const ax = await st.evaluate((el) => { const n = (k) => Number(el.dataset[k]); const r = el.getBoundingClientRect(); return { x: ((0 - n('x0')) / (n('x1') - n('x0'))) * r.width, y: r.height - ((0 - n('y0')) / (n('y1') - n('y0'))) * r.height }; });
   for (const c of wide) {
-    const touches = [c.a, c.b].some(([x, y]) => x < 4 || y < 4 || x > c.w - 4 || y > c.h - 4);
-    expect(touches, `кривая ${c.id} доходит до края экрана`).toBe(true);
+    const touches = [c.a, c.b].some(([x, y]) => x < 4 || y < 4 || x > c.w - 4 || y > c.h - 4 || Math.abs(x - ax.x) < 3 || Math.abs(y - ax.y) < 3);
+    expect(touches, `кривая ${c.id} доходит до края экрана или до оси`).toBe(true);
+    for (const [x, y] of [c.a, c.b]) { expect(x, `кривая ${c.id} не левее оси P`).toBeGreaterThan(ax.x - 3); expect(y, `кривая ${c.id} не ниже оси Q`).toBeLessThan(ax.y + 3); }
   }
   // предел отдаления: сколько ни жми «−», не дальше ×0,1 (в 8 раз от «вписать»)
   for (let i = 0; i < 30; i += 1) await page.keyboard.press('-');

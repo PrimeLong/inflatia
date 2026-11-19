@@ -402,6 +402,10 @@ export const TEXTBOOK_CSS = `
 `;
 
 export const PLAY_CSS = `
+  /* график мини-игры — сцена «Разбора графика» (src/graph-stage.jsx); на телефоне не выше трети экрана */
+  .lp-game-graph { position: relative; }
+  .lp-game-graph svg { display: block; width: 100%; height: auto; max-width: 520px; max-height: 36vh; margin: 0 auto; overflow: visible; }
+  .lp-game-graph svg text { font-family: var(--ds-sans); }
   .lp-chart { width: 100%; max-width: 380px; display: block; margin: 6px auto 10px; touch-action: none; user-select: none; -webkit-user-select: none; }
   .lp-chart text { font: 700 12px var(--ds-mono); fill: var(--ds-ink2); }
   .lp-chart .lp-axis { font: 700 10.5px var(--ds-sans); letter-spacing: .03em; fill: var(--ds-ink3); paint-order: stroke; stroke: var(--ds-card); stroke-width: 3px; }
