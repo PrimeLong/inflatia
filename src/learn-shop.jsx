@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { trackDaily } from './lib/client.js';
 import { loadAccount } from './account.jsx';
 import { noScarcity } from './lib/age.js';
-import { ShieldCheck, Check, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles, Play, Pause } from 'lucide-react';
+import { ShieldCheck, Check, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles, Play, Pause, Pickaxe } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Mascot } from './mascot.jsx';
 import { Button, Card, Heading } from './ds.jsx';
@@ -135,13 +135,15 @@ export const RECORD_CSS = `
   /* проигрыватель на витрине (пункт владельца 19.11: «пластинка должна давать послушать фрагмент, это должно быть видно»):
      тонарм опускается на пластинку, она крутится, кольцо — сколько осталось из 20 секунд, ниже — отсчёт и «эквалайзер» */
   .rw-deck { position: relative; width: 96px; height: 84px; margin: 2px auto 4px; }
-  .rw-vinyl { position: absolute; left: 4px; top: 4px; width: 76px; height: 76px; border-radius: 50%; cursor: pointer; border: 0; padding: 0;
-    background: radial-gradient(circle, var(--rv, #C9A43A) 0 13px, #111 14px 15px, transparent 16px), repeating-radial-gradient(circle, #1d1d1d 0 1px, #2a2a2a 1px 3px);
-    box-shadow: 0 10px 20px -10px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.06); transition: transform .3s; }
-  .rw-vinyl::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(130deg, rgba(255,255,255,.18), transparent 40%); }
+  .rw-vinyl { position: absolute; left: 4px; top: 4px; width: 76px; height: 76px; border-radius: 50%; cursor: pointer; border: 0; padding: 0; background: none; transition: transform .3s; }
   .rw-vinyl:hover { transform: scale(1.04); }
-  .rw-vinyl.spin { animation: rw-vinyl 1.8s linear infinite; }
-  .rw-vinyl i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #111; }
+  /* крутится диск внутри кнопки, а не сама кнопка: касание «стоп» попадает в неподвижную кнопку */
+  .rw-disc { position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(circle, var(--rv, #C9A43A) 0 13px, #111 14px 15px, transparent 16px), repeating-radial-gradient(circle, #1d1d1d 0 1px, #2a2a2a 1px 3px);
+    box-shadow: 0 10px 20px -10px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.06); }
+  .rw-disc::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(130deg, rgba(255,255,255,.18), transparent 40%); }
+  .rw-disc.spin { animation: rw-vinyl 1.8s linear infinite; }
+  .rw-disc i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #111; }
   .rw-vinyl b { position: absolute; inset: 31px; border-radius: 50%; display: grid; place-items: center; color: #111; }
   .rw-ring { position: absolute; left: 0; top: 0; width: 84px; height: 84px; pointer-events: none; transform: rotate(-90deg); }
   .rw-ring circle { fill: none; stroke-width: 3; }
@@ -156,7 +158,7 @@ export const RECORD_CSS = `
   .rw-eq i:nth-child(2) { animation-delay: -.3s; } .rw-eq i:nth-child(3) { animation-delay: -.6s; } .rw-eq i:nth-child(4) { animation-delay: -.15s; }
   @keyframes rw-eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
   @keyframes rw-vinyl { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .rw-vinyl.spin, .rw-eq i { animation: none; } .rw-arm { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .rw-disc.spin, .rw-eq i { animation: none; } .rw-arm { transition: none; } }
 `;
 const RECORD_TINT = { 'rec-nights': '#7A5BD8', 'rec-gold': '#C9A43A', 'rec-aurora': '#2BE3A0', 'rec-gong': '#D2503C', 'rec-rain': '#5B8EC8', 'rec-funk': '#E07A2E' };
 export const PREVIEW_SECONDS = 20;
@@ -192,8 +194,8 @@ function RecordDisc({ o }) {
       <div className={`rw-deck${on ? ' on' : ''}`} style={{ '--rv': RECORD_TINT[o.id] }} data-testid="record-deck" data-on={String(on)}>
         <svg className="rw-ring" viewBox="0 0 84 84" aria-hidden="true"><circle className="bg" cx="42" cy="42" r="39" />
           {on && <circle className="fg" cx="42" cy="42" r="39" strokeDasharray={C} strokeDashoffset={C * (1 - left / PREVIEW_SECONDS)} data-testid="record-ring" />}</svg>
-        <button type="button" className={`rw-vinyl${on ? ' spin' : ''}`} onClick={toggle} aria-pressed={on}
-          aria-label={on ? `Остановить: ${o.title}` : `Послушать ${PREVIEW_SECONDS} секунд: ${o.title}`} data-testid="record-preview"><i /><b>{on ? <Pause size={12} aria-hidden="true" /> : <Play size={12} aria-hidden="true" />}</b></button>
+        <button type="button" className="rw-vinyl" onClick={toggle} aria-pressed={on}
+          aria-label={on ? `Остановить: ${o.title}` : `Послушать ${PREVIEW_SECONDS} секунд: ${o.title}`} data-testid="record-preview"><span className={`rw-disc${on ? ' spin' : ''}`} aria-hidden="true"><i /></span><b>{on ? <Pause size={12} aria-hidden="true" /> : <Play size={12} aria-hidden="true" />}</b></button>
         <svg className="rw-arm" viewBox="0 0 34 60" aria-hidden="true"><circle cx="26" cy="8" r="6" fill="var(--ds-ink3)" /><path d="M26 8 L26 40 L14 54" stroke="var(--ds-ink2)" strokeWidth="3" fill="none" strokeLinecap="round" /><rect x="8" y="50" width="10" height="7" rx="2" fill="var(--ds-ink2)" transform="rotate(-35 13 53)" /></svg>
       </div>
       <div className="rw-vinyl-t" data-testid="record-status" aria-live="polite">
@@ -442,7 +444,7 @@ function DustCard({ learn, onOpen }) {
    дня (касание — график и что такое кроны), ниже шесть вкладок: «Витрина» (вещи дня, на Хеллоуин —
    и сезонные), «Для урока» (темы и украшения урока), «Ювелир» (редкое, на что копят), «Гардероб»
    (примерочная), «Полезное» (копилка, страховка серии, двойной опыт) и «Протереть» (мини-игра
-   «Пыльная витрина»). Вкладка помнится, пока открыто приложение; из уведомления «вклад созрел»
+   «Пыльная витрина»), «Шахта» (инкременталка, src/learn-mine.jsx). Вкладка помнится, пока открыто приложение; из уведомления «вклад созрел»
    лавка открывается на «Полезном». */
 const SHOP_TABS = [
   { id: 'showcase', label: 'Витрина', icon: Store },
@@ -451,8 +453,11 @@ const SHOP_TABS = [
   { id: 'wardrobe', label: 'Гардероб', icon: Shirt },
   { id: 'useful', label: 'Полезное', icon: PiggyBank },
   { id: 'dust', label: 'Протереть', icon: Sparkles },
+  { id: 'mine', label: 'Шахта', icon: Pickaxe },
 ];
 let lastShopTab = 'showcase';
+// шахта — своим файлом: грузится, когда открывают вкладку (src/learn-mine.jsx)
+const MineGame = React.lazy(() => import('./learn-mine.jsx'));
 // «за ноябрь»; проценты — до десятых, с запятой
 // «1 декабря», «инфляция ноября»
 const MONTH_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -602,6 +607,11 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <style>{CLOTH_CSS}</style>
             <ClothCard learn={learn} update={update} />
             <PolishCard learn={learn} update={update} />
+          </>}
+
+          {tab === 'mine' && <>
+            <Heading level={3} title="Шахта" sub="Работа: бейте забой, уходите вглубь — там руда дороже. Руду — в жетоны, жетоны — в улучшения или в монеты лавки." />
+            <div style={{ marginTop: 10 }}><React.Suspense fallback={<div className="ds-sub" style={{ padding: 20 }}>Спускаемся в шахту…</div>}><MineGame learn={learn} update={update} /></React.Suspense></div>
           </>}
 
           {tab === 'lesson' && <>

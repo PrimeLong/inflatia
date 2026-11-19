@@ -1196,3 +1196,37 @@ test('лавка: пластинки — дешёвые, на витрине ф�
   await expect(item.getByTestId('record-deck')).toHaveAttribute('data-on', 'false');
   expect(errors).toEqual([]);
 });
+
+// пункт владельца 19.11, п. 12: новая работа — «Шахта», инкременталка: забой, руда, скупщик, улучшения, монеты
+test('лавка: «Шахта» — удары по забою ведут вглубь и дают руду; скупщик — жетоны; кирка — улучшение; монета — по растущей цене', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await shopTab(page, 'mine');
+  const mine = page.getByTestId('mine');
+  await expect(mine).toBeVisible();
+  const face = mine.getByTestId('mine-face');
+  for (let i = 0; i < 40; i += 1) await face.click();
+  await expect.poll(async () => Number(await mine.getAttribute('data-depth'))).toBeGreaterThan(5);
+  await expect(mine.getByTestId('mine-bag').locator('[data-ore="coal"]')).toContainText(/Уголь [1-9]/);
+  await mine.getByTestId('mine-sell').click();
+  await expect.poll(async () => Number(await mine.getAttribute('data-tokens'))).toBeGreaterThan(20);
+  // кирка: уровень растёт, жетоны списываются
+  const pick = mine.locator('[data-testid=mine-upgrade][data-id="pick"]');
+  await pick.getByTestId('mine-buy').click();
+  await expect(pick).toHaveAttribute('data-level', '1');
+  // монета: копим на первую (30 жетонов) и меняем
+  for (let k = 0; k < 6 && Number(await mine.getAttribute('data-tokens')) < 30; k += 1) {
+    for (let i = 0; i < 25; i += 1) await face.click();
+    await mine.getByTestId('mine-sell').click();
+  }
+  await expect(mine.getByTestId('mine-ladder').locator('span')).toHaveCount(8);
+  await mine.getByTestId('mine-exchange').click();
+  await expect(mine.getByTestId('mine-exchange')).toContainText('сегодня 1 из 8');
+  await expect(mine.getByTestId('mine-exchange')).toContainText('за 44 жетонов');
+  // прогресс шахты — на устройстве: после перезагрузки та же глубина
+  const depth = Number(await mine.getAttribute('data-depth'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await shopTab(page, 'mine');
+  await expect.poll(async () => Number(await page.getByTestId('mine').getAttribute('data-depth'))).toBeGreaterThanOrEqual(depth);
+  await expectNoSidewaysScroll(page);
+  expect(errors).toEqual([]);
+});
