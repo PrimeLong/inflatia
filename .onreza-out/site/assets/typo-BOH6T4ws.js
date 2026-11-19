@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";function t(e){if(typeof e!=`string`||!e)return e;let t=e;for(let e=0;e<4;e+=1){let e=t.replace(n,(e,t,n)=>`${t}${n} `);if(e===t)break;t=e}return t.replace(/[ \t]+—/g,`\xA0—`)}var n;function r(){return(r=e((()=>{n=RegExp(`(^|[\\s(«„"'\\u00a0])(в|к|с|о|у|и|а|на|по|за|от|до|из|не)[ \\t]+(?=\\S)`,`gi`)})))()}export{t as n,r as t};

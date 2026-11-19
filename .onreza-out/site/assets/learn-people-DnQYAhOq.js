@@ -1,0 +1,1 @@
+import"./react-B8XoyoxP.js";import{a as e,i as t,n,o as r,r as i,t as a}from"./learn-people-Crpzl1wm.js";e();export{a as PEOPLE_CSS,i as PhotoCredit,t as Portrait,n as default,r as usePhoto};

@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";import{Et as t}from"./course-core-Bfsx4qBT.js";var n;function r(){return(r=e((()=>{t(),n=(e,t)=>!!(t.recall&&e.problems[t.recall]&&e.problems[t.recall].ok)})))()}export{n,r as t};
