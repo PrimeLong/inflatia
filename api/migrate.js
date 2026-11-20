@@ -5,7 +5,7 @@
    сколько ключей в каждой базе. Ни ключей, ни значений ответ не показывает — только числа. После переноса MIGRATE_TOKEN
    удаляют, и адрес отвечает 404. */
 import { timingSafeEqual } from 'node:crypto';
-import { pgKvFromEnv } from './_lib/pgkv.js';
+import { pgKv, poolFrom } from './_lib/pgkv.js';
 import { copyBatch } from './_lib/kv-copy.js';
 
 const same = (a, b) => { const x = Buffer.from(String(a)); const y = Buffer.from(String(b)); return x.length === y.length && timingSafeEqual(x, y); };
@@ -18,7 +18,8 @@ export default async function handler(req, res) {
   const q = req.query || {};
   if (!same(q.token || '', secret)) return res.status(403).json({ error: 'Нет доступа' });
   if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return res.status(400).json({ error: 'Нет Upstash (KV_REST_API_*)' });
-  if (!dst) dst = pgKvFromEnv('DATABASE_URL');
+  // переносу — больше соединений, чем обычному адресу (до 10, если строка ONREZA разрешает)
+  if (!dst && process.env.DATABASE_URL) dst = pgKv(poolFrom(process.env.DATABASE_URL, process.env.DATABASE_CA || '', 10));
   if (!dst) return res.status(400).json({ error: 'Нет DATABASE_URL' });
   try {
     const { Redis } = await import('@upstash/redis');
@@ -28,8 +29,14 @@ export default async function handler(req, res) {
       const [, keys] = await dst.scan(0, { match: '*' });
       return res.status(200).json({ upstash, postgres: keys.length });
     }
-    const out = await copyBatch(src, dst, { cursor: String(q.cursor || '0'), count: Math.min(100, Number(q.count) || 40), missing: q.missing === '1', dry: q.dry === '1' });
-    return res.status(200).json(out);
+    // порции подряд, пока не кончится время вызова (~40 с из 60): ответ — где остановились и сколько перенесено
+    const t0 = Date.now(); let cursor = String(q.cursor || '0'); const counts = {}; let seen = 0; let done = false;
+    do {
+      const out = await copyBatch(src, dst, { cursor, count: Math.min(200, Number(q.count) || 100), missing: q.missing === '1', dry: q.dry === '1', parallel: 10 });
+      cursor = out.cursor; done = out.done; seen += out.seen;
+      Object.entries(out.counts).forEach(([k, n]) => { counts[k] = (counts[k] || 0) + n; });
+    } while (!done && Date.now() - t0 < 40000);
+    return res.status(200).json({ cursor, done, counts, seen });
   } catch (err) {
     console.error('migrate handler error:', err && err.message);
     return res.status(500).json({ error: 'Перенос остановлен', why: String((err && err.code) || (err && err.message) || '').slice(0, 120) });
