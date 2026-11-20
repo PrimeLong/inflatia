@@ -1431,3 +1431,30 @@ test('«Разбор графика» на весь экран: плоскост
   expect(errors).toEqual([]);
 });
 
+
+// жалоба 21.11 (plane): «зажимаешь левую кнопку мыши и крутишь колёсико — тебя колбасит»
+test('плоскость: колёсико посреди перетаскивания — масштаб остаётся, вид не прыгает назад', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'мышь и колёсико — на ПК');
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+  const chart = page.getByTestId('chapter').getByTestId('tb-chart').first();
+  await chart.scrollIntoViewIfNeeded();
+  await chart.getByTestId('tb-chart-zoom').click();
+  const st = page.getByTestId('plane-view').getByTestId('plane-stage');
+  await page.waitForTimeout(1100);
+  const span = () => st.evaluate((el) => Number(el.dataset.x1) - Number(el.dataset.x0));
+  const b = await st.boundingBox();
+  const cx = b.x + b.width / 2; const cy = b.y + b.height / 2;
+  await page.mouse.move(cx, cy); await page.mouse.down();
+  await page.mouse.move(cx + 40, cy + 10, { steps: 4 });
+  const before = await span();
+  await page.mouse.wheel(0, -300);
+  await expect.poll(span).toBeLessThan(before * 0.8);
+  const zoomed = await span();
+  // дальше тянем — масштаб тот же, а не откатился к прежнему
+  await page.mouse.move(cx + 80, cy + 20, { steps: 4 });
+  expect(Math.abs((await span()) - zoomed)).toBeLessThan(zoomed * 0.01);
+  await page.mouse.up();
+  expect(errors).toEqual([]);
+});
