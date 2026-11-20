@@ -6,7 +6,7 @@ import {
   VolumeX, Music, Trophy, Lock, Share2, GraduationCap, BookOpenText, Crown, Gavel, Hammer, Play, Calendar, BookOpen,
   Vote, Layers, Award, BarChart3, Medal, Handshake, HeartHandshake, LifeBuoy, Ban, DoorOpen, Factory, Wheat, Route,
   UserRound, Map as MapIcon, ShoppingBag, Ellipsis, Newspaper,
-  SkipBack, SkipForward, Pause, Heart,
+  SkipBack, SkipForward, Pause, Heart, ThumbsDown,
 } from 'lucide-react';
 // звуковой движок подгружается по первому клику — в стартовом файле только обёртка
 import { Audio } from './audio/lazy.js';
@@ -21,7 +21,7 @@ import { isChunkError, reloadOnce, reloadPending } from './lib/chunk-reload.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
-  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike, MOOD_TINT, setMusicPaused,
+  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike, musicDislikes, toggleMusicDislike, MOOD_TINT, setMusicPaused,
 } from './ds-tokens.js';
 import { DsRoot, Tabs } from './ds.jsx';
 import {
@@ -545,6 +545,7 @@ export const playerCss = () => `
   .mp-chip { padding: 1px 9px; border-radius: 999px; font: 700 11px/19px var(--ds-sans, sans-serif); color: var(--mp); background: color-mix(in srgb, var(--mp) 15%, transparent); }
   .mp-chip.rec { color: ${COLOR.goldSoft}; background: none; box-shadow: inset 0 0 0 1px ${COLOR.gold}; }
   .mp-like { flex: none; width: 42px; height: 42px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; background: color-mix(in srgb, currentColor 7%, transparent); color: inherit; transition: color .15s, transform .15s; }
+  .mp-dislike.on { color: #5B6B8A !important; animation: mp-pop .4s cubic-bezier(.3,1.8,.5,1); }
   .mp-like:hover { transform: scale(1.06); } .mp-like:active { transform: scale(.86); } .mp-like.on { color: #E0457B; animation: mp-pop .4s cubic-bezier(.3,1.8,.5,1); }
   @keyframes mp-pop { 40% { transform: scale(1.25); } }
   /* время записи */
@@ -611,8 +612,9 @@ export const playerCss = () => `
   @media (prefers-reduced-motion: reduce) { .mp, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
 `;
 
-// лайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
+// лайки и дизлайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
 Audio.setLikes(musicLikes());
+Audio.setDislikes(musicDislikes());
 /* кольцо спектра вокруг диска: полосы по кругу, длина — громкость полосы частот того, что звучит сейчас (Audio.levels);
    на паузе — тихое «дыхание»; при «Уменьшить движение» — неподвижное кольцо. data-live — шёл ли живой звук (для проверки) */
 function MusicViz({ on }) {
@@ -788,7 +790,12 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
             {/* лайк: «Волна» ставит пьесу чаще (пункт владельца 16.11) */}
             {np.id && (
               <button className={`mp-like${np.liked ? ' on' : ''}`} aria-pressed={!!np.liked} aria-label={np.liked ? 'Убрать лайк' : 'Нравится — чаще в «Волне»'} data-testid="music-like"
-                onClick={() => { Audio.play('tick'); Audio.setLikes(toggleMusicLike(np.id)); }}><Heart size={19} fill={np.liked ? 'currentColor' : 'none'} /></button>
+                onClick={() => { Audio.play('tick'); Audio.setLikes(toggleMusicLike(np.id)); Audio.setDislikes(musicDislikes()); }}><Heart size={19} fill={np.liked ? 'currentColor' : 'none'} /></button>
+            )}
+            {/* дизлайк (пункт владельца 21.11, п. 3): «Волна» эту пьесу больше не ставит; поставили на звучащую — сразу следующая */}
+            {np.id && (
+              <button className={`mp-like mp-dislike${np.disliked ? ' on' : ''}`} aria-pressed={!!np.disliked} aria-label={np.disliked ? 'Убрать дизлайк' : 'Не нравится — «Волна» больше не поставит'} data-testid="music-dislike"
+                onClick={() => { Audio.play('tick'); const on = !np.disliked; Audio.setDislikes(toggleMusicDislike(np.id)); Audio.setLikes(musicLikes()); if (on && music) { doKick('next'); Audio.skip(true); } }}><ThumbsDown size={19} fill={np.disliked ? 'currentColor' : 'none'} /></button>
             )}
           </div>
           <MusicTime np={np} />

@@ -65,10 +65,10 @@ export function createAudioEngine(options = {}) {
   let softMood = null; let softSeen = null; let softCount = 0;
   /* «Волна» (tracks.js, waveNext): история сыгранного (для «назад» и чтобы не повторяться), следующая пьеса — выбрана
      заранее (её запись загружается до конца текущей), пьесы с лайком — чаще */
-  let waveHist = []; let waveUp = null; let waveBack = false; let likes = [];
+  let waveHist = []; let waveUp = null; let waveBack = false; let likes = []; let dislikes = [];
   const rnd = options.rnd || Math.random;
   const isWave = () => lockedMood === 'wave';
-  const waveUpcoming = () => waveUp || (waveUp = waveNext(waveHist, { likes, rnd, records: ownedRecords }));
+  const waveUpcoming = () => waveUp || (waveUp = waveNext(waveHist, { likes, rnd, records: ownedRecords, dislikes }));
   let roleId = null;
   // купленные пластинки лавки (src/audio/tracks.js, RECORDS): микс «Пластинки» — только из них
   let ownedRecords = [];
@@ -1250,7 +1250,7 @@ export function createAudioEngine(options = {}) {
     // file — сейчас звучит запись (а не синтез): в панели у пьесы пометка «запись»
     nowPlaying: () => ({ id: track.id, name: track.name, subtitle: track.subtitle, mood: track.mood,
       moodLabel: MOOD_LABEL[track.mood], bpm: Math.round(track.bpm * tempoMod), locked: lockedMood,
-      file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), next: peekNext(),
+      file: !!(fileSrc && fileFor === track.id), liked: likes.includes(track.id), disliked: dislikes.includes(track.id), next: peekNext(),
       /* звучит ли сейчас (а не только включена ли музыка) и грузится ли запись — для диска и анимации загрузки в
          проигрывателе (замечание владельца 18.11, вечер: «непонятно, когда песня грузится; пластинка крутится, когда не играет») */
       playing: !!(running && ctx && ctx.state !== 'suspended' && !(fileFor === track.id && !fileSrc)),
@@ -1285,6 +1285,8 @@ export function createAudioEngine(options = {}) {
     playlist: () => (isWave() ? [] : listOf(lockedMood || mood).map((id) => ({ id, name: TRACKS[id].name, current: id === track.id, file: fileTrack(id) }))),
     // лайки: пьесы, которые «Волна» ставит чаще (хранит экран — ems-music-likes)
     setLikes(ids) { likes = Array.isArray(ids) ? ids.filter((id) => TRACKS[id]) : []; waveUp = null; notify(); },
+    // дизлайки: «Волна» эти пьесы не ставит (хранит экран — ems-music-dislikes)
+    setDislikes(ids) { dislikes = Array.isArray(ids) ? ids.filter((id) => TRACKS[id]) : []; waveUp = null; notify(); },
     waveHistory: () => [...waveHist],
     setRole(id) {
       if (roleId === id) return;
@@ -1299,7 +1301,7 @@ export function createAudioEngine(options = {}) {
       lockedMood = moodId || null;
       const list = listOf(lockedMood || mood);
       // «Волна» начинается заново: спокойная пьеса, случайная (лайкнутые — чаще)
-      if (isWave()) { waveHist = []; waveUp = null; waveBack = false; playlistIdx = 0; queue(waveNext([], { likes, rnd, records: ownedRecords })); notify(); if (!running && opts.music) this.startMusic(); return; }
+      if (isWave()) { waveHist = []; waveUp = null; waveBack = false; playlistIdx = 0; queue(waveNext([], { likes, rnd, records: ownedRecords, dislikes })); notify(); if (!running && opts.music) this.startMusic(); return; }
       playlistIdx = 0; queue(list[0]); notify();
       if (!running && opts.music) this.startMusic();
     },

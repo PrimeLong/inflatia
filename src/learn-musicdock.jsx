@@ -5,9 +5,9 @@
    Пока открыт урок — плашка скрыта (в шапке урока своя кнопка музыки). Звучит и книга — плашка музыки встаёт над плашкой
    книги. В обучении играет «Волна» (src/audio/tracks.js, waveNext). */
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Play, Pause, SkipForward, SkipBack, Heart, ChevronUp } from 'lucide-react';
+import { X, Play, Pause, SkipForward, SkipBack, Heart, ThumbsDown, ChevronUp } from 'lucide-react';
 import { Audio, AudioControls } from './MacroSimulator.jsx';
-import { learnMusic, setLearnMusic, toggleMusicLike, MOOD_TINT, musicPaused, setMusicPaused } from './ds-tokens.js';
+import { learnMusic, setLearnMusic, toggleMusicLike, toggleMusicDislike, musicLikes, musicDislikes, MOOD_TINT, musicPaused, setMusicPaused } from './ds-tokens.js';
 import { MINI_CSS, Bars } from './learn-bookdock.jsx';
 
 const DOCK_CSS = `
@@ -25,6 +25,7 @@ const DOCK_CSS = `
   html[data-music-dock] .ln-to-map { bottom: calc(160px + env(safe-area-inset-bottom)); }
   html[data-music-dock][data-book-dock] .ln-to-map { bottom: calc(238px + env(safe-area-inset-bottom)); }
   .lm-dock .lm-like.on { color: #E0457B; }
+  .lm-dock .lm-dislike.on { color: #5B6B8A; }
   .lm-dock .lb-mini-t { margin: 0 4px; }
   .lm-dock .lb-mini-t b { display: block; }
   .lm-dock .lb-mini-t b.in-next { animation: lm-in-r .35s ease-out; } .lm-dock .lb-mini-t b.in-prev { animation: lm-in-l .35s ease-out; }
@@ -117,7 +118,9 @@ export function MusicDock() {
           <b key={np.id || 'none'} className={kick ? `in-${kick}` : ''} data-testid="music-dock-title">{np.name}</b>
         </button>
         <button type="button" className={`lb-mini-skip lm-like${np.liked ? ' on' : ''}`} aria-pressed={!!np.liked} aria-label={np.liked ? 'Убрать лайк' : 'Нравится — чаще в «Волне»'} data-testid="music-dock-like"
-          onClick={() => { if (np.id) Audio.setLikes(toggleMusicLike(np.id)); }}><Heart size={17} fill={np.liked ? 'currentColor' : 'none'} aria-hidden="true" /></button>
+          onClick={() => { if (np.id) { Audio.setLikes(toggleMusicLike(np.id)); Audio.setDislikes(musicDislikes()); } }}><Heart size={17} fill={np.liked ? 'currentColor' : 'none'} aria-hidden="true" /></button>
+        <button type="button" className={`lb-mini-skip lm-like lm-dislike${np.disliked ? ' on' : ''}`} aria-pressed={!!np.disliked} aria-label={np.disliked ? 'Убрать дизлайк' : 'Не нравится — «Волна» больше не поставит'} data-testid="music-dock-dislike"
+          onClick={() => { if (!np.id) return; const was = !!np.disliked; Audio.setDislikes(toggleMusicDislike(np.id)); Audio.setLikes(musicLikes()); if (!was && on) skip(true); }}><ThumbsDown size={17} fill={np.disliked ? 'currentColor' : 'none'} aria-hidden="true" /></button>
         {/* развернуть полный проигрыватель: плейлист, «Что играть», громкость */}
         <AudioControls wave learn icon={ChevronUp} label="Развернуть проигрыватель" testid="music-dock-open" className="lm-open" />
         <button type="button" className="lb-mini-skip" onClick={() => { Audio.setMusic(false); setLearnMusic(false); setMusicPaused(null); setPaused(false); }} aria-label="Выключить музыку" data-testid="music-dock-close"><X size={17} aria-hidden="true" /></button>

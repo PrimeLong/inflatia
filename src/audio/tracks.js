@@ -755,8 +755,8 @@ MOOD_PLAYLISTS.wave = Object.keys(TRACKS).filter((id) => WAVE_MOODS.includes(TRA
    (waveMood), чтобы переход к ним был таким же плавным (пункт владельца 21.11, п. 1: «платные пластинки в волне не
    появляются»); некупленных в волне нет. */
 const waveMoodOf = (t) => t.waveMood || t.mood;
-export function waveNext(history = [], { likes = [], rnd = Math.random, records = [] } = {}) {
-  const liked = new Set(likes);
+export function waveNext(history = [], { likes = [], rnd = Math.random, records = [], dislikes = [] } = {}) {
+  const liked = new Set(likes); const disliked = new Set(dislikes);
   const prev = history.length ? TRACKS[history[history.length - 1]] : null;
   const recent = new Set(history.slice(-WAVE_RECENT));
   const lastAt = new Map(history.map((id, i) => [id, i]));
@@ -768,7 +768,10 @@ export function waveNext(history = [], { likes = [], rnd = Math.random, records 
     if (Math.abs(WAVE_ENERGY[m] - WAVE_ENERGY[waveMoodOf(prev)]) > 1) return false;
     return !strict || !recent.has(id);
   };
-  let pool = list.filter((id) => fits(id, true));
+  // дизлайкнутые — мимо, если есть из чего выбрать без них
+  const allowed = list.filter((id) => !disliked.has(id));
+  let pool = allowed.filter((id) => fits(id, true));
+  if (!pool.length) pool = allowed.filter((id) => fits(id, false));
   if (!pool.length) pool = list.filter((id) => fits(id, false));
   // очередь: не звучавшие и с лайком; нет таких — половина, звучавшая давнее всего
   let eligible = pool.filter((id) => !lastAt.has(id) || liked.has(id));

@@ -204,6 +204,17 @@ test('музыка в обучении: мини-плашка над вклад�
   if (await dock.getByTestId('music-dock-like').isVisible()) await dock.getByTestId('music-dock-like').click();
   else { await dock.getByTestId('music-dock-open').click(); await page.getByTestId('music-panel').getByTestId('music-like').click(); await page.getByTestId('music-panel').getByRole('button', { name: 'Закрыть' }).click(); }
   await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(1);
+  /* пункт владельца 21.11, п. 3: «нужна кнопка дизлайка» — в полном проигрывателе: дизлайк снимает лайк этой пьесы,
+     «Волна» сразу ставит следующую и больше её не выбирает */
+  const before = await dock.getByTestId('music-dock-title').textContent();
+  await dock.getByTestId('music-dock-open').click();
+  const panel0 = page.getByTestId('music-panel');
+  await panel0.getByTestId('music-dislike').click();
+  await expect(dock.getByTestId('music-dock-title')).not.toHaveText(before);
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-dislikes') || '[]')).length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(0);
+  await expect(panel0.getByTestId('music-dislike')).toHaveAttribute('aria-pressed', 'false');
+  await panel0.getByRole('button', { name: 'Закрыть' }).click();
   // пункт владельца 16.11, вечер: переключение видно — кнопка вздрагивает, название въезжает; есть «назад»
   const title0 = await dock.getByTestId('music-dock-title').textContent();
   await dock.getByTestId('music-dock-next').click();

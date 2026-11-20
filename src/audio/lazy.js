@@ -16,7 +16,7 @@ let meta = null;
 let loading = null;
 let earlyCtx = null;
 // лайки пьес — ждут движка, не загружая его
-let likes = [];
+let likes = []; let dislikes = [];
 // купленные пластинки — тоже ждут движка, не загружая его
 let records = [];
 const queue = [];
@@ -32,7 +32,7 @@ function load() {
     // настройки, выставленные до загрузки, переезжают в движок
     real.setVolume(opts.volume); real.setSfx(opts.sfx);
     if (!opts.music) real.setMusic(false);
-    real.setLikes(likes);
+    real.setLikes(likes); if (real.setDislikes) real.setDislikes(dislikes);
     if (real.setRecords) real.setRecords(records);
     listeners.forEach((f) => real.onChange(f));
     queue.splice(0).forEach(([name, args]) => { try { real[name](...args); } catch { /* тихо */ } });
@@ -93,6 +93,7 @@ export const Audio = {
   nowPlaying() { return real ? real.nowPlaying() : { name: 'Саундтрек загрузится по первому клику', subtitle: '', moodLabel: '', bpm: '—', locked: null }; },
   playlist() { return real ? real.playlist() : []; },
   setLikes(ids) { likes = Array.isArray(ids) ? [...ids] : []; if (real) real.setLikes(likes); notify(); },
+  setDislikes(ids) { dislikes = Array.isArray(ids) ? [...ids] : []; if (real && real.setDislikes) real.setDislikes(dislikes); notify(); },
   onChange(fn) {
     listeners.add(fn);
     const off = real ? real.onChange(fn) : null;

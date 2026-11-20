@@ -162,9 +162,21 @@ export const MOOD_TINT = { records: '#C9A43A', calm: '#3E7C6B', boom: '#C2780B',
   campaign: '#B0466B', stabilization: '#3F6E9E', authoritarian: '#5B4A7A', totalitarian: '#4A4A4A', wave: '#6A5AC0' };
 /* лайки пьес (docs/mechanics.md, «Музыка: „Волна“»): «Волна» ставит их чаще; помнит устройство */
 export const musicLikes = () => { try { const v = JSON.parse(store.get('ems-music-likes') || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 200) : []; } catch { return []; } };
+/* дизлайки (пункт владельца 21.11, п. 3: «нужна кнопка дизлайка»): «Волна» эти пьесы не ставит; лайк и дизлайк одной пьесы
+   не уживаются — новый снимает прежний. Помнит устройство (ems-music-dislikes) */
+const readList = (k) => { try { const v = JSON.parse(store.get(k) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 200) : []; } catch { return []; } };
+const writeList = (k, v) => store.set(k, v.length ? JSON.stringify(v) : null);
+export const musicDislikes = () => readList('ems-music-dislikes');
 export const toggleMusicLike = (id) => {
-  const cur = musicLikes(); const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
-  store.set('ems-music-likes', next.length ? JSON.stringify(next) : null);
+  const cur = musicLikes(); const on = !cur.includes(id); const next = on ? [...cur, id] : cur.filter((x) => x !== id);
+  writeList('ems-music-likes', next);
+  if (on) writeList('ems-music-dislikes', musicDislikes().filter((x) => x !== id));
+  return next;
+};
+export const toggleMusicDislike = (id) => {
+  const cur = musicDislikes(); const on = !cur.includes(id); const next = on ? [...cur, id] : cur.filter((x) => x !== id);
+  writeList('ems-music-dislikes', next);
+  if (on) writeList('ems-music-likes', musicLikes().filter((x) => x !== id));
   return next;
 };
 export const worldSfx = () => store.get('ems-world-sfx') !== '0';
