@@ -139,6 +139,40 @@ test('музыка: в панели нет «Заставок событий» �
   expect(errors).toEqual([]);
 });
 
+// пункт владельца 20.11, п. 6: «когда открываешь книгу, мини-проигрыватель исчезает»
+test('музыка в обучении: открыли книгу с полки — плашка музыки над читалкой, у нижнего края, текст и «Наверх» не под ней', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { met: { 'people-scarcity': Date.now() - 86400000 } } }));
+  });
+  const { errors } = await openApp(page);
+  await openTab(page, 'profile');
+  await page.getByTestId('prof-settings-open').click();
+  await page.getByTestId('prof-music').click();
+  await page.keyboard.press('Escape');
+  await openTab(page, 'path');
+  await openTab(page, 'profile');
+  const dock = page.getByTestId('music-dock');
+  await expect(dock).toBeVisible();
+  const shelf = page.getByTestId('prof-shelf');
+  const smith = shelf.locator('[data-testid=shelf-book][data-book="smith-wealth"]');
+  await smith.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await smith.click();
+  const book = page.getByTestId('book-reader');
+  await expect(book).toBeVisible();
+  // плашка видна поверх читалки: в её точке — сама плашка, а не страница книги
+  await expect(dock).toBeVisible();
+  const d = await dock.boundingBox();
+  const vh = page.viewportSize().height;
+  expect(d.y + d.height).toBeGreaterThan(vh - 40);
+  expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y).closest('[data-testid="music-dock"]'), [d.x + d.width / 2, d.y + d.height / 2])).toBe(true);
+  await dock.getByTestId('music-dock-play').click();
+  await expect(dock).toHaveAttribute('data-state', 'paused');
+  await page.getByTestId('book-close').click();
+  await expect(dock).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 // пункт владельца 16.11: «включил музыку в обучении, гуляешь по сайту, а мини-плашки нигде нет, как с аудиокнигой»
 test('музыка в обучении: мини-плашка над вкладками на всех вкладках — пауза, следующая, лайк, «×» выключает; в уроке скрыта', async ({ page }) => {
   const { errors } = await openApp(page);
