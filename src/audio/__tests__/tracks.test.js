@@ -288,3 +288,21 @@ describe('поправки громкости', () => {
     }
   });
 });
+
+// пункт владельца 21.11, п. 1: «платные пластинки почему-то в волне не появляются»
+describe('«Волна» и купленные пластинки', () => {
+  it('купленные пластинки звучат в «Волне» (по настроению своей основы), некупленные — нет', async () => {
+    const { waveNext, RECORD_TRACKS } = await import('../tracks.js');
+    const { seededRandom } = await import('../../research/randomize.js');
+    const owned = RECORD_TRACKS.slice(0, 2);
+    const run = (records) => { const rnd = seededRandom(7); const hist = []; for (let i = 0; i < 400; i += 1) hist.push(waveNext(hist, { rnd, records })); return hist; };
+    const withRec = run(owned);
+    owned.forEach((id) => expect(withRec, id).toContain(id));
+    RECORD_TRACKS.slice(2).forEach((id) => expect(withRec).not.toContain(id));
+    expect(run([]).some((id) => RECORD_TRACKS.includes(id))).toBe(false);
+    // переход к пластинке — тоже плавный: по энергии её основы
+    const { WAVE_ENERGY } = await import('../tracks.js');
+    const moodOf = (id) => TRACKS[id].waveMood || TRACKS[id].mood;
+    for (let i = 1; i < withRec.length; i += 1) expect(Math.abs(WAVE_ENERGY[moodOf(withRec[i])] - WAVE_ENERGY[moodOf(withRec[i - 1])])).toBeLessThanOrEqual(1);
+  });
+});

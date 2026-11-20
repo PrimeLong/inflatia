@@ -740,7 +740,8 @@ const MOOD_PLAYLISTS = {
 // пластинки лавки — src/audio/records.js (лёгкий модуль: его читает и лавка, не загружая музыку)
 export const RECORD_TRACKS = RECORDS.map((r) => r.track);
 export { RECORDS };
-RECORDS.forEach((r) => { const b = TRACKS[r.base] || TRACKS.dawn; TRACKS[r.track] = { ...b, id: r.track, name: r.name, subtitle: r.subtitle, mood: 'records', record: r.id, bpm: r.bpm }; });
+// waveMood — настроение основы: по нему купленная пластинка встаёт в «Волну» (пункт владельца 21.11, п. 1)
+RECORDS.forEach((r) => { const b = TRACKS[r.base] || TRACKS.dawn; TRACKS[r.track] = { ...b, id: r.track, name: r.name, subtitle: r.subtitle, mood: 'records', waveMood: b.mood, record: r.id, bpm: r.bpm }; });
 MOOD_PLAYLISTS.records = [...RECORD_TRACKS];
 
 export const WAVE_MOODS = ['calm', 'frost', 'slump', 'stabilization', 'boom', 'campaign', 'stag', 'authoritarian', 'crisis', 'war', 'totalitarian'];
@@ -750,20 +751,25 @@ export const WAVE_RECENT = 6;
 export const WAVE_LIKE_WEIGHT = 3;
 // все пьесы «Волны» — то, из чего она выбирает (в панели не показывается)
 MOOD_PLAYLISTS.wave = Object.keys(TRACKS).filter((id) => WAVE_MOODS.includes(TRACKS[id].mood));
-export function waveNext(history = [], { likes = [], rnd = Math.random } = {}) {
+/* records — купленные пластинки (id пьес): в «Волне» они на равных с саундтреком, по настроению своей основы
+   (waveMood), чтобы переход к ним был таким же плавным (пункт владельца 21.11, п. 1: «платные пластинки в волне не
+   появляются»); некупленных в волне нет. */
+const waveMoodOf = (t) => t.waveMood || t.mood;
+export function waveNext(history = [], { likes = [], rnd = Math.random, records = [] } = {}) {
   const liked = new Set(likes);
   const prev = history.length ? TRACKS[history[history.length - 1]] : null;
   const recent = new Set(history.slice(-WAVE_RECENT));
   const lastAt = new Map(history.map((id, i) => [id, i]));
+  const list = [...MOOD_PLAYLISTS.wave, ...records.filter((id) => TRACKS[id] && TRACKS[id].mood === 'records')];
   const fits = (id, strict) => {
-    const m = TRACKS[id].mood;
+    const m = waveMoodOf(TRACKS[id]);
     if (!prev) return m === WAVE_START;
-    if (id === prev.id || m === prev.mood) return false;
-    if (Math.abs(WAVE_ENERGY[m] - WAVE_ENERGY[prev.mood]) > 1) return false;
+    if (id === prev.id || m === waveMoodOf(prev)) return false;
+    if (Math.abs(WAVE_ENERGY[m] - WAVE_ENERGY[waveMoodOf(prev)]) > 1) return false;
     return !strict || !recent.has(id);
   };
-  let pool = MOOD_PLAYLISTS.wave.filter((id) => fits(id, true));
-  if (!pool.length) pool = MOOD_PLAYLISTS.wave.filter((id) => fits(id, false));
+  let pool = list.filter((id) => fits(id, true));
+  if (!pool.length) pool = list.filter((id) => fits(id, false));
   // очередь: не звучавшие и с лайком; нет таких — половина, звучавшая давнее всего
   let eligible = pool.filter((id) => !lastAt.has(id) || liked.has(id));
   if (!eligible.length) {

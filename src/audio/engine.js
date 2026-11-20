@@ -68,7 +68,7 @@ export function createAudioEngine(options = {}) {
   let waveHist = []; let waveUp = null; let waveBack = false; let likes = [];
   const rnd = options.rnd || Math.random;
   const isWave = () => lockedMood === 'wave';
-  const waveUpcoming = () => waveUp || (waveUp = waveNext(waveHist, { likes, rnd }));
+  const waveUpcoming = () => waveUp || (waveUp = waveNext(waveHist, { likes, rnd, records: ownedRecords }));
   let roleId = null;
   // купленные пластинки лавки (src/audio/tracks.js, RECORDS): микс «Пластинки» — только из них
   let ownedRecords = [];
@@ -1268,7 +1268,7 @@ export function createAudioEngine(options = {}) {
     },
     get ducked() { return ducked; },
     // какие пластинки куплены (id пьес): экран передаёт их из прогресса ученика
-    setRecords(ids) { ownedRecords = (Array.isArray(ids) ? ids : []).filter((id) => TRACKS[id] && TRACKS[id].mood === 'records'); notify(); },
+    setRecords(ids) { ownedRecords = (Array.isArray(ids) ? ids : []).filter((id) => TRACKS[id] && TRACKS[id].mood === 'records'); waveUp = null; notify(); },
     records: () => [...ownedRecords],
     levels(n = 48) {
       if (!analyser || !running) return null;
@@ -1299,7 +1299,7 @@ export function createAudioEngine(options = {}) {
       lockedMood = moodId || null;
       const list = listOf(lockedMood || mood);
       // «Волна» начинается заново: спокойная пьеса, случайная (лайкнутые — чаще)
-      if (isWave()) { waveHist = []; waveUp = null; waveBack = false; playlistIdx = 0; queue(waveNext([], { likes, rnd })); notify(); if (!running && opts.music) this.startMusic(); return; }
+      if (isWave()) { waveHist = []; waveUp = null; waveBack = false; playlistIdx = 0; queue(waveNext([], { likes, rnd, records: ownedRecords })); notify(); if (!running && opts.music) this.startMusic(); return; }
       playlistIdx = 0; queue(list[0]); notify();
       if (!running && opts.music) this.startMusic();
     },
