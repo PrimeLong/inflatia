@@ -504,6 +504,8 @@ export const playerCss = () => `
     box-shadow: 0 30px 60px -24px rgba(0,0,0,.5), 0 0 0 1px color-mix(in srgb, var(--mp) 26%, ${COLOR.border}); animation: mp-in .28s cubic-bezier(.2,.9,.3,1.2); }
   .mp::-webkit-scrollbar { display: none; }
   @keyframes mp-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+  .mp.out { animation: mp-out .2s cubic-bezier(.4,0,.8,.4) forwards; pointer-events: none; }
+  @keyframes mp-out { to { opacity: 0; transform: translateY(12px) scale(.96); } }
   .mp.dragging { box-shadow: 0 40px 70px -20px rgba(0,0,0,.6), 0 0 0 2px var(--mp); }
   /* живой свет: три размытых пятна цвета настроения медленно плывут за содержимым */
   .mp-aura { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; pointer-events: none; }
@@ -609,7 +611,7 @@ export const playerCss = () => `
   [data-skin="mint"] .mp .mp-title { font-family: var(--ds-head, serif); }
   :is([data-skin="exchange"], [data-skin="aurora"], [data-skin="blueprint"]) .mp :is(.mp-b:not(.main), .mp-x) { background: rgba(255,255,255,.09); }
   [data-skin] .mp .mp-mood[aria-checked="true"] { box-shadow: 0 0 0 2px rgba(0,0,0,.3), 0 0 0 4px var(--m); }
-  @media (prefers-reduced-motion: reduce) { .mp, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .mp, .mp.out, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
 `;
 
 // лайки и дизлайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
@@ -689,6 +691,20 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
   const kickRef = React.useRef(0);
   const doKick = (dir) => { setKick(dir); window.clearTimeout(kickRef.current); kickRef.current = window.setTimeout(() => setKick(null), 450); };
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
+  /* закрытие — тоже с анимацией (пункт владельца 21.11, п. 4: «нет анимации у закрытия проигрывателя»): панель ещё 200 мс
+     на экране и уходит так же, как пришла, — вниз и в прозрачность; «Уменьшить движение» — сразу */
+  const [leaving, setLeaving] = useState(false);
+  const wasOpen = React.useRef(open);
+  React.useEffect(() => {
+    const was = wasOpen.current; wasOpen.current = open;
+    if (open) { setLeaving(false); return undefined; }
+    if (!was) return undefined;
+    const calm = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (calm) return undefined;
+    setLeaving(true);
+    const t = window.setTimeout(() => setLeaving(false), 200);
+    return () => window.clearTimeout(t);
+  }, [open]);
   /* панель — в портале на body: внутри плашки музыки и шапки урока есть transform, и position: fixed считался бы от них
      (на телефоне панель уезжала за верх экрана). Тема урока и шрифты переезжают с кнопки на обёртку портала */
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
@@ -757,9 +773,9 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
         aria-expanded={open} onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
         {icon ? React.createElement(icon, { size: 17, 'aria-hidden': true }) : anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
-      {open && portalTarget && createPortal(
+      {(open || leaving) && portalTarget && createPortal(
         <div className="mp-portal" data-skin={host.skin || undefined} style={host.vars}>
-        <div ref={panelRef} className={`mp${dragging ? ' dragging' : ''}${music ? ' playing' : ''}`} data-testid="music-panel" data-moved={drag ? 'true' : 'false'} role="dialog" aria-label="Сейчас играет"
+        <div ref={panelRef} className={`mp${dragging ? ' dragging' : ''}${music ? ' playing' : ''}${!open ? ' out' : ''}`} data-testid={open ? 'music-panel' : 'music-panel-out'} data-closing={!open ? 'true' : undefined} data-moved={drag ? 'true' : 'false'} role="dialog" aria-label="Сейчас играет"
           style={{ top: drag ? drag.top : pos.top, bottom: drag ? 'auto' : pos.bottom, left: drag ? drag.left : pos.left, width: DD_WIDTH, zIndex: 1300, maxHeight: drag ? `calc(100vh - ${Math.round(drag.top) + 8}px)` : pos.maxHeight,
             '--mp': MOOD_TINT[np.mood] || MOOD_TINT.calm, '--mp2': `color-mix(in srgb, ${MOOD_TINT[np.mood] || MOOD_TINT.calm} 55%, #6A5BFF)` }}>
           <style>{playerCss()}</style>

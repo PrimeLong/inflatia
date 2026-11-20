@@ -238,7 +238,16 @@ test('музыка в обучении: мини-плашка над вклад�
   await expect(full.getByTestId('music-cover')).toHaveAttribute('data-spin', 'false');
   await full.getByTestId('music-play').click();
   await expect(dock).toHaveAttribute('data-state', 'playing');
-  await full.getByRole('button', { name: 'Закрыть' }).click();
+  /* пункт владельца 21.11, п. 4: «нет анимации у закрытия проигрывателя» — «×»: панель ещё на экране и уходит анимацией
+     mp-out, потом её нет */
+  const leaving = await page.evaluate(async () => {
+    document.querySelector('[data-testid="music-panel"] .mp-x').click();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const el = document.querySelector('[data-testid="music-panel-out"]');
+    return el ? getComputedStyle(el).animationName : null;
+  });
+  expect(leaving).toBe('mp-out');
+  await expect(page.getByTestId('music-panel-out')).toHaveCount(0);
   // в уроке плашки нет, но в шапке урока — своя кнопка музыки (пункт владельца 16.11: «в уроке нигде нет переключения музыки»)
   await openTab(page, 'path');
   await pathNode(page, 'sc-i1').click();
