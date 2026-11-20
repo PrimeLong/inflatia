@@ -400,7 +400,7 @@ export const CSS = `
   .ln-exam-grid b { width: 26px; height: 30px; border: 1.5px solid var(--ds-ink3); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font: 700 17px var(--ds-mono, monospace); color: var(--ds-ink); background: var(--ds-card); }
   /* «Соедините» — как «вставьте слово»: строки-определения с пустым местом, слова банком сверху */
   .ln-m2-how { margin: 2px 0 8px; font: 600 13.5px/1.35 var(--ds-sans); color: var(--ds-ink2); }
-  .ln-m2-bank { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 8px; min-height: 40px; }
+  .ln-m2-bank { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--ds-paper) 82%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 4px 0 8px; min-height: 40px; }
   .ln-body .ln-m2-bank .ds-opt { width: auto; margin: 0; padding: 8px 12px; font-size: 14.5px; line-height: 1.25; }
   .ln-m2-bank-done { font: 600 13.5px var(--ds-sans); color: var(--ds-ink3); align-self: center; }
   .ln-m2-rows { display: grid; gap: 8px; }
