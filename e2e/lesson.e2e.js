@@ -805,6 +805,15 @@ test('новые глаголы: «Откройте сами», живая мо�
   await expect(model.getByTestId('model-part-note')).toContainText('Откроется в уроке «Спрос: закон и сдвиги»');
   await model.locator('[data-part="elastic"]').click();
   await expect(model.getByTestId('model-part-note')).toContainText('юнит «Эластичность»');
+  // ползунок не прыгает под пальцем (пункт владельца 20.11, п. 2: «в живой модели, когда крутишь ползунки, дёрганые
+  // анимации»): табло и строка «что произошло» держат высоту — всё, что ниже, стоит на месте при любой цене
+  const tops = [];
+  for (const v of ['20', '21', '24', '28', '33', '35', '12', '10', '19', '20']) {
+    await model.getByTestId('model-price').fill(v);
+    await expect(model.getByTestId('model-readout')).toContainText(`При цене ${v} кр.`);
+    tops.push(Math.round((await model.getByTestId('model-price').boundingBox()).y));
+  }
+  expect(new Set(tops).size, `положение ползунка: ${tops.join(', ')}`).toBe(1);
   await model.getByTestId('model-price').fill('30');
   await expect(model.getByTestId('model-readout')).toContainText('При цене 30 кр. купят 30');
   await expect(model.getByTestId('model-stats')).toContainText('30');
