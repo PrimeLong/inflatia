@@ -39,13 +39,16 @@ const CSS = `
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
   .dl-coord { font: 700 11.5px var(--ds-sans); }
-  .dl-box[data-gem="true"] .gl-stage { box-shadow: 0 0 0 2px ${DIAMOND_COLOR}, 0 0 28px -8px ${DIAMOND_COLOR}; }
+  /* алмазный уровень — тонкая линия цвета алмаза по рамке поля, без кольца и свечения вокруг (жалоба 21.11, draw-moncomp,
+     алмаз: «эта обводка выглядит ужасно») */
+  .dl-box[data-gem="true"] .gl-stage { border-color: color-mix(in srgb, ${DIAMOND_COLOR} 55%, var(--ds-rule2)); box-shadow: none; }
   .dl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
   .dl-table { margin: 10px 0 2px; border-collapse: collapse; font: 400 15px var(--ds-sans); font-variant-numeric: tabular-nums; }
   .dl-table th { padding: 4px 16px 4px 0; text-align: left; font: 600 12.5px var(--ds-sans); color: var(--ds-ink3); border-bottom: 1px solid var(--ds-rule2); }
   .dl-table td { padding: 4px 16px 4px 0; color: var(--ds-ink); border-bottom: 1px solid var(--ds-rule); }
   .dl-table td:first-child { color: var(--ds-ink3); }
-  .dl-mini-rows { font-weight: 700; white-space: nowrap; }
+  /* строка точек — переносится, а не уходит за край карточки задания во весь экран */
+  .dl-mini-rows { font-weight: 700; overflow-wrap: anywhere; }
   .dl-shift { display: flex; align-items: center; gap: 10px; padding: 8px 12px 6px; font: 600 14px var(--ds-sans); color: var(--ds-ink2); }
   .dl-shift input { flex: 1; accent-color: var(--g-blue); }
   .dl-shift output { min-width: 7.5em; text-align: right; font-weight: 800; color: var(--ds-ink); font-variant-numeric: tabular-nums; }

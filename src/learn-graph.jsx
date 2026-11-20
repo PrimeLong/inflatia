@@ -43,7 +43,9 @@ export const GRAPH_CSS = `${STAGE_CSS}
   .gl-page { max-width: 720px; margin: 0 auto; padding: 14px 16px 130px; }
   .gl-stage { position: relative; background: var(--ds-card); border: 1px solid var(--ds-rule2); border-radius: 22px; padding: 10px 6px 4px;
     box-shadow: 0 18px 40px -28px rgba(0,0,0,.45); }
-  .gl-stage svg { display: block; width: 100%; height: auto; max-width: 560px; margin: 0 auto; overflow: visible; }
+  /* только сам график: значки кнопок внутри (масштаб «Нарисуй сам») правило не трогает — раньше «−» и «+» растягивались на
+     всю кнопку (жалоба 21.11, draw-budget: «кнопки приближения не по стилю») */
+  .gl-stage svg:not(.lucide) { display: block; width: 100%; height: auto; max-width: 560px; margin: 0 auto; overflow: visible; }
   .gl-replay { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
   .gl-text { margin-top: 14px; padding: 16px 18px; border-radius: 18px; background: color-mix(in srgb, var(--g-blue) 7%, var(--ds-card)); border: 1px solid color-mix(in srgb, var(--g-blue) 22%, var(--ds-rule));
     font: 400 17px/1.55 var(--ds-sans); animation: gl-rise .45s cubic-bezier(.2, .9, .3, 1) backwards; }

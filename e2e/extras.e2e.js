@@ -1140,11 +1140,14 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await page.getByTestId('extra-gem').click();
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
+  // жалоба 21.11 (draw-moncomp, алмаз): рамка поля — тонкая линия, без кольца и свечения
+  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).boxShadow)).toBe('none');
   // у алмаза — алмазная рамка поля; отдельной плашки правил нет, координаты под курсором есть (жалоба 19.11: «к чему это
   // пояснение про алмазный урок, а про то, что не пишутся координаты, — бред»)
   await expect(g.getByTestId('draw-gem-rules')).toHaveCount(0);
   await expect(g.getByTestId('draw-box')).toHaveAttribute('data-gem', 'true');
-  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
+  // алмаз виден по цвету рамки поля (тонкая линия), а не по кольцу со свечением
+  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).borderTopColor)).not.toBe(await page.evaluate(() => getComputedStyle(document.querySelector('.gl-stage')).getPropertyValue('--ds-rule2')));
   const ink = g.getByTestId('draw-ink');
   // шапка теперь как у урока (с подписью вида урока) — график ниже: прокручиваем его в середину экрана
   await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
@@ -1563,5 +1566,39 @@ test('медленная сеть: особый урок сразу показы
   expect(b.height).toBeGreaterThanOrEqual(page.viewportSize().height - 2);
   await expect(page.getByTestId('lesson-loading-slow')).toBeVisible({ timeout: 8000 });
   await expect(page.getByTestId('people')).toBeVisible({ timeout: 20000 });
+  expect(errors).toEqual([]);
+});
+
+/* жалобы 21.11 (draw-budget, draw-moncomp, 1910×950): «два скролл-ползунка, кнопка снизу прифигачена, сверху отвратительная
+   вуаль не по стилю»; «кнопки приближения не по стилю» */
+test('«Нарисуй сам» на ПК: один ползунок (страница под уроком не прокручивается), шапка без вуали, значки «−/+» своего размера, строка точек не вылезает', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'ПК');
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
+  });
+  await page.setViewportSize({ width: 1910, height: 950 });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-id="draw-ppf"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click(); await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  await expect(g).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden');
+  const bg = await page.getByTestId('special-head').evaluate((el) => getComputedStyle(el).backgroundImage);
+  expect(bg).toBe('none');
+  for (const id of ['draw-zoom-out', 'draw-zoom-in']) {
+    const s = await g.getByTestId(id).locator('svg').boundingBox();
+    expect(s.width, id).toBeLessThanOrEqual(17);
+  }
+  // во весь экран: строка точек задания переносится, а не уходит за край карточки
+  await g.getByTestId('draw-full').click();
+  const rows = page.locator('.dl-mini-rows').first();
+  if (await rows.count()) expect(await rows.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await page.keyboard.press('Escape');
+  await page.getByTestId('draw-close').click();
+  await expect(g).toHaveCount(0);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe('hidden');
   expect(errors).toEqual([]);
 });
