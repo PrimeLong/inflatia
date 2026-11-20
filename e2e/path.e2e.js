@@ -433,7 +433,14 @@ test('путь: юнит «Спрос и предложение» — кажды
   for (let i = 0; i < 16 && !(await page.getByTestId('lesson-result').isVisible()); i += 1) {
     await passCards(page);
     const badge = page.getByTestId('ex-review-badge');
-    if (await badge.count() && await badge.getAttribute('data-past')) pastSeen.push(await badge.innerText());
+    if (await badge.count() && await badge.getAttribute('data-past')) {
+      pastSeen.push(await badge.innerText());
+      // жалоба 21.11 (sc-e3-far): «не по стилю плашка повторение» — шрифт строки вида задания, тонкая рамка, без заливки
+      const st = await badge.evaluate((el) => { const a = getComputedStyle(el); const b = getComputedStyle(el.parentElement); return { bg: a.backgroundColor, fa: a.fontFamily, fb: b.fontFamily, wa: a.fontWeight, wb: b.fontWeight }; });
+      expect(st.bg).toBe('rgba(0, 0, 0, 0)');
+      expect(st.fa).toBe(st.fb);
+      expect(st.wa).toBe(st.wb);
+    }
     await answerExercise(page);
     await page.getByRole('button', { name: 'Дальше', exact: true }).click();
   }

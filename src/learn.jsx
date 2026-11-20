@@ -444,6 +444,10 @@ export const CSS = `
   .ln-foot.fb .ds-answer > div > button { align-self: stretch; }
   .ln-fb-body { margin-top: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .ln-kind { margin-bottom: 8px; }
+  /* отметки в строке вида задания («повторение · Ферма», «повтор ошибки», «семинар») — тем же шрифтом, что и сама строка,
+     тонкой рамкой, а не цветной таблеткой другого размера (жалоба 21.11, sc-e3-far: «не по стилю плашка повторение») */
+  .ln-kind .ds-badge { background: none; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); color: inherit; opacity: .85;
+    font: inherit; font-size: .92em; letter-spacing: inherit; padding: 2px 8px; border-radius: 999px; line-height: 1.3; }
   .ln-prompt { margin-bottom: 12px; }
   /* урок на ПК — крупнее: на большом экране колонка телефона в 560 px терялась посередине. Шрифт
      крупнее всегда; весь урок (шапка, текст, графики, кнопки, плашка ответа) увеличивается целиком,
