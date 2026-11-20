@@ -1,5 +1,5 @@
-/* Перенос ключей Upstash → PostgreSQL ONREZA (docs/onreza.md): общий для скрипта scripts/upstash-to-onreza.mjs и одноразового
-   адреса /api/migrate (перенос изнутри Vercel, где есть и ключи Upstash, и строка базы). src — клиент @upstash/redis,
+/* Перенос ключей Upstash → PostgreSQL ONREZA (docs/onreza.md): общий для скрипта scripts/upstash-to-onreza.mjs и
+   одноразового адреса /api/migrate (перенос изнутри Vercel 20.11; адрес удалён после переключения). src — клиент @upstash/redis,
    dst — api/_lib/pgkv.js. */
 
 // один ключ: значение, хэш, множество или список — тем же видом и с тем же остатком срока

@@ -37,10 +37,5 @@
         }
       ]
     }
-  ],
-  "functions": {
-    "api/migrate.js": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
