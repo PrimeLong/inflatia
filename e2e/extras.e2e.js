@@ -1541,3 +1541,27 @@ test('особый урок на ПК: шапка того же размера, 
   }
   expect(errors).toEqual([]);
 });
+
+// пункт владельца 21.11, п. 6: «нажимаю на урок — ничего не происходит; прошла минута — оказывается, грузилось, нет анимаций»
+test('медленная сеть: особый урок сразу показывает заставку во весь экран, через 6 секунд — «сеть медленная»', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-l1': { at, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  // код урока грузится 8 секунд
+  await page.route(/\/assets\/.*\.js$/, async (r) => { await new Promise((res) => setTimeout(res, 8000)); return r.continue(); });
+  const stop = page.locator('[data-testid=path-extra][data-id="people-scarcity"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click(); await page.getByTestId('extra-start').click();
+  const loading = page.getByTestId('lesson-loading');
+  await expect(loading).toBeVisible({ timeout: 1000 });
+  await expect(loading).toContainText('Открываем «Персоналии»');
+  // заставка — на экране, а не под Путём
+  const b = await loading.boundingBox();
+  expect(b.y).toBeLessThanOrEqual(1);
+  expect(b.height).toBeGreaterThanOrEqual(page.viewportSize().height - 2);
+  await expect(page.getByTestId('lesson-loading-slow')).toBeVisible({ timeout: 8000 });
+  await expect(page.getByTestId('people')).toBeVisible({ timeout: 20000 });
+  expect(errors).toEqual([]);
+});

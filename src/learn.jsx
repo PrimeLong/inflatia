@@ -1724,7 +1724,23 @@ onCoinGuard(() => track('coins_guard'));
 // списание дюпа уходит в аналитику один раз за запуск
 const AUDIT_TRACKED = new Set();
 // пока файл урока грузится — пустой экран урока с заставкой, а не Путь под ним
-const LessonLoading = () => <DsRoot theme={dsThemeId()} className="ln-overlay" data-testid="lesson-loading" role="status" aria-label="Открываем урок"><div style={{ margin: 'auto' }}><BrandLoader compact text="Открываем урок" /></div></DsRoot>;
+// грузится дольше 6 секунд — сказать, что дело в сети, а не в касании
+function LessonLoading({ text = 'Открываем урок' }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 6000); return () => clearTimeout(t); }, []);
+  return (
+    <DsRoot theme={dsThemeId()} className="ln-overlay" data-testid="lesson-loading" role="status" aria-label={text}>
+      <div style={{ margin: 'auto', textAlign: 'center' }}>
+        <BrandLoader compact text={text} />
+        {slow && <div className="ds-sub" data-testid="lesson-loading-slow" style={{ fontSize: 14, marginTop: -40, padding: '0 20px' }}>Сеть медленная — ещё немного. Урок откроется сам.</div>}
+      </div>
+    </DsRoot>
+  );
+}
+/* слой поверх Пути (особый урок, книга, настройки): пока его код грузится — та же заставка во весь экран, что у урока.
+   Обычная заглушка вставала в конец страницы, под Путём, — ученик её не видел и думал, что касание не сработало
+   (пункт владельца 21.11, п. 6: «нажимаю на урок — ничего не происходит, прошла минута, оказывается, грузилось») */
+const LazyLayer = ({ text, children }) => <React.Suspense fallback={<LessonLoading text={text} />}>{children}</React.Suspense>;
 const Lazy = ({ children }) => <React.Suspense fallback={<BrandLoader compact text="Открываем" />}>{children}</React.Suspense>;
 const Celebration = React.lazy(() => import('./learn-celebrate.jsx'));
 // урок во весь экран — отдельным файлом: грузится, когда урок начинается (src/learn-lesson.jsx)
@@ -2060,16 +2076,16 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         {tab === 'profile' && <Lazy><ProfileView learn={learn} update={update} onOpenBook={openBook} onSettings={() => setSettings(true)} onNotify={() => setBell(true)} unread={notify.unread.length}
           friends={friends} guest={guest} onFriends={() => { Audio.play('paper'); setFriendsPage(true); }} onPath={() => onTab('path')} /></Lazy>}
       </div>
-      {settings && !reports && !analytics && <Lazy><SettingsView learn={learn} update={update} notify={notify} onBack={() => setSettings(false)} onThemeChange={onThemeChange}
+      {settings && !reports && !analytics && <LazyLayer text="Открываем настройки"><SettingsView learn={learn} update={update} notify={notify} onBack={() => setSettings(false)} onThemeChange={onThemeChange}
         onPlacement={() => { setSettings(false); start({ mode: 'placement' }); }}
-        onReports={() => { setReports(true); window.scrollTo(0, 0); }} onAnalytics={() => { setAnalytics(true); window.scrollTo(0, 0); }} /></Lazy>}
+        onReports={() => { setReports(true); window.scrollTo(0, 0); }} onAnalytics={() => { setAnalytics(true); window.scrollTo(0, 0); }} /></LazyLayer>}
       {friendsPage && !friendLogin && <FriendsPage data={friends} onBack={() => setFriendsPage(false)} onOpen={(l) => setFriendLogin(l)} />}
       {friendLogin && <FriendProfile login={friendLogin} data={friends} learn={learn} update={update} myWear={outfit} onBack={() => setFriendLogin(null)} />}
       {bell && <NotifyCenter notify={notify} onClose={() => setBell(false)} onGo={goNotify} />}
       {toast && <NotifyToast n={toast} onGo={(n) => { toastDone(); goNotify(n); }} onClose={toastDone} onRead={(n) => notify.markOne(n.id)} />}
       {!toast && !run && gains.length > 0 && <NotifyToast n={gainsNote(gains)} onGo={gainsDone} onClose={gainsDone} />}
       {reports && <ReportsView onBack={() => { Audio.play('paper'); setReports(false); }} />}
-      {analytics && <Lazy><AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} /></Lazy>}
+      {analytics && <LazyLayer text="Открываем аналитику"><AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} /></LazyLayer>}
       {chest && <ChestSheet unitId={chest} place={placeOf(chest).place} learn={learn} update={update}
         onClose={(opened) => { setChest(null); if (opened) setFolded({ n: Date.now(), unit: chest }); }} />}
       {morning && !run && <MorningStreak learn={learn} onClose={() => setMorning(false)} />}
@@ -2082,13 +2098,13 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         }} /></React.Suspense>}
       {sheet && <LessonSheet l={sheet} learn={learn} weak={weakLessons(learn).some((w) => w.id === sheet.id)} onStart={start} onClose={() => setSheet(null)} onOpenBook={openBook}
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
-      {reading && <Lazy><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
-      {people && <Lazy><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
+      {reading && <LazyLayer text="Открываем «Чтение»"><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></LazyLayer>}
+      {people && <LazyLayer text="Открываем «Персоналии»"><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></LazyLayer>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
       {/* музыка включена в обучении — мини-плашка над вкладками (пункт владельца 16.11), над плашкой книги, если звучит и она */}
       {!run && <MusicDock />}
-      {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
+      {dockBook && <LazyLayer text="Открываем книгу"><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></LazyLayer>}
       {extraSheet && <ExtraSheet x={extraSheet} onStart={openExtra} onClose={() => setExtraSheet(null)} />}
       {extraLocked && (
         <Sheet label={EXTRA_KIND[extraLocked.type]} onClose={() => setExtraLocked(null)} testid="extra-locked">
@@ -2100,8 +2116,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       )}
       {run && <React.Suspense fallback={<LessonLoading />}><Runner key={JSON.stringify({ ...run, resume: !!run.resume })} run={run} learn={learn} update={update} hidden={!!book} guest={guest} backRef={runBack}
         onClose={() => setRun(null)} onOpenBook={(page) => openBook(page)} /></React.Suspense>}
-      {graph && <Lazy><GraphLesson key={`${graph.id}:${!!graph.gem}`} id={graph.id} learn={learn} update={update} peek={graph.peek} gem={!!graph.gem} onClose={() => setGraph(null)} /></Lazy>}
-      {draw && <Lazy><DrawLesson key={`${draw.id}:${draw.gem}`} id={draw.id} gem={draw.gem} learn={learn} update={update} onClose={() => setDraw(null)} /></Lazy>}
+      {graph && <LazyLayer text="Открываем «Разбор графика»"><GraphLesson key={`${graph.id}:${!!graph.gem}`} id={graph.id} learn={learn} update={update} peek={graph.peek} gem={!!graph.gem} onClose={() => setGraph(null)} /></LazyLayer>}
+      {draw && <LazyLayer text="Открываем «Нарисуй сам»"><DrawLesson key={`${draw.id}:${draw.gem}`} id={draw.id} gem={draw.gem} learn={learn} update={update} onClose={() => setDraw(null)} /></LazyLayer>}
     </DsRoot>
     </OutfitContext.Provider>
   );
