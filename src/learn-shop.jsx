@@ -372,7 +372,7 @@ function ClothCard({ learn, update }) {
   const back = clothReturn(learn);
   const buy = () => {
     let r = null;
-    update((s) => { r = buyCloth(s, Date.now()); return r.ok ? r.s : s; });
+    update((s) => { r = buyCloth(s, Date.now()); return r.ok ? r.s : s; }, { settle: true });
     if (r && !r.ok) setMsg(r.reason); else { Audio.play('register'); setMsg(null); }
   };
   return (
@@ -400,7 +400,7 @@ function PolishCard({ learn, update }) {
   const back = polishReturn(learn);
   const buy = () => {
     let r = null;
-    update((s) => { r = buyPolish(s, Date.now()); return r.ok ? r.s : s; });
+    update((s) => { r = buyPolish(s, Date.now()); return r.ok ? r.s : s; }, { settle: true });
     if (r && !r.ok) setMsg(r.reason); else { Audio.play('register'); setMsg(null); }
   };
   return (
