@@ -1,6 +1,8 @@
 /* БРАУЗЕРНЫЕ СЦЕНАРИИ — лавка, сад, копилка, лиги, церемонии, уведомления, новости, профиль, защита монет.
    Общие помощники — e2e/helpers.js. Запуск одного раздела: npx playwright test e2e/rewards.e2e.js */
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import { RECORDS } from '../src/audio/records.js';
 import {
   openApp, gotoApp, shopTab, openTab, openBook, expectNoSidewaysScroll, accountApi, playLesson, withTestFlag, pathNode, startLesson, installHooks, ACCOUNT,
 } from './helpers.js';
@@ -1199,7 +1201,8 @@ test('лавка: пластинки — дешёвые, на витрине ф�
   await shopTab(page, 'lesson');
   const shelf = page.getByTestId('shop-records');
   await expect(shelf).toBeVisible();
-  await expect(shelf.getByTestId('shop-item')).toHaveCount(2);
+  // на полке — пластинки, чьи записи уже лежат в public/music (их загружает владелец)
+  await expect(shelf.getByTestId('shop-item')).toHaveCount(RECORDS.filter((r) => fs.existsSync(`public/music/${r.track}.mp3`)).length);
   for (const price of await shelf.locator('.rw-price').allTextContents()) expect(Number(price.match(/(\d+)\s*мон/)[1])).toBeLessThanOrEqual(300);
   const item = shelf.getByTestId('shop-item').first();
   await expect(item.getByTestId('record-status')).toContainText('20 секунд');
