@@ -487,7 +487,11 @@ export const CSS = `
   .ln-sync > svg { flex: none; color: var(--ds-bad); }
   .ln-sync b { display: block; font: 700 15px var(--ds-sans); }
   .ln-sync span { display: block; font-size: 13.5px; line-height: 1.4; color: var(--ds-ink2); margin-top: 2px; }
-  .ln-key { margin-top: 14px; padding: 8px 12px 10px; border: 2px solid var(--u); border-radius: 10px; background: color-mix(in srgb, var(--u) 8%, var(--ds-card)); }
+  /* «Запомнить» — в одном виде с остальными плашками шага (легенда, «Разбор»): тонкая рамка, полоса цвета юнита слева, а не
+     толстая цветная рамка с заливкой; слова в формуле — шрифтом урока, а не шрифтом формул (жалоба 21.11, hh-i1, «Шаг
+     дальше · Накопить на цель»: «не по стилю») */
+  .ln-key { margin-top: 14px; padding: 8px 12px 10px 14px; border: 1px solid var(--ds-rule2); border-left: 4px solid var(--u); border-radius: 4px 12px 12px 4px; background: var(--ds-card); }
+  .ln-key-tex .katex .text, .ln-key-tex .katex .textrm { font-family: var(--ds-sans); }
   .ln-key .ds-eyebrow { color: var(--u-ink); }
   /* формула целиком: дробь (ΔQ над ΔL) — блоком с запасом по вертикали, а не строкой, у которой верх срезался (жалоба mw6t15ic) */
   .ln-key-tex { font-size: 19px; text-align: center; margin-top: 4px; padding: 4px 0 6px; overflow-x: auto; overflow-y: hidden; }

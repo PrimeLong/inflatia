@@ -272,7 +272,12 @@ test('путь: выход после первого ответа — урок �
   let legend = false; let remember = false;
   for (let i = 0; i < 40 && !(await page.getByTestId('lesson-result').isVisible()); i += 1) {
     if (await page.getByTestId('step-legend').isVisible()) legend = true;
-    if (await page.getByTestId('step-remember').isVisible()) remember = true;
+    if (await page.getByTestId('step-remember').isVisible()) {
+      remember = true;
+      // жалоба 21.11 (hh-i1): «Запомнить» — тонкая рамка и полоса слева, как у остальных плашек шага
+      const k = await page.getByTestId('step-remember').evaluate((el) => { const cs = getComputedStyle(el); return { top: cs.borderTopWidth, left: cs.borderLeftWidth }; });
+      expect(parseFloat(k.top)).toBeLessThan(1.5); expect(parseFloat(k.left)).toBeGreaterThan(parseFloat(k.top) * 3);
+    }
     if (await page.getByTestId('lesson-card').isVisible()) { await page.getByTestId('lesson').locator('.ln-foot button').click(); continue; }
     await answerExercise(page);
     await page.getByRole('button', { name: 'Дальше', exact: true }).click();
