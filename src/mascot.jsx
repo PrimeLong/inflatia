@@ -109,6 +109,61 @@ const OUTFIT = {
     <path d="M55 20.6 Q54.4 22.6 54.7 24.6" fill="none" stroke="#FBE7A1" strokeWidth="1" strokeLinecap="round" />
     <circle cx="57.6" cy="41" r="3" fill="#E8C766" />
   </g>,
+  /* ПОЛИТИКА ВЕЛЕГРАДА (пункт владельца 21.11, п. 9): вымышленные — без флагов, гербов и партий настоящих стран.
+     Голова: лавровый венок сенатора, соломенная шляпа кандидата; шея: розетка избирателя, лента мэра, цепь мэра (редкая);
+     в руке: бюллетень с галочкой, рупор агитатора, молоток спикера */
+  laurel: <g stroke="#2F5A2A" strokeWidth=".6" strokeLinejoin="round">
+    <path d="M13 17 Q16 3 31 0.5 M51 17 Q48 3 33 0.5" fill="none" stroke="#6B4E1E" strokeWidth="1.1" strokeLinecap="round" />
+    {[[14, 14, -60], [16.5, 9.5, -45], [20, 5.6, -30], [24.5, 2.8, -15], [29, 1.2, 0]].map(([x, y, r], i) => <g key={i}><ellipse cx={x} cy={y} rx="3.4" ry="1.5" fill="#4E8A3A" transform={`rotate(${r} ${x} ${y})`} /><ellipse cx={64 - x} cy={y} rx="3.4" ry="1.5" fill="#4E8A3A" transform={`rotate(${-r} ${64 - x} ${y})`} /></g>)}
+    <circle cx="32" cy="0.6" r="1.5" fill="#E3B53C" stroke="#94700F" />
+  </g>,
+  boater: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <ellipse cx="32" cy="8.4" rx="21" ry="3.6" fill="#E6C77E" />
+    <path d="M21.5 8 L22.5 -3.5 Q32 -6 41.5 -3.5 L42.5 8 Z" fill="#EBD08F" />
+    <path d="M21.9 2.2 Q32 4.6 42.1 2.2 L42.4 6 Q32 8.4 21.6 6 Z" fill="#2C5A8E" strokeWidth=".8" />
+    <path d="M24 -1 Q32 0.4 40 -1 M23 9 Q32 10.6 41 9" fill="none" stroke="#B89A55" strokeWidth=".7" />
+  </g>,
+  rosette: <g stroke={INK} strokeWidth=".9" strokeLinejoin="round">
+    <path d="M17.6 44 L15.5 52.5 L18.4 51 L19.8 53.6 L21 45 Z" fill="#2C5A8E" />
+    <path d="M22 44 L22.8 52.6 L24.8 50.6 L26.8 52.4 L24.6 44 Z" fill="#A0372A" />
+    <circle cx="21" cy="42" r="4.6" fill="#F4ECD8" />
+    <circle cx="21" cy="42" r="3" fill="#A0372A" strokeWidth=".6" /><circle cx="21" cy="42" r="1.3" fill="#FBE7A1" strokeWidth=".5" />
+  </g>,
+  sash: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M13.6 33.5 L18 30.6 L46.5 47.5 L42 50.6 Z" fill="#A0372A" />
+    <path d="M15.6 32.2 L44.4 49.1" stroke="#E3B53C" strokeWidth="1.1" />
+    <path d="M41 48 L44 57 L40.5 55.6 L38.6 58.8 L37.6 49.8 Z" fill="#8A2C22" />
+  </g>,
+  mayorchain: <g>
+    <g stroke={INK} strokeWidth=".7">
+      {[[17, 41], [20.4, 44.4], [24.2, 46.9], [28.2, 48.2], [35.8, 48.2], [39.8, 46.9], [43.6, 44.4], [47, 41]].map(([x, y], i) => <ellipse key={i} cx={x} cy={y} rx="2.1" ry="1.5" fill="#E3B53C" />)}
+      <path d="M30.6 49 L33.4 49 L33 51.2 L31 51.2 Z" fill="#B88A1A" />
+      <circle cx="32" cy="56" r="5.6" fill="#E3B53C" strokeWidth="1" />
+      <circle cx="32" cy="56" r="3.6" fill="#B88A1A" />
+      <path d="M29.8 57.6 L32 53.6 L34.2 57.6 Z" fill="#FBE7A1" strokeWidth=".5" />
+    </g>
+    {spark(30, 54, 0, 2.4)}{spark(43.6, 44.4, 1.1, 1.8)}{spark(20.4, 44.4, 2.2, 1.8)}
+  </g>,
+  ballot: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M49 25 L61.5 26.6 L60 46 L47.5 44.4 Z" fill="#FFFDF6" />
+    <path d="M51 29 L58.5 30 M50.6 33.6 L58 34.6" stroke="#8A7A5C" strokeWidth=".8" />
+    <rect x="50.6" y="37" width="4.4" height="4.4" fill="#fff" strokeWidth=".8" transform="rotate(7 52.8 39.2)" />
+    <path d="M51.3 39.2 L52.8 40.8 L56.6 36" fill="none" stroke="#2E8A5B" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="53.5" cy="44.6" r="3.1" fill="#E8C766" />
+  </g>,
+  megaphone: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M50.5 37 L60.5 27 L63.5 36.5 Z" fill="#D9472B" />
+    <ellipse cx="62" cy="31.8" rx="2.2" ry="5.2" fill="#F4ECD8" transform="rotate(-18 62 31.8)" />
+    <rect x="47.6" y="35.6" width="4.6" height="3.6" rx="1" fill="#3A3530" transform="rotate(-45 49.9 37.4)" />
+    <path d="M52.2 39 L53 44" stroke="#3A3530" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="53.4" cy="44.6" r="3" fill="#E8C766" />
+  </g>,
+  gavel: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M53.5 45 L59.5 30" stroke={INK} strokeWidth="3.2" strokeLinecap="round" /><path d="M53.5 45 L59.5 30" stroke="#8A5A2E" strokeWidth="1.9" strokeLinecap="round" />
+    <rect x="53.5" y="23" width="13" height="6.4" rx="1.6" fill="#7A4A26" transform="rotate(22 60 26.2)" />
+    <path d="M55.4 22.6 L56.6 29.2 M63.6 25.8 L62.4 32.4" stroke="#E3B53C" strokeWidth="1.2" transform="rotate(22 60 26.2)" />
+    <circle cx="54.6" cy="42.4" r="3" fill="#E8C766" />
+  </g>,
   // шар «Инфляция» на нитке: то надувается, то сдувается — как цены
   balloon: <g stroke={INK} strokeLinejoin="round"><path d="M54.5 41 Q51 33 56 26 Q60 20 57 15.5" fill="none" strokeWidth=".9" /><circle cx="54.5" cy="42" r="3.2" fill="#E8C766" strokeWidth="1" /><g className="infla-balloon"><ellipse cx="57" cy="3.5" rx="9.5" ry="11" fill="#C8442F" strokeWidth="1.1" /><path d="M55.4 14.3 L57 16 L58.6 14.3 Z" fill="#A0372A" strokeWidth=".8" /><path d="M51 -2 Q52.5 -5.5 56 -6" fill="none" stroke="#FFD9CC" strokeWidth="1.8" strokeLinecap="round" /><text x="57" y="7.8" textAnchor="middle" fontSize="11" fontWeight="700" fontFamily="sans-serif" fill="#FFF3E6" stroke="none">%</text></g></g>,
 };
