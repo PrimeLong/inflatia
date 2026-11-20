@@ -19,11 +19,13 @@ const live = 'AND (exp IS NULL OR exp > $NOW)';
 export function poolFrom(url, ca = '') {
   const u = new URL(url);
   const local = ['localhost', '127.0.0.1', ''].includes(u.hostname) || u.searchParams.get('host');
-  u.searchParams.delete('sslmode'); u.searchParams.delete('sslrootcert');
+  // параметры Prisma из строки панели ONREZA (connection_limit, pool_timeout) — не для pg: лимит соединений берём, но не больше 3
+  const limit = Number(u.searchParams.get('connection_limit')) || 3;
+  ['sslmode', 'sslrootcert', 'connection_limit', 'pool_timeout', 'pgbouncer', 'schema'].forEach((k) => u.searchParams.delete(k));
   return new pg.Pool({
     connectionString: u.toString(),
     ssl: local ? false : (ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: true }),
-    max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000,
+    max: Math.max(1, Math.min(3, limit)), idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000,
   });
 }
 
