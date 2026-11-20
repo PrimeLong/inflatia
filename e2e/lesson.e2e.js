@@ -1382,6 +1382,11 @@ test('украшения урока: на «Предыдущей карточк�
   const head = await peek.locator('.ln-kind').boundingBox();
   // заголовок прошлой карточки и флажок — ниже полосы гирлянды
   expect(head.y).toBeGreaterThanOrEqual(b.y + b.height - 1);
+  /* жалоба 19.11 (hh-g, 1920×1080): «мотнул чуть вниз — украшение резко обрывает плашку „Как играть“»: у верха прокрутки
+     под полосой — мягкий переход, а не резкий срез; сама полоса — сразу над прокруткой */
+  const body = page.getByTestId('lesson').locator('.ln-body').first();
+  const mask = await body.evaluate((el) => getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage);
+  expect(mask).toContain('linear-gradient');
   expect(errors).toEqual([]);
 });
 
