@@ -15,6 +15,7 @@ import { leagueState, PLACE_COINS, PROMO_COINS, LEAGUES } from './league.js';
 import { RACE } from './friends.js';
 import { PLANT_BY_ID, GRADE_BY_ID, gradeOf } from './garden.js';
 import { UNITS } from './course-core.js';
+import { MILESTONES } from './mine.js';
 
 export const DUPE_FINE = 'dupe-2026-11';
 /* второй проход (8 ноября 2026): у кого списание прошло, когда копилку ещё не трогали, а минус кошелька остался —
@@ -88,6 +89,10 @@ export function coinCeiling(s, now = Date.now(), { bookFirst = null } = {}) {
   parts.book = (bookFirst != null ? bookFirst : days.size * 10) * COIN.book;
   // алмазы особых уроков (docs/mechanics.md, «Особые уроки юнита») — как алмаз урока, по разу
   parts.gems = (Object.keys(s.gems || {}).length + Object.keys(s.readGem || {}).length) * (COIN.diamond + COIN.diamondPerfect);
+  // шахта (src/learn/mine.js): обмен и заказы — по монете за ключ, рубежи глубины — по своей цене (ключи общие для устройств)
+  const mineKeys = Object.keys(s.claimed || {}).filter((k) => k.startsWith('mine:'));
+  const msCoins = Object.fromEntries(MILESTONES.map((x) => [x.key, x.coins]));
+  parts.mine = mineKeys.reduce((a, k) => a + (msCoins[k] || 1), 0);
   const raw = Object.values(parts).reduce((a, x) => a + x, 0);
   // индексация наград — не выше индекса цен на сегодня
   const index = Math.max(1, priceIndex(dayOf(now)));

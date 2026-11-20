@@ -370,6 +370,10 @@ export const CSS = `
   .ln-skip:hover { color: var(--u-ink); }
   .ln-desk { max-width: 592px; width: 100%; margin: 0 auto; padding: 0 14px; flex: none; }
   .ln-body { flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 14px 16px 24px; }
+  /* под полосой украшения урока (гирлянда, мобиле) задание уезжает при прокрутке не по резкой линии, а растворяется: у верха
+     прокрутки — мягкий переход на высоту верхнего отступа, на месте всё видно целиком (жалоба 19.11, hh-g: «мотнул чуть
+     вниз — украшение резко обрывает плашку „Как играть“») */
+  .ln-overlay:has(> .ln-desk) .ln-body { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px); mask-image: linear-gradient(to bottom, transparent 0, #000 14px); }
   .ln-body .ds-rise { animation-name: ln-appear; }
   @keyframes ln-appear { from { opacity: 0; } to { opacity: 1; } }
   .ln-inner { max-width: 560px; margin: 0 auto; }

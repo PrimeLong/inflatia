@@ -4,7 +4,7 @@
    Подача — как у всего обучения: бумага, тушь, гравюра, PT Serif; фигурки — тушью, без
    мультяшности. Движение короткое (около полутора секунд) и не мешает читать; при «уменьшить
    движение» — без анимации, только смена состояний. */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Lock, RotateCcw, Newspaper, Check, Coffee, TrendingDown, Wallet, Leaf, Factory, Wheat, ArrowDownToLine, Spline, LayoutGrid, BadgeCheck, Gauge,
   ChevronsDown, ChevronDown, Minus, ChevronUp, ChevronsUp,
@@ -16,6 +16,7 @@ import { D_INK, S_INK } from './learn-model-thumb.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { Button } from './ds.jsx';
 import { plural } from './lib/plural.js';
+import { followStep } from './lib/follow.js';
 import {
   DAY, dayResult, distinctPrices, lineShown, discoverDone, fitDemand,
   MODEL_AXES, MODEL_NEWS, MODEL_DEFAULT, modelParts, modelProgress, modelReadout, modelEquilibrium, modelStory, mqd, mqs, BASE, BASE_EQ,
@@ -223,26 +224,31 @@ const isControl = (id, open) => CONTROL.has(id) || (id === 'demand' && !open.has
 
 const r1 = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 
-// плавный переход чисел: кривые и точка равновесия перетекают за ~0,4 с; «уменьшить движение» — сразу
-function useTween(target, ms = 420) {
+/* плавный переход чисел: кривые и точка равновесия идут за ползунком, как груз на пружине (src/lib/follow.js) —
+   новая цена посреди пути ничего не перезапускает, скорость меняется непрерывно. Прежний переход начинался заново на
+   каждый шаг ползунка, с рывка (пункт владельца 20.11, п. 2: «дёрганые анимации»); «уменьшить движение» — сразу. */
+const TWEEN_SPAN = { a: 60, b: 3, dA: 60, dC: 60, price: 40, ceil: 40 };
+function useTween(target) {
   const reduced = useReducedMotion();
   const [val, setVal] = useState(target);
-  const cur = useRef(target);
+  const cur = useRef(target); const goal = useRef(target); const vel = useRef({});
+  const raf = useRef(0); const last = useRef(0);
+  goal.current = target;
   const key = JSON.stringify(target);
   useEffect(() => {
-    if (reduced) { cur.current = target; setVal(target); return undefined; }
-    const from = cur.current; const t0 = performance.now(); let raf = 0;
+    if (reduced) { cur.current = goal.current; vel.current = {}; setVal(goal.current); return undefined; }
+    if (raf.current) return undefined; // уже едем — цель обновлена, кадр подхватит
+    last.current = performance.now();
     const step = (now) => {
-      const k = Math.min(1, (now - t0) / ms); const e = 1 - (1 - k) ** 3;
-      const v = {};
-      Object.keys(target).forEach((f) => { const a = from[f]; const b = target[f]; v[f] = a == null || b == null ? b : a + (b - a) * e; });
-      cur.current = v; setVal(v);
-      if (k < 1) raf = requestAnimationFrame(step);
+      const r = followStep(cur.current, goal.current, now - last.current, TWEEN_SPAN, vel.current);
+      last.current = now; cur.current = r.values; vel.current = r.vel; setVal(r.values);
+      raf.current = r.done ? 0 : requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+    raf.current = requestAnimationFrame(step);
+    return undefined;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, reduced]);
+  useEffect(() => () => { cancelAnimationFrame(raf.current); raf.current = 0; }, []);
   return val;
 }
 
@@ -286,7 +292,7 @@ function LiveChart({ r, open, trace }) {
                   {guides(q, t.price)}
                   <circle cx={x(q)} cy={y(t.price)} r="11" className="lm-pulse" style={{ fill: D_INK }} />
                   <circle cx={x(q)} cy={y(t.price)} r="6" fill={D_INK} stroke="var(--ds-card)" strokeWidth="2" />
-                  <PointTag x={x(q)} y={y(t.price)} right={right} text={`${r1(r.p)} кр. · ${Math.round(r.qd)} чаш.`} />
+                  <PointTag x={x(q)} y={y(t.price)} right={right} text={`${Math.round(t.price)} кр. · ${Math.round(q)} чаш.`} />
                 </g>
               );
             })()}
@@ -312,7 +318,7 @@ function LiveChart({ r, open, trace }) {
                 {r.mode === 'equilibrium' && guides(eq.q, eq.p)}
                 {r.mode === 'equilibrium' && <circle cx={x(eq.q)} cy={y(eq.p)} r="12" className="lm-pulse" style={{ fill: 'var(--ds-ink)' }} />}
                 <circle cx={x(eq.q)} cy={y(eq.p)} r="6.5" fill="var(--ds-ink)" stroke="var(--ds-card)" strokeWidth="2" />
-                {r.mode === 'equilibrium' && <PointTag x={x(eq.q)} y={y(eq.p)} right={right} text={`${r1(r.eq.p)} кр. · ${Math.round(r.eq.q)} чаш.`} testid="model-eq-tag" />}
+                {r.mode === 'equilibrium' && <PointTag x={x(eq.q)} y={y(eq.p)} right={right} text={`${r1(eq.p)} кр. · ${Math.round(eq.q)} чаш.`} testid="model-eq-tag" />}
               </g>
             )}
           </>
@@ -323,8 +329,10 @@ function LiveChart({ r, open, trace }) {
 }
 
 // табло: числа крупно, рядом — изменение к исходному рынку (20 кр., 60 чашек, выручка 1200)
+// место под изменение есть всегда — пустое невидимо: иначе табло выше на строку, едва цена ушла от исходной, и всё,
+// что ниже (ползунок под пальцем), прыгает (пункт владельца 20.11, п. 2)
 function Delta({ d, digits = 1 }) {
-  if (Math.abs(d) < (digits ? 0.05 : 0.5)) return null;
+  if (Math.abs(d) < (digits ? 0.05 : 0.5)) return <span className="lm-delta none" aria-hidden="true">▲0</span>;
   const v = digits ? r1(Math.abs(d)) : Math.round(Math.abs(d));
   return <span className={`lm-delta ${d > 0 ? 'up' : 'down'}`}>{d > 0 ? '▲' : '▼'}{v}</span>;
 }
@@ -399,6 +407,21 @@ function PartsRing({ open, total }) {
   );
 }
 
+/* строка «что произошло» не сжимается обратно, пока ширина та же: текст на две строки, потом на одну — и ползунок под
+   ней не скачет вверх-вниз (пункт владельца 20.11, п. 2). Ширина сменилась (поворот телефона) — меряем заново. */
+function useSteadyHeight(ref, dep) {
+  const max = useRef({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const w = el.clientWidth;
+    if (w !== max.current.w) max.current = { w, h: 0 };
+    el.style.minHeight = '';
+    const h = el.offsetHeight;
+    if (h > max.current.h) max.current.h = h;
+    el.style.minHeight = `${max.current.h}px`;
+  }, [ref, dep]);
+}
+
 export function MarketModel({ unitId, learn, testid = 'unit-model' }) {
   const parts = useMemo(() => modelParts(unitId, learn), [unitId, learn]);
   const prog = modelProgress(unitId, learn);
@@ -415,6 +438,8 @@ export function MarketModel({ unitId, learn, testid = 'unit-model' }) {
   const story = modelStory(st, open);
   const assembled = open.has('seal');
   const touched = tiles.some((p) => changedPart(p.id, st, news));
+  const storyRef = useRef(null);
+  useSteadyHeight(storyRef, story.text);
   const control = (p) => {
     switch (p.id) {
       case 'demand': return (
@@ -470,7 +495,7 @@ export function MarketModel({ unitId, learn, testid = 'unit-model' }) {
         <>
           <div className="lm-stage"><LiveChart r={r} open={open} trace={open.has('trace') && st.trace !== false} /></div>
           <Board r={r} open={open} />
-          <div className={`lm-story ${story.changed ? 'on' : ''}`} data-testid="model-readout" aria-live="polite">{story.text}</div>
+          <div ref={storyRef} className={`lm-story ${story.changed ? 'on' : ''}`} data-testid="model-readout" aria-live="polite">{story.text}</div>
           {tiles.length > 0 && (
             <div className="lm-tiles" data-testid="model-parts">
               {tiles.map((p) => {

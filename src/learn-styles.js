@@ -663,6 +663,7 @@ export const MODEL_CSS = `
   .lm-board b { font: 700 21px/1.15 var(--ds-mono); color: var(--ds-ink); }
   .lm-board .bad b { color: var(--ds-bad); }
   .lm-delta { font: 700 12px var(--ds-mono); border-radius: 999px; padding: 1px 6px; }
+  .lm-delta.none { visibility: hidden; }
   .lm-delta.up { color: var(--ds-ok-ink); background: var(--ds-ok-bg); }
   .lm-delta.down { color: var(--ds-bad); background: color-mix(in srgb, var(--ds-bad) 10%, var(--ds-card)); }
   .lm-story { font-size: 15px; line-height: 1.45; padding: 9px 12px; border-radius: 8px; background: var(--ds-card2); color: var(--ds-ink2); margin-bottom: 10px; }

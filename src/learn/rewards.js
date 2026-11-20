@@ -501,6 +501,11 @@ export const STREAK_BONUS = [[3, 15], [7, 40], [14, 80], [30, 200], [60, 300], [
    серии в 30 дней, печать «Испытание месяца» — больше самого испытания (жалоба: «за печать 30 монет,
    а за просто месяц — 100, лучше наоборот»). У каждой печати свой значок: «Коллекционер» — корона,
    «Огранщик» — ограненный камень, «Ювелир» — самоцвет (раньше у всех трёх был один камень). */
+/* «Первая покупка» — только то, что куплено за монеты: подарок (паутина за 13 тыкв) не в счёт; тряпка и полироль витрины —
+   покупки. «Гардероб» — наряды Инфли: без улучшений витрины, пластинок, украшений и тем урока (пункт владельца 20.11, п. 1:
+   печать приходила за протёртую витрину — у ученика была только паутина или тряпка). */
+const boughtIds = (s) => Object.keys(s.owned || {}).filter((id) => !(OUTFIT_BY_ID[id] && OUTFIT_BY_ID[id].reward));
+const wardrobeIds = (s) => Object.keys(s.owned || {}).filter((id) => OUTFIT_BY_ID[id] && !LESSON_SLOTS.includes(OUTFIT_BY_ID[id].slot));
 export const ACHIEVEMENTS = [
   { id: 'first', icon: 'footprints', title: 'Первый шаг', text: 'Пройден первый урок', how: 'Пройдите любой урок', coins: 10, test: (s, c) => c.lessonsDone >= 1 },
   // только за урок, пройденный без ошибок сейчас: счётчик дня растёт в момент такого урока (не «лучший результат» старых прохождений)
@@ -513,8 +518,8 @@ export const ACHIEVEMENTS = [
   // знания, показанные делом: проверка юнита без единой ошибки (вступительный тест сам по себе печать не даёт)
   { id: 'ace', icon: 'graduation', title: 'Знаток', text: 'Проверка юнита — без единой ошибки', how: 'Сдайте проверку юнита без единой ошибки', coins: 30, test: (s) => Object.values(s.units || {}).some((u) => u.ace) },
   { id: 'quests', icon: 'scroll', title: 'Прилежание', text: 'Все задания дня — семь раз', how: 'Выполните все задания дня семь раз', coins: 40, test: (s) => Object.keys(s.claimed || {}).filter((k) => /^q:.*:all$/.test(k)).length >= 7 },
-  { id: 'shop', icon: 'shopping', title: 'Первая покупка', text: 'Куплено что-то в лавке', how: 'Купите что-нибудь в лавке', coins: 10, test: (s) => Object.keys(s.owned || {}).length > 0 || Object.keys(s.freezeBuy || {}).length > 0 || (s.policyAt || 0) > 0 },
-  { id: 'wardrobe', icon: 'shirt', title: 'Гардероб', text: 'У Инфли три наряда', how: 'Соберите Инфле три наряда', coins: 20, test: (s) => Object.keys(s.owned || {}).length >= 3 },
+  { id: 'shop', icon: 'shopping', title: 'Первая покупка', text: 'Куплено что-то в лавке', how: 'Купите что-нибудь в лавке', coins: 10, test: (s) => boughtIds(s).length > 0 || Object.keys(s.freezeBuy || {}).length > 0 || (s.policyAt || 0) > 0 },
+  { id: 'wardrobe', icon: 'shirt', title: 'Гардероб', text: 'У Инфли три наряда', how: 'Соберите Инфле три наряда', coins: 20, test: (s) => wardrobeIds(s).length >= 3 },
   { id: 'rare', icon: 'crown', title: 'Коллекционер', text: 'Куплена редкая вещь из витрины ювелира', how: 'Купите редкую вещь в витрине ювелира', coins: 100, test: (s) => Object.keys(s.owned || {}).some((id) => OUTFIT_BY_ID[id] && OUTFIT_BY_ID[id].rare && !LESSON_SLOTS.includes(OUTFIT_BY_ID[id].slot)) },
   { id: 'early', icon: 'sunrise', title: 'Ранняя пташка', text: 'Урок до восьми утра', how: 'Пройдите урок до восьми утра — по часам вашего устройства', coins: 10, test: (s) => Object.values(s.daily || {}).some((d) => d.h & 1) },
   { id: 'owl', icon: 'moon', title: 'Сова', text: 'Урок после десяти вечера', how: 'Пройдите урок после десяти вечера — по часам вашего устройства', coins: 10, test: (s) => Object.values(s.daily || {}).some((d) => d.h & 2) },

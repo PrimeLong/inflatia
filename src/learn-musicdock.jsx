@@ -12,6 +12,14 @@ import { MINI_CSS, Bars } from './learn-bookdock.jsx';
 
 const DOCK_CSS = `
   .lm-dock { z-index: 115; bottom: calc(var(--dock-b, 72px) + 10px); padding: 8px 8px 8px 9px; gap: 4px; }
+  /* открыта книга с полки (читалка — слой во весь экран, z 320): плашка музыки не прячется под ней, а встаёт у нижнего края
+     читалки; звучит и сама книга — её мини-проигрыватель внизу, плашка музыки над ним (пункт владельца 20.11, п. 6:
+     «когда открываешь книгу, мини-проигрыватель исчезает»). Текст и «Наверх» читалки — выше плашки. */
+  html:has(.lb-reader) .lm-dock { z-index: 330; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  html:has(.lb-reader .lb-mini) .lm-dock { bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
+  html[data-music-dock] .lb-reader { padding-bottom: 76px; }
+  html[data-music-dock] .lb-reader .lb-up { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  html[data-music-dock] .lb-reader .lb-up.over { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
   /* звучит и книга — музыка над её плашкой */
   html[data-book-dock] .lm-dock { bottom: calc(var(--dock-b, 72px) + 88px); }
   html[data-music-dock] .ln-to-map { bottom: calc(160px + env(safe-area-inset-bottom)); }

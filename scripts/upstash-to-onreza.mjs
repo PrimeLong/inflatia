@@ -9,35 +9,9 @@
    новой сборкой, не затирая более свежие данные). Без --missing повторный запуск перезаписывает PostgreSQL данными Upstash. Срок жизни ключей (комнаты, сессии, счётчики) переносится как есть. Сами значения на экран
    не выводятся — только числа. */
 import { pgKv, poolFrom } from '../api/_lib/pgkv.js';
+import { copyKey } from '../api/_lib/kv-copy.js';
 
-// один ключ: значение, хэш, множество или список — тем же видом и с тем же остатком срока
-export async function copyKey(src, dst, k, { missing = false } = {}) {
-  // --missing: ключи, которые уже есть в PostgreSQL, не трогать (догоняющий перенос после переключения)
-  if (missing && (await dst.pttl(k)) !== -2) return 'kept';
-  const type = await src.type(k);
-  const ttl = await src.pttl(k);
-  const px = ttl > 0 ? ttl : 0;
-  if (type === 'none' || ttl === -2) return 'none';
-  if (type === 'string') {
-    const v = await src.get(k);
-    if (v === null) return 'none';
-    await dst.set(k, v, px ? { px } : {});
-  } else if (type === 'hash') {
-    const h = (await src.hgetall(k)) || {};
-    await dst.del(k);
-    if (Object.keys(h).length) await dst.hset(k, h);
-  } else if (type === 'set') {
-    await dst.del(k);
-    const m = (await src.smembers(k)) || [];
-    if (m.length) await dst.sadd(k, ...m);
-  } else if (type === 'list') {
-    await dst.del(k);
-    const items = (await src.lrange(k, 0, -1)) || [];
-    if (items.length) await dst.rpush(k, ...items);
-  } else return `skip:${type}`;
-  if (px && type !== 'string') await dst.expire(k, px / 1000);
-  return type;
-}
+export { copyKey } from '../api/_lib/kv-copy.js';
 
 export async function copyAll(src, dst, { dryRun = false, missing = false, log = () => {} } = {}) {
   const counts = {};

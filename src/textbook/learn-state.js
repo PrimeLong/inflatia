@@ -5,6 +5,7 @@
 
    Серия дней — дни, когда пройден хотя бы один урок. Один пропуск в календарную неделю
    «замораживается» и серию не обнуляет. Без наказаний: пропуск просто не считается днём серии. */
+import { cleanMine, betterMine } from '../learn/mine-state.js';
 const DAY = 24 * 3600 * 1000;
 /* recall — верный ответ на «Вспомните» учебника (новый вопрос или подошёл срок повторения, recallXp);
    book — книга полки отмечена прочитанной (один раз, markBook) */
@@ -50,7 +51,7 @@ export const emptyLearn = () => ({
   runs: { started: 0, finished: 0, abandoned: 0 }, quits: {}, quitAt: {}, mistakes: [], hinted: [], solved: {}, unhint: {},
   profile: { goal: null, minutes: null, knows: false, at: 0 }, placement: { at: 0, opened: [] }, run: { n: 0, at: 0 },
   topics: {}, recent: '', recentAt: 0, daily: {},
-  coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
+  mine: null, coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
   policyAt: 0, policyOff: 0, policyLapse: 0, premiums: {}, monthPlan: {},
   seen: {}, best: {}, boost: 0, piggy: {}, piggyOut: {}, piggyTop: {}, piggyAdd: {}, garden: {}, harvest: {}, water: {},
   shown: {}, read: {}, readGem: {}, gems: {}, met: {}, fixed: {}, books: {}, graphs: {}, draws: {}, fines: {},
@@ -745,6 +746,8 @@ function normalizeProgram(r) {
     seen: countMap(r.seen, MAX_SEEN, 9999), best: countMap(r.best, MAX_BEST, 1e6), boost: cnt(r.boost, 1e14),
     piggy: piggyMap(r.piggy), piggyOut: piggyMap(r.piggyOut), piggyTop: piggyTopMap(r.piggyTop), piggyAdd: piggyAddMap(r.piggyAdd), garden: gardenMap(r.garden), harvest: harvestMap(r.harvest), water: waterMap(r.water),
     // показанное: самые свежие SHOWN_MAX по времени
+    // шахта лавки — общая для устройств (пункт владельца 20.11, п. 7); нет — null
+    mine: r.mine && typeof r.mine === 'object' && (r.mine.v === 1 || r.mine.v === 2) ? cleanMine(r.mine, 0) : null,
     read: tsMap(r.read, 200), readGem: tsMap(r.readGem, 200), gems: tsMap(r.gems, 300), met: tsMap(r.met, 200), fixed: tsMap(r.fixed, 200), books: tsMap(r.books, 100), graphs: tsMap(r.graphs, 100), draws: tsMap(r.draws, 100),
     shown: Object.fromEntries(Object.entries(tsMap(r.shown, 5000)).sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)).slice(-SHOWN_MAX)),
   };
@@ -778,6 +781,8 @@ function mergeProgram(x, y) {
     harvest: minTs(x.harvest, y.harvest),
     water: Object.fromEntries([...new Set([...Object.keys(x.water), ...Object.keys(y.water)])].map((k) => [k, [x.water[k], y.water[k]].filter(Boolean).sort()[0]])),
     shown: minTs(x.shown, y.shown),
+    // шахта: дальше продвинутая (больше разбитых блоков) — сложить две шахты нельзя
+    mine: betterMine(x.mine, y.mine),
     read: minTs(x.read, y.read), readGem: minTs(x.readGem, y.readGem), gems: minTs(x.gems, y.gems), met: minTs(x.met, y.met), fixed: minTs(x.fixed, y.fixed), books: minTs(x.books, y.books), graphs: minTs(x.graphs, y.graphs), draws: minTs(x.draws, y.draws),
   };
 }

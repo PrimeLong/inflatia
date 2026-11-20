@@ -210,3 +210,18 @@ describe('списание монет дюпа', () => {
     expect(balance(later)).toBe(120);
   });
 });
+
+// пункт владельца 20.11, п. 8: монеты шахты (обмен, заказы, рубежи глубины) — честный заработок, проверка их учитывает
+describe('проверка монет: шахта', () => {
+  it('рубежи и заказы шахты поднимают верхнюю границу ровно на свои монеты', async () => {
+    const { coinCeiling } = await import('../audit.js');
+    const { MILESTONES } = await import('../mine.js');
+    const { emptyLearn } = await import('../../textbook/learn-state.js');
+    const base = { ...emptyLearn(), lessons: { 'sc-i1': { at: 1, runs: 1, best: 100 } } };
+    const claimed = { 'mine:d:25': 1, 'mine:d:1200': 1, 'mine:o:2026-11-20:1': 1, 'mine:2026-11-20:1': 1 };
+    const a = coinCeiling(base, Date.UTC(2026, 10, 20)).parts;
+    const b = coinCeiling({ ...base, claimed }, Date.UTC(2026, 10, 20)).parts;
+    expect(a.mine).toBe(0);
+    expect(b.mine).toBe(MILESTONES.find((x) => x.d === 25).coins + MILESTONES.find((x) => x.d === 1200).coins + 2);
+  });
+});
