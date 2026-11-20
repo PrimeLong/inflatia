@@ -5,13 +5,13 @@
    Холст рисует пыль, сетка (src/learn/dust.js) считает, сколько протёрто, — они стирают одинаково.
    Клавиатура: Enter или пробел на стекле — протереть очередную полосу. Отдельный ленивый чанк. */
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Sparkles, RotateCcw, Store, Coins } from 'lucide-react';
+import { X, Sparkles, RotateCcw, Store, Coins, Check } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Mascot } from './mascot.jsx';
 import { Button } from './ds.jsx';
 import { Rag } from './learn-rag.jsx';
 import { CoinShower, useReducedMotion } from './ds-art.jsx';
-import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent, dustCounted, dustPerDay, dustRag, hasPolish, dustShine, POLISH } from './learn/dust.js';
+import { DUST, dustLeft, dustDone, dustClaim, dustItem, dustGrid, wipeAt, stampsAlong, cleanShare, shownPercent, dustCounted, dustPerDay, dustRag, hasPolish, dustShine, POLISH, dustLog, logBonusToday } from './learn/dust.js';
 import { OUTFIT_BY_ID, priceOf, coinsWord, outfitOf } from './learn/rewards.js';
 import { dayOf } from './textbook/learn-state.js';
 
@@ -165,6 +165,8 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
   const [size, setSize] = useState(null);
   const [paid, setPaid] = useState(0);
   const [shineBonus, setShineBonus] = useState(0); const paidRef = useRef(0);
+  // журнал уборки (src/learn/dust.js, dustLog): последняя оплаченная витрина дня — бонус по серии
+  const [logBonus, setLogBonus] = useState(0);
   const [counted, setCounted] = useState(false);
   const glass = useRef(null); const dust = useRef(null); const fx = useRef(null); const rag = useRef(null);
   const grid = useRef(null); const down = useRef(null); const phaseRef = useRef('play'); const pctRef = useRef(0); const countedRef = useRef(false);
@@ -236,7 +238,9 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
   const count = () => {
     countedRef.current = true; setCounted(true);
     const pay = dustLeft(learn) > 0;
-    if (pay) update((s) => dustClaim(s, Date.now()), { settle: true });
+    let lb = 0;
+    if (pay) update((s) => { const now = Date.now(); const a = dustClaim(s, now); const b = dustLog(a, now); lb = b === a ? 0 : logBonusToday(b, now); return b; }, { settle: true });
+    setLogBonus(lb);
     setPaid(pay ? DUST.coins : 0); paidRef.current = pay ? DUST.coins : 0;
     if (pay) Audio.play('coin');
   };
@@ -363,8 +367,9 @@ export default function DustGame({ learn, update, onClose, onShowcase = null }) 
             <Sparkles size={26} color="#F3D98E" aria-hidden="true" />
             <h3>Блестит!</h3>
             <p style={{ marginTop: 0 }}>Чисто до последнего пятнышка.</p>
-            {paid > 0 && <div className="dg-coins" data-testid="dust-coins"><i aria-hidden="true"><Coins size={15} /></i>+{paid + shineBonus} {coinsWord(paid + shineBonus)}</div>}
+            {paid > 0 && <div className="dg-coins" data-testid="dust-coins"><i aria-hidden="true"><Coins size={15} /></i>+{paid + shineBonus + logBonus} {coinsWord(paid + shineBonus + logBonus)}</div>}
             {shineBonus > 0 && <div className="dg-polish" data-testid="dust-polish-bonus"><Sparkles size={14} aria-hidden="true" />полироль: +{shineBonus} за блеск</div>}
+            {logBonus > 0 && <div className="dg-polish" data-testid="dust-log-bonus"><Check size={14} aria-hidden="true" />журнал уборки: все витрины дня — +{logBonus}</div>}
             <p>{o ? <>За стеклом — Инфля в «{o.title}». На витрине дня — {price} мон.</> : 'Витрина как новая.'}</p>
             <p style={{ fontSize: 13 }}>{dustLeft(learn) > 0 ? `Сегодня можно протереть ещё ${dustLeft(learn)} из ${dustPerDay(learn)}.` : 'Монеты за сегодня собраны — дальше только ради удовольствия.'}</p>
             <div className="dg-acts">

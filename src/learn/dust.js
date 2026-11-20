@@ -69,6 +69,47 @@ export function dustShine(s, now = Date.now()) {
   return s;
 }
 
+/* УЛУЧШЕНИЕ «ЖУРНАЛ УБОРКИ» (пункт владельца 21.11, п. 8: «нужно ещё улучшение витрины»). Третье, после полироли:
+   в день, когда протёрты все оплачиваемые витрины, в журнал ставится отметка и выплачивается бонус — 1 монета в первый
+   такой день, 2 — во второй подряд, дальше по LOG.max в день, пока серия не прервётся (ключ dust:<день>:log, второй раз
+   за день не выплатить). Стимул — не протереть один раз побольше, а заходить каждый день. Окупается за
+   ~LOG.price / LOG.max дней при ежедневной уборке; что уже вернул — logReturn. */
+export const LOG = { id: 'dust-log', price: 48, max: 3 };
+export const hasLog = (s) => !!((s && s.owned) || {})[LOG.id];
+export const logKey = (day) => `dust:${day}:log`;
+const prevDay = (day) => dayOf(Date.parse(`${day}T12:00:00Z`) - 86400000);
+// сколько дней подряд до этого дня (включая его, если отмечен) в журнале есть отметка
+export function logStreak(s, now = Date.now()) {
+  let day = dayOf(now); if (!hasClaim(s, logKey(day))) day = prevDay(day);
+  let n = 0; while (hasClaim(s, logKey(day)) && n < 400) { n += 1; day = prevDay(day); }
+  return n;
+}
+export const logPaybackDays = () => Math.ceil((LOG.price - 1 - 2) / LOG.max) + 2;
+export function logReturn(s) {
+  if (!hasLog(s)) return 0;
+  const days = Object.keys(s.claimed || {}).map((k) => /^dust:(\d{4}-\d{2}-\d{2}):log$/.exec(k)).filter(Boolean).map((m) => m[1]).sort();
+  let sum = 0; let run = 0; let prev = null;
+  days.forEach((d) => { run = prev && prevDay(d) === prev ? run + 1 : 1; sum += Math.min(LOG.max, run); prev = d; });
+  return sum;
+}
+export function buyLog(s, now = Date.now()) {
+  if (hasLog(s)) return { s, ok: false, reason: 'Журнал уже куплен' };
+  if (!hasPolish(s)) return { s, ok: false, reason: 'Сначала — полироль' };
+  if (balance(s) < LOG.price) return { s, ok: false, reason: `Не хватает ${LOG.price - balance(s)} мон.` };
+  const day = dayOf(now);
+  return { s: { ...s, spent: { ...s.spent, [day]: ((s.spent || {})[day] || 0) + LOG.price }, owned: { ...s.owned, [LOG.id]: now } }, ok: true, price: LOG.price };
+}
+// после оплаченной витрины: если оплачены все витрины дня — отметка в журнале и бонус по серии
+export function dustLog(s, now = Date.now()) {
+  if (!hasLog(s)) return s;
+  const day = dayOf(now);
+  if (hasClaim(s, logKey(day)) || dustDone(s, now) < dustPerDay(s)) return s;
+  let run = 0; let d = prevDay(day);
+  while (hasClaim(s, logKey(d)) && run < LOG.max) { run += 1; d = prevDay(d); }
+  return earn(s, Math.min(LOG.max, run + 1), logKey(day), now);
+}
+export const logBonusToday = (s, now = Date.now()) => (hasClaim(s, logKey(dayOf(now))) ? Math.min(LOG.max, logStreak(s, now)) : 0);
+
 // сколько витрин уже оплачено сегодня и сколько ещё можно
 export function dustDone(s, now = Date.now()) {
   const day = dayOf(now);
