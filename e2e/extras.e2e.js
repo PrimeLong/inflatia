@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { BOOK_BY_ID, bookSpeech, passageAt, passageStart } from '../src/learn/shelf.js';
 import { PEOPLE } from '../src/learn/people.js';
 import { listPeoplePhotos, readPhotoCredits } from '../scripts/voice-files-plugin.js';
-import { openApp, openTab, pathNode, installHooks, showUnit } from './helpers.js';
+import { openApp, openTab, pathNode, installHooks, showUnit, startLesson } from './helpers.js';
 
 installHooks();
 
@@ -1505,3 +1505,39 @@ test('«Нарисуй сам», сложный процент: пунктир �
   expect(errors).toEqual([]);
 });
 
+
+/* пункт владельца 21.11, п. 2: «в особенных уроках другой дизайн: шапка меньше, Инфля вылазит за границы»; жалоба
+   21.11 (people-household): «тут съехали эмодзи» — значок карточки «Главная идея» и «Знаете ли вы» лежал на тексте */
+test('особый урок на ПК: шапка того же размера, что у урока; Инфля целиком в шапке; значки карточек не на тексте', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'увеличение шапки — на широком экране');
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-l1': { at, runs: 1, best: 90 } } } }));
+  });
+  await page.setViewportSize({ width: 1910, height: 950 });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-l2');
+  const lessonHead = await page.getByTestId('lesson').locator('.ln-head').boundingBox();
+  await page.getByTestId('lesson').getByRole('button', { name: 'Выйти из урока' }).click();
+  const leave = page.getByRole('button', { name: /Выйти/ }).last();
+  if (await leave.isVisible().catch(() => false)) await leave.click();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  const stop = page.locator('[data-testid=path-extra][data-id="people-scarcity"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click(); await page.getByTestId('extra-start').click();
+  const view = page.getByTestId('people');
+  const head = await view.getByTestId('special-head').locator('.ln-head').boundingBox();
+  expect(Math.abs(head.width - lessonHead.width)).toBeLessThan(4);
+  expect(Math.abs(head.height - lessonHead.height)).toBeLessThan(4);
+  // Инфля серии — внутри шапки, не за её верхним краем
+  const infla = await view.getByTestId('special-head').locator('.ln-head svg').last().boundingBox();
+  expect(infla.y).toBeGreaterThanOrEqual(head.y - 1);
+  // значок карточки — левее текста, а не на нём
+  for (const sel of ['.pp-idea', '.pp-fact']) {
+    const card = view.locator(sel).first();
+    const pad = await card.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
+    const cb = await card.boundingBox(); const ib = await card.locator('svg').first().boundingBox();
+    expect(ib.x + ib.width, sel).toBeLessThanOrEqual(cb.x + pad + 1);
+  }
+  expect(errors).toEqual([]);
+});

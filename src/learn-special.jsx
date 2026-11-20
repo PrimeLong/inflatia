@@ -32,8 +32,13 @@ const CSS = `
   .sp-top { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 96%, transparent) 72%, transparent); }
   .sk-on .sp-top { background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 78%, transparent) 60%, transparent); }
   .sp-top .ln-head { padding-bottom: 6px; }
-  .sp-run { display: inline-flex; align-items: center; flex: none; height: 40px; overflow: visible; }
-  .sp-run > :last-child { max-height: 40px; }
+  /* Инфля серии — прямо в шапке, как в уроке (обёртка с высотой 40 px поджимала её к верхнему краю — пункт владельца 21.11, п. 2) */
+  .sp-run { display: contents; }
+  /* на ПК шапка и строка вида урока — того же размера, что у урока: урок увеличивается целиком (src/learn.jsx), а шапка
+     особых уроков оставалась мелкой (пункт владельца 21.11, п. 2: «в особенных уроках шапка меньше») */
+  @media (min-width: 1000px) and (min-height: 836px) { .sp-top .ln-head, .sp-top .sp-label { zoom: 1.1; } }
+  @media (min-width: 1200px) and (min-height: 912px) { .sp-top .ln-head, .sp-top .sp-label { zoom: 1.2; } }
+  @media (min-width: 1400px) and (min-height: 1003px) { .sp-top .ln-head, .sp-top .sp-label { zoom: 1.32; } }
   /* вид урока над заданием — как «Выбор ответа» в уроке */
   .sp-label { max-width: 592px; margin: 6px auto 0; padding: 0 14px; display: flex; align-items: center; gap: 8px; }
   .sp-label > span.ln-kind { margin: 0; }

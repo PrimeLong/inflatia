@@ -72,10 +72,12 @@ export const PEOPLE_CSS = `
   @keyframes pp-drop { from { opacity: 0; transform: translate(-50%, -10px) } }
 
   .pp-story p { font: 400 16.5px/1.6 var(--ds-sans); margin: 14px 0 0; }
-  .pp-idea { position: relative; margin: 20px 0 0; padding: 18px 20px 18px 54px; border-radius: 18px; font: italic 600 18px/1.45 var(--ds-news, 'PT Serif', Georgia, serif);
+  /* .pp-root впереди — сильнее .ds-card: у неё свой отступ 16 px, и он сдвигал текст под значок (жалоба 21.11, people-household:
+     «съехали эмодзи») */
+  .pp-root .pp-idea { position: relative; margin: 20px 0 0; padding: 18px 20px 18px 54px; border-radius: 18px; font: italic 600 18px/1.45 var(--ds-news, 'PT Serif', Georgia, serif);
     background: color-mix(in srgb, var(--pp) 10%, var(--ds-card)); border: 1px solid color-mix(in srgb, var(--pp) 30%, transparent); }
   .pp-idea svg { position: absolute; left: 18px; top: 19px; color: var(--pp-ink); }
-  .pp-fact { margin-top: 12px; padding: 14px 16px 14px 48px; position: relative; border-radius: 16px; font: 400 15px/1.5 var(--ds-sans); background: var(--ds-card); border: 1px dashed var(--ds-rule); color: var(--ds-ink2); }
+  .pp-root .pp-fact { margin-top: 12px; padding: 14px 16px 14px 48px; position: relative; border-radius: 16px; font: 400 15px/1.5 var(--ds-sans); background: var(--ds-card); border: 1px dashed var(--ds-rule); color: var(--ds-ink2); }
   .pp-fact b { display: block; font: 700 11px var(--ds-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--pp-ink); margin-bottom: 2px; }
   .pp-fact svg { position: absolute; left: 16px; top: 15px; color: var(--ds-gold); }
   .pp-ask { margin-top: 22px; }
