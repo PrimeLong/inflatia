@@ -2,7 +2,7 @@
    «Пыльная витрина» и переход в сад. Вынесена из src/learn-rewards.jsx отдельным ленивым файлом
    (docs/mechanics.md, «Приветствие и загрузка»): грузится, когда открывают вкладку «Лавка», а не до появления Пути.
    Стили лавки — в REWARD_CSS (src/learn-rewards.jsx): их вставляет вкладка обучения. */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { trackDaily } from './lib/client.js';
 import { loadAccount } from './account.jsx';
 import { noScarcity } from './lib/age.js';
@@ -63,6 +63,7 @@ import {
 } from './learn/rewards.js';
 import { Rag } from './learn-rag.jsx';
 import { DUST, dustDone, dustItem, dustPerDay, CLOTH, hasCloth, buyCloth, clothReturn, clothPaybackDays, POLISH, hasPolish, buyPolish, polishReturn, polishPaybackDays } from './learn/dust.js';
+import { createPreview, PREVIEW } from './learn/record-preview.js';
 import { dayOf, addDays, dayStart, ownedFreezes, rolloverLocal } from './textbook/learn-state.js';
 
 
@@ -151,6 +152,13 @@ export const RECORD_CSS = `
   .rw-ring .fg { stroke: var(--rv, #C9A43A); stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
   .rw-arm { position: absolute; right: 0; top: 0; width: 34px; height: 60px; transform-origin: 26px 8px; transform: rotate(-28deg); transition: transform .6s cubic-bezier(.3,1.3,.5,1); pointer-events: none; }
   .rw-deck.on .rw-arm { transform: rotate(0deg); }
+  .rw-deck.loading .rw-arm { transform: rotate(-14deg); }
+  .rw-ring .ld { stroke: var(--rv, #C9A43A); stroke-linecap: round; fill: none; stroke-width: 3; transform-origin: 42px 42px; animation: rw-vinyl 1s linear infinite; }
+  .rw-dots { display: inline-flex; gap: 3px; }
+  .rw-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--rv, #C9A43A); animation: rw-dot 1s ease-in-out infinite; }
+  .rw-dots i:nth-child(2) { animation-delay: .15s; } .rw-dots i:nth-child(3) { animation-delay: .3s; }
+  @keyframes rw-dot { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+  .rw-vinyl-t.bad { color: var(--ds-bad); }
   .rw-vinyl-t { display: flex; align-items: center; justify-content: center; gap: 6px; font: 600 12px var(--ds-sans); color: var(--ds-ink3); text-align: center; min-height: 16px; }
   .rw-deck.on + .rw-vinyl-t { color: var(--ds-ink); }
   .rw-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
@@ -158,48 +166,50 @@ export const RECORD_CSS = `
   .rw-eq i:nth-child(2) { animation-delay: -.3s; } .rw-eq i:nth-child(3) { animation-delay: -.6s; } .rw-eq i:nth-child(4) { animation-delay: -.15s; }
   @keyframes rw-eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
   @keyframes rw-vinyl { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .rw-disc.spin, .rw-eq i { animation: none; } .rw-arm { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .rw-disc.spin, .rw-eq i, .rw-dots i { animation: none; } .rw-arm { transition: none; } }
 `;
 const RECORD_TINT = { 'rec-nights': '#7A5BD8', 'rec-gold': '#C9A43A', 'rec-aurora': '#2BE3A0', 'rec-gong': '#D2503C', 'rec-rain': '#5B8EC8', 'rec-funk': '#E07A2E' };
-export const PREVIEW_SECONDS = 20;
-let previewAudio = null;
+export const PREVIEW_SECONDS = PREVIEW.seconds;
 /* фрагмент 20 секунд; пока он звучит, в проигрывателе ничего не играет («пока она играет, в проигрывателе ничего не должно
-   играть»): музыка встаёт на паузу на той же секунде и после фрагмента продолжается с неё */
+   играть»): музыка встаёт на паузу на той же секунде и после фрагмента продолжается с неё. Один фрагмент на лавку
+   (src/learn/record-preview.js): другая пластинка не будит проигрыватель; пока запись грузится — видно, что грузится. */
+const recordMusic = {
+  playing: () => { const np = Audio.loaded() ? Audio.nowPlaying() : null; return !!(np && Audio.opts.music && np.playing); },
+  pause: () => { const np = Audio.nowPlaying(); setMusicPaused({ id: np.id, offset: np.position }); Audio.setMusic(false); },
+  resume: () => { setMusicPaused(null); Audio.setMusic(true); },
+};
+const preview = createPreview({ make: (url) => { const a = new window.Audio(url); a.preload = 'auto'; a.volume = 0.8; return a; }, music: recordMusic });
 function RecordDisc({ o }) {
-  const [on, setOn] = useState(false);
+  const snap = useSyncExternalStore(preview.subscribe, preview.get);
+  const mine = snap.id === o.id;
+  const on = mine && snap.status === 'playing';
+  const loading = mine && snap.status === 'loading';
+  const failed = snap.failed === o.id;
   const [left, setLeft] = useState(PREVIEW_SECONDS);
-  const held = useRef(false);
-  const release = () => { if (held.current) { held.current = false; setMusicPaused(null); Audio.setMusic(true); } };
-  useEffect(() => () => { if (previewAudio && previewAudio.dataset && previewAudio.dataset.rec === o.id) { previewAudio.pause(); previewAudio = null; } release(); }, [o.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => preview.leave(o.id), [o.id]);
   useEffect(() => {
-    if (!on) return undefined;
-    const t0 = Date.now();
-    const id = setInterval(() => setLeft(Math.max(0, PREVIEW_SECONDS - (Date.now() - t0) / 1000)), 250);
+    if (!on) { setLeft(PREVIEW_SECONDS); return undefined; }
+    const tick = () => setLeft(Math.max(0, PREVIEW_SECONDS - (Date.now() - snap.startedAt) / 1000));
+    tick(); const id = setInterval(tick, 250);
     return () => clearInterval(id);
-  }, [on]);
-  const toggle = () => {
-    if (on && previewAudio) { previewAudio.pause(); previewAudio = null; setOn(false); release(); return; }
-    if (previewAudio) previewAudio.pause();
-    const np = Audio.loaded() ? Audio.nowPlaying() : null;
-    if (np && Audio.opts.music && np.playing) { setMusicPaused({ id: np.id, offset: np.position }); Audio.setMusic(false); held.current = true; }
-    const a = new window.Audio(`/music/${o.track}.mp3`); a.dataset.rec = o.id; a.volume = 0.8; previewAudio = a;
-    const stop = () => { if (previewAudio === a) previewAudio = null; a.pause(); setOn(false); release(); };
-    a.addEventListener('ended', stop); a.addEventListener('pause', () => { setOn(false); release(); });
-    setLeft(PREVIEW_SECONDS);
-    a.play().then(() => { setOn(true); setTimeout(() => { if (previewAudio === a) stop(); }, PREVIEW_SECONDS * 1000); }).catch(() => stop());
-  };
+  }, [on, snap.startedAt]);
+  const toggle = () => preview.play(o.id, `/music/${o.track}.mp3`);
   const C = 2 * Math.PI * 39;
+  const state = on ? 'playing' : loading ? 'loading' : 'idle';
   return (
     <>
-      <div className={`rw-deck${on ? ' on' : ''}`} style={{ '--rv': RECORD_TINT[o.id] }} data-testid="record-deck" data-on={String(on)}>
+      <div className={`rw-deck${on ? ' on' : ''}${loading ? ' loading' : ''}`} style={{ '--rv': RECORD_TINT[o.id] }} data-testid="record-deck" data-on={String(on)} data-state={state}>
         <svg className="rw-ring" viewBox="0 0 84 84" aria-hidden="true"><circle className="bg" cx="42" cy="42" r="39" />
-          {on && <circle className="fg" cx="42" cy="42" r="39" strokeDasharray={C} strokeDashoffset={C * (1 - left / PREVIEW_SECONDS)} data-testid="record-ring" />}</svg>
-        <button type="button" className="rw-vinyl" onClick={toggle} aria-pressed={on}
-          aria-label={on ? `Остановить: ${o.title}` : `Послушать ${PREVIEW_SECONDS} секунд: ${o.title}`} data-testid="record-preview"><span className={`rw-disc${on ? ' spin' : ''}`} aria-hidden="true"><i /></span><b>{on ? <Pause size={12} aria-hidden="true" /> : <Play size={12} aria-hidden="true" />}</b></button>
+          {on && <circle className="fg" cx="42" cy="42" r="39" strokeDasharray={C} strokeDashoffset={C * (1 - left / PREVIEW_SECONDS)} data-testid="record-ring" />}
+          {loading && <circle className="ld" cx="42" cy="42" r="39" strokeDasharray={`${C * 0.22} ${C}`} data-testid="record-loading" />}</svg>
+        <button type="button" className="rw-vinyl" onClick={toggle} aria-pressed={on || loading} aria-busy={loading}
+          aria-label={on || loading ? `Остановить: ${o.title}` : `Послушать ${PREVIEW_SECONDS} секунд: ${o.title}`} data-testid="record-preview"><span className={`rw-disc${on ? ' spin' : ''}`} aria-hidden="true"><i /></span><b>{on || loading ? <Pause size={12} aria-hidden="true" /> : <Play size={12} aria-hidden="true" />}</b></button>
         <svg className="rw-arm" viewBox="0 0 34 60" aria-hidden="true"><circle cx="26" cy="8" r="6" fill="var(--ds-ink3)" /><path d="M26 8 L26 40 L14 54" stroke="var(--ds-ink2)" strokeWidth="3" fill="none" strokeLinecap="round" /><rect x="8" y="50" width="10" height="7" rx="2" fill="var(--ds-ink2)" transform="rotate(-35 13 53)" /></svg>
       </div>
-      <div className="rw-vinyl-t" data-testid="record-status" aria-live="polite">
-        {on ? <><span className="rw-eq" aria-hidden="true"><i /><i /><i /><i /></span>играет · {Math.ceil(left)} с</> : `коснитесь — ${PREVIEW_SECONDS} секунд`}
+      <div className={`rw-vinyl-t${failed ? ' bad' : ''}`} data-testid="record-status" aria-live="polite">
+        {on ? <><span className="rw-eq" aria-hidden="true"><i /><i /><i /><i /></span>играет · {Math.ceil(left)} с</>
+          : loading ? <><span className="rw-dots" aria-hidden="true"><i /><i /><i /></span>загружается…</>
+          : failed ? 'не включилась — коснитесь ещё раз' : `коснитесь — ${PREVIEW_SECONDS} секунд`}
       </div>
     </>
   );

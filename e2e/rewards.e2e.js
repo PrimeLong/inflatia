@@ -1197,6 +1197,40 @@ test('лавка: пластинки — дешёвые, на витрине ф�
   expect(errors).toEqual([]);
 });
 
+// пункты владельца 20.11, п. 3–5: пока запись грузится — видно; вторая пластинка выключает первую; сбой не молчит
+test('лавка: фрагмент пластинки — «загружается…» до первого звука, одна пластинка за раз, не включилась — так и сказано', async ({ page }) => {
+  await page.addInitScript(() => {
+    // запись «грузится» 1,2 секунды, потом звучит; пластинка с «broken» в адресе не включается
+    const M = window.HTMLMediaElement.prototype;
+    M.play = function play() {
+      if (String(this.src).includes(window.__brokenRec || '#')) return Promise.reject(new Error('NotAllowedError'));
+      return new Promise((res) => setTimeout(() => { res(); this.dispatchEvent(new Event('playing')); }, 1200));
+    };
+    M.pause = function pause() { this.dispatchEvent(new Event('pause')); };
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
+  await shopTab(page, 'lesson');
+  const [a, b] = [0, 1].map((k) => page.getByTestId('shop-records').getByTestId('shop-item').nth(k));
+  await a.getByTestId('record-preview').click();
+  await expect(a.getByTestId('record-deck')).toHaveAttribute('data-state', 'loading');
+  await expect(a.getByTestId('record-loading')).toBeAttached();
+  await expect(a.getByTestId('record-status')).toContainText('загружается');
+  await expect(a.getByTestId('record-deck')).toHaveAttribute('data-state', 'playing', { timeout: 4000 });
+  await b.getByTestId('record-preview').click();
+  await expect(a.getByTestId('record-deck')).toHaveAttribute('data-state', 'idle');
+  await expect(b.getByTestId('record-deck')).toHaveAttribute('data-state', 'loading');
+  await expect(b.getByTestId('record-deck')).toHaveAttribute('data-state', 'playing', { timeout: 4000 });
+  await b.getByTestId('record-preview').click();
+  await expect(b.getByTestId('record-deck')).toHaveAttribute('data-state', 'idle');
+  // браузер отказал — пластинка не гаснет молча
+  const track = await a.getAttribute('data-item');
+  await page.evaluate(() => { window.__brokenRec = '/music/'; });
+  await a.getByTestId('record-preview').click();
+  await expect(a.getByTestId('record-status')).toContainText('не включилась', { timeout: 4000 });
+  expect(track).toMatch(/^rec-/);
+  expect(errors).toEqual([]);
+});
+
 // пункт владельца 19.11, п. 12: новая работа — «Шахта», инкременталка: забой, руда, скупщик, улучшения, монеты
 test('лавка: «Шахта» — удары по забою ведут вглубь и дают руду; скупщик — жетоны; кирка — улучшение; монета — по растущей цене', async ({ page }) => {
   const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
