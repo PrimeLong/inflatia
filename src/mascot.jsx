@@ -55,7 +55,23 @@ const CSS = `
   .infla-swing { transform-box: fill-box; transform-origin: 50% 0; animation: infla-swing 2.6s ease-in-out infinite; }
   .infla-spark { transform-box: fill-box; transform-origin: center; animation: infla-spark 2.4s ease-in-out infinite; opacity: 0; }
   .infla-spin { transform-box: view-box; transform-origin: 32px 25px; animation: infla-spin 24s linear infinite; }
-  @media (prefers-reduced-motion: reduce) { .infla-bob, .infla-hop, .infla-eyes, .infla-hand, .infla-sway, .infla-balloon, .infla-swing, .infla-spin, .infla-flicker { animation: none; } .infla-spark { animation: none; opacity: 1; } }
+  /* касание Инфли (пункт владельца 21.11, п. 5: «анимации взаимодействия с Инфлёй — нажать на неё»): прыжок, сплющилась,
+     крутанулась — по очереди; сердечки вылетают; пять касаний подряд — закружилась голова */
+  .infla-touch { position: relative; display: inline-block; line-height: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .infla-touch > .infla-pk { display: inline-block; line-height: 0; transform-origin: 50% 85%; }
+  .infla-pk.p-jump { animation: infla-pk-jump .55s cubic-bezier(.3,1.6,.5,1); }
+  .infla-pk.p-squish { animation: infla-pk-squish .5s ease-out; }
+  .infla-pk.p-spin { animation: infla-pk-spin .6s cubic-bezier(.4,1.4,.5,1); }
+  .infla-pk.p-dizzy { animation: infla-pk-dizzy 1.1s ease-in-out; }
+  @keyframes infla-pk-jump { 0% { transform: none } 35% { transform: translateY(-22%) scale(.96, 1.06) } 70% { transform: translateY(2%) scale(1.06, .94) } 100% { transform: none } }
+  @keyframes infla-pk-squish { 0% { transform: none } 30% { transform: scale(1.18, .78) } 60% { transform: scale(.92, 1.1) } 100% { transform: none } }
+  @keyframes infla-pk-spin { 0% { transform: rotate(0) } 100% { transform: rotate(360deg) } }
+  @keyframes infla-pk-dizzy { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-14deg) } 40% { transform: rotate(12deg) } 60% { transform: rotate(-9deg) } 80% { transform: rotate(6deg) } }
+  .infla-heart { position: absolute; left: 50%; top: 30%; width: 12px; height: 12px; margin-left: -6px; pointer-events: none; animation: infla-heart .9s ease-out forwards; }
+  .infla-heart::before { content: ''; position: absolute; inset: 0; background: #E0457B; clip-path: path('M6 11 L1 6 A2.6 2.6 0 0 1 6 2.4 A2.6 2.6 0 0 1 11 6 Z'); }
+  .infla-heart.star::before { background: #F3C553; clip-path: polygon(50% 0, 62% 38%, 100% 38%, 69% 60%, 80% 100%, 50% 76%, 20% 100%, 31% 60%, 0 38%, 38% 38%); }
+  @keyframes infla-heart { from { opacity: 1; transform: translate(0, 0) scale(.6) } to { opacity: 0; transform: translate(var(--hx), -46px) scale(1.15) } }
+  @media (prefers-reduced-motion: reduce) { .infla-pk, .infla-heart, .infla-bob, .infla-hop, .infla-eyes, .infla-hand, .infla-sway, .infla-balloon, .infla-swing, .infla-spin, .infla-flicker { animation: none; } .infla-spark { animation: none; opacity: 1; } }
 `;
 
 /* Наряды из лавки (src/learn/rewards.js): голова, лицо, шея. Рисуются поверх монеты тушью и
@@ -267,11 +283,34 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
   const motion = m === 'joy' || m === 'party' ? 'infla-hop' : m === 'sleep' ? '' : m === 'wave' ? 'infla-sway' : 'infla-bob';
   // свой ритм моргания у каждой Инфли: длина цикла 5,2–8,4 с и случайный сдвиг — не хором и не по метроному
   const blink = React.useMemo(() => ({ '--blink': `${(5.2 + Math.random() * 3.2).toFixed(2)}s`, '--blink-at': `${(-Math.random() * 8).toFixed(2)}s` }), []);
+  // касание: реакция по очереди, на миг — радость; пять касаний за 2,5 с — «закружилась» (думает)
+  const [pk, setPk] = React.useState({ n: 0, kind: '', hearts: [] });
+  const taps = React.useRef([]); const pkTimer = React.useRef(0);
+  React.useEffect(() => () => window.clearTimeout(pkTimer.current), []);
+  const dizzyUntil = React.useRef(0);
+  const poke = () => {
+    const now = Date.now();
+    if (now < dizzyUntil.current) return; // голова кружится — до конца не мешаем
+    taps.current = [...taps.current.filter((x) => now - x < 2500), now];
+    const dizzy = taps.current.length >= 5;
+    if (dizzy) { taps.current = []; dizzyUntil.current = now + 1150; }
+    setPk((p) => {
+      const n = p.n + 1;
+      const kind = dizzy ? 'dizzy' : ['jump', 'squish', 'spin'][n % 3];
+      const hearts = Array.from({ length: dizzy ? 5 : 3 }, (_, i) => ({ id: `${n}-${i}`, x: Math.round((i - (dizzy ? 2 : 1)) * 16 + (Math.random() - 0.5) * 10), star: dizzy || i === 1, d: i * 70 }));
+      return { n, kind, hearts };
+    });
+    window.clearTimeout(pkTimer.current);
+    pkTimer.current = window.setTimeout(() => setPk((p) => ({ ...p, kind: '', hearts: [] })), dizzy ? 1150 : 900);
+  };
+  const shown = pk.kind === 'dizzy' ? 'think' : pk.kind ? (m === 'sleep' ? 'hello' : 'joy') : m;
+  const sm = MOUTH[shown] ? shown : m;
   return (
-    <span style={{ display: 'inline-block', lineHeight: 0 }} data-testid="mascot" data-mood={m}>
+    <span className="infla-touch" data-testid="mascot" data-mood={m} data-poke={pk.n} data-reaction={pk.kind || undefined} onPointerDown={poke}>
       <style>{CSS}</style>
+      <span className={`infla-pk${pk.kind ? ` p-${pk.kind}` : ''}`} key={`pk${pk.n}`}>
       <svg viewBox={`0 ${top} 64 ${70 - top}`} width={size} height={size * (70 - top) / 64} role="img" aria-label={label || `Инфля: ${({ hello: 'привет', wave: 'машет', joy: 'радуется', cheer: 'подбадривает', party: 'празднует', sleep: 'спит', think: 'думает' })[m]}`}
-        className={`infla ${motion}`} key={m} style={{ overflow: 'visible' }}>
+        className={`infla ${motion}`} key={sm} style={{ overflow: 'visible' }}>
         <defs>
           <radialGradient id={gid} cx="36%" cy="28%" r="78%">
             <stop offset="0" stopColor="#FBE7A1" /><stop offset="0.5" stopColor="#D9B23A" /><stop offset="1" stopColor="#94700F" />
@@ -285,8 +324,8 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
         <path d="M17.4 18.6 C 18.6 13.6, 22.4 9.8, 27 8.8" fill="none" stroke="#FFF7DC" strokeOpacity="0.75" strokeWidth="2.4" strokeLinecap="round" />
         {/* шея — сразу за монетой: стоячий воротник встаёт по бокам, и машущая рука должна быть поверх него */}
         {wear.neck && OUTFIT[wear.neck] && <g data-outfit={wear.neck}>{OUTFIT[wear.neck]}</g>}
-        {(m === 'joy' || m === 'party' || m === 'hello') && <><ellipse cx="20" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /><ellipse cx="44" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /></>}
-        {m === 'sleep' ? EYES[m](ink) : <g className="infla-eyes" style={blink}>{EYES[m](ink)}</g>}
+        {(sm === 'joy' || sm === 'party' || sm === 'hello') && <><ellipse cx="20" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /><ellipse cx="44" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /></>}
+        {sm === 'sleep' ? EYES[sm](ink) : <g className="infla-eyes" style={blink}>{EYES[sm](ink)}</g>}
         {/* рука начинается чуть внутри края монеты, и плечо — центр вращения: при взмахе она не отрывается */}
         {m === 'wave' && (wear.hand && OUTFIT[wear.hand] ? (
           <g className="infla-hand left">
@@ -301,16 +340,18 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
             <circle cx="58.5" cy="21.5" r="4" fill="#E8C766" stroke="#3A2A08" strokeWidth="1.2" />
           </g>
         ))}
-        {MOUTH[m](ink)}
+        {MOUTH[sm](ink)}
         {m === 'party' && <>
           <path d="M26 3.5 L32 -4 L38 3.5 Z" fill="#4FA38F" stroke="#3A2A08" strokeWidth="0.8" transform="translate(0 4)" />
           {[[8, 12, '#E07A5F'], [56, 10, '#6FA8DC'], [5, 34, '#4FA38F'], [59, 32, '#E07A5F'], [12, 4, '#D9B23A']].map(([x, y, c], i) => <rect key={i} x={x} y={y} width="3" height="3" fill={c} transform={`rotate(${i * 37} ${x + 1.5} ${y + 1.5})`} />)}
         </>}
         {['face', 'head', 'hand'].map((sl) => (wear[sl] && OUTFIT[wear[sl]] ? <g key={sl} data-outfit={wear[sl]}>{OUTFIT[wear[sl]]}</g> : null))}
         {m === 'sleep' && <text x="46" y="9" fontSize="9" fill="#9FB3C8" fontFamily="sans-serif">z z</text>}
-        {m === 'think' && <><circle cx="52" cy="9" r="1.6" fill="#9FB3C8" /><circle cx="56.5" cy="4.5" r="2.4" fill="#9FB3C8" /></>}
+        {sm === 'think' && <><circle cx="52" cy="9" r="1.6" fill="#9FB3C8" /><circle cx="56.5" cy="4.5" r="2.4" fill="#9FB3C8" /></>}
         {m === 'cheer' && <path d="M52 30 l2 -4 l2 4 l4 1 l-3 3 l1 4 l-4 -2 l-4 2 l1 -4 l-3 -3 z" fill="#FBE7A1" stroke="#94700F" strokeWidth="0.6" />}
       </svg>
+      </span>
+      {pk.hearts.map((h) => <i key={h.id} className={`infla-heart${h.star ? ' star' : ''}`} style={{ '--hx': `${h.x}px`, animationDelay: `${h.d}ms` }} aria-hidden="true" />)}
     </span>
   );
 }
