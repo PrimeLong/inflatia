@@ -823,6 +823,11 @@ test('плоскость на весь экран: предел отдалени
   await expect(sheet).toBeVisible();
   const onTop = await sheet.evaluate((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + 20); return el.contains(top); });
   expect(onTop).toBe(true);
+  /* жалоба 21.11 (plane): «почему тут другая менюшка сообщить об ошибке» — шторка в корне дизайн-системы: те же шрифт и
+     цвета, что у шторки урока */
+  const look = await sheet.evaluate((el) => { const ds = el.closest('.ds'); const cs = getComputedStyle(el); return { ds: !!ds, font: cs.fontFamily, bg: cs.backgroundColor }; });
+  expect(look.ds).toBe(true);
+  expect(look.font).toMatch(/PT Sans|Inter|sans/i);
   await page.keyboard.press('Escape');
   await expect(pv).toBeVisible();
   expect(errors).toEqual([]);
