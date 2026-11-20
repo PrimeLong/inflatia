@@ -36,3 +36,19 @@ describe('«Сберкасса»: тексты после жалоб учени�
     expect(e.p).toBeGreaterThanOrEqual(3); expect(e.p).toBeLessThanOrEqual(15);
   });
 });
+
+// жалобы 21.11: hh-e2-size «Что какой?» — «Какой нужна подушка… на 5 месяца(ев)?»; hh-q2-goal «Откуда я знаю» — в условии не было расходов Тимура
+describe('жалобы 21.11: условия «Сберкассы» — всё, что нужно для ответа, в самом условии', () => {
+  const block = (id) => collectBlocks(parseChapter(md), (b) => b.id === id)[0];
+  it('hh-e2-size: «сколько крон», месяцы — по-русски, без «месяца(ев)»', () => {
+    const b = block('hh-e2-size'); const text = JSON.stringify(b);
+    expect(text).not.toContain('месяца(ев)');
+    expect(text).toContain('Сколько крон');
+    expect(text).toContain('{=k|месяц|месяца|месяцев}');
+  });
+  it('hh-q2-goal: в утверждении — и расходы Тимура, и сколько он откладывает', () => {
+    const text = JSON.stringify(block('hh-q2-goal'));
+    expect(text).toContain('6100');
+    expect(text).toContain('700');
+  });
+});
