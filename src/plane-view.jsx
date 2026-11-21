@@ -214,6 +214,11 @@ export function PlaneViewer({ title, scene: scene0, caption = null, from = null,
       const { w, h } = sizeRef.current; if (!w) return;
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; const p = local(e);
       set(zoomPlane(vRef.current, Math.exp(-dy * 0.0022), p.x, p.y, w, h, { ax: !e.altKey, ay: !e.shiftKey, fit: fit.current }));
+      /* колёсико посреди перетаскивания: перетаскивание продолжается от нового вида, а не от вида в момент нажатия — иначе
+         следующее движение мыши откатывало приближение, и плоскость «колбасило» (жалоба 21.11, plane: «зажимаешь левую
+         кнопку и крутишь колёсико — тебя колбасит») */
+      const g = gesture.current;
+      if (g && g.pan) { g.v0 = vRef.current; g.x = p.x; g.y = p.y; }
     };
     let gs = 1;
     const gStart = (e) => { e.preventDefault(); gs = 1; };

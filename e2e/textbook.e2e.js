@@ -204,6 +204,17 @@ test('музыка в обучении: мини-плашка над вклад�
   if (await dock.getByTestId('music-dock-like').isVisible()) await dock.getByTestId('music-dock-like').click();
   else { await dock.getByTestId('music-dock-open').click(); await page.getByTestId('music-panel').getByTestId('music-like').click(); await page.getByTestId('music-panel').getByRole('button', { name: 'Закрыть' }).click(); }
   await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(1);
+  /* пункт владельца 21.11, п. 3: «нужна кнопка дизлайка» — в полном проигрывателе: дизлайк снимает лайк этой пьесы,
+     «Волна» сразу ставит следующую и больше её не выбирает */
+  const before = await dock.getByTestId('music-dock-title').textContent();
+  await dock.getByTestId('music-dock-open').click();
+  const panel0 = page.getByTestId('music-panel');
+  await panel0.getByTestId('music-dislike').click();
+  await expect(dock.getByTestId('music-dock-title')).not.toHaveText(before);
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-dislikes') || '[]')).length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('ems-music-likes') || '[]')).length)).toBe(0);
+  await expect(panel0.getByTestId('music-dislike')).toHaveAttribute('aria-pressed', 'false');
+  await panel0.getByRole('button', { name: 'Закрыть' }).click();
   // пункт владельца 16.11, вечер: переключение видно — кнопка вздрагивает, название въезжает; есть «назад»
   const title0 = await dock.getByTestId('music-dock-title').textContent();
   await dock.getByTestId('music-dock-next').click();
@@ -227,7 +238,16 @@ test('музыка в обучении: мини-плашка над вклад�
   await expect(full.getByTestId('music-cover')).toHaveAttribute('data-spin', 'false');
   await full.getByTestId('music-play').click();
   await expect(dock).toHaveAttribute('data-state', 'playing');
-  await full.getByRole('button', { name: 'Закрыть' }).click();
+  /* пункт владельца 21.11, п. 4: «нет анимации у закрытия проигрывателя» — «×»: панель ещё на экране и уходит анимацией
+     mp-out, потом её нет */
+  const leaving = await page.evaluate(async () => {
+    document.querySelector('[data-testid="music-panel"] .mp-x').click();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const el = document.querySelector('[data-testid="music-panel-out"]');
+    return el ? getComputedStyle(el).animationName : null;
+  });
+  expect(leaving).toBe('mp-out');
+  await expect(page.getByTestId('music-panel-out')).toHaveCount(0);
   // в уроке плашки нет, но в шапке урока — своя кнопка музыки (пункт владельца 16.11: «в уроке нигде нет переключения музыки»)
   await openTab(page, 'path');
   await pathNode(page, 'sc-i1').click();
@@ -803,6 +823,11 @@ test('плоскость на весь экран: предел отдалени
   await expect(sheet).toBeVisible();
   const onTop = await sheet.evaluate((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + 20); return el.contains(top); });
   expect(onTop).toBe(true);
+  /* жалоба 21.11 (plane): «почему тут другая менюшка сообщить об ошибке» — шторка в корне дизайн-системы: те же шрифт и
+     цвета, что у шторки урока */
+  const look = await sheet.evaluate((el) => { const ds = el.closest('.ds'); const cs = getComputedStyle(el); return { ds: !!ds, font: cs.fontFamily, bg: cs.backgroundColor }; });
+  expect(look.ds).toBe(true);
+  expect(look.font).toMatch(/PT Sans|Inter|sans/i);
   await page.keyboard.press('Escape');
   await expect(pv).toBeVisible();
   expect(errors).toEqual([]);
@@ -1411,3 +1436,30 @@ test('«Разбор графика» на весь экран: плоскост
   expect(errors).toEqual([]);
 });
 
+
+// жалоба 21.11 (plane): «зажимаешь левую кнопку мыши и крутишь колёсико — тебя колбасит»
+test('плоскость: колёсико посреди перетаскивания — масштаб остаётся, вид не прыгает назад', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'мышь и колёсико — на ПК');
+  const { errors } = await openApp(page);
+  await openBook(page);
+  await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).first().click();
+  const chart = page.getByTestId('chapter').getByTestId('tb-chart').first();
+  await chart.scrollIntoViewIfNeeded();
+  await chart.getByTestId('tb-chart-zoom').click();
+  const st = page.getByTestId('plane-view').getByTestId('plane-stage');
+  await page.waitForTimeout(1100);
+  const span = () => st.evaluate((el) => Number(el.dataset.x1) - Number(el.dataset.x0));
+  const b = await st.boundingBox();
+  const cx = b.x + b.width / 2; const cy = b.y + b.height / 2;
+  await page.mouse.move(cx, cy); await page.mouse.down();
+  await page.mouse.move(cx + 40, cy + 10, { steps: 4 });
+  const before = await span();
+  await page.mouse.wheel(0, -300);
+  await expect.poll(span).toBeLessThan(before * 0.8);
+  const zoomed = await span();
+  // дальше тянем — масштаб тот же, а не откатился к прежнему
+  await page.mouse.move(cx + 80, cy + 20, { steps: 4 });
+  expect(Math.abs((await span()) - zoomed)).toBeLessThan(zoomed * 0.01);
+  await page.mouse.up();
+  expect(errors).toEqual([]);
+});

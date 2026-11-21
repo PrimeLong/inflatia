@@ -10,7 +10,7 @@
        как «Выбор ответа» в уроке;
      useSpecialResume — продолжить с того места, где вышли (сутки, на этом устройстве, как урок); «Продолжить» — кнопкой
        в карточке урока, как у обычного урока, без полосы «Продолжаем…» внутри. */
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Music } from 'lucide-react';
 import { DsRoot, IconButton } from './ds.jsx';
 import { InflaMeter, ProgressChart, useMedia } from './ds-art.jsx';
@@ -29,11 +29,18 @@ const CSS = `
   .sp-desk { max-width: 640px; width: 100%; margin: 0 auto; padding: 0 14px; }
   /* шапка — как у урока (.ln-head из src/learn.jsx): колонка 592 px по центру; при прокрутке остаётся сверху */
   /* шапка — одна, без своей подложки-плашки и черты: поверх содержимого — мягкое затухание цвета фона урока */
-  .sp-top { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 96%, transparent) 72%, transparent); }
+  /* шапка — на фоне страницы, без полупрозрачной «вуали»-градиента (жалоба 21.11, draw-budget: «сверху отвратительная вуаль
+     не по стилю»): содержимое под ней уходит за тонкую линию, как в уроке */
+  .sp-top { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; background: var(--ds-paper); box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-rule) 70%, transparent); }
   .sk-on .sp-top { background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 78%, transparent) 60%, transparent); }
   .sp-top .ln-head { padding-bottom: 6px; }
-  .sp-run { display: inline-flex; align-items: center; flex: none; height: 40px; overflow: visible; }
-  .sp-run > :last-child { max-height: 40px; }
+  /* Инфля серии — прямо в шапке, как в уроке (обёртка с высотой 40 px поджимала её к верхнему краю — пункт владельца 21.11, п. 2) */
+  .sp-run { display: contents; }
+  /* на ПК шапка и строка вида урока — того же размера, что у урока: урок увеличивается целиком (src/learn.jsx), а шапка
+     особых уроков оставалась мелкой (пункт владельца 21.11, п. 2: «в особенных уроках шапка меньше») */
+  @media (min-width: 1000px) and (min-height: 836px) { .sp-top .ln-head, .sp-top .sp-label { zoom: 1.1; } }
+  @media (min-width: 1200px) and (min-height: 912px) { .sp-top .ln-head, .sp-top .sp-label { zoom: 1.2; } }
+  @media (min-width: 1400px) and (min-height: 1003px) { .sp-top .ln-head, .sp-top .sp-label { zoom: 1.32; } }
   /* вид урока над заданием — как «Выбор ответа» в уроке */
   .sp-label { max-width: 592px; margin: 6px auto 0; padding: 0 14px; display: flex; align-items: center; gap: 8px; }
   .sp-label > span.ln-kind { margin: 0; }
@@ -96,6 +103,14 @@ export function useAnswerRun(start = 0, startLog = [], onAnswer = null) {
 /* шапка особого урока — та же, что у урока: «✕», полоса прогресса (answers — верно/неверно по пройденным шагам, total — всего
    шагов), молния «верно подряд» и Инфля. Без серии (подсказка из урока — peek) — только «✕» и полоса */
 export function SpecialHead({ closeLabel = 'Выйти из урока', closeTestid, onClose, answers = [], total, run = null, children = null }) {
+  /* особый урок — слой поверх страницы, как урок: страница под ним не прокручивается и не показывает свой ползунок —
+     на ПК их было два рядом (жалоба 21.11, draw-budget: «почему тут два скролл-ползунка») */
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const els = [document.documentElement, document.body]; const was = els.map((el) => el.style.overflow);
+    els.forEach((el) => { el.style.overflow = 'hidden'; });
+    return () => { els.forEach((el, k) => { el.style.overflow = was[k]; }); };
+  }, []);
   return (
     <div className="sp-top" data-testid="special-head">
       <style>{CSS}</style>

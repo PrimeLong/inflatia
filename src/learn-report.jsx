@@ -9,7 +9,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Flag, ArrowLeft, Check, CheckCheck, Copy, RotateCcw, X, Trash2, ShieldAlert } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Button, IconButton, Card, Sheet, TopBar, Heading } from './ds.jsx';
+import { Button, IconButton, Card, Sheet, TopBar, Heading, DsRoot } from './ds.jsx';
+import { dsThemeId } from './ds-tokens.js';
 import { loadAccount } from './account.jsx';
 import { sendReport, listReports, setReportStatus, setReportsStatus, purgeDoneReports, markAllReportsDone, deleteReport, accountRequireRename } from './lib/client.js';
 import { isRude, RUDE_MESSAGE } from './lib/moderation.js';
@@ -138,7 +139,11 @@ export function ReportFlag({ context, label = 'Сообщить об ошибк�
         onClick={(e) => { e.stopPropagation(); Audio.play('tick'); setOpen(context()); }}>
         <Flag size={16} aria-hidden="true" />{withText && <span className="ln-flag-text">{text || label}</span>}
       </button>
-      {open && createPortal(<div className="ln-report-root"><ReportSheet context={open} reasons={reasons} sub={sub} onClose={() => setOpen(null)} /></div>, root || document.body)}
+      {/* вне корня дизайн-системы (числовая плоскость во весь экран живёт прямо в body) шторка — в своём корне с той же темой:
+          раньше там она выходила без цветов и шрифтов урока — «почему тут другая менюшка сообщить об ошибке» (жалоба 21.11) */}
+      {open && createPortal(root
+        ? <div className="ln-report-root"><ReportSheet context={open} reasons={reasons} sub={sub} onClose={() => setOpen(null)} /></div>
+        : <DsRoot theme={dsThemeId()} className="ln-report-root" data-testid="report-root-own"><ReportSheet context={open} reasons={reasons} sub={sub} onClose={() => setOpen(null)} /></DsRoot>, root || document.body)}
     </>
   );
 }

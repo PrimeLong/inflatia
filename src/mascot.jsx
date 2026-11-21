@@ -55,7 +55,23 @@ const CSS = `
   .infla-swing { transform-box: fill-box; transform-origin: 50% 0; animation: infla-swing 2.6s ease-in-out infinite; }
   .infla-spark { transform-box: fill-box; transform-origin: center; animation: infla-spark 2.4s ease-in-out infinite; opacity: 0; }
   .infla-spin { transform-box: view-box; transform-origin: 32px 25px; animation: infla-spin 24s linear infinite; }
-  @media (prefers-reduced-motion: reduce) { .infla-bob, .infla-hop, .infla-eyes, .infla-hand, .infla-sway, .infla-balloon, .infla-swing, .infla-spin, .infla-flicker { animation: none; } .infla-spark { animation: none; opacity: 1; } }
+  /* касание Инфли (пункт владельца 21.11, п. 5: «анимации взаимодействия с Инфлёй — нажать на неё»): прыжок, сплющилась,
+     крутанулась — по очереди; сердечки вылетают; пять касаний подряд — закружилась голова */
+  .infla-touch { position: relative; display: inline-block; line-height: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .infla-touch > .infla-pk { display: inline-block; line-height: 0; transform-origin: 50% 85%; }
+  .infla-pk.p-jump { animation: infla-pk-jump .55s cubic-bezier(.3,1.6,.5,1); }
+  .infla-pk.p-squish { animation: infla-pk-squish .5s ease-out; }
+  .infla-pk.p-spin { animation: infla-pk-spin .6s cubic-bezier(.4,1.4,.5,1); }
+  .infla-pk.p-dizzy { animation: infla-pk-dizzy 1.1s ease-in-out; }
+  @keyframes infla-pk-jump { 0% { transform: none } 35% { transform: translateY(-22%) scale(.96, 1.06) } 70% { transform: translateY(2%) scale(1.06, .94) } 100% { transform: none } }
+  @keyframes infla-pk-squish { 0% { transform: none } 30% { transform: scale(1.18, .78) } 60% { transform: scale(.92, 1.1) } 100% { transform: none } }
+  @keyframes infla-pk-spin { 0% { transform: rotate(0) } 100% { transform: rotate(360deg) } }
+  @keyframes infla-pk-dizzy { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-14deg) } 40% { transform: rotate(12deg) } 60% { transform: rotate(-9deg) } 80% { transform: rotate(6deg) } }
+  .infla-heart { position: absolute; left: 50%; top: 30%; width: 12px; height: 12px; margin-left: -6px; pointer-events: none; animation: infla-heart .9s ease-out forwards; }
+  .infla-heart::before { content: ''; position: absolute; inset: 0; background: #E0457B; clip-path: path('M6 11 L1 6 A2.6 2.6 0 0 1 6 2.4 A2.6 2.6 0 0 1 11 6 Z'); }
+  .infla-heart.star::before { background: #F3C553; clip-path: polygon(50% 0, 62% 38%, 100% 38%, 69% 60%, 80% 100%, 50% 76%, 20% 100%, 31% 60%, 0 38%, 38% 38%); }
+  @keyframes infla-heart { from { opacity: 1; transform: translate(0, 0) scale(.6) } to { opacity: 0; transform: translate(var(--hx), -46px) scale(1.15) } }
+  @media (prefers-reduced-motion: reduce) { .infla-pk, .infla-heart, .infla-bob, .infla-hop, .infla-eyes, .infla-hand, .infla-sway, .infla-balloon, .infla-swing, .infla-spin, .infla-flicker { animation: none; } .infla-spark { animation: none; opacity: 1; } }
 `;
 
 /* Наряды из лавки (src/learn/rewards.js): голова, лицо, шея. Рисуются поверх монеты тушью и
@@ -92,6 +108,61 @@ const OUTFIT = {
     <path d="M54.2 27.2 L57.8 27.2 L57.6 29.4 L54.4 29.4 Z" fill="#94700F" strokeWidth=".8" />
     <path d="M55 20.6 Q54.4 22.6 54.7 24.6" fill="none" stroke="#FBE7A1" strokeWidth="1" strokeLinecap="round" />
     <circle cx="57.6" cy="41" r="3" fill="#E8C766" />
+  </g>,
+  /* ПОЛИТИКА ВЕЛЕГРАДА (пункт владельца 21.11, п. 9): вымышленные — без флагов, гербов и партий настоящих стран.
+     Голова: лавровый венок сенатора, соломенная шляпа кандидата; шея: розетка избирателя, лента мэра, цепь мэра (редкая);
+     в руке: бюллетень с галочкой, рупор агитатора, молоток спикера */
+  laurel: <g stroke="#2F5A2A" strokeWidth=".6" strokeLinejoin="round">
+    <path d="M13 17 Q16 3 31 0.5 M51 17 Q48 3 33 0.5" fill="none" stroke="#6B4E1E" strokeWidth="1.1" strokeLinecap="round" />
+    {[[14, 14, -60], [16.5, 9.5, -45], [20, 5.6, -30], [24.5, 2.8, -15], [29, 1.2, 0]].map(([x, y, r], i) => <g key={i}><ellipse cx={x} cy={y} rx="3.4" ry="1.5" fill="#4E8A3A" transform={`rotate(${r} ${x} ${y})`} /><ellipse cx={64 - x} cy={y} rx="3.4" ry="1.5" fill="#4E8A3A" transform={`rotate(${-r} ${64 - x} ${y})`} /></g>)}
+    <circle cx="32" cy="0.6" r="1.5" fill="#E3B53C" stroke="#94700F" />
+  </g>,
+  boater: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <ellipse cx="32" cy="8.4" rx="21" ry="3.6" fill="#E6C77E" />
+    <path d="M21.5 8 L22.5 -3.5 Q32 -6 41.5 -3.5 L42.5 8 Z" fill="#EBD08F" />
+    <path d="M21.9 2.2 Q32 4.6 42.1 2.2 L42.4 6 Q32 8.4 21.6 6 Z" fill="#2C5A8E" strokeWidth=".8" />
+    <path d="M24 -1 Q32 0.4 40 -1 M23 9 Q32 10.6 41 9" fill="none" stroke="#B89A55" strokeWidth=".7" />
+  </g>,
+  rosette: <g stroke={INK} strokeWidth=".9" strokeLinejoin="round">
+    <path d="M17.6 44 L15.5 52.5 L18.4 51 L19.8 53.6 L21 45 Z" fill="#2C5A8E" />
+    <path d="M22 44 L22.8 52.6 L24.8 50.6 L26.8 52.4 L24.6 44 Z" fill="#A0372A" />
+    <circle cx="21" cy="42" r="4.6" fill="#F4ECD8" />
+    <circle cx="21" cy="42" r="3" fill="#A0372A" strokeWidth=".6" /><circle cx="21" cy="42" r="1.3" fill="#FBE7A1" strokeWidth=".5" />
+  </g>,
+  sash: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M13.6 33.5 L18 30.6 L46.5 47.5 L42 50.6 Z" fill="#A0372A" />
+    <path d="M15.6 32.2 L44.4 49.1" stroke="#E3B53C" strokeWidth="1.1" />
+    <path d="M41 48 L44 57 L40.5 55.6 L38.6 58.8 L37.6 49.8 Z" fill="#8A2C22" />
+  </g>,
+  mayorchain: <g>
+    <g stroke={INK} strokeWidth=".7">
+      {[[17, 41], [20.4, 44.4], [24.2, 46.9], [28.2, 48.2], [35.8, 48.2], [39.8, 46.9], [43.6, 44.4], [47, 41]].map(([x, y], i) => <ellipse key={i} cx={x} cy={y} rx="2.1" ry="1.5" fill="#E3B53C" />)}
+      <path d="M30.6 49 L33.4 49 L33 51.2 L31 51.2 Z" fill="#B88A1A" />
+      <circle cx="32" cy="56" r="5.6" fill="#E3B53C" strokeWidth="1" />
+      <circle cx="32" cy="56" r="3.6" fill="#B88A1A" />
+      <path d="M29.8 57.6 L32 53.6 L34.2 57.6 Z" fill="#FBE7A1" strokeWidth=".5" />
+    </g>
+    {spark(30, 54, 0, 2.4)}{spark(43.6, 44.4, 1.1, 1.8)}{spark(20.4, 44.4, 2.2, 1.8)}
+  </g>,
+  ballot: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M49 25 L61.5 26.6 L60 46 L47.5 44.4 Z" fill="#FFFDF6" />
+    <path d="M51 29 L58.5 30 M50.6 33.6 L58 34.6" stroke="#8A7A5C" strokeWidth=".8" />
+    <rect x="50.6" y="37" width="4.4" height="4.4" fill="#fff" strokeWidth=".8" transform="rotate(7 52.8 39.2)" />
+    <path d="M51.3 39.2 L52.8 40.8 L56.6 36" fill="none" stroke="#2E8A5B" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="53.5" cy="44.6" r="3.1" fill="#E8C766" />
+  </g>,
+  megaphone: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M50.5 37 L60.5 27 L63.5 36.5 Z" fill="#D9472B" />
+    <ellipse cx="62" cy="31.8" rx="2.2" ry="5.2" fill="#F4ECD8" transform="rotate(-18 62 31.8)" />
+    <rect x="47.6" y="35.6" width="4.6" height="3.6" rx="1" fill="#3A3530" transform="rotate(-45 49.9 37.4)" />
+    <path d="M52.2 39 L53 44" stroke="#3A3530" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="53.4" cy="44.6" r="3" fill="#E8C766" />
+  </g>,
+  gavel: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
+    <path d="M53.5 45 L59.5 30" stroke={INK} strokeWidth="3.2" strokeLinecap="round" /><path d="M53.5 45 L59.5 30" stroke="#8A5A2E" strokeWidth="1.9" strokeLinecap="round" />
+    <rect x="53.5" y="23" width="13" height="6.4" rx="1.6" fill="#7A4A26" transform="rotate(22 60 26.2)" />
+    <path d="M55.4 22.6 L56.6 29.2 M63.6 25.8 L62.4 32.4" stroke="#E3B53C" strokeWidth="1.2" transform="rotate(22 60 26.2)" />
+    <circle cx="54.6" cy="42.4" r="3" fill="#E8C766" />
   </g>,
   // шар «Инфляция» на нитке: то надувается, то сдувается — как цены
   balloon: <g stroke={INK} strokeLinejoin="round"><path d="M54.5 41 Q51 33 56 26 Q60 20 57 15.5" fill="none" strokeWidth=".9" /><circle cx="54.5" cy="42" r="3.2" fill="#E8C766" strokeWidth="1" /><g className="infla-balloon"><ellipse cx="57" cy="3.5" rx="9.5" ry="11" fill="#C8442F" strokeWidth="1.1" /><path d="M55.4 14.3 L57 16 L58.6 14.3 Z" fill="#A0372A" strokeWidth=".8" /><path d="M51 -2 Q52.5 -5.5 56 -6" fill="none" stroke="#FFD9CC" strokeWidth="1.8" strokeLinecap="round" /><text x="57" y="7.8" textAnchor="middle" fontSize="11" fontWeight="700" fontFamily="sans-serif" fill="#FFF3E6" stroke="none">%</text></g></g>,
@@ -267,11 +338,34 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
   const motion = m === 'joy' || m === 'party' ? 'infla-hop' : m === 'sleep' ? '' : m === 'wave' ? 'infla-sway' : 'infla-bob';
   // свой ритм моргания у каждой Инфли: длина цикла 5,2–8,4 с и случайный сдвиг — не хором и не по метроному
   const blink = React.useMemo(() => ({ '--blink': `${(5.2 + Math.random() * 3.2).toFixed(2)}s`, '--blink-at': `${(-Math.random() * 8).toFixed(2)}s` }), []);
+  // касание: реакция по очереди, на миг — радость; пять касаний за 2,5 с — «закружилась» (думает)
+  const [pk, setPk] = React.useState({ n: 0, kind: '', hearts: [] });
+  const taps = React.useRef([]); const pkTimer = React.useRef(0);
+  React.useEffect(() => () => window.clearTimeout(pkTimer.current), []);
+  const dizzyUntil = React.useRef(0);
+  const poke = () => {
+    const now = Date.now();
+    if (now < dizzyUntil.current) return; // голова кружится — до конца не мешаем
+    taps.current = [...taps.current.filter((x) => now - x < 2500), now];
+    const dizzy = taps.current.length >= 5;
+    if (dizzy) { taps.current = []; dizzyUntil.current = now + 1150; }
+    setPk((p) => {
+      const n = p.n + 1;
+      const kind = dizzy ? 'dizzy' : ['jump', 'squish', 'spin'][n % 3];
+      const hearts = Array.from({ length: dizzy ? 5 : 3 }, (_, i) => ({ id: `${n}-${i}`, x: Math.round((i - (dizzy ? 2 : 1)) * 16 + (Math.random() - 0.5) * 10), star: dizzy || i === 1, d: i * 70 }));
+      return { n, kind, hearts };
+    });
+    window.clearTimeout(pkTimer.current);
+    pkTimer.current = window.setTimeout(() => setPk((p) => ({ ...p, kind: '', hearts: [] })), dizzy ? 1150 : 900);
+  };
+  const shown = pk.kind === 'dizzy' ? 'think' : pk.kind ? (m === 'sleep' ? 'hello' : 'joy') : m;
+  const sm = MOUTH[shown] ? shown : m;
   return (
-    <span style={{ display: 'inline-block', lineHeight: 0 }} data-testid="mascot" data-mood={m}>
+    <span className="infla-touch" data-testid="mascot" data-mood={m} data-poke={pk.n} data-reaction={pk.kind || undefined} onPointerDown={poke}>
       <style>{CSS}</style>
+      <span className={`infla-pk${pk.kind ? ` p-${pk.kind}` : ''}`} key={`pk${pk.n}`}>
       <svg viewBox={`0 ${top} 64 ${70 - top}`} width={size} height={size * (70 - top) / 64} role="img" aria-label={label || `Инфля: ${({ hello: 'привет', wave: 'машет', joy: 'радуется', cheer: 'подбадривает', party: 'празднует', sleep: 'спит', think: 'думает' })[m]}`}
-        className={`infla ${motion}`} key={m} style={{ overflow: 'visible' }}>
+        className={`infla ${motion}`} key={sm} style={{ overflow: 'visible' }}>
         <defs>
           <radialGradient id={gid} cx="36%" cy="28%" r="78%">
             <stop offset="0" stopColor="#FBE7A1" /><stop offset="0.5" stopColor="#D9B23A" /><stop offset="1" stopColor="#94700F" />
@@ -285,8 +379,8 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
         <path d="M17.4 18.6 C 18.6 13.6, 22.4 9.8, 27 8.8" fill="none" stroke="#FFF7DC" strokeOpacity="0.75" strokeWidth="2.4" strokeLinecap="round" />
         {/* шея — сразу за монетой: стоячий воротник встаёт по бокам, и машущая рука должна быть поверх него */}
         {wear.neck && OUTFIT[wear.neck] && <g data-outfit={wear.neck}>{OUTFIT[wear.neck]}</g>}
-        {(m === 'joy' || m === 'party' || m === 'hello') && <><ellipse cx="20" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /><ellipse cx="44" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /></>}
-        {m === 'sleep' ? EYES[m](ink) : <g className="infla-eyes" style={blink}>{EYES[m](ink)}</g>}
+        {(sm === 'joy' || sm === 'party' || sm === 'hello') && <><ellipse cx="20" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /><ellipse cx="44" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /></>}
+        {sm === 'sleep' ? EYES[sm](ink) : <g className="infla-eyes" style={blink}>{EYES[sm](ink)}</g>}
         {/* рука начинается чуть внутри края монеты, и плечо — центр вращения: при взмахе она не отрывается */}
         {m === 'wave' && (wear.hand && OUTFIT[wear.hand] ? (
           <g className="infla-hand left">
@@ -301,16 +395,18 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
             <circle cx="58.5" cy="21.5" r="4" fill="#E8C766" stroke="#3A2A08" strokeWidth="1.2" />
           </g>
         ))}
-        {MOUTH[m](ink)}
+        {MOUTH[sm](ink)}
         {m === 'party' && <>
           <path d="M26 3.5 L32 -4 L38 3.5 Z" fill="#4FA38F" stroke="#3A2A08" strokeWidth="0.8" transform="translate(0 4)" />
           {[[8, 12, '#E07A5F'], [56, 10, '#6FA8DC'], [5, 34, '#4FA38F'], [59, 32, '#E07A5F'], [12, 4, '#D9B23A']].map(([x, y, c], i) => <rect key={i} x={x} y={y} width="3" height="3" fill={c} transform={`rotate(${i * 37} ${x + 1.5} ${y + 1.5})`} />)}
         </>}
         {['face', 'head', 'hand'].map((sl) => (wear[sl] && OUTFIT[wear[sl]] ? <g key={sl} data-outfit={wear[sl]}>{OUTFIT[wear[sl]]}</g> : null))}
         {m === 'sleep' && <text x="46" y="9" fontSize="9" fill="#9FB3C8" fontFamily="sans-serif">z z</text>}
-        {m === 'think' && <><circle cx="52" cy="9" r="1.6" fill="#9FB3C8" /><circle cx="56.5" cy="4.5" r="2.4" fill="#9FB3C8" /></>}
+        {sm === 'think' && <><circle cx="52" cy="9" r="1.6" fill="#9FB3C8" /><circle cx="56.5" cy="4.5" r="2.4" fill="#9FB3C8" /></>}
         {m === 'cheer' && <path d="M52 30 l2 -4 l2 4 l4 1 l-3 3 l1 4 l-4 -2 l-4 2 l1 -4 l-3 -3 z" fill="#FBE7A1" stroke="#94700F" strokeWidth="0.6" />}
       </svg>
+      </span>
+      {pk.hearts.map((h) => <i key={h.id} className={`infla-heart${h.star ? ' star' : ''}`} style={{ '--hx': `${h.x}px`, animationDelay: `${h.d}ms` }} aria-hidden="true" />)}
     </span>
   );
 }

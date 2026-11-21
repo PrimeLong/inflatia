@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { BOOK_BY_ID, bookSpeech, passageAt, passageStart } from '../src/learn/shelf.js';
 import { PEOPLE } from '../src/learn/people.js';
 import { listPeoplePhotos, readPhotoCredits } from '../scripts/voice-files-plugin.js';
-import { openApp, openTab, pathNode, installHooks, showUnit } from './helpers.js';
+import { openApp, openTab, pathNode, installHooks, showUnit, startLesson } from './helpers.js';
 
 installHooks();
 
@@ -1140,11 +1140,14 @@ test('«Персоналии» на алмаз — «Чья это идея?»; 
   await page.getByTestId('extra-gem').click();
   const g = page.getByTestId('draw-lesson');
   await expect(g.getByTestId('draw-gem-tag')).toBeVisible();
+  // жалоба 21.11 (draw-moncomp, алмаз): рамка поля — тонкая линия, без кольца и свечения
+  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).boxShadow)).toBe('none');
   // у алмаза — алмазная рамка поля; отдельной плашки правил нет, координаты под курсором есть (жалоба 19.11: «к чему это
   // пояснение про алмазный урок, а про то, что не пишутся координаты, — бред»)
   await expect(g.getByTestId('draw-gem-rules')).toHaveCount(0);
   await expect(g.getByTestId('draw-box')).toHaveAttribute('data-gem', 'true');
-  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
+  // алмаз виден по цвету рамки поля (тонкая линия), а не по кольцу со свечением
+  expect(await g.locator('.gl-stage').first().evaluate((el) => getComputedStyle(el).borderTopColor)).not.toBe(await page.evaluate(() => getComputedStyle(document.querySelector('.gl-stage')).getPropertyValue('--ds-rule2')));
   const ink = g.getByTestId('draw-ink');
   // шапка теперь как у урока (с подписью вида урока) — график ниже: прокручиваем его в середину экрана
   await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
@@ -1505,3 +1508,97 @@ test('«Нарисуй сам», сложный процент: пунктир �
   expect(errors).toEqual([]);
 });
 
+
+/* пункт владельца 21.11, п. 2: «в особенных уроках другой дизайн: шапка меньше, Инфля вылазит за границы»; жалоба
+   21.11 (people-household): «тут съехали эмодзи» — значок карточки «Главная идея» и «Знаете ли вы» лежал на тексте */
+test('особый урок на ПК: шапка того же размера, что у урока; Инфля целиком в шапке; значки карточек не на тексте', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'увеличение шапки — на широком экране');
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-l1': { at, runs: 1, best: 90 } } } }));
+  });
+  await page.setViewportSize({ width: 1910, height: 950 });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  await startLesson(page, 'sc-l2');
+  const lessonHead = await page.getByTestId('lesson').locator('.ln-head').boundingBox();
+  await page.getByTestId('lesson').getByRole('button', { name: 'Выйти из урока' }).click();
+  const leave = page.getByRole('button', { name: /Выйти/ }).last();
+  if (await leave.isVisible().catch(() => false)) await leave.click();
+  await expect(page.getByTestId('lesson')).toHaveCount(0);
+  const stop = page.locator('[data-testid=path-extra][data-id="people-scarcity"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click(); await page.getByTestId('extra-start').click();
+  const view = page.getByTestId('people');
+  const head = await view.getByTestId('special-head').locator('.ln-head').boundingBox();
+  expect(Math.abs(head.width - lessonHead.width)).toBeLessThan(4);
+  expect(Math.abs(head.height - lessonHead.height)).toBeLessThan(4);
+  // Инфля серии — внутри шапки, не за её верхним краем
+  const infla = await view.getByTestId('special-head').locator('.ln-head svg').last().boundingBox();
+  expect(infla.y).toBeGreaterThanOrEqual(head.y - 1);
+  // значок карточки — левее текста, а не на нём
+  for (const sel of ['.pp-idea', '.pp-fact']) {
+    const card = view.locator(sel).first();
+    const pad = await card.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
+    const cb = await card.boundingBox(); const ib = await card.locator('svg').first().boundingBox();
+    expect(ib.x + ib.width, sel).toBeLessThanOrEqual(cb.x + pad + 1);
+  }
+  expect(errors).toEqual([]);
+});
+
+// пункт владельца 21.11, п. 6: «нажимаю на урок — ничего не происходит; прошла минута — оказывается, грузилось, нет анимаций»
+test('медленная сеть: особый урок сразу показывает заставку во весь экран, через 6 секунд — «сеть медленная»', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-l1': { at, runs: 1, best: 90 } } } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  // код урока грузится 8 секунд
+  await page.route(/\/assets\/.*\.js$/, async (r) => { await new Promise((res) => setTimeout(res, 8000)); return r.continue(); });
+  const stop = page.locator('[data-testid=path-extra][data-id="people-scarcity"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click(); await page.getByTestId('extra-start').click();
+  const loading = page.getByTestId('lesson-loading');
+  await expect(loading).toBeVisible({ timeout: 1000 });
+  await expect(loading).toContainText('Открываем «Персоналии»');
+  // заставка — на экране, а не под Путём
+  const b = await loading.boundingBox();
+  expect(b.y).toBeLessThanOrEqual(1);
+  expect(b.height).toBeGreaterThanOrEqual(page.viewportSize().height - 2);
+  await expect(page.getByTestId('lesson-loading-slow')).toBeVisible({ timeout: 8000 });
+  await expect(page.getByTestId('people')).toBeVisible({ timeout: 20000 });
+  expect(errors).toEqual([]);
+});
+
+/* жалобы 21.11 (draw-budget, draw-moncomp, 1910×950): «два скролл-ползунка, кнопка снизу прифигачена, сверху отвратительная
+   вуаль не по стилю»; «кнопки приближения не по стилю» */
+test('«Нарисуй сам» на ПК: один ползунок (страница под уроком не прокручивается), шапка без вуали, значки «−/+» своего размера, строка точек не вылезает', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'ПК');
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), graphs: { 'graph-ppf': at } } }));
+  });
+  await page.setViewportSize({ width: 1910, height: 950 });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-id="draw-ppf"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click(); await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  await expect(g).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden');
+  const bg = await page.getByTestId('special-head').evaluate((el) => getComputedStyle(el).backgroundImage);
+  expect(bg).toBe('none');
+  for (const id of ['draw-zoom-out', 'draw-zoom-in']) {
+    const s = await g.getByTestId(id).locator('svg').boundingBox();
+    expect(s.width, id).toBeLessThanOrEqual(17);
+  }
+  // во весь экран: строка точек задания переносится, а не уходит за край карточки
+  await g.getByTestId('draw-full').click();
+  const rows = page.locator('.dl-mini-rows').first();
+  if (await rows.count()) expect(await rows.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await page.keyboard.press('Escape');
+  await page.getByTestId('draw-close').click();
+  await expect(g).toHaveCount(0);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe('hidden');
+  expect(errors).toEqual([]);
+});

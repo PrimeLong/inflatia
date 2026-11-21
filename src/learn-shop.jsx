@@ -58,11 +58,12 @@ export function GardenLoading() {
 const DustGame = React.lazy(() => import('./learn-dust.jsx'));
 import {
   balance, rateOn, rateHistory, priceOf, crownsOn, inflationInfo, buy, setWear, outfitOf, deskOf, themeOf, FREEZE, BOOST, WARDROBE, OUTFIT_BY_ID, SLOT_LABEL, shopDay, boostActive, DEAL_OFF,
-  policyInfo, takePolicy, cancelPolicy, PREMIUM, coinsWord, plural, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate,
+  policyInfo, takePolicy, cancelPolicy, PREMIUM, coinsWord, plural, hasClaim, PIGGY, piggyState, piggyPut, piggyTake, piggyAdd, topupRate, piggyValue, forgone, REAL_RATE, realCurve, weekRate,
   yearGrowth, rewardInfo,
 } from './learn/rewards.js';
-import { Rag } from './learn-rag.jsx';
-import { DUST, dustDone, dustItem, dustPerDay, CLOTH, hasCloth, buyCloth, clothReturn, clothPaybackDays, POLISH, hasPolish, buyPolish, polishReturn, polishPaybackDays } from './learn/dust.js';
+import { Rag, PolishBottle, CleanLog } from './learn-rag.jsx';
+import { DUST, dustDone, dustItem, dustPerDay, CLOTH, hasCloth, buyCloth, clothReturn, clothPaybackDays, POLISH, hasPolish, buyPolish, polishReturn, polishPaybackDays,
+  LOG, hasLog, buyLog, logReturn, logStreak, logKey, logPaybackDays } from './learn/dust.js';
 import { createPreview, PREVIEW } from './learn/record-preview.js';
 import { dayOf, addDays, dayStart, ownedFreezes, rolloverLocal } from './textbook/learn-state.js';
 
@@ -369,7 +370,10 @@ const CLOTH_CSS = `
     background: color-mix(in srgb, #3B8DB0 12%, var(--ds-card)); border: 1px solid color-mix(in srgb, #3B8DB0 35%, var(--ds-rule2)); color: var(--ds-ink); }
   .dg-cloth b { font-weight: 800; }
   .dg-cloth[data-owned="true"] { background: color-mix(in srgb, var(--ds-ok, #2B8A5E) 12%, var(--ds-card)); border-color: color-mix(in srgb, var(--ds-ok, #2B8A5E) 40%, var(--ds-rule2)); }
-  .dg-cloth-ico { flex: none; width: 46px; } .dg-cloth-ico svg { width: 46px; height: auto; }
+  .dg-cloth-ico { flex: none; width: 50px; margin-right: 4px; } .dg-cloth-ico svg { width: 50px; height: auto; display: block; }
+  .dg-log-week { display: flex; gap: 4px; margin-top: 6px; }
+  .dg-log-week i { width: 14px; height: 14px; border-radius: 4px; background: color-mix(in srgb, var(--ds-ink) 10%, transparent); }
+  .dg-log-week i.on { background: #2E8A5B; } .dg-log-week i.now { box-shadow: inset 0 0 0 1.5px #2E8A5B; }
   .dg-cloth-msg { margin-top: 4px; color: var(--ds-bad, #B03A2E); font-size: 13px; }
   .dg-cloth .ds-btn { flex: none; width: auto; }
 `;
@@ -391,7 +395,7 @@ function ClothCard({ learn, update }) {
       <div style={{ minWidth: 0, flex: 1 }}>
         <b>Микрофибра</b>
         {own ? (
-          <div data-testid="dust-cloth-return">Тряпка шире, витрин в день — {dustPerDay(learn)}. Вернула {back} из {CLOTH.price} мон.{back >= CLOTH.price ? ' — окупилась.' : '.'}</div>
+          <div data-testid="dust-cloth-return">Тряпка шире, витрин в день — {dustPerDay(learn)}. Вернула {back} из {CLOTH.price} мон.{back >= CLOTH.price ? ' — окупилась.' : ''}</div>
         ) : (
           <div>Тряпка шире и чище трёт, а в день оплачивается шестая витрина: +{DUST.coins} мон. в день. Окупится за {clothPaybackDays()} дней.</div>
         )}
@@ -415,17 +419,50 @@ function PolishCard({ learn, update }) {
   };
   return (
     <div className="dg-cloth" data-testid="dust-polish" data-owned={String(own)}>
-      <div className="dg-cloth-ico" aria-hidden="true"><Sparkles size={26} /></div>
+      <div className="dg-cloth-ico" aria-hidden="true"><PolishBottle /></div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <b>Полироль</b>
         {own ? (
-          <div data-testid="dust-polish-return">Дотёрли до «Блестит!» — +{POLISH.bonus} мон. за витрину. Вернула {back} из {POLISH.price} мон.{back >= POLISH.price ? ' — окупилась.' : '.'}</div>
+          <div data-testid="dust-polish-return">Дотёрли до «Блестит!» — +{POLISH.bonus} мон. за витрину. Вернула {back} из {POLISH.price} мон.{back >= POLISH.price ? ' — окупилась.' : ''}</div>
         ) : (
           <div>Витрина, дотёртая до «Блестит!» (всё стекло, а не 90%), приносит ещё +{POLISH.bonus} мон. Окупится за {polishPaybackDays()} дней, если дотирать каждую.</div>
         )}
         {msg && <div className="dg-cloth-msg" role="alert">{msg}</div>}
       </div>
       {!own && <Button variant="secondary" onClick={buy} data-testid="dust-polish-buy">{POLISH.price} мон.</Button>}
+    </div>
+  );
+}
+
+/* «Журнал уборки» — третье улучшение витрины (пункт владельца 21.11, п. 8): после полироли; день, когда протёрты все
+   оплачиваемые витрины, — отметка и бонус по серии (1, 2, дальше по 3 монеты). На карточке — неделя отметок. */
+function LogCard({ learn, update }) {
+  const [msg, setMsg] = useState(null);
+  if (!hasPolish(learn)) return null;
+  const own = hasLog(learn);
+  const back = logReturn(learn);
+  const streak = logStreak(learn);
+  const today = dayOf(Date.now());
+  const week = Array.from({ length: 7 }, (_, i) => dayOf(Date.now() - (6 - i) * 86400000));
+  const buy = () => {
+    let r = null;
+    update((s) => { r = buyLog(s, Date.now()); return r.ok ? r.s : s; }, { settle: true });
+    if (r && !r.ok) setMsg(r.reason); else { Audio.play('register'); setMsg(null); }
+  };
+  return (
+    <div className="dg-cloth" data-testid="dust-log" data-owned={String(own)} data-streak={streak}>
+      <div className="dg-cloth-ico" aria-hidden="true"><CleanLog /></div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <b>Журнал уборки</b>
+        {own ? <>
+          <div data-testid="dust-log-return">{streak ? `Серия — ${streak} ${plural(streak, 'день', 'дня', 'дней')}: ` : 'Протрите все витрины дня — '}за день, когда протёрты все витрины, +{Math.min(LOG.max, streak + (hasClaim(learn, logKey(today)) ? 0 : 1))} мон. Вернул {back} из {LOG.price} мон.{back >= LOG.price ? ' — окупился.' : ''}</div>
+          <div className="dg-log-week" aria-label="Отметки за неделю">{week.map((d) => <i key={d} className={hasClaim(learn, logKey(d)) ? 'on' : d === today ? 'now' : ''} title={d} />)}</div>
+        </> : (
+          <div>День, когда протёрты все витрины, — отметка в журнале и бонус: 1 мон., на второй день подряд — 2, дальше по {LOG.max} в день. Пропустили день — серия с начала. Окупится примерно за {logPaybackDays()} дней.</div>
+        )}
+        {msg && <div className="dg-cloth-msg" role="alert">{msg}</div>}
+      </div>
+      {!own && <Button variant="secondary" onClick={buy} data-testid="dust-log-buy">{LOG.price} мон.</Button>}
     </div>
   );
 }
@@ -617,6 +654,7 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <style>{CLOTH_CSS}</style>
             <ClothCard learn={learn} update={update} />
             <PolishCard learn={learn} update={update} />
+            <LogCard learn={learn} update={update} />
           </>}
 
           {tab === 'mine' && <>

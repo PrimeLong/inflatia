@@ -1,6 +1,8 @@
 /* БРАУЗЕРНЫЕ СЦЕНАРИИ — лавка, сад, копилка, лиги, церемонии, уведомления, новости, профиль, защита монет.
    Общие помощники — e2e/helpers.js. Запуск одного раздела: npx playwright test e2e/rewards.e2e.js */
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import { RECORDS } from '../src/audio/records.js';
 import {
   openApp, gotoApp, shopTab, openTab, openBook, expectNoSidewaysScroll, accountApi, playLesson, withTestFlag, pathNode, startLesson, installHooks, ACCOUNT,
 } from './helpers.js';
@@ -701,7 +703,7 @@ test('«Пыльная витрина»: микрофибра — на вкла�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } }, coins: { '2026-10-01': 80 } } }));
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: { 'sc-i1': { at, runs: 1, best: 90 }, 'sc-i1b': { at, runs: 1, best: 90 } }, coins: { '2026-10-01': 130 } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
   await page.getByTestId('shop-tabs').locator('[data-tab="dust"]').click();
@@ -746,6 +748,21 @@ test('«Пыльная витрина»: микрофибра — на вкла�
   await polish.getByTestId('dust-polish-buy').click();
   await expect(polish).toHaveAttribute('data-owned', 'true');
   await expect(polish).toContainText('Вернула 0 из 36');
+  // пункт владельца 21.11, п. 7: «эмодзи в витрине полироля слишком близко» — у значка своя плашка, до текста есть зазор
+  for (const card of [shop.getByTestId('dust-cloth'), polish]) {
+    const ico = await card.locator('.dg-cloth-ico').boundingBox(); const txt = await card.locator('b').first().boundingBox();
+    expect(txt.x - (ico.x + ico.width)).toBeGreaterThanOrEqual(10);
+    expect(ico.width).toBeLessThanOrEqual(52);
+  }
+  await expect(polish).not.toContainText('мон..');
+  // третье улучшение — «Журнал уборки» (п. 8): после полироли; неделя отметок
+  const log = shop.getByTestId('dust-log');
+  await expect(log).toHaveAttribute('data-owned', 'false');
+  await expect(log).toContainText('по 3 в день');
+  await log.getByTestId('dust-log-buy').click();
+  await expect(log).toHaveAttribute('data-owned', 'true');
+  await expect(log.locator('.dg-log-week i')).toHaveCount(7);
+  await expect(log).toContainText('Вернул 0 из 48');
   expect(errors).toEqual([]);
 });
 
@@ -1184,7 +1201,8 @@ test('лавка: пластинки — дешёвые, на витрине ф�
   await shopTab(page, 'lesson');
   const shelf = page.getByTestId('shop-records');
   await expect(shelf).toBeVisible();
-  await expect(shelf.getByTestId('shop-item')).toHaveCount(2);
+  // на полке — пластинки, чьи записи уже лежат в public/music (их загружает владелец)
+  await expect(shelf.getByTestId('shop-item')).toHaveCount(RECORDS.filter((r) => fs.existsSync(`public/music/${r.track}.mp3`)).length);
   for (const price of await shelf.locator('.rw-price').allTextContents()) expect(Number(price.match(/(\d+)\s*мон/)[1])).toBeLessThanOrEqual(300);
   const item = shelf.getByTestId('shop-item').first();
   await expect(item.getByTestId('record-status')).toContainText('20 секунд');

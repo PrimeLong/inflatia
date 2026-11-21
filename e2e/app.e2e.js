@@ -1434,3 +1434,23 @@ test('вход: «Мир» на пробу — с приветствия в «М
   await expect(page.getByTestId('welcome-register')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+// пункт владельца 21.11, п. 5: «анимации взаимодействия с Инфлёй — нажать на неё»
+test('Инфля откликается на касание: прыжок, сплющилась, крутанулась по очереди, на миг радуется, сердечки; пять касаний — закружилась', async ({ page }) => {
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const infla = page.getByTestId('mascot').filter({ visible: true }).first();
+  await infla.scrollIntoViewIfNeeded();
+  await infla.click();
+  await expect(infla).toHaveAttribute('data-poke', '1');
+  await expect(infla).toHaveAttribute('data-reaction', /jump|squish|spin/);
+  await expect(infla.locator('.infla-heart')).toHaveCount(3);
+  await expect(infla.locator('svg[aria-label]')).toHaveAttribute('aria-label', /Инфля/);
+  // на миг — радость (рот и глаза радости), потом снова как была
+  await expect(infla).not.toHaveAttribute('data-reaction', /./, { timeout: 3000 });
+  // пять быстрых касаний (щелчок Playwright ждёт конца анимации — касания шлём сами)
+  const seen = await infla.evaluate(async (el) => { const out = []; for (let k = 0; k < 5; k += 1) { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await new Promise((r) => setTimeout(r, 60)); out.push(el.getAttribute('data-reaction')); } return out; });
+  // пятое касание подряд — закружилась; пока кружится, новые касания её не сбивают
+  expect(seen).toContain('dizzy');
+  expect(seen[seen.length - 1]).toBe('dizzy');
+  expect(errors).toEqual([]);
+});

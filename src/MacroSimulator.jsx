@@ -6,7 +6,7 @@ import {
   VolumeX, Music, Trophy, Lock, Share2, GraduationCap, BookOpenText, Crown, Gavel, Hammer, Play, Calendar, BookOpen,
   Vote, Layers, Award, BarChart3, Medal, Handshake, HeartHandshake, LifeBuoy, Ban, DoorOpen, Factory, Wheat, Route,
   UserRound, Map as MapIcon, ShoppingBag, Ellipsis, Newspaper,
-  SkipBack, SkipForward, Pause, Heart,
+  SkipBack, SkipForward, Pause, Heart, ThumbsDown,
 } from 'lucide-react';
 // звуковой движок подгружается по первому клику — в стартовом файле только обёртка
 import { Audio } from './audio/lazy.js';
@@ -21,7 +21,7 @@ import { isChunkError, reloadOnce, reloadPending } from './lib/chunk-reload.js';
 import { checkReturn } from './lib/retention.js';
 import {
   DS_THEMES, appColors, learnThemeId, dsThemeId, learnMusic, learnSfx, worldMusic, setWorldMusic, worldSfx,
-  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike, MOOD_TINT, setMusicPaused,
+  setWorldSfx, worldVolume, setWorldVolume, worldThemeId, setWorldTheme, setLearnMusic, setLearnSfx, musicLikes, toggleMusicLike, musicDislikes, toggleMusicDislike, MOOD_TINT, setMusicPaused,
 } from './ds-tokens.js';
 import { DsRoot, Tabs } from './ds.jsx';
 import {
@@ -504,6 +504,8 @@ export const playerCss = () => `
     box-shadow: 0 30px 60px -24px rgba(0,0,0,.5), 0 0 0 1px color-mix(in srgb, var(--mp) 26%, ${COLOR.border}); animation: mp-in .28s cubic-bezier(.2,.9,.3,1.2); }
   .mp::-webkit-scrollbar { display: none; }
   @keyframes mp-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+  .mp.out { animation: mp-out .2s cubic-bezier(.4,0,.8,.4) forwards; pointer-events: none; }
+  @keyframes mp-out { to { opacity: 0; transform: translateY(12px) scale(.96); } }
   .mp.dragging { box-shadow: 0 40px 70px -20px rgba(0,0,0,.6), 0 0 0 2px var(--mp); }
   /* живой свет: три размытых пятна цвета настроения медленно плывут за содержимым */
   .mp-aura { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; pointer-events: none; }
@@ -545,6 +547,7 @@ export const playerCss = () => `
   .mp-chip { padding: 1px 9px; border-radius: 999px; font: 700 11px/19px var(--ds-sans, sans-serif); color: var(--mp); background: color-mix(in srgb, var(--mp) 15%, transparent); }
   .mp-chip.rec { color: ${COLOR.goldSoft}; background: none; box-shadow: inset 0 0 0 1px ${COLOR.gold}; }
   .mp-like { flex: none; width: 42px; height: 42px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; background: color-mix(in srgb, currentColor 7%, transparent); color: inherit; transition: color .15s, transform .15s; }
+  .mp-dislike.on { color: #5B6B8A !important; animation: mp-pop .4s cubic-bezier(.3,1.8,.5,1); }
   .mp-like:hover { transform: scale(1.06); } .mp-like:active { transform: scale(.86); } .mp-like.on { color: #E0457B; animation: mp-pop .4s cubic-bezier(.3,1.8,.5,1); }
   @keyframes mp-pop { 40% { transform: scale(1.25); } }
   /* время записи */
@@ -608,11 +611,12 @@ export const playerCss = () => `
   [data-skin="mint"] .mp .mp-title { font-family: var(--ds-head, serif); }
   :is([data-skin="exchange"], [data-skin="aurora"], [data-skin="blueprint"]) .mp :is(.mp-b:not(.main), .mp-x) { background: rgba(255,255,255,.09); }
   [data-skin] .mp .mp-mood[aria-checked="true"] { box-shadow: 0 0 0 2px rgba(0,0,0,.3), 0 0 0 4px var(--m); }
-  @media (prefers-reduced-motion: reduce) { .mp, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .mp, .mp.out, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
 `;
 
-// лайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
+// лайки и дизлайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
 Audio.setLikes(musicLikes());
+Audio.setDislikes(musicDislikes());
 /* кольцо спектра вокруг диска: полосы по кругу, длина — громкость полосы частот того, что звучит сейчас (Audio.levels);
    на паузе — тихое «дыхание»; при «Уменьшить движение» — неподвижное кольцо. data-live — шёл ли живой звук (для проверки) */
 function MusicViz({ on }) {
@@ -687,6 +691,20 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
   const kickRef = React.useRef(0);
   const doKick = (dir) => { setKick(dir); window.clearTimeout(kickRef.current); kickRef.current = window.setTimeout(() => setKick(null), 450); };
   const { open, setOpen, toggle, btnRef, pos } = useExclusiveDropdown(DD_WIDTH);
+  /* закрытие — тоже с анимацией (пункт владельца 21.11, п. 4: «нет анимации у закрытия проигрывателя»): панель ещё 200 мс
+     на экране и уходит так же, как пришла, — вниз и в прозрачность; «Уменьшить движение» — сразу */
+  const [leaving, setLeaving] = useState(false);
+  const wasOpen = React.useRef(open);
+  React.useEffect(() => {
+    const was = wasOpen.current; wasOpen.current = open;
+    if (open) { setLeaving(false); return undefined; }
+    if (!was) return undefined;
+    const calm = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (calm) return undefined;
+    setLeaving(true);
+    const t = window.setTimeout(() => setLeaving(false), 200);
+    return () => window.clearTimeout(t);
+  }, [open]);
   /* панель — в портале на body: внутри плашки музыки и шапки урока есть transform, и position: fixed считался бы от них
      (на телефоне панель уезжала за верх экрана). Тема урока и шрифты переезжают с кнопки на обёртку портала */
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
@@ -755,9 +773,9 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
         aria-expanded={open} onClick={() => { Audio.prime(); Audio.play('click'); toggle(); }}>
         {icon ? React.createElement(icon, { size: 17, 'aria-hidden': true }) : anyOn ? <Volume2 size={14} /> : <VolumeX size={14} color={COLOR.faint} />}
       </button>
-      {open && portalTarget && createPortal(
+      {(open || leaving) && portalTarget && createPortal(
         <div className="mp-portal" data-skin={host.skin || undefined} style={host.vars}>
-        <div ref={panelRef} className={`mp${dragging ? ' dragging' : ''}${music ? ' playing' : ''}`} data-testid="music-panel" data-moved={drag ? 'true' : 'false'} role="dialog" aria-label="Сейчас играет"
+        <div ref={panelRef} className={`mp${dragging ? ' dragging' : ''}${music ? ' playing' : ''}${!open ? ' out' : ''}`} data-testid={open ? 'music-panel' : 'music-panel-out'} data-closing={!open ? 'true' : undefined} data-moved={drag ? 'true' : 'false'} role="dialog" aria-label="Сейчас играет"
           style={{ top: drag ? drag.top : pos.top, bottom: drag ? 'auto' : pos.bottom, left: drag ? drag.left : pos.left, width: DD_WIDTH, zIndex: 1300, maxHeight: drag ? `calc(100vh - ${Math.round(drag.top) + 8}px)` : pos.maxHeight,
             '--mp': MOOD_TINT[np.mood] || MOOD_TINT.calm, '--mp2': `color-mix(in srgb, ${MOOD_TINT[np.mood] || MOOD_TINT.calm} 55%, #6A5BFF)` }}>
           <style>{playerCss()}</style>
@@ -788,7 +806,12 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
             {/* лайк: «Волна» ставит пьесу чаще (пункт владельца 16.11) */}
             {np.id && (
               <button className={`mp-like${np.liked ? ' on' : ''}`} aria-pressed={!!np.liked} aria-label={np.liked ? 'Убрать лайк' : 'Нравится — чаще в «Волне»'} data-testid="music-like"
-                onClick={() => { Audio.play('tick'); Audio.setLikes(toggleMusicLike(np.id)); }}><Heart size={19} fill={np.liked ? 'currentColor' : 'none'} /></button>
+                onClick={() => { Audio.play('tick'); Audio.setLikes(toggleMusicLike(np.id)); Audio.setDislikes(musicDislikes()); }}><Heart size={19} fill={np.liked ? 'currentColor' : 'none'} /></button>
+            )}
+            {/* дизлайк (пункт владельца 21.11, п. 3): «Волна» эту пьесу больше не ставит; поставили на звучащую — сразу следующая */}
+            {np.id && (
+              <button className={`mp-like mp-dislike${np.disliked ? ' on' : ''}`} aria-pressed={!!np.disliked} aria-label={np.disliked ? 'Убрать дизлайк' : 'Не нравится — «Волна» больше не поставит'} data-testid="music-dislike"
+                onClick={() => { Audio.play('tick'); const on = !np.disliked; Audio.setDislikes(toggleMusicDislike(np.id)); Audio.setLikes(musicLikes()); if (on && music) { doKick('next'); Audio.skip(true); } }}><ThumbsDown size={19} fill={np.disliked ? 'currentColor' : 'none'} /></button>
             )}
           </div>
           <MusicTime np={np} />

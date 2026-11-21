@@ -60,7 +60,10 @@ export const SKIN_CSS = `
   /* и задания (жалобы учеников 17.11: «карточки „Слов“ не под тему урока», «странный дизайн пар не по теме», «сортировка не по
      стилю урока», «инструкция мини-игры не в стиле»): карточка слова, «Как играть», строки пар, карточки сортировки и фишки —
      поверхность и рамка темы; цвет юнита (розовый у «Сберкассы») в теме заменяет её акцент */
-  .sk-on:not(.sk-preview) :is(.lp-word, .lp-howto, .ln-m2-row, .ln-m2-bank, .lp-game-stage, .lp-trial) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); }
+  .sk-on:not(.sk-preview) :is(.lp-word, .lp-howto, .ln-m2-row, .lp-game-stage, .lp-trial) { background: var(--sk-surface); border-color: var(--sk-edge); border-radius: var(--sk-radius); }
+  /* банк слов «Соедините» — без своей плашки-прямоугольника: слова лежат прямо на фоне темы, а при прокрутке под ним —
+     лёгкое размытие (жалоба 21.11, hh-e2-match: «очень странный прямоугольник на фоне слов») */
+  .sk-on:not(.sk-preview) .ln-m2-bank { background: transparent; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
   .sk-on :is(.lp-word, .lp-word-dots, .lp-howto, .ln-m2-rows, .ln-m2-bank, .ln-sort-item, .lp-game, .lp-trial) { --u: var(--sk-accent); --u-ink: var(--sk-accent); }
   .sk-on:not(.sk-preview) .lp-word { border-top: 4px solid var(--sk-accent); box-shadow: 0 14px 30px -18px rgba(0,0,0,.6); }
   /* колыбель Ньютона на подставке и «Черновик» — тоже в теме (жалоба 18.11, graph-labor: «как-то не по теме выглядят кнопки и

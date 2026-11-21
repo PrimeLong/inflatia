@@ -400,7 +400,7 @@ export const CSS = `
   .ln-exam-grid b { width: 26px; height: 30px; border: 1.5px solid var(--ds-ink3); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font: 700 17px var(--ds-mono, monospace); color: var(--ds-ink); background: var(--ds-card); }
   /* «Соедините» — как «вставьте слово»: строки-определения с пустым местом, слова банком сверху */
   .ln-m2-how { margin: 2px 0 8px; font: 600 13.5px/1.35 var(--ds-sans); color: var(--ds-ink2); }
-  .ln-m2-bank { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ds-paper); padding: 4px 0 8px; min-height: 40px; }
+  .ln-m2-bank { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--ds-paper) 82%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 4px 0 8px; min-height: 40px; }
   .ln-body .ln-m2-bank .ds-opt { width: auto; margin: 0; padding: 8px 12px; font-size: 14.5px; line-height: 1.25; }
   .ln-m2-bank-done { font: 600 13.5px var(--ds-sans); color: var(--ds-ink3); align-self: center; }
   .ln-m2-rows { display: grid; gap: 8px; }
@@ -444,6 +444,10 @@ export const CSS = `
   .ln-foot.fb .ds-answer > div > button { align-self: stretch; }
   .ln-fb-body { margin-top: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .ln-kind { margin-bottom: 8px; }
+  /* отметки в строке вида задания («повторение · Ферма», «повтор ошибки», «семинар») — тем же шрифтом, что и сама строка,
+     тонкой рамкой, а не цветной таблеткой другого размера (жалоба 21.11, sc-e3-far: «не по стилю плашка повторение») */
+  .ln-kind .ds-badge { background: none; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); color: inherit; opacity: .85;
+    font: inherit; font-size: .92em; letter-spacing: inherit; padding: 2px 8px; border-radius: 999px; line-height: 1.3; }
   .ln-prompt { margin-bottom: 12px; }
   /* урок на ПК — крупнее: на большом экране колонка телефона в 560 px терялась посередине. Шрифт
      крупнее всегда; весь урок (шапка, текст, графики, кнопки, плашка ответа) увеличивается целиком,
@@ -483,7 +487,11 @@ export const CSS = `
   .ln-sync > svg { flex: none; color: var(--ds-bad); }
   .ln-sync b { display: block; font: 700 15px var(--ds-sans); }
   .ln-sync span { display: block; font-size: 13.5px; line-height: 1.4; color: var(--ds-ink2); margin-top: 2px; }
-  .ln-key { margin-top: 14px; padding: 8px 12px 10px; border: 2px solid var(--u); border-radius: 10px; background: color-mix(in srgb, var(--u) 8%, var(--ds-card)); }
+  /* «Запомнить» — в одном виде с остальными плашками шага (легенда, «Разбор»): тонкая рамка, полоса цвета юнита слева, а не
+     толстая цветная рамка с заливкой; слова в формуле — шрифтом урока, а не шрифтом формул (жалоба 21.11, hh-i1, «Шаг
+     дальше · Накопить на цель»: «не по стилю») */
+  .ln-key { margin-top: 14px; padding: 8px 12px 10px 14px; border: 1px solid var(--ds-rule2); border-left: 4px solid var(--u); border-radius: 4px 12px 12px 4px; background: var(--ds-card); }
+  .ln-key-tex .katex .text, .ln-key-tex .katex .textrm { font-family: var(--ds-sans); }
   .ln-key .ds-eyebrow { color: var(--u-ink); }
   /* формула целиком: дробь (ΔQ над ΔL) — блоком с запасом по вертикали, а не строкой, у которой верх срезался (жалоба mw6t15ic) */
   .ln-key-tex { font-size: 19px; text-align: center; margin-top: 4px; padding: 4px 0 6px; overflow-x: auto; overflow-y: hidden; }
@@ -1724,7 +1732,23 @@ onCoinGuard(() => track('coins_guard'));
 // списание дюпа уходит в аналитику один раз за запуск
 const AUDIT_TRACKED = new Set();
 // пока файл урока грузится — пустой экран урока с заставкой, а не Путь под ним
-const LessonLoading = () => <DsRoot theme={dsThemeId()} className="ln-overlay" data-testid="lesson-loading" role="status" aria-label="Открываем урок"><div style={{ margin: 'auto' }}><BrandLoader compact text="Открываем урок" /></div></DsRoot>;
+// грузится дольше 6 секунд — сказать, что дело в сети, а не в касании
+function LessonLoading({ text = 'Открываем урок' }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 6000); return () => clearTimeout(t); }, []);
+  return (
+    <DsRoot theme={dsThemeId()} className="ln-overlay" data-testid="lesson-loading" role="status" aria-label={text}>
+      <div style={{ margin: 'auto', textAlign: 'center' }}>
+        <BrandLoader compact text={text} />
+        {slow && <div className="ds-sub" data-testid="lesson-loading-slow" style={{ fontSize: 14, marginTop: -40, padding: '0 20px' }}>Сеть медленная — ещё немного. Урок откроется сам.</div>}
+      </div>
+    </DsRoot>
+  );
+}
+/* слой поверх Пути (особый урок, книга, настройки): пока его код грузится — та же заставка во весь экран, что у урока.
+   Обычная заглушка вставала в конец страницы, под Путём, — ученик её не видел и думал, что касание не сработало
+   (пункт владельца 21.11, п. 6: «нажимаю на урок — ничего не происходит, прошла минута, оказывается, грузилось») */
+const LazyLayer = ({ text, children }) => <React.Suspense fallback={<LessonLoading text={text} />}>{children}</React.Suspense>;
 const Lazy = ({ children }) => <React.Suspense fallback={<BrandLoader compact text="Открываем" />}>{children}</React.Suspense>;
 const Celebration = React.lazy(() => import('./learn-celebrate.jsx'));
 // урок во весь экран — отдельным файлом: грузится, когда урок начинается (src/learn-lesson.jsx)
@@ -2060,16 +2084,16 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         {tab === 'profile' && <Lazy><ProfileView learn={learn} update={update} onOpenBook={openBook} onSettings={() => setSettings(true)} onNotify={() => setBell(true)} unread={notify.unread.length}
           friends={friends} guest={guest} onFriends={() => { Audio.play('paper'); setFriendsPage(true); }} onPath={() => onTab('path')} /></Lazy>}
       </div>
-      {settings && !reports && !analytics && <Lazy><SettingsView learn={learn} update={update} notify={notify} onBack={() => setSettings(false)} onThemeChange={onThemeChange}
+      {settings && !reports && !analytics && <LazyLayer text="Открываем настройки"><SettingsView learn={learn} update={update} notify={notify} onBack={() => setSettings(false)} onThemeChange={onThemeChange}
         onPlacement={() => { setSettings(false); start({ mode: 'placement' }); }}
-        onReports={() => { setReports(true); window.scrollTo(0, 0); }} onAnalytics={() => { setAnalytics(true); window.scrollTo(0, 0); }} /></Lazy>}
+        onReports={() => { setReports(true); window.scrollTo(0, 0); }} onAnalytics={() => { setAnalytics(true); window.scrollTo(0, 0); }} /></LazyLayer>}
       {friendsPage && !friendLogin && <FriendsPage data={friends} onBack={() => setFriendsPage(false)} onOpen={(l) => setFriendLogin(l)} />}
       {friendLogin && <FriendProfile login={friendLogin} data={friends} learn={learn} update={update} myWear={outfit} onBack={() => setFriendLogin(null)} />}
       {bell && <NotifyCenter notify={notify} onClose={() => setBell(false)} onGo={goNotify} />}
       {toast && <NotifyToast n={toast} onGo={(n) => { toastDone(); goNotify(n); }} onClose={toastDone} onRead={(n) => notify.markOne(n.id)} />}
       {!toast && !run && gains.length > 0 && <NotifyToast n={gainsNote(gains)} onGo={gainsDone} onClose={gainsDone} />}
       {reports && <ReportsView onBack={() => { Audio.play('paper'); setReports(false); }} />}
-      {analytics && <Lazy><AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} /></Lazy>}
+      {analytics && <LazyLayer text="Открываем аналитику"><AnalyticsView onBack={() => { Audio.play('paper'); setAnalytics(false); }} /></LazyLayer>}
       {chest && <ChestSheet unitId={chest} place={placeOf(chest).place} learn={learn} update={update}
         onClose={(opened) => { setChest(null); if (opened) setFolded({ n: Date.now(), unit: chest }); }} />}
       {morning && !run && <MorningStreak learn={learn} onClose={() => setMorning(false)} />}
@@ -2082,13 +2106,13 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         }} /></React.Suspense>}
       {sheet && <LessonSheet l={sheet} learn={learn} weak={weakLessons(learn).some((w) => w.id === sheet.id)} onStart={start} onClose={() => setSheet(null)} onOpenBook={openBook}
         onSkip={(id) => { Audio.play('paper'); update((s) => skipLesson(s, id)); setSheet(null); }} />}
-      {reading && <Lazy><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></Lazy>}
-      {people && <Lazy><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></Lazy>}
+      {reading && <LazyLayer text="Открываем «Чтение»"><ReadingView key={`${reading.id}:${reading.gem}`} id={reading.id} gem={reading.gem} learn={learn} update={update} onClose={() => setReading(null)} /></LazyLayer>}
+      {people && <LazyLayer text="Открываем «Персоналии»"><PeopleView key={`${people.id}:${people.gem}`} id={people.id} gem={people.gem} learn={learn} update={update} onClose={() => setPeople(null)} /></LazyLayer>}
       {/* книга звучит, а читалку закрыли — мини-проигрыватель над вкладками; касание названия — книга на звучащем отрывке */}
       {!run && <BookDock onOpen={(id, passage) => { Audio.play('paper'); setDockBook({ id, passage }); }} />}
       {/* музыка включена в обучении — мини-плашка над вкладками (пункт владельца 16.11), над плашкой книги, если звучит и она */}
       {!run && <MusicDock />}
-      {dockBook && <Lazy><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></Lazy>}
+      {dockBook && <LazyLayer text="Открываем книгу"><BookOverlay id={dockBook.id} passage={dockBook.passage} learn={learn} update={update} onClose={() => setDockBook(null)} /></LazyLayer>}
       {extraSheet && <ExtraSheet x={extraSheet} onStart={openExtra} onClose={() => setExtraSheet(null)} />}
       {extraLocked && (
         <Sheet label={EXTRA_KIND[extraLocked.type]} onClose={() => setExtraLocked(null)} testid="extra-locked">
@@ -2100,8 +2124,8 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
       )}
       {run && <React.Suspense fallback={<LessonLoading />}><Runner key={JSON.stringify({ ...run, resume: !!run.resume })} run={run} learn={learn} update={update} hidden={!!book} guest={guest} backRef={runBack}
         onClose={() => setRun(null)} onOpenBook={(page) => openBook(page)} /></React.Suspense>}
-      {graph && <Lazy><GraphLesson key={`${graph.id}:${!!graph.gem}`} id={graph.id} learn={learn} update={update} peek={graph.peek} gem={!!graph.gem} onClose={() => setGraph(null)} /></Lazy>}
-      {draw && <Lazy><DrawLesson key={`${draw.id}:${draw.gem}`} id={draw.id} gem={draw.gem} learn={learn} update={update} onClose={() => setDraw(null)} /></Lazy>}
+      {graph && <LazyLayer text="Открываем «Разбор графика»"><GraphLesson key={`${graph.id}:${!!graph.gem}`} id={graph.id} learn={learn} update={update} peek={graph.peek} gem={!!graph.gem} onClose={() => setGraph(null)} /></LazyLayer>}
+      {draw && <LazyLayer text="Открываем «Нарисуй сам»"><DrawLesson key={`${draw.id}:${draw.gem}`} id={draw.id} gem={draw.gem} learn={learn} update={update} onClose={() => setDraw(null)} /></LazyLayer>}
     </DsRoot>
     </OutfitContext.Provider>
   );
