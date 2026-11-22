@@ -254,6 +254,33 @@ const B = {
       <circle cx="57.5" cy="64" r=".8" fill="currentColor" /><circle cx="62.5" cy="64" r=".8" fill="currentColor" />
     </>
   ),
+  /* базар — торговые ряды (юнит «Цены и покупки»): длинный корпус с пятью арками-лавками, полосатые навесы над прилавками,
+     на фронтоне — весы с ценником; на прилавках — ящики с товаром */
+  arcade: (h) => (
+    <>
+      <path d="M10,82 L110,82 L107,78 L13,78 Z" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth=".9" />
+      <rect x="14" y="44" width="92" height="34" fill={h.body} stroke="currentColor" strokeWidth="1.1" />
+      <rect x="11" y="39" width="98" height="5" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth=".9" />
+      <path d="M38,39 L60,22 L82,39 Z" fill={h.alive ? h.wash : h.hatch} stroke="currentColor" strokeWidth="1.1" />
+      <g data-part="scales">
+        <line x1="60" y1="26.5" x2="60" y2="35.5" stroke="currentColor" strokeWidth=".8" />
+        <line x1="53" y1="28.6" x2="67" y2="28.6" stroke="currentColor" strokeWidth=".8" />
+        <path d="M50.6,32.4 Q53,34.8 55.4,32.4 Z M64.6,32.4 Q67,34.8 69.4,32.4 Z" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".6" />
+        <path d="M53,28.6 L51,32.4 M53,28.6 L55,32.4 M67,28.6 L65,32.4 M67,28.6 L69,32.4" stroke="currentColor" strokeWidth=".45" />
+        <circle cx="60" cy="25.6" r="1.4" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".6" />
+      </g>
+      {[17, 35, 53, 71, 89].map((x, i) => (
+        <g key={x} data-part="stall">
+          <path d={`M${x + 1},78 L${x + 1},60 A6.5,6.5 0 0 1 ${x + 14},60 L${x + 14},78`} fill={h.hatch} stroke="currentColor" strokeWidth=".8" />
+          <path d={`M${x - 1},50 L${x + 16},50 L${x + 17.5},55.5 L${x - 2.5},55.5 Z`} fill={h.alive ? (i % 2 ? h.gold : h.accent) : 'none'} stroke="currentColor" strokeWidth=".7" />
+          <path d={`M${x + 3.2},50 L${x + 2.6},55.5 M${x + 7.5},50 L${x + 7.5},55.5 M${x + 11.8},50 L${x + 12.4},55.5`} stroke="currentColor" strokeWidth=".4" opacity=".7" />
+          <rect x={x + 2.5} y="71" width="10" height="4" fill={h.alive ? h.wash : 'none'} stroke="currentColor" strokeWidth=".55" />
+          <circle cx={x + 5} cy="70.2" r="1.2" fill={h.alive ? h.gold : 'none'} stroke="currentColor" strokeWidth=".4" />
+          <circle cx={x + 8.6} cy="70" r="1.3" fill={h.alive ? h.accent : 'none'} stroke="currentColor" strokeWidth=".4" />
+        </g>
+      ))}
+    </>
+  ),
   store: (h) => (
     <>
       <rect x="18" y="30" width="84" height="52" fill={h.body} stroke="currentColor" strokeWidth="1.1" />

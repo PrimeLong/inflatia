@@ -616,6 +616,35 @@ T.push({ id: 'v-hh-compound', chapter: 'household', level: 2, source: 'household
     check: ([x]) => near(x, y2),
   };
 } });
+// цены и покупки: цена за килограмм двух пачек — какая выгоднее
+T.push({ id: 'v-pz-unit', chapter: 'prices', level: 1, source: 'prices-unit', gen: (rand) => {
+  const k = draw(rand, () => ({ g: pick(rand, [200, 250, 400, 500]), small: ri(rand, 150, 400, 10), big: ri(rand, 600, 1400, 50) }),
+    ({ g, small, big }) => (small * 1000) % g === 0 && Math.abs((small * 1000) / g - big) >= 50);
+  const perKg = (k.small * 1000) / k.g;
+  return {
+    statement: `Кофе продают в двух пачках: ${k.g} г за ${k.small} кр. и 1 кг за ${k.big} кр.\n\nа) Сколько стоит килограмм кофе в маленькой пачке?\n\nб) А в большой?`,
+    parts: [{ answer: perKg, unit: 'кр./кг', pos: true }, { answer: k.big, unit: 'кр./кг', pos: true }],
+    traps: [{ part: 0, value: k.small, text: `Это цена пачки. В килограмме — ${1000 / k.g} таких пачек.` }],
+    solution: `а) $${k.small} / ${m(k.g / 1000)} = ${perKg}$ кр. за кг.\n\nб) $${k.big} / 1 = ${k.big}$ кр. за кг — ${perKg < k.big ? 'маленькая пачка выгоднее' : 'большая пачка выгоднее'}.`,
+    check: ([a, b]) => near(a, perKg) && near(b, k.big),
+  };
+} });
+// цены и покупки: две скидки подряд — не складываются
+T.push({ id: 'v-pz-double', chapter: 'prices', level: 2, source: 'prices-double', gen: (rand) => {
+  const k = draw(rand, () => ({ p: ri(rand, 1000, 6000, 500), d1: pick(rand, [10, 20, 25, 30]), d2: pick(rand, [5, 10, 20]) }),
+    ({ p, d1, d2 }) => Number.isInteger((p * (100 - d1) * (100 - d2)) / 10000));
+  const price = (k.p * (100 - k.d1) * (100 - k.d2)) / 10000; const off = Math.round((1 - price / k.p) * 1000) / 10;
+  return {
+    statement: `Куртка стоила ${k.p} кр. На неё скидка ${k.d1}%, а на кассе — ещё ${k.d2}% от новой цены.\n\nа) Сколько стоит куртка?\n\nб) Какова общая скидка в процентах?`,
+    parts: [{ answer: price, unit: 'кр.', pos: true }, { answer: off, unit: '%', pos: true }],
+    traps: [
+      { part: 0, value: (k.p * (100 - k.d1 - k.d2)) / 100, text: 'Это если сложить скидки. Вторая скидка — от уже сниженной цены.' },
+      { part: 1, value: k.d1 + k.d2, text: 'Скидки не складываются: заплатили долю $(1 - d_1)(1 - d_2)$ от прежней цены.' },
+    ],
+    solution: `а) $${k.p} \\cdot ${m(1 - k.d1 / 100)} = ${m((k.p * (100 - k.d1)) / 100)}$, затем $\\cdot ${m(1 - k.d2 / 100)} = ${m(price)}$ кр.\n\nб) $1 - ${m(price)} / ${k.p} = ${m(off / 100)}$ — скидка ${m(off)}%.`,
+    check: ([a, b]) => near(a, price) && near(b, off),
+  };
+} });
 // производство: предельный и средний продукт по таблице цеха (убывающая отдача)
 T.push({ id: 'v-pr-mp', chapter: 'production', level: 1, source: 'production-mp', gen: (rand) => {
   const k = draw(rand, () => {

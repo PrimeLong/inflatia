@@ -20,12 +20,12 @@ test('путь: карточка урока, «Знакомство» шагам
   await expect(page.getByTestId('streak-chip')).toHaveAttribute('data-today', 'false');
   // на Пути — юниты одного уровня: Начальный, в нём «Мастерская» (14 уроков), «Биржа труда» (10) и «Сберкасса» (10); плашка
   // «Уровень 1 из 5», назад некуда, следующий уровень закрыт; будущих уровней на экране нет
-  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household']);
+  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household', 'prices']);
   await expect(path.getByTestId('level-switch')).toContainText('Уровень 1 из 5');
   await expect(path.getByTestId('level-switch')).toContainText('Начальный');
   await expect(path.getByTestId('level-prev')).toBeDisabled();
   await expect(path.getByTestId('level-next')).toHaveAttribute('data-locked', 'true');
-  await expect(path.getByTestId('path-lesson')).toHaveCount(35);
+  await expect(path.getByTestId('path-lesson')).toHaveCount(45);
   await expect(path.getByTestId('path-level')).toContainText('основные термины');
   // глав «в планах» в Начальном больше нет — «Рынок труда» вышел
   await expect(path.getByTestId('path-soon')).toHaveCount(0);
@@ -299,7 +299,7 @@ test('путь: после алмазного урока на прошлом у�
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -747,7 +747,7 @@ test('путь: юнит «Биржа труда» (рынок труда) — �
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   // «Биржа труда» — в Начальном уровне, сразу после «Мастерской»
   const unit = await showUnit(page, 'labor');
-  expect(await page.getByTestId('path').getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household']);
+  expect(await page.getByTestId('path').getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household', 'prices']);
   await expect(unit.getByTestId('path-lesson')).toHaveCount(10);
   expect(await unit.getByTestId('path-lesson').evaluateAll((els) => els.map((e) => e.dataset.kind)))
     .toEqual(['intro', 'practice', 'intro', 'practice', 'words', 'story', 'listen', 'game', 'review', 'summary']);
@@ -834,7 +834,7 @@ test('Путь: открывается на рекомендованном ур�
   await withTestFlag(page);
   await page.addInitScript(() => {
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'sd-i1', 'sd-l1'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum', 'sd-i1', 'sd-l1'];
     if (!localStorage.getItem('ems-textbook-v1')) localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: {
       lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), claimed: { 'c:scarcity': at }, coins: { '2026-01-01': 400 } } }));
   });
@@ -855,7 +855,7 @@ test('Путь: открывается на рекомендованном ур�
   // у узкого экрана название не наезжает на значки; «Уроки» разворачивает
   await path.getByTestId('level-prev').click();
   const sc = path.locator('[data-testid=path-unit][data-unit="scarcity"]');
-  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household']);
+  expect(await path.getByTestId('path-unit').evaluateAll((els) => els.map((e) => e.dataset.unit))).toEqual(['scarcity', 'labor', 'household', 'prices']);
   await expect(sc).toHaveAttribute('data-folded', 'true');
   expect((await sc.boundingBox()).height).toBeLessThan(80);
   const titleBox = await sc.locator('.ln-mini-title').boundingBox();
@@ -899,7 +899,7 @@ test('Путь: открывается на рекомендованном ур�
   // свёрнутый юнит касанием места на карте раскрывается
   await expect(path.locator('[data-testid=path-unit][data-unit="scarcity"]')).toHaveAttribute('data-folded', 'false');
   // на карте 25 мест — по пять на уровень: юниты и места под будущие юниты
-  await expect(path.getByTestId('atlas-soon')).toHaveCount(2);
+  await expect(path.getByTestId('atlas-soon')).toHaveCount(1);
   await expect(path.locator('[data-testid=atlas-place], [data-testid=atlas-soon]')).toHaveCount(25);
   // повторное касание вкладки «Путь» — снова текущий уровень и рекомендованный урок
   await page.getByTestId('bottom-nav').locator('[data-tab="path"]').click();
@@ -1071,7 +1071,7 @@ test('Путь: тест уровня — сдан, и Путь сразу на 
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -1113,7 +1113,7 @@ test('«Большое повторение» в конце уровня: нов
     localStorage.setItem('ems-level-test', '1');
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -1211,7 +1211,7 @@ test('ПК от 1024 px: Путь в две колонки, у главы уче
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -1308,7 +1308,7 @@ test('Путь: наверху — уровень знаний маленьки�
   await expect(page.getByTestId('course-gain')).toHaveText('+3');
   await expect(grade).toContainText('Уровень знаний');
   await expect(grade).toContainText('Начальный уровень курса');
-  await expect(page.getByTestId('course-next')).toHaveText('Пройдено уроков уровня: 5 из 35');
+  await expect(page.getByTestId('course-next')).toHaveText('Пройдено уроков уровня: 5 из 45');
   await expect(grade.locator('.ln-know-steps i')).toHaveCount(5);
   await expect(grade.locator('.ln-know-steps i.on')).toHaveText('1');
   await expect(grade).not.toContainText(/условн|из 1000|\b[ABC][12]\b/);

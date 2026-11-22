@@ -19,7 +19,7 @@ import { Audio } from './MacroSimulator.jsx';
    поле 294 px, док — 286 px); и мышь или перо, а не палец. */
 export const SKETCH_QUERY = '(min-width: 1280px) and (hover: hover) and (pointer: fine)';
 // учебник шире урока (1240 px с оглавлением главы): поля для записей остаются от 1500 px
-export const SKETCH_BOOK_QUERY = '(min-width: 1500px) and (hover: hover) and (pointer: fine)';
+export { SKETCH_BOOK_QUERY } from './learn/sketch.js';
 const ON_KEY = 'ems-sketch-on';
 const TRIED_KEY = 'ems-sketch-tried';
 const stored = (k) => { try { return localStorage.getItem(k); } catch { return null; } };

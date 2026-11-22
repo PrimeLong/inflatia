@@ -193,9 +193,9 @@ describe('вступительный тест', () => {
     plan.items.forEach((it) => expect(['swipe', 'rush']).not.toContain(it.kind));
   });
   it('юнит открыт, если в пятёрке не больше одной ошибки; первая проваленная пятёрка останавливает', () => {
-    expect(placementOpened(plan.items, answer({}))).toEqual(['scarcity', 'labor', 'household', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
-    expect(placementOpened(plan.items, answer({ 'supply-demand': 1 }))).toEqual(['scarcity', 'labor', 'household', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
-    expect(placementOpened(plan.items, answer({ 'supply-demand': 2 }))).toEqual(['scarcity', 'labor', 'household']);
+    expect(placementOpened(plan.items, answer({}))).toEqual(['scarcity', 'labor', 'household', 'prices', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
+    expect(placementOpened(plan.items, answer({ 'supply-demand': 1 }))).toEqual(['scarcity', 'labor', 'household', 'prices', 'supply-demand', 'elasticity', 'market-failures', 'money-banks', 'inflation', 'consumer', 'production', 'costs', 'competition-monopoly', 'monopolistic']);
+    expect(placementOpened(plan.items, answer({ 'supply-demand': 2 }))).toEqual(['scarcity', 'labor', 'household', 'prices']);
     expect(placementOpened(plan.items, answer({ scarcity: 2 }))).toEqual([]);
     const first = answer({ scarcity: 2 });
     expect(placementFailed(plan.items, first, 'scarcity')).toBe(true);

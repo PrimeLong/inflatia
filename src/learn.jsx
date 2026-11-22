@@ -61,7 +61,9 @@ import { DRAW_BY_ID, DRAW_XP } from './learn/draws.js';
 import { READING_BY_ID, READ_XP } from './learn/reading.js';
 import { BrandLoader } from './logo.jsx';
 import { FRIENDS_CSS, FriendsPage, FriendProfile, RaceCard, racesToShow } from './learn-friends.jsx';
-import { Sketch, SKETCH_CSS, SKETCH_BOOK_QUERY } from './learn-sketch.jsx';
+import { SKETCH_BOOK_QUERY } from './learn/sketch.js';
+// черновик на полях учебника — своим файлом: нужен, только когда открыта глава, а не до появления Пути
+const BookSketch = React.lazy(() => import('./learn-sketch.jsx').then((m) => ({ default: ({ mode }) => <><style>{m.SKETCH_CSS}</style><m.Sketch mode={mode} /></> })));
 import { useFriends, pushCard } from './lib/friends-store.js';
 import { buildCard } from './learn/friends.js';
 import { plural } from './lib/plural.js';
@@ -2067,7 +2069,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         <div className="ln-book" data-testid="learn-book">
           <Lazy><TextbookScreen key={bookKey} startPage={book.page} resume={book.resume} onExit={() => setBook(null)} {...bookHandlers} {...bookReports} /></Lazy>
           {/* черновик на полях — и в учебнике, открытом «Гайдом юнита» или из урока; пока идёт урок, у урока свой */}
-          {sketchBook && !run && <><style>{SKETCH_CSS}</style><Sketch key={bookKey} mode="bookOver" /></>}
+          {sketchBook && !run && <React.Suspense fallback={null}><BookSketch key={bookKey} mode="bookOver" /></React.Suspense>}
         </div>
       )}
       {/* пока идёт урок или открыт учебник, экран под ними недоступен ни с клавиатуры, ни для чтения с экрана */}
@@ -2080,7 +2082,7 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
         {tab === 'path' && tasks && <TasksView learn={learn} onStart={start} onOpenBook={openBook} onBack={() => { Audio.play('paper'); setTasks(false); window.scrollTo(0, 0); }} />}
         {tab === 'book' && <div className="ln-book" data-testid="book-tab"><Lazy><TextbookScreen asTab homeTick={bookHome} {...bookHandlers} {...bookReports} /></Lazy>
           {/* черновик на полях учебника — на широком экране с мышью; пока идёт урок, у урока свой */}
-          {sketchBook && !over && <><style>{SKETCH_CSS}</style><Sketch mode="book" /></>}</div>}
+          {sketchBook && !over && <React.Suspense fallback={null}><BookSketch mode="book" /></React.Suspense>}</div>}
         {/* лиги и лавка открываются не сразу (src/learn/unlocks.js): до того — что там будет и сколько уроков осталось */}
         {tab === 'shop' && (featureOpen(learn, 'shop') ? <Lazy><ShopView key={shopFocus.n} learn={learn} update={update} focus={shopFocus.to} /></Lazy>
           : <div className="ln-wrap"><FeatureLocked id="shop" learn={learn} onPath={() => onTab('path')} /></div>)}

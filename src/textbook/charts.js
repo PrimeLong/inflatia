@@ -1246,6 +1246,54 @@ const savingsChart = {
   },
 };
 
+/* ---------------- ГДЕ ВЫГОДНЕЕ ПОКУПАТЬ (юнит «Цены и покупки») ----------------
+   Полная стоимость покупки q кг: у дома — pa · q, на оптовой базе — f + pb · q (доставка за заказ). Линии пересекаются там,
+   где обе покупки стоят одинаково: q = f / (pa − pb). Меньше — дешевле у дома, больше — на базе. */
+const shopsParams = (A) => ({ pa: num(A, 'pa', 1200), pb: num(A, 'pb', 900), f: num(A, 'f', 1500), q: num(A, 'q', 10) });
+export const shopsEven = (pa, pb, f) => (pa > pb ? f / (pa - pb) : null);
+const shopsChart = {
+  title: 'Где выгоднее покупать',
+  vars: (A, v) => { const e = shopsEven(v.pa, v.pb, v.f); return { even: e == null ? '—' : r1(e), cost: e == null ? '—' : r1(v.pa * e) }; },
+  controls: (A) => {
+    const p = shopsParams(A);
+    return [
+      { id: 'f', label: 'Доставка с базы, кр. за заказ', min: 0, max: 4000, step: 100, def: p.f, fmt: (v) => `${v} кр.` },
+      { id: 'pa', label: 'Цена у дома, кр. за кг', min: 600, max: 2000, step: 50, def: p.pa, fmt: (v) => `${v} кр.` },
+      { id: 'pb', label: 'Цена на базе, кр. за кг', min: 300, max: 1500, step: 50, def: p.pb, fmt: (v) => `${v} кр.` },
+    ];
+  },
+  // для задач «куда сдвинется?»: при какой покупке одинаково, цена у дома и на базе
+  measure: (A, v) => ({ even: shopsEven(v.pa, v.pb, v.f) ?? Infinity, market: v.pa, base: v.pb, fee: v.f }),
+  build: (A, v) => {
+    const p = shopsParams(A);
+    const Q = p.q;
+    const line = (fix, per) => [{ x: 0, y: fix }, { x: Q, y: fix + per * Q }];
+    const moved = v.pa !== p.pa || v.pb !== p.pb || v.f !== p.f;
+    const top = num(A, 'max', Math.ceil((Math.max(v.pa * Q, v.f + v.pb * Q, p.pa * Q, p.f + p.pb * Q) * 1.08) / 2000) * 2000);
+    const e = shopsEven(v.pa, v.pb, v.f);
+    const inside = e != null && e > 0 && e < Q;
+    return {
+      xDomain: [0, Q], yDomain: [0, top], xLabel: 'кофе, кг', yLabel: 'кроны',
+      curves: [
+        ...(moved && v.f !== p.f ? [{ id: 'B0', points: line(p.f, p.pb), ghost: true, color: 'gold' }] : []),
+        ...(moved && v.pa !== p.pa ? [{ id: 'A0', points: line(0, p.pa), ghost: true, color: 'teal' }] : []),
+        // подписи — те же слова, что в заданиях: «рынок у дома» и «оптовая база»
+        { id: 'A', label: 'рынок у дома', labelPos: 0.82, points: line(0, v.pa), color: 'teal' },
+        { id: 'B', label: 'оптовая база', labelPos: 0.3, points: line(v.f, v.pb), color: 'gold' },
+      ],
+      points: [
+        ...(v.f > 0 ? [{ x: 0, y: v.f, label: 'доставка', small: true }] : []),
+        ...(inside ? [{ x: e, y: v.pa * e, label: 'одинаково', guide: true }] : []),
+      ],
+      readout: [
+        { label: 'Одинаково при', value: inside ? `${r1(e)} кг` : e == null ? 'база не дешевле за кг' : `больше ${Q} кг` },
+        { label: `${Q} кг у дома`, value: r1(v.pa * Q) },
+        { label: `${Q} кг на базе`, value: r1(v.f + v.pb * Q) },
+      ],
+    };
+  },
+};
+
 /* ---------------- НОМИНАЛЬНЫЙ И РЕАЛЬНЫЙ ВВП ----------------
    Реальный ВВП растёт на g в год, цены — на π. Номинальный = реальный × дефлятор. */
 const gdpParams = (A) => ({ y0: num(A, 'y0', 100), g: num(A, 'g', 2), pi: num(A, 'pi', 8), n: num(A, 'n', 5) });
@@ -1369,6 +1417,7 @@ const moneyChart = {
 supplyDemand.measureNames = { P: 'цена', Q: 'количество' };
 laborChart.measureNames = { w: 'зарплата', L: 'число работающих' };
 savingsChart.measureNames = { deposit: 'сумма на вкладе через срок', box: 'деньги в копилке', gain: 'что принесли проценты' };
+shopsChart.measureNames = { even: 'покупка, при которой выгодно одинаково', market: 'цена у дома', base: 'цена на базе', fee: 'доставка с базы' };
 elasticity.measureNames = { P: 'цена', Q: 'количество', R: 'выручка', E: 'эластичность' };
 isLm.measureNames = { Y: 'выпуск', r: 'ставка' };
 adAs.measureNames = { Y: 'выпуск', P: 'уровень цен' };
@@ -1638,7 +1687,7 @@ const isoquantChart = {
 };
 isoquantChart.measureNames = { L: 'рабочих', K: 'станков', Q: 'выпуск' };
 
-export const CHARTS = { product: productChart, isoquant: isoquantChart, 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, savings: savingsChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
+export const CHARTS = { product: productChart, isoquant: isoquantChart, 'supply-demand': supplyDemand, labor: laborChart, elasticity, 'elastic-compare': elasticCompare, revenue: revenueCurve, 'is-lm': isLm, 'ad-as': adAs, costs, monopoly: monopolyChart, moncomp: monCompChart, cournot: cournotChart, ppf, consumer, tax, lrac, budget: budgetChart, choice: choiceChart, indiff: indiffChart, demand: demandChart, 'market-demand': marketDemandChart, cross: crossChart, externality: extChart, 'trade-ppf': tradeChart, gdp: gdpChart, inflation: inflationChart, savings: savingsChart, shops: shopsChart, money: moneyChart, phillips: phillipsChart, taylor: taylorChart, solow: solowChart };
 /* функция кривой (tag выше) — свойством кривой: так её видит плоскость на весь экран, и она переживает обработку сцены
    (sceneInCrowns копирует массивы точек, а функции в полях объектов сохраняет) */
 const liftFns = (scene) => (scene && Array.isArray(scene.curves)
