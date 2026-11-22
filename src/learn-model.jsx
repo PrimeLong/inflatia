@@ -408,7 +408,9 @@ function PartsRing({ open, total }) {
 }
 
 /* строка «что произошло» не сжимается обратно, пока ширина та же: текст на две строки, потом на одну — и ползунок под
-   ней не скачет вверх-вниз (пункт владельца 20.11, п. 2). Ширина сменилась (поворот телефона) — меряем заново. */
+   ней не скачет вверх-вниз (пункт владельца 20.11, п. 2). Ширина сменилась (поворот телефона) — меряем заново.
+   Высота — дробная: строка в 39,75 px, округлённая до 40, сдвигала ползунок на четверть пикселя при первой мерке
+   (на телефоне модель свёрнута, пока её не раскрыли, и первая мерка случалась уже под пальцем). */
 function useSteadyHeight(ref, dep) {
   const max = useRef({ w: 0, h: 0 });
   useLayoutEffect(() => {
@@ -416,7 +418,7 @@ function useSteadyHeight(ref, dep) {
     const w = el.clientWidth;
     if (w !== max.current.w) max.current = { w, h: 0 };
     el.style.minHeight = '';
-    const h = el.offsetHeight;
+    const h = el.getBoundingClientRect().height;
     if (h > max.current.h) max.current.h = h;
     el.style.minHeight = `${max.current.h}px`;
   }, [ref, dep]);
