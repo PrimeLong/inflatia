@@ -1,8 +1,10 @@
-/* ИССЛЕДОВАТЕЛЬСКАЯ БАЗА — отдельная от базы аккаунтов (research/data-dictionary.md, «Где хранится»). Подключается только
-   своими переменными окружения RESEARCH_KV_REST_API_URL и RESEARCH_KV_REST_API_TOKEN (или, после переезда базы на ONREZA,
-   RESEARCH_DATABASE_URL — отдельной базой PostgreSQL, docs/onreza.md): к базе аккаунтов (KV_REST_API_*)
-   этот файл не обращается и на неё не переключается, даже если своей базы нет. Без своей базы исследование закрыто
-   (api/research.js). Память — только для локальной разработки и тестов.
+/* ИССЛЕДОВАНИЕ — В ОБЩЕЙ БАЗЕ, В СВОЕЙ ТАБЛИЦЕ (решение владельца 22.11.2026: одна база, docs/onreza.md).
+   База одна — PostgreSQL ONREZA по DATABASE_URL. Записи исследования лежат в отдельной таблице inflatia_research той же
+   базы (api/_lib/pgkv.js): у исследования своя цель обработки и свой круг доступа (research/data-dictionary.md, раздел 1),
+   поэтому таблица своя — её можно выгрузить, удалить при фиксации набора и закрыть отдельными правами, не трогая данные
+   Инфляции. Отдельная переменная RESEARCH_DATABASE_URL больше не нужна; Upstash для исследования не используется.
+   Без DATABASE_URL (локально, превью на Upstash) — память, и исследование закрыто (api/research.js).
+
    Ключи: rp:<код> — участник, re:<код> — события, rt:<код>:<pre|post|delayed> — ответы теста (пишутся один раз, setNx),
    rlock:<код> — короткая блокировка участника на время входного теста и распределения, rslot:<код> — номер участника в слое,
    rcount:<слой> — сколько распределено в слое (атомарный счётчик), rday:<ГГГГ-ММ-ДД> — сколько записалось за день (защита от
@@ -11,26 +13,22 @@
    отвечено (cnt:<урок>), активные секунды урока (sec:<урок>), пройденные уроки (done:<урок> — день), номер занятия (sess);
    и две короткоживущие отметки времени сервера — последнее действие (last, живёт 30 минут) и выдача задач теста
    (issue:<вид>, живёт 4 часа, стирается при отправке теста): по ним сервер сам считает время, а не верит клиенту.
-   В выгрузку rx:… не идёт. Логинов, адресов и токенов здесь нет.
-   Атомарность: incr и setNx — одна команда базы; у памяти — синхронный участок без await, тоже неделимый. */
-import { pgKvFromEnv } from './pgkv.js';
 
-/* База исследования на ONREZA — отдельная база PostgreSQL: RESEARCH_DATABASE_URL (не та же строка, что DATABASE_URL). */
-let redis = process.env.RESEARCH_DATABASE_URL && process.env.RESEARCH_DATABASE_URL !== process.env.DATABASE_URL
-  ? pgKvFromEnv('RESEARCH_DATABASE_URL') : null;
-if (!redis) try {
-  const url = process.env.RESEARCH_KV_REST_API_URL;
-  const token = process.env.RESEARCH_KV_REST_API_TOKEN;
-  if (url && token && url !== process.env.KV_REST_API_URL) {
-    const { Redis } = await import('@upstash/redis');
-    redis = new Redis({ url, token });
-  }
-} catch { redis = null; }
+   СВЯЗЬ С АККАУНТОМ — только там, где она нужна методике (research/methodology.md, раздел 8): rla:<логин> → код участника,
+   rlc:<код> → логин. Одна пара на участника; в записях participants/events/tests логина по-прежнему нет. Нужна для четырёх
+   вещей: один аккаунт — одно участие (нельзя записаться второй раз и «перевыбрать» группу), критерий 18+ по году рождения
+   аккаунта, продолжение на другом устройстве после входа, и чтобы «удалить аккаунт» и «скачать мои данные» в Инфляции
+   касались и исследования. В выгрузку для анализа связь не идёт; стирается при отзыве участия и при фиксации набора.
+   В выгрузку rx:… тоже не идёт. Адресов и токенов здесь нет.
+   Атомарность: incr и setNx — одна команда базы; у памяти — синхронный участок без await, тоже неделимый. */
+import { pgKvFromEnv, RESEARCH_TABLE } from './pgkv.js';
+
+const redis = pgKvFromEnv('DATABASE_URL', { table: RESEARCH_TABLE });
 
 export const hasResearchDb = () => !!redis;
-export const researchDbKind = () => (!redis ? 'none' : redis.kind === 'postgres' ? 'postgres' : 'upstash');
+export const researchDbKind = () => (redis ? 'postgres' : 'none');
 
-// хранилище в памяти: те же операции, что и у Redis
+// хранилище в памяти: те же операции, что и у базы
 export function memoryStore() {
   const m = new Map();
   return {
@@ -53,9 +51,10 @@ export function memoryStore() {
     keys: async (prefix) => [...m.keys()].filter((k) => k.startsWith(prefix)),
   };
 }
-function redisStore(r) {
+// те же операции поверх таблицы inflatia_research (клиент pgkv отвечает как Redis)
+export function kvStore(r) {
   return {
-    kind: 'redis',
+    kind: r.kind || 'redis',
     get: (k) => r.get(k),
     set: (k, v) => r.set(k, v),
     setNx: async (k, v, ttl = 0) => (await r.set(k, v, ttl ? { nx: true, ex: ttl } : { nx: true })) === 'OK',
@@ -73,9 +72,25 @@ function redisStore(r) {
   };
 }
 let mem = null;
-// хранилище исследования: своя база или (без неё) память — но никогда не база аккаунтов
+let db = null;
+// хранилище исследования: таблица исследования в общей базе или (без базы) память
 export function researchStore() {
-  if (redis) return redisStore(redis);
+  if (redis) return db || (db = kvStore(redis));
   if (!mem) mem = memoryStore();
   return mem;
+}
+
+// ключи связи с аккаунтом
+export const linkKeyOfLogin = (login) => `rla:${login}`;
+export const linkKeyOfCode = (code) => `rlc:${code}`;
+
+/* Стереть участника целиком: записи, тесты, служебный ход и связь с аккаунтом; остаётся только общее число отозвавших.
+   Общая для отзыва участия (api/research.js) и удаления аккаунта (api/account.js через api/_lib/research-link.js). */
+export async function wipeParticipant(st, code) {
+  const progress = await st.keys(`rx:${code}:`);
+  const login = await st.get(linkKeyOfCode(code));
+  await st.del(`rp:${code}`, `re:${code}`, `rt:${code}:pre`, `rt:${code}:post`, `rt:${code}:delayed`, `rslot:${code}`, `rlock:${code}`,
+    ...progress, linkKeyOfCode(code), ...(login ? [linkKeyOfLogin(login)] : []));
+  await st.incr('rwithdrawn');
+  return true;
 }

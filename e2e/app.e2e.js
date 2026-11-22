@@ -118,6 +118,7 @@ test('вход: первый запуск — приветствие, цель, 
   await expect(page.getByTestId('privacy')).toContainText('Что мы храним');
   await expect(page.getByTestId('privacy')).toContainText('Upstash');
   await expect(page.getByTestId('privacy')).toContainText('за пределами России');
+  await expect(page.getByTestId('privacy')).toContainText('ONREZA');
   // оператор и контакты — заглушки до решения владельца; знак маркировки — из одной константы (src/legal.js)
   await expect(page.getByTestId('privacy').getByTestId('operator')).toContainText('[ФИО/название]');
   await expect(page.getByTestId('privacy').getByTestId('operator')).toContainText('[адрес для обращений]');
@@ -271,21 +272,21 @@ test('нижняя панель: «Мир» без учебных карточе
   // итоговая проверка: без подсказок и решений до конца, в конце — счёт по темам
   await page.getByTestId('practice-exam').click();
   const exam = page.getByTestId('exam');
-  await expect(exam.getByTestId('exam-problem')).toHaveCount(24);
+  await expect(exam.getByTestId('exam-problem')).toHaveCount(26);
   await expect(exam.getByRole('button', { name: /^Подсказка/ })).toHaveCount(0);
   await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(0);
-  // заведомо неверный ответ: «1» бывал верным (задача «Рынка труда» с ответом 1 — «Верно 1 из 24»)
+  // заведомо неверный ответ: «1» бывал верным (задача «Рынка труда» с ответом 1 — «Верно 1 из 26»)
   await exam.getByRole('textbox', { name: 'Проверка, ответ к задаче 1' }).or(exam.getByRole('textbox', { name: 'Проверка, задача 1, шаг а)' })).first().fill('98765');
   await exam.getByRole('button', { name: 'Завершить проверку' }).click();
-  await expect(exam.getByTestId('exam-result')).toContainText('Верно 0 из 24');
+  await expect(exam.getByTestId('exam-result')).toContainText('Верно 0 из 26');
   await expect(exam.getByTestId('exam-weak')).toContainText('Слабое место');
-  await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(24);
+  await expect(exam.getByRole('button', { name: 'Решение' })).toHaveCount(26);
   await expectNoSidewaysScroll(page);
   // пересдача — те же темы, новые числа
   const before = await exam.getByTestId('exam-problem').allInnerTexts();
   await exam.getByRole('button', { name: 'Пересдать с новыми числами' }).click();
   await expect(exam.getByTestId('exam-result')).toHaveCount(0);
-  await expect(exam.getByTestId('exam-problem')).toHaveCount(24);
+  await expect(exam.getByTestId('exam-problem')).toHaveCount(26);
   const after = await exam.getByTestId('exam-problem').allInnerTexts();
   expect(after.filter((t, i) => t === before[i]).length).toBeLessThan(3);
   await exam.getByRole('button', { name: 'Завершить проверку' }).click();
@@ -533,7 +534,7 @@ test('навигация: у каждого экрана один «назад»
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', accountApi, { tab: 'path' });
@@ -1436,13 +1437,13 @@ test('вход: «Мир» на пробу — с приветствия в «М
 });
 
 // пункт владельца 21.11, п. 5: «анимации взаимодействия с Инфлёй — нажать на неё»
-test('Инфля откликается на касание: прыжок, сплющилась, крутанулась по очереди, на миг радуется, сердечки; пять касаний — закружилась', async ({ page }) => {
+test('Инфля откликается на касание: подпрыгнула, сплющилась, качнулась по очереди, на миг радуется, сердечки; пять касаний — закружилась', async ({ page }) => {
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   const infla = page.getByTestId('mascot').filter({ visible: true }).first();
   await infla.scrollIntoViewIfNeeded();
   await infla.click();
   await expect(infla).toHaveAttribute('data-poke', '1');
-  await expect(infla).toHaveAttribute('data-reaction', /jump|squish|spin/);
+  await expect(infla).toHaveAttribute('data-reaction', /jump|squish|tilt/);
   await expect(infla.locator('.infla-heart')).toHaveCount(3);
   await expect(infla.locator('svg[aria-label]')).toHaveAttribute('aria-label', /Инфля/);
   // на миг — радость (рот и глаза радости), потом снова как была

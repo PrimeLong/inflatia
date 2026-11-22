@@ -8,9 +8,9 @@
 import { SpecialShell, SpecialDesk, SpecialHead, SpecialLabel, useAnswerRun, useSpecialResume, resumedState } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Plus, Minus, Hand, Expand, Undo2, Paintbrush, Eraser } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Plus, Minus, Hand, Expand, Undo2, Paintbrush, Eraser } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Button } from './ds.jsx';
+import { Button, IconButton } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { stageScene } from './graph-stage.jsx';
 
@@ -164,7 +164,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const run = useAnswerRun(was ? was.run || 0 : streakNow(learn || {}), was ? was.log || [] : [], (ok) => { if (update) update((st) => tallyAnswer(st, ok)); });
   const [i, setI] = useState(() => (was ? was.i : 0));
   const [phase, setPhase] = useState('task'); // task → done
-  const [pts, setPts] = useState([]);
+  const [ptsNow, setPts] = useState([]);
+  /* назад — к прошлому шагу (пункт владельца 22.11, п. 7: «в особых уроках нельзя вернуться»): шаг открывается для просмотра —
+     условие, решение на графике и что оно значит; рисовать на нём нельзя, «Вернуться» — к текущему шагу */
+  const [peekI, setPeekI] = useState(null);
   /* «закрасить область»: pts — точки мазков, у каждой s — номер мазка; tool — кисть или ластик (пункт владельца 18.11: «нельзя
      стирать накрашенное, и когда красишь — почему-то точка, а не кисточка»); history — снимки до каждого мазка (для «Отменить») */
   const strokes = useRef(0);
@@ -173,14 +176,17 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const [v, setV] = useState(0);
   const [hover, setHover] = useState(null);
   const [tries, setTries] = useState(0);
-  const [res, setRes] = useState(null); // { ok, why } | { shown: true }
+  const [resNow, setRes] = useState(null); // { ok, why } | { shown: true }
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   const firstTry = useRef(was ? was.firstTry || 0 : 0);
   const activeMs = useActiveMs(was ? was.ms || 0 : 0);
+  /* место — с первого решённого шага, как у урока («вышли после первого ответа — урок сохраняется»): решённый шаг сохраняется
+     как пройденный (продолжим со следующего), чтобы первая попытка не засчиталась дважды */
   useEffect(() => {
     if (phase === 'done') { resume.drop(); return; }
-    if (i > 0) resume.save({ pos: i, i, firstTry: firstTry.current, run: run.current(), log: run.currentLog(), ms: activeMs() });
-  }, [i, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+    const at = resNow && (resNow.ok || resNow.shown) && d && i + 1 < d.tasks.length ? i + 1 : i;
+    if (at > 0) resume.save({ pos: at, i: at, firstTry: firstTry.current, run: run.current(), log: run.currentLog(), ms: activeMs() });
+  }, [i, phase, resNow]); // eslint-disable-line react-hooks/exhaustive-deps
   const root = useRef(null);
   const ink = useRef(null);
   const drag = useRef(null);
@@ -209,11 +215,13 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const pan = useRef(null);
   const lockTouch = useRef(false); // после щипка, пока не убраны все пальцы, — не рисуем
   /* «На весь экран» — числовая плоскость, как в «Разборе графика» (src/plane-view.jsx): задание и кнопки — в панели сбоку */
-  const goFull = () => { Audio.play('click'); setHover(null); setFull(true); };
+  const goFull = () => { Audio.play('click'); setHover(null); setPeekI(null); setFull(true); };
+  const peekBack = () => { Audio.play('paper'); setHover(null); setPeekI((p) => (p == null ? i - 1 : Math.max(0, p - 1))); };
+  const peekForward = () => { Audio.play('paper'); setPeekI((p) => (p == null || p + 1 >= i ? null : p + 1)); };
   const leaveFull = () => { setHover(null); drag.current = null; setFull(false); };
   useEffect(() => { if (root.current) root.current.scrollTo({ top: 0 }); }, [i, phase]);
   // ответ проверен — разбор под графиком в поле зрения (на телефоне он уходил под нижнюю панель)
-  useEffect(() => { if (res && fb.current && fb.current.scrollIntoView) fb.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [res]);
+  useEffect(() => { if (resNow && fb.current && fb.current.scrollIntoView) fb.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [resNow]);
   // Esc во весь экран — сначала сворачивает график, а не закрывает урок
   useEffect(() => { const esc = (e) => { if (e.key !== 'Escape') return; if (fullRef.current) setFull(false); else onClose(); }; window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [onClose]);
   // на весь экран: Ctrl+Z — отменить последнюю точку или мазок
@@ -245,7 +253,12 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   }, [phase, i]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!d) return null;
   const n = d.tasks.length;
-  const t = d.tasks[Math.min(i, n - 1)];
+  const peeking = peekI != null && phase !== 'done';
+  const viewI = peeking ? peekI : i;
+  const t = d.tasks[Math.min(viewI, n - 1)];
+  // на прошлом шаге — его решение, без точек текущего шага
+  const res = peeking ? { shown: true, peek: true } : resNow;
+  const pts = peeking ? [] : ptsNow;
   const resolved = !!res && (res.ok || res.shown);
   const sc = drawScene(d, {});
   const [x0, x1] = sc.xDomain; const [y0, y1] = sc.yDomain;
@@ -324,7 +337,8 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     // закрасить область: новый мазок с этой точки
     if (t.do === 'area') {
       history.current = [...history.current, pts];
-      if (tool === 'erase') { setPts(eraseAt(pts, raw)); drag.current = { erase: true, before: pts }; return; }
+      // ластик — кнопкой «Ластик» или правой кнопкой мыши, как в Paint (жалоба 21.11)
+      if (tool === 'erase' || (e && e.button === 2 && e.pointerType === 'mouse')) { setPts(eraseAt(pts, raw)); drag.current = { erase: true, before: pts }; return; }
       strokes.current += 1; setPts([...pts, { ...raw, s: strokes.current }]); drag.current = { paint: true, before: pts }; return;
     }
     const p = place(raw);
@@ -407,7 +421,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const finish = () => {
     Audio.play('register');
     const right = firstTry.current; const accuracy = Math.round((right / n) * 100);
-    const seconds = Math.min(900, activeMs() / 1000);
+    const seconds = activeMs() / 1000;
     if (gem && update) {
       // алмаз — все шаги с первой (и единственной) попытки; опыт и монеты — за первый взятый
       const won = right === n; const had = hasGem(learn, id);
@@ -432,7 +446,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const reset = () => { Audio.play('tick'); if (pts.length) history.current = [...history.current, pts]; setPts([]); setV(0); touch(); };
 
   // что видно на графике: решено — шаг вперёд (новое появляется), иначе — как было плюс то, что нужно шагу
-  const k = phase === 'done' ? n : i + (resolved ? 1 : 0);
+  const k = phase === 'done' ? n : viewI + (resolved ? 1 : 0);
   const sol = res && res.shown ? solveTask(d, t) : null;
   const testAnswerOf = () => { const s = solveTask(d, t); return JSON.stringify(s.v != null ? { v: s.v } : s.paint ? { pts: s.paint.map((q) => [sx(q.x), sy(q.y)]) } : { pts: (s.ps || (s.a ? [s.a, s.b] : [s.p])).map((q) => [sx(snapTo(d, q).x), sy(snapTo(d, q).y)]) }); };
   const mine = res && res.shown ? 'var(--g-rust)' : 'var(--g-blue)';
@@ -602,7 +616,8 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
       <div className="gl-head">
         {/* шапка как у урока: «✕», полоса прогресса по шагам, молния «верно подряд» и Инфля (learn-special.jsx) */}
         <SpecialHead closeLabel="Закрыть" closeTestid="draw-close" onClose={() => { Audio.play('paper'); onClose(); }} run={run}
-          total={n} answers={run.log.slice(0, n)} >
+          total={n} answers={run.log.slice(0, n)}
+          onBack={phase !== 'done' && !full && (peeking ? viewI > 0 : i > 0) ? peekBack : null} onForward={peeking ? peekForward : null} >
         <SpecialLabel kind="Нарисуй сам" title={d.title} gem={gem} gemTestid="draw-gem-tag">
           <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в задании? Шаг, его текст и устройство приложатся сами." context={() => ({
             screen: 'draw', lesson: id, unit: d.unitId, kind: 'draw',
@@ -660,7 +675,8 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
                 alsoShow={!resolved && t.show ? t.show : null} alsoHide={!resolved && t.hide ? t.hide : null} />
               <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}${hand ? ' hand' : ''}`} viewBox={vbString(vb)} data-testid={full ? 'draw-ink-lesson' : 'draw-ink'}
                 data-answer={full ? undefined : testAnswerOf()} data-ready={String(ready)} aria-label="Поле для рисования"
-                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onPointerLeave={() => setHover(null)}>
+                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onPointerLeave={() => setHover(null)}
+                onContextMenu={(e) => { if (t.do === 'area') e.preventDefault(); }}>
                 {inkContent()}
               </svg>
               {/* сколько области закрашено — пока шаг не решён */}
@@ -678,10 +694,11 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
           </div>
           </div>
           {res && (
-            <div ref={fb} className={`dl-fb${res.ok ? '' : res.shown ? ' shown' : ' bad'}`} role="status" data-testid="draw-feedback" data-ok={String(!!res.ok)} data-shown={String(!!res.shown)}>
+            <div ref={fb} className={`dl-fb${res.ok || res.peek ? '' : res.shown ? ' shown' : ' bad'}`} role="status" data-testid={res.peek ? 'draw-peek' : 'draw-feedback'} data-ok={String(!!res.ok)} data-shown={String(!!res.shown)}>
+              {res.peek && <><b>Шаг {viewI + 1} из {n} — уже пройден.</b> {rich(t.done)}</>}
               {res.ok && <><b>Верно.</b> {rich(t.done)}</>}
               {!res.ok && !res.shown && <><b>{res.why || 'Не совсем.'}</b><div className="dl-hint"><Lightbulb size={16} aria-hidden="true" /><span>{rich(t.hint)} Попробуйте ещё раз.</span></div></>}
-              {res.shown && <><b>{res.why ? `${res.why} ` : ''}Вот как надо:</b> {rich(t.hint)} {rich(t.done)}</>}
+              {res.shown && !res.peek && <><b>{res.why ? `${res.why} ` : ''}Вот как надо:</b> {rich(t.hint)} {rich(t.done)}</>}
             </div>
           )}
         </div>
@@ -706,7 +723,11 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
         <div className="ln-inner">
           {phase === 'done'
             ? <Button wide data-testid="draw-finish" onClick={() => { Audio.play('click'); onClose(); }}>Дальше</Button>
-            : <>
+            : peeking ? <>
+              <Button variant="secondary" icon={ArrowLeft} disabled={viewI === 0} data-testid="draw-back" onClick={peekBack}>Назад</Button>
+              <Button wide icon={ArrowRight} data-testid="draw-return" onClick={() => { Audio.play('paper'); setPeekI(null); }}>Вернуться к шагу {i + 1}</Button>
+            </> : <>
+              {i > 0 && <IconButton label="Назад: прошлый шаг" icon={ArrowLeft} data-testid="draw-back" onClick={peekBack} />}
               <Button variant="secondary" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} data-testid="draw-reset" onClick={reset}>Сбросить</Button>
               {resolved
                 ? <Button wide icon={i < n - 1 ? ArrowRight : Check} data-testid="draw-next" onClick={next}>{i < n - 1 ? 'Дальше' : 'Готово'}</Button>

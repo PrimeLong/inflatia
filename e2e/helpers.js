@@ -292,9 +292,9 @@ export async function passCards(page) {
 
 export const pathNode = (page, id) => page.getByTestId('path').getByTestId('path-lesson').and(page.locator(`[data-lesson="${id}"]`));
 
-export const UNIT_OF = { sc: 'scarcity', lm: 'labor', hh: 'household', sd: 'supply-demand', el: 'elasticity', mf: 'market-failures', mb: 'money-banks', in: 'inflation', cs: 'consumer', pr: 'production', ct: 'costs', cm: 'competition-monopoly', mc: 'monopolistic' };
+export const UNIT_OF = { sc: 'scarcity', lm: 'labor', hh: 'household', tr: 'prices', sd: 'supply-demand', el: 'elasticity', mf: 'market-failures', mb: 'money-banks', in: 'inflation', cs: 'consumer', pr: 'production', ct: 'costs', cm: 'competition-monopoly', mc: 'monopolistic' };
 
-export const LEVEL_OF = { scarcity: 'start', labor: 'start', household: 'start', 'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic', consumer: 'middle', production: 'middle', costs: 'middle', 'competition-monopoly': 'middle', monopolistic: 'middle' };
+export const LEVEL_OF = { scarcity: 'start', labor: 'start', household: 'start', prices: 'start', 'supply-demand': 'basic', elasticity: 'basic', 'market-failures': 'basic', 'money-banks': 'basic', inflation: 'basic', consumer: 'middle', production: 'middle', costs: 'middle', 'competition-monopoly': 'middle', monopolistic: 'middle' };
 
 // на Пути юниты одного уровня: уровень нужного юнита — через плашку и список уровней, если юнита ещё нет на экране
 export async function showUnit(page, id) {

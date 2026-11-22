@@ -25,6 +25,7 @@ import {
 import {
   startLesson, recordAttempt, addMistake, resolveMistake, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak, XP, setPlacement, dayOf, recordSeen, recordBest,
   DIAMOND_ACCURACY, streakBonus, gameXp, syncStreak, streakNow, markFixed, finishLevelReview, levelConfirmed, LEVEL_REVIEW_OK,
+  creditedSeconds, LESSON_SECONDS_CAP,
 } from './textbook/learn-state.js';
 import { runCoins, runKey, earn, settle, indexed, hasClaim, deskOf, themeOf, boostActive, fairRun } from './learn/rewards.js';
 import { DeskDecor, CradleStand, CRADLE_CSS, tellAnswer, DESK_QUERY } from './learn-decor.jsx';
@@ -944,7 +945,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     }
     // из него — за серии и мини-игру (на повторе урока опыт — десятая часть, разбивку не показываем)
     const bonus = run.mode === 'lesson' && replay && !diamond ? 0 : a.bonus * (boosted ? 2 : 1);
-    setResult({ xp, bonus, accuracy, ms, pass, mistakes, coins: key && hasClaim(learn, key) ? 0 : coins, gains: preview.gains, opened, boosted, streakUp, game: a.game || null, raceFriends, unfair });
+    setResult({ xp, bonus, accuracy, ms, credit: creditedSeconds(ms / 1000, now), pass, mistakes, coins: key && hasClaim(learn, key) ? 0 : coins, gains: preview.gains, opened, boosted, streakUp, game: a.game || null, raceFriends, unfair });
     setStage('done');
   };
   const next = () => {
@@ -1361,6 +1362,12 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
                 <div data-testid="result-acc"><div className="ds-eyebrow" style={{ fontSize: 12 }}>Точность</div><div className="v">{Math.round(result.accuracy)}%</div></div>
                 <div data-testid="result-time"><div className="ds-eyebrow" style={{ fontSize: 12 }}>Время</div><div className="v">{mmss(result.ms)}</div></div>
               </div>
+              {/* в цель дня идёт то же время (creditedSeconds); если меньше — говорим сколько и почему, а не молча (пункт владельца 22.11, п. 2) */}
+              {run.mode !== 'placement' && Math.floor(result.credit / 60) < Math.floor(result.ms / 60000) && (
+                <div className="ds-sub" style={{ textAlign: 'center', fontSize: 13, marginTop: 6 }} data-testid="result-credit">
+                  В цель дня — {Math.floor(result.credit / 60)} мин: {result.ms / 1000 > LESSON_SECONDS_CAP ? 'за один урок засчитывается не больше часа' : 'урок начался вчера, сегодня засчитано время после полуночи'}.
+                </div>
+              )}
               {/* пояснение к молнии — под плитками, а не в плитке: на узком телефоне оно растягивало все три */}
               {result.bonus > 0 && <div className="ln-xp-note" data-testid="result-xp-note"><Zap size={15} strokeWidth={2.4} aria-hidden="true" />+{result.bonus} опыта — {result.game ? 'за игру и верные ответы подряд' : 'за верные ответы подряд'}</div>}
               <GainsList coins={result.coins} gains={result.gains} label={run.mode === 'level' ? 'За большое повторение' : 'За урок'} />

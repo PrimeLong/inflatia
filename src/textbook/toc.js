@@ -83,6 +83,11 @@ export const PARTS = [
         refs: [
           { book: 'mankiwPrinciples', chapter: '«Основные инструменты финансов» (The Basic Tools of Finance)' },
         ] },
+      { id: 'prices', title: 'Цены и покупки', status: 'ready',
+        summary: 'Что такое цена и наценка, ценность и редкость (парадокс воды и алмаза), цена как сигнал, цена за единицу и доля дохода, где покупать выгоднее, скидки и почему проценты не складываются.',
+        refs: [
+          { book: 'mankiwPrinciples', chapter: '«Десять принципов экономики» (Ten Principles of Economics) и «Рыночные силы спроса и предложения» (The Market Forces of Supply and Demand)' },
+        ] },
       { id: 'market-failures', title: 'Провалы рынка и налоги', status: 'ready',
         summary: 'Излишки потребителя и производителя, налог и его бремя, безвозвратные потери, внешние эффекты и налог Пигу, общественные блага, асимметрия информации.',
         cards: ['laffer'],

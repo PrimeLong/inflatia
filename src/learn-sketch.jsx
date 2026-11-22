@@ -19,7 +19,7 @@ import { Audio } from './MacroSimulator.jsx';
    поле 294 px, док — 286 px); и мышь или перо, а не палец. */
 export const SKETCH_QUERY = '(min-width: 1280px) and (hover: hover) and (pointer: fine)';
 // учебник шире урока (1240 px с оглавлением главы): поля для записей остаются от 1500 px
-export const SKETCH_BOOK_QUERY = '(min-width: 1500px) and (hover: hover) and (pointer: fine)';
+export { SKETCH_BOOK_QUERY } from './learn/sketch.js';
 const ON_KEY = 'ems-sketch-on';
 const TRIED_KEY = 'ems-sketch-tried';
 const stored = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -334,12 +334,15 @@ export function Sketch({ mode = 'lesson' }) {
       ctx.restore();
     };
     const schedule = () => { if (!frame.current) frame.current = requestAnimationFrame(drawLive); };
+    /* правая кнопка мыши — ластик, как в Paint (жалоба 21.11: «в рисовалке нужно, чтобы на правую кнопку мышки была стёрка»):
+       штрих правой кнопкой стирает тем же размером, выбранный инструмент не меняется; меню браузера на полях не открывается */
     const down = (e) => {
       const p = pick.current;
-      if (!p.on || e.button !== 0 || e.pointerType === 'touch' || live.current || !onMargin(e, r, M)) return;
+      const right = e.button === 2 && e.pointerType === 'mouse';
+      if (!p.on || (e.button !== 0 && !right) || e.pointerType === 'touch' || live.current || !onMargin(e, r, M)) return;
       e.preventDefault();
       paint();
-      const s = { tool: p.tool, color: p.color, size: p.size, points: [] };
+      const s = { tool: right ? 'eraser' : p.tool, color: p.color, size: p.size, points: [] };
       addPoint(s, at(e));
       live.current = { s, id: e.pointerId, ink: inks(r)[p.color] };
       try { r.setPointerCapture(e.pointerId); } catch { /* указатель уже отпущен */ }
@@ -382,7 +385,9 @@ export function Sketch({ mode = 'lesson' }) {
       if (isUndo && strokes.current.length) { e.preventDefault(); undo(); }
       else if (isRedo && undone.current.length) { e.preventDefault(); redo(); }
     };
+    const noMenu = (e) => { if (pick.current.on && e.pointerType !== 'touch' && onMargin(e, r, M)) e.preventDefault(); };
     r.dataset.sketchHost = mode;
+    r.addEventListener('contextmenu', noMenu);
     r.addEventListener('pointerdown', down);
     r.addEventListener('pointermove', move);
     r.addEventListener('pointerup', up);
@@ -418,6 +423,7 @@ export function Sketch({ mode = 'lesson' }) {
       window.removeEventListener('resize', nav);
       cancelAnimationFrame(scrollFrame);
       r.removeEventListener('transitionend', settled);
+      r.removeEventListener('contextmenu', noMenu);
       r.removeEventListener('pointerdown', down);
       r.removeEventListener('pointermove', move);
       r.removeEventListener('pointerup', up);

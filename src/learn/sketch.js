@@ -94,3 +94,6 @@ export function pushStroke(list, stroke) {
 }
 // «Стереть всё», а потом «Вернуть»: стёртое ложится под то, что успели нарисовать после
 export const restoreStrokes = (cleared, list) => [...cleared, ...list];
+
+// ПК с мышью и широким экраном — поля учебника под черновик (тут, а не в learn-sketch.jsx: Путь читает это, не загружая черновик)
+export const SKETCH_BOOK_QUERY = '(min-width: 1500px) and (hover: hover) and (pointer: fine)';

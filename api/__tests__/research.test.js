@@ -1,10 +1,11 @@
-/* Исследование отдельно от аккаунтов: закрыто, пока протокол — черновик; не читает заголовки, сессию и адрес; пишет только
-   поля словаря и только в свою базу; распределение — по зерну и атомарно; тесты — строго по банку, форме и окну; отзыв
-   участия стирает всё. */
+/* Исследование в общей базе, в своей таблице: закрыто, пока протокол — черновик; не читает заголовки и адрес; об аккаунте
+   узнаёт только логин и год рождения (через мост research-link.js) и держит одну пару связи «аккаунт ↔ код»; пишет только
+   поля словаря; распределение — по зерну и атомарно; тесты — строго по банку, форме и окну; отзыв участия стирает всё. */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import liveHandler, { makeHandler, CONSENT_VERSION, formFor } from '../research.js';
 import { memoryStore } from '../_lib/research-store.js';
+import { forgetAccountResearch, researchExportFor } from '../_lib/research-link.js';
 import { participantCode } from '../../src/research/record.js';
 import { armAt } from '../../src/research/randomize.js';
 import { TEST_ITEMS, MODULE_LESSONS } from '../../src/research/dictionary.js';
@@ -20,16 +21,19 @@ const call = (handler, body, { method = 'POST', headers = {} } = {}) => new Prom
 const DAY = 86400000;
 const T0 = Date.UTC(2027, 1, 1, 10);
 let n = 0;
+// ключ входа «tok-<логин>» — вошедший ученик; в логине «kid» — год рождения 2015 (младше 18)
+const whoIs = async (t) => (typeof t === 'string' && t.startsWith('tok-') ? { login: t.slice(4), birthYear: t.includes('kid') ? 2015 : 1990 } : null);
 const openStudy = (clock = { t: T0 }) => {
   const st = memoryStore();
-  return { st, clock, h: makeHandler({ status: 'open', store: () => st, seed: 'зерно-теста', exportToken: 'секрет-исследователя',
+  return { st, clock, h: makeHandler({ status: 'open', store: () => st, seed: 'зерно-теста', exportToken: 'секрет-исследователя', whoIs,
     // коды — разные: номер по порядку, разложенный по алфавиту кода
     newCode: () => { let k = (n += 1); return participantCode((a) => { const d = k % a; k = Math.floor(k / a); return d; }); }, now: () => clock.t, coin: () => true }) };
 };
 // ответы формы: первые right — по ключу, остальные — заведомо неверные (сервер сам решает, что верно)
 const wrongOf = (form, id) => { const k = keyFor(form, id); return typeof k === 'number' ? String(k + 777) : (k === 'а' ? 'б' : 'а'); };
 const items = (right, form = 'A') => TEST_ITEMS.map((id, i) => ({ item_id: id, answer: i < right ? String(keyFor(form, id)).replace('.', ',') : wrongOf(form, id) }));
-const enroll = async (h) => (await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION })).data.code;
+let u = 0;
+const enroll = async (h, token = `tok-u${u += 1}`) => (await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token })).data.code;
 // тест целиком: получить задачи (с этого момента сервер считает время) и отправить ответы
 const take = async (h, code, kind, form, right, extra = {}) => {
   await call(h, { action: 'form', code, kind });
@@ -54,16 +58,59 @@ describe('исследование: сервер', () => {
     expect((await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION })).status).toBe(403);
     expect((await call(h, { action: 'status' }, { method: 'GET' })).data.status).toBe('not-started');
   });
-  it('отдельно от аккаунтов: не импортирует базу аккаунтов и сессии; группы — без Math.random', () => {
+  it('одна база, своя таблица: база — DATABASE_URL, таблица inflatia_research; к аккаунту — только через мост; группы — без Math.random', () => {
     const api = readFileSync(new URL('../research.js', import.meta.url), 'utf8');
     const store = readFileSync(new URL('../_lib/research-store.js', import.meta.url), 'utf8');
+    const link = readFileSync(new URL('../_lib/research-link.js', import.meta.url), 'utf8');
     for (const src of [api, store]) {
       expect(src).not.toMatch(/from '\.\.?\/(_lib\/)?(store|accounts|friends)\.js'/);
       expect(src).not.toMatch(/userBySession|x-forwarded-for|x-real-ip|cookie/i);
     }
     expect(api).not.toMatch(/Math\.random/);
-    expect(store).toContain('RESEARCH_KV_REST_API_URL');
-    expect(store).not.toMatch(/Redis\.fromEnv/);
+    // база одна: никакой второй строки подключения и никакого Upstash для исследования
+    expect(store).toMatch(/pgKvFromEnv\('DATABASE_URL', \{ table: RESEARCH_TABLE \}\)/);
+    expect(store).not.toMatch(/RESEARCH_DATABASE_URL'|RESEARCH_KV_REST_API|@upstash\/redis|Redis\.fromEnv/);
+    // мост отдаёт исследованию только логин и год рождения; в базу аккаунтов исследование не пишет
+    expect(link).toMatch(/return u \? \{ login: u\.login, birthYear: Number\(u\.birthYear\) \|\| null \} : null/);
+    expect(link).not.toMatch(/setUser|setProfile|getProfile|getReports/);
+  });
+  it('связь с аккаунтом — только где нужна методике: без входа — 401; младше 18 по году рождения — 400; один аккаунт — одно участие', async () => {
+    const { h, st } = openStudy();
+    expect((await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION })).status).toBe(401);
+    expect((await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'чужой' })).status).toBe(401);
+    expect((await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'tok-kid' })).status).toBe(400);
+    // одновременно пять записей одного аккаунта — участник один
+    const many = await Promise.all(Array.from({ length: 5 }, () => call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'tok-bob' })));
+    expect(many.filter((r) => r.status === 200)).toHaveLength(1);
+    expect(many.filter((r) => r.status === 409).every((r) => /уже участвует/.test(r.data.error))).toBe(true);
+    const code = many.find((r) => r.status === 200).data.code;
+    expect(await st.keys('rp:')).toEqual([`rp:${code}`]);
+    // продолжить на другом устройстве: по входу — тот же код
+    expect((await call(h, { action: 'resume', token: 'tok-bob' })).data).toEqual({ code });
+    expect((await call(h, { action: 'resume', token: 'tok-eve' })).status).toBe(404);
+    expect((await call(h, { action: 'resume' })).status).toBe(401);
+    // в записях исследования логина нет — он только в паре связи; в выгрузку для анализа связь не идёт
+    expect(JSON.stringify(await st.get(`rp:${code}`))).not.toContain('bob');
+    expect(await st.get(`rla:bob`)).toBe(code); expect(await st.get(`rlc:${code}`)).toBe('bob');
+    const ex = (await call(h, { action: 'export' }, { headers: { 'x-research-token': 'секрет-исследователя' } })).data;
+    expect(JSON.stringify(ex)).not.toContain('bob');
+    // отзыв стирает и связь: аккаунт снова может записаться (следа об отзыве не остаётся)
+    await call(h, { action: 'withdraw', code });
+    expect(await st.keys('rl')).toEqual([]);
+    expect((await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'tok-bob' })).status).toBe(200);
+  });
+  it('аккаунт → исследование: «Скачать мои данные» отдаёт свои записи, «Удалить аккаунт» отзывает участие', async () => {
+    const { h, st } = openStudy();
+    const code = await enroll(h, 'tok-carl');
+    await take(h, code, 'pre', 'A', 7);
+    const mine = await researchExportFor('carl', st);
+    expect(mine.participant).toMatchObject({ participant_code: code, stage: 'pretest' });
+    expect(mine.tests).toHaveLength(12);
+    expect(await researchExportFor('nobody', st)).toBeNull();
+    expect(await forgetAccountResearch('nobody', st)).toBe(false);
+    expect(await forgetAccountResearch('carl', st)).toBe(true);
+    for (const prefix of ['rp:', 're:', 'rt:', 'rslot:', 'rx:', 'rla:', 'rlc:']) expect(await st.keys(prefix), prefix).toEqual([]);
+    expect(await st.get('rwithdrawn')).toBe(1);
   });
   it('без совершеннолетия и согласия с текущей версией — не записывает', async () => {
     const { h, st } = openStudy();
@@ -82,7 +129,7 @@ describe('исследование: сервер', () => {
   });
   it('полный путь участника: запись → входной тест и группа по зерну → занятия (ответы проверяет сервер) → итоговый и отсроченный тесты в своих окнах → выгрузка', async () => {
     const { h, clock } = openStudy();
-    const r = await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, login: 'anna' });
+    const r = await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'tok-anna' });
     const { code, forms } = r.data;
     expect(forms).toEqual({ pre: 'A', post: 'B', delayed: 'C' });
     expect((await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: 'hh-i1' } })).status).toBe(409);
@@ -115,7 +162,7 @@ describe('исследование: сервер', () => {
     expect((await take(h, code, 'delayed', 'C', 8)).data).toEqual({ ok: true });
     expect((await call(h, { action: 'export' }, { headers: { 'x-research-token': 'не тот' } })).status).toBe(403);
     const ex = (await call(h, { action: 'export' }, { headers: { 'x-research-token': 'секрет-исследователя' } })).data;
-    expect(ex.participants).toEqual([{ participant_code: code, protocol_version: '0.3', consent_version: CONSENT_VERSION, adult_confirmed: true, period: '2027-02', stage: 'delayed',
+    expect(ex.participants).toEqual([{ participant_code: code, protocol_version: '0.4', consent_version: CONSENT_VERSION, adult_confirmed: true, period: '2027-02', stage: 'delayed',
       stratum: 'low', arm: pre.data.arm, material_version: 'c87eaba', used_regular_app: 'no', form_order: 'AB' }]);
     const first = ex.events.filter((e) => e.lesson_id === 'hh-i1');
     expect(first[0]).toEqual({ participant_code: code, study_day: 2, event_type: 'lesson_start', lesson_id: 'hh-i1' });

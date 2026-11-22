@@ -5713,7 +5713,8 @@ export function GameScreen({ setup, initial, onRestart, onLoadState, theme, setT
           zIndex: 5, boxShadow: '0 -6px 20px -10px rgba(0,0,0,0.4)' }}>
           {/* на телефоне пояснение съедало половину панели и переносилось в две строки */}
           <span className="ems-hide-narrow" style={{ fontSize: 12, color: COLOR.faint, marginRight: 'auto' }}>
-            {botRole === 'both' ? 'Центральный банк и Минфин примут решения без вашего участия'
+            {setup.role === 'trader' ? 'Сделки сделаны? Завершите квартал — экономика сделает ход, и цены сдвинутся'
+              : botRole === 'both' ? 'Центральный банк и Минфин примут решения без вашего участия'
               : botRole ? `${botRole === 'central_bank' ? 'Центральный банк' : 'Минфин'} примет своё решение одновременно с вами`
                 : 'Обе ветви политики под вашим контролем'}
           </span>

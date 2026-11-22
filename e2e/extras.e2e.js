@@ -199,19 +199,28 @@ test('«Чтение» на алмаз: контекст после ответа
       if (await p.getAttribute('data-kind') === 'mark') await p.locator('[data-testid=reading-word][data-hit="1"]').first().click();
       else await p.locator('[data-testid=reading-opt][data-ok]').click();
       await expect(p.getByTestId('reading-context')).toBeVisible();
+      // «Назад» — к прошлой странице: её ответ на месте (пункт владельца 22.11, п. 7), «Дальше» — обратно
+      if (k === 2) {
+        await page.getByTestId('reading-back').click();
+        await expect(reading.getByTestId('reading-page')).toHaveAttribute('data-page', '1');
+        await expect(reading.getByTestId('reading-context')).toBeVisible();
+        await page.getByTestId('reading-next').click();
+        await expect(reading.getByTestId('reading-page')).toHaveAttribute('data-page', '2');
+      }
       await page.getByTestId('reading-next').click();
     }
-    // «Кто это сказал?» — у каждой цитаты автор и год
+    // «Кто это сказал?» — одна цитата на экран, ответ — карточка автора; цитаты не в порядке страниц (пункт владельца 22.11, пп. 6, 8)
     const who = reading.getByTestId('reading-who');
     await expect(who).toBeVisible();
-    const items = who.getByTestId('reading-who-item');
-    await expect(items).toHaveCount(3);
+    await expect(who.getByTestId('reading-who-item')).toHaveCount(1);
     await expect(page.getByTestId('reading-next')).toBeDisabled();
     for (let k = 0; k < 3; k += 1) {
-      const it = items.nth(k);
+      const it = who.getByTestId('reading-who-item');
+      await expect(it).toHaveAttribute('data-answered', 'false');
       if (wrongWho && k === 0) await it.locator('[data-testid=reading-who-opt]:not([data-ok])').first().click();
       else await it.locator('[data-testid=reading-who-opt][data-ok]').click();
-      await expect(it).toHaveAttribute('data-answered', 'true');
+      await expect(who.getByTestId('reading-who-says')).toContainText(/\d{4}/);
+      await expect(who.locator('.rd-who-dots i.ok, .rd-who-dots i.bad')).toHaveCount(k + 1);
     }
     await page.getByTestId('reading-next').click();
     return page.getByTestId('reading-done');
@@ -299,10 +308,10 @@ test('«Персоналии» — урок на дороге юнита: три
   await openTab(page, 'profile');
   const shelf = page.getByTestId('prof-shelf');
   await shelf.scrollIntoViewIfNeeded();
-  // в каждом юните «Персоналии» (пункт 2 от 08.11): «Люди отдачи» в «Заводе» — ещё трое
-  await expect(page.getByTestId('gallery-count')).toHaveText('3 из 36');
+  // в каждом юните «Персоналии» (пункт 2 от 08.11): «Люди отдачи» в «Заводе» — ещё трое; «Люди ценности» в «Базаре» — ещё двое, Менгер и Хайек (Смит — повтор)
+  await expect(page.getByTestId('gallery-count')).toHaveText('3 из 38');
   await expect(shelf.locator('[data-testid=gallery-person][data-met="true"]')).toHaveCount(3);
-  await expect(page.getByTestId('shelf-count')).toHaveText('2 из 11');
+  await expect(page.getByTestId('shelf-count')).toHaveText('2 из 12');
   await expect(page.getByTestId('shelf-read')).toHaveCount(0);
   await shelf.locator('[data-testid=shelf-book][data-book="smith-wealth"]').click();
   const book = page.getByTestId('book-reader');
@@ -1378,7 +1387,7 @@ test('«Нарисуй сам»: закраска — кисть с кругом
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum'];
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -1435,7 +1444,7 @@ test('«Нарисуй сам»: линию проводят — от перво
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
     const at = Date.now() - 86400000;
-    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum',
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-w', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1', 'lm-l1', 'lm-i2', 'lm-l2', 'lm-w', 'lm-s1', 'lm-radio', 'lm-g', 'lm-rev', 'lm-sum', 'hh-i1', 'hh-l1', 'hh-i2', 'hh-l2', 'hh-w', 'hh-s1', 'hh-radio', 'hh-g', 'hh-rev', 'hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum',
       'sd-i1', 'sd-l1', 'sd-w', 'sd-i2', 'sd-l3', 'sd-s1', 'sd-l-radio', 'sd-g', 'sd-rev', 'sd-sum', 'el-i1', 'el-l1', 'el-i2', 'el-l2', 'el-w', 'el-s1', 'el-radio', 'el-g', 'el-rev', 'el-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), levels: { start: { at } } } }));
   });
@@ -1473,7 +1482,7 @@ test('«Нарисуй сам», сложный процент: пунктир �
   test.setTimeout(120000);
   await page.addInitScript(() => {
     if (localStorage.getItem('ems-textbook-v1')) return;
-    const at = Date.now() - 86400000; const ids = ['sc-i1','sc-i1b','sc-i2','sc-l1','sc-l2','sc-l3','sc-l4','sc-l5','sc-l6','sc-w','sc-s1','sc-radio','sc-l-radio','sc-g','sc-rev','sc-sum','lm-i1','lm-i1b','lm-i2','lm-l1','lm-l2','lm-l3','lm-l4','lm-l5','lm-l6','lm-w','lm-s1','lm-radio','lm-l-radio','lm-g','lm-rev','lm-sum','hh-i1','hh-i1b','hh-i2','hh-l1','hh-l2','hh-l3','hh-l4','hh-l5','hh-l6','hh-w','hh-s1','hh-radio','hh-l-radio','hh-g','hh-rev','hh-sum','sd-i1','sd-i1b','sd-i2','sd-l1','sd-l2','sd-l3','sd-l4','sd-l5','sd-l6','sd-w','sd-s1','sd-radio','sd-l-radio','sd-g','sd-rev','sd-sum','el-i1','el-i1b','el-i2','el-l1','el-l2','el-l3','el-l4','el-l5','el-l6','el-w','el-s1','el-radio','el-l-radio','el-g','el-rev','el-sum','mf-i1','mf-i1b','mf-i2','mf-l1','mf-l2','mf-l3','mf-l4','mf-l5','mf-l6','mf-w','mf-s1','mf-radio','mf-l-radio','mf-g','mf-rev','mf-sum','mb-i1','mb-i1b','mb-i2','mb-l1','mb-l2','mb-l3','mb-l4','mb-l5','mb-l6','mb-w','mb-s1','mb-radio','mb-l-radio','mb-g','mb-rev','mb-sum','in-i1','in-i1b','in-i2','in-l1','in-l2','in-l3','in-l4','in-l5','in-l6','in-w','in-s1','in-radio','in-l-radio','in-g','in-rev','in-sum'];
+    const at = Date.now() - 86400000; const ids = ['sc-i1','sc-i1b','sc-i2','sc-l1','sc-l2','sc-l3','sc-l4','sc-l5','sc-l6','sc-w','sc-s1','sc-radio','sc-l-radio','sc-g','sc-rev','sc-sum','lm-i1','lm-i1b','lm-i2','lm-l1','lm-l2','lm-l3','lm-l4','lm-l5','lm-l6','lm-w','lm-s1','lm-radio','lm-l-radio','lm-g','lm-rev','lm-sum','hh-i1','hh-i1b','hh-i2','hh-l1','hh-l2','hh-l3','hh-l4','hh-l5','hh-l6','hh-w','hh-s1','hh-radio','hh-l-radio','hh-g','hh-rev','hh-sum', 'tr-i1', 'tr-l1', 'tr-i2', 'tr-l2', 'tr-w', 'tr-s1', 'tr-radio', 'tr-g', 'tr-rev', 'tr-sum','sd-i1','sd-i1b','sd-i2','sd-l1','sd-l2','sd-l3','sd-l4','sd-l5','sd-l6','sd-w','sd-s1','sd-radio','sd-l-radio','sd-g','sd-rev','sd-sum','el-i1','el-i1b','el-i2','el-l1','el-l2','el-l3','el-l4','el-l5','el-l6','el-w','el-s1','el-radio','el-l-radio','el-g','el-rev','el-sum','mf-i1','mf-i1b','mf-i2','mf-l1','mf-l2','mf-l3','mf-l4','mf-l5','mf-l6','mf-w','mf-s1','mf-radio','mf-l-radio','mf-g','mf-rev','mf-sum','mb-i1','mb-i1b','mb-i2','mb-l1','mb-l2','mb-l3','mb-l4','mb-l5','mb-l6','mb-w','mb-s1','mb-radio','mb-l-radio','mb-g','mb-rev','mb-sum','in-i1','in-i1b','in-i2','in-l1','in-l2','in-l3','in-l4','in-l5','in-l6','in-w','in-s1','in-radio','in-l-radio','in-g','in-rev','in-sum'];
     localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])), levels: { start: { at } } } }));
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
@@ -1600,5 +1609,51 @@ test('«Нарисуй сам» на ПК: один ползунок (стран
   await page.getByTestId('draw-close').click();
   await expect(g).toHaveCount(0);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe('hidden');
+  expect(errors).toEqual([]);
+});
+
+// пункты владельца 22.11, пп. 4, 5, 7: в особых уроках можно вернуться на шаг; вышли посреди — на Пути «продолжить»; у шапки нет черты
+test('особые уроки 22.11: «Назад» в «Нарисуй сам» открывает прошлый шаг с решением; вышли — на Пути «продолжить», в карточке — «Продолжить»', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"][data-id="draw-labor"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  // у шапки особого урока нет черты снизу — как у урока
+  expect(await g.getByTestId('special-head').evaluate((el) => getComputedStyle(el).boxShadow)).toBe('none');
+  const ink = g.getByTestId('draw-ink');
+  await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  // шаг 1 — верно: точки из ответа
+  for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
+    const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x, y]);
+    await page.mouse.click(cx, cy);
+  }
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+  await g.getByTestId('draw-next').click();
+  await expect(g).toHaveAttribute('data-task', '1');
+  // «Назад» — прошлый шаг для просмотра: решение на графике, рисовать нельзя; «Вернуться» — к текущему
+  await g.getByTestId('draw-back').click();
+  await expect(g.getByTestId('draw-peek')).toContainText('Шаг 1 из');
+  // на прошлом шаге поле не принимает точки, проверки нет
+  await expect(ink).toHaveClass(/\boff\b/);
+  await expect(g.getByTestId('draw-check')).toHaveCount(0);
+  await g.getByTestId('draw-return').click();
+  await expect(g.getByTestId('draw-peek')).toHaveCount(0);
+  await expect(g.getByTestId('draw-check')).toBeVisible();
+  // вышли посреди — на Пути у остановки «продолжить», в карточке — «Продолжить»
+  await g.getByTestId('draw-close').click();
+  await expect(page.locator('[data-testid=path-extra-title]').filter({ hasText: 'продолжить — нарисуй сам' })).toHaveCount(1);
+  await stop.click();
+  await expect(page.getByTestId('extra-start')).toHaveText('Продолжить');
+  await expect(page.getByTestId('extra-resume-note')).toBeVisible();
+  await page.getByTestId('extra-start').click();
+  await expect(page.getByTestId('draw-lesson')).toHaveAttribute('data-task', '1');
   expect(errors).toEqual([]);
 });

@@ -6,6 +6,7 @@
    профилем на любое устройство — playerId профиля становится playerId устройства.
    Почты нет, поэтому забытый пароль восстанавливается кодом, который показывается
    при регистрации один раз (и выдаётся заново в профиле по паролю). */
+import { forgetAccountResearch, researchExportFor } from './_lib/research-link.js';
 import { getUser, setUser, setSession, delSession, hasKv, hit, getProfile, getSoloSlots, getTycoonSlots, getRecords, getReports, deleteUserData, dropLeagueNames,
   getUsers, getCards, setCard, getRaces, setRace } from './_lib/store.js';
 import { cleanCard, raceStatus, raceOpen, raceRest, MAX_FRIENDS, MAX_PENDING, RACE } from './_lib/friends.js';
@@ -361,12 +362,16 @@ async function handleRequest(req, res) {
       saves: pid ? { solo: await getSoloSlots(pid), tycoon: await getTycoonSlots(pid) } : null,
       records: rec ? { tycoon: typeof rec === 'string' ? JSON.parse(rec) : rec } : {},
       reports: (await getReports()).filter((r) => r.login === user.login),
+      // участие в исследовании (своя таблица той же базы; связь с аккаунтом — research/data-dictionary.md): свои записи
+      research: await researchExportFor(user.login),
     });
   }
   // «Удалить аккаунт и все данные» — только с паролем
   if (action === 'delete') {
     if (!checkPassword(body.password, user)) return res.status(403).json({ error: 'Пароль не подходит' });
     await deleteUserData({ login: user.login, playerId: user.playerId });
+    // участие в исследовании — как отзыв: записи стираются до фиксации набора (research/retention-policy.md, раздел 3)
+    await forgetAccountResearch(user.login);
     return res.status(200).json({ ok: true });
   }
   if (action === 'logout') {

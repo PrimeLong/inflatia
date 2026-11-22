@@ -28,10 +28,10 @@ const MOUTH = {
 export const MOODS = Object.keys(MOUTH);
 const CSS = `
   @keyframes infla-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
-  @keyframes infla-hop { 0% { transform: translateY(0) scale(1) } 40% { transform: translateY(-6px) scale(1.04) } 100% { transform: translateY(0) scale(1) } }
+  @keyframes infla-hop { 0% { transform: translateY(0) scale(1) } 18% { transform: translateY(.5px) scale(1.02, .98) } 48% { transform: translateY(-4px) scale(1.01) } 100% { transform: translateY(0) scale(1) } }
   .infla { transform-origin: 50% 90%; }
   .infla-bob { animation: infla-bob 3.2s ease-in-out infinite; }
-  .infla-hop { animation: infla-hop .45s ease-out 1; }
+  .infla-hop { animation: infla-hop .7s cubic-bezier(.37,0,.2,1) 1; }
   /* моргает неровно, как живая: в долгом цикле одно моргание и одно двойное, а длина цикла и сдвиг у
      каждой Инфли свои (--blink, --blink-at) — несколько Инфль на экране не моргают хором и не «по метроному» */
   @keyframes infla-blink { 0%, 27%, 31%, 74%, 77%, 80%, 83%, 100% { transform: scaleY(1) } 29% { transform: scaleY(.08) } 75.5% { transform: scaleY(.1) } 81.5% { transform: scaleY(.1) } }
@@ -55,22 +55,28 @@ const CSS = `
   .infla-swing { transform-box: fill-box; transform-origin: 50% 0; animation: infla-swing 2.6s ease-in-out infinite; }
   .infla-spark { transform-box: fill-box; transform-origin: center; animation: infla-spark 2.4s ease-in-out infinite; opacity: 0; }
   .infla-spin { transform-box: view-box; transform-origin: 32px 25px; animation: infla-spin 24s linear infinite; }
-  /* касание Инфли (пункт владельца 21.11, п. 5: «анимации взаимодействия с Инфлёй — нажать на неё»): прыжок, сплющилась,
-     крутанулась — по очереди; сердечки вылетают; пять касаний подряд — закружилась голова */
+  /* касание Инфли (пункт владельца 21.11, п. 5: «анимации взаимодействия с Инфлёй — нажать на неё»): подпрыгнула, сплющилась,
+     качнулась — по очереди; сердечки вылетают; пять касаний подряд — закружилась голова.
+     Мягко и по-живому (пункт владельца 22.11, п. 1: «очень неестественно выглядят анимации взаимодействия и слишком резкие»):
+     без оборота на 360° и перелёта пружиной — небольшой замах перед движением, малая амплитуда, плавное затухание */
   .infla-touch { position: relative; display: inline-block; line-height: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-  .infla-touch > .infla-pk { display: inline-block; line-height: 0; transform-origin: 50% 85%; }
-  .infla-pk.p-jump { animation: infla-pk-jump .55s cubic-bezier(.3,1.6,.5,1); }
-  .infla-pk.p-squish { animation: infla-pk-squish .5s ease-out; }
-  .infla-pk.p-spin { animation: infla-pk-spin .6s cubic-bezier(.4,1.4,.5,1); }
-  .infla-pk.p-dizzy { animation: infla-pk-dizzy 1.1s ease-in-out; }
-  @keyframes infla-pk-jump { 0% { transform: none } 35% { transform: translateY(-22%) scale(.96, 1.06) } 70% { transform: translateY(2%) scale(1.06, .94) } 100% { transform: none } }
-  @keyframes infla-pk-squish { 0% { transform: none } 30% { transform: scale(1.18, .78) } 60% { transform: scale(.92, 1.1) } 100% { transform: none } }
-  @keyframes infla-pk-spin { 0% { transform: rotate(0) } 100% { transform: rotate(360deg) } }
-  @keyframes infla-pk-dizzy { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-14deg) } 40% { transform: rotate(12deg) } 60% { transform: rotate(-9deg) } 80% { transform: rotate(6deg) } }
-  .infla-heart { position: absolute; left: 50%; top: 30%; width: 12px; height: 12px; margin-left: -6px; pointer-events: none; animation: infla-heart .9s ease-out forwards; }
+  .infla-touch.quiet { cursor: inherit; }
+  .infla-touch > .infla-pk { display: inline-block; line-height: 0; transform-origin: 50% 90%; }
+  .infla-pk.p-jump { animation: infla-pk-jump .8s cubic-bezier(.37,0,.2,1); }
+  .infla-pk.p-squish { animation: infla-pk-squish .7s cubic-bezier(.45,0,.25,1); }
+  .infla-pk.p-tilt { animation: infla-pk-tilt .9s cubic-bezier(.45,0,.3,1); }
+  .infla-pk.p-dizzy { animation: infla-pk-dizzy 1.1s cubic-bezier(.45,0,.3,1); }
+  @keyframes infla-pk-jump { 0% { transform: none } 16% { transform: translateY(1%) scale(1.03, .97) } 46% { transform: translateY(-11%) scale(.99, 1.02) } 74% { transform: translateY(.5%) scale(1.015, .985) } 100% { transform: none } }
+  @keyframes infla-pk-squish { 0% { transform: none } 32% { transform: scale(1.07, .93) } 64% { transform: scale(.985, 1.015) } 100% { transform: none } }
+  @keyframes infla-pk-tilt { 0% { transform: rotate(0) } 28% { transform: rotate(-7deg) } 58% { transform: rotate(4deg) } 82% { transform: rotate(-1.5deg) } 100% { transform: rotate(0) } }
+  @keyframes infla-pk-dizzy { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-9deg) } 42% { transform: rotate(7deg) } 64% { transform: rotate(-4deg) } 84% { transform: rotate(2deg) } }
+  /* неподвижная Инфля (still): плитки гардероба и витрины — каждая не дышит, не моргает и не машет; живая — только в зеркале */
+  .infla-still .infla, .infla-still .infla * { animation: none !important; }
+  .infla-still .infla-spark { opacity: 1; }
+  .infla-heart { position: absolute; left: 50%; top: 30%; width: 12px; height: 12px; margin-left: -6px; pointer-events: none; opacity: 0; animation: infla-heart 1.1s cubic-bezier(.25,.6,.3,1) forwards; }
   .infla-heart::before { content: ''; position: absolute; inset: 0; background: #E0457B; clip-path: path('M6 11 L1 6 A2.6 2.6 0 0 1 6 2.4 A2.6 2.6 0 0 1 11 6 Z'); }
   .infla-heart.star::before { background: #F3C553; clip-path: polygon(50% 0, 62% 38%, 100% 38%, 69% 60%, 80% 100%, 50% 76%, 20% 100%, 31% 60%, 0 38%, 38% 38%); }
-  @keyframes infla-heart { from { opacity: 1; transform: translate(0, 0) scale(.6) } to { opacity: 0; transform: translate(var(--hx), -46px) scale(1.15) } }
+  @keyframes infla-heart { 0% { opacity: 0; transform: translate(0, 0) scale(.5) } 18% { opacity: 1 } 100% { opacity: 0; transform: translate(var(--hx), -38px) scale(1) } }
   @media (prefers-reduced-motion: reduce) { .infla-pk, .infla-heart, .infla-bob, .infla-hop, .infla-eyes, .infla-hand, .infla-sway, .infla-balloon, .infla-swing, .infla-spin, .infla-flicker { animation: none; } .infla-spark { animation: none; opacity: 1; } }
 `;
 
@@ -79,6 +85,26 @@ const CSS = `
 const INK = '#2A1D05';
 // блик-звёздочка: вспыхивает с задержкой d секунд
 const spark = (x, y, d, r = 2.4) => <path key={`${x}-${y}`} className="infla-spark" style={{ animationDelay: `${d}s` }} d={`M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r} Z`} fill="#FFFDF2" stroke="#E3B53C" strokeWidth=".3" />;
+// вещи политики: листья венка вдоль ветки, гофрированная розетка, звенья цепи мэра по дуге на плечах
+const f2p = (x) => Math.round(x * 100) / 100;
+const quadAt = (p0, c, p2, t) => [(1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * c[0] + t * t * p2[0], (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * c[1] + t * t * p2[1]];
+const quadDir = (p0, c, p2, t) => [2 * (1 - t) * (c[0] - p0[0]) + 2 * t * (p2[0] - c[0]), 2 * (1 - t) * (c[1] - p0[1]) + 2 * t * (p2[1] - c[1])];
+const LAUREL = [0.03, 0.15, 0.27, 0.39, 0.51, 0.63, 0.75, 0.87].map((t, i) => {
+  const P0 = [10.4, 22]; const C = [12.2, 6.2]; const P2 = [29.4, 1.4];
+  const [x, y] = quadAt(P0, C, P2, t); const [dx, dy] = quadDir(P0, C, P2, t); const len = Math.hypot(dx, dy); const side = i % 2 ? 1 : -1;
+  return [f2p(x - (dy / len) * side * 1.3 + (dx / len) * 1.2), f2p(y + (dx / len) * side * 1.3 + (dy / len) * 1.2), f2p((Math.atan2(dy, dx) * 180) / Math.PI + side * 16), 1 - t * 0.2];
+});
+const ROSETTE_RING = (() => {
+  const cx = 40.6; const cy = 40.6; const n = 14; const R = 7.4; const r = 5.6; const p = (a, rr) => `${f2p(cx + rr * Math.cos(a))} ${f2p(cy + rr * Math.sin(a))}`;
+  let d = '';
+  for (let k = 0; k < n; k += 1) { const a0 = (k / n) * Math.PI * 2; const a1 = ((k + 0.5) / n) * Math.PI * 2; const a2 = ((k + 1) / n) * Math.PI * 2; d += `${k ? '' : `M${p(a0, r)} `}Q${p(a1, R)} ${p(a2, r)} `; }
+  return `${d}Z`;
+})();
+const MAYOR_LINKS = [0, 0.09, 0.18, 0.27, 0.36, 0.445, 0.555, 0.64, 0.73, 0.82, 0.91, 1].map((t) => {
+  const P0 = [12.8, 33]; const C = [32, 58]; const P2 = [51.2, 33];
+  const [x, y] = quadAt(P0, C, P2, t); const [dx, dy] = quadDir(P0, C, P2, t);
+  return [f2p(x), f2p(y), f2p((Math.atan2(dy, dx) * 180) / Math.PI)];
+});
 const OUTFIT = {
   cap: <g><path d="M13 13 Q32 -6 51 13 Q32 9 13 13 Z" fill="#3E6FA8" stroke={INK} strokeWidth="1.1" /><path d="M42 11.6 Q55 10 60 14.6 Q51 15.6 42 14 Z" fill="#2E568A" stroke={INK} strokeWidth="1" /><circle cx="32" cy="2.6" r="1.6" fill="#2E568A" stroke={INK} strokeWidth=".8" /></g>,
   beret: <g><ellipse cx="29" cy="5.5" rx="18" ry="6.4" fill="#A0372A" stroke={INK} strokeWidth="1.1" transform="rotate(-8 29 5.5)" /><path d="M29 -0.8 l1 -3" stroke={INK} strokeWidth="1.4" strokeLinecap="round" /></g>,
@@ -111,58 +137,80 @@ const OUTFIT = {
   </g>,
   /* ПОЛИТИКА ВЕЛЕГРАДА (пункт владельца 21.11, п. 9): вымышленные — без флагов, гербов и партий настоящих стран.
      Голова: лавровый венок сенатора, соломенная шляпа кандидата; шея: розетка избирателя, лента мэра, цепь мэра (редкая);
-     в руке: бюллетень с галочкой, рупор агитатора, молоток спикера */
-  laurel: <g stroke="#2F5A2A" strokeWidth=".6" strokeLinejoin="round">
-    <path d="M13 17 Q16 3 31 0.5 M51 17 Q48 3 33 0.5" fill="none" stroke="#6B4E1E" strokeWidth="1.1" strokeLinecap="round" />
-    {[[14, 14, -60], [16.5, 9.5, -45], [20, 5.6, -30], [24.5, 2.8, -15], [29, 1.2, 0]].map(([x, y, r], i) => <g key={i}><ellipse cx={x} cy={y} rx="3.4" ry="1.5" fill="#4E8A3A" transform={`rotate(${r} ${x} ${y})`} /><ellipse cx={64 - x} cy={y} rx="3.4" ry="1.5" fill="#4E8A3A" transform={`rotate(${-r} ${64 - x} ${y})`} /></g>)}
-    <circle cx="32" cy="0.6" r="1.5" fill="#E3B53C" stroke="#94700F" />
+     в руке: бюллетень с галочкой, рупор агитатора, молоток спикера.
+     Перерисованы 22.11 (пункт владельца 22.11, п. 9: «новые аксессуары выглядят ужасно»): в пропорциях прежних вещей —
+     вещи в руке того же размера, что портфель, и рука держит их, а не висит рядом; розетка приколота к монете, лента идёт
+     по монете дугой ниже рта, цепь лежит на плечах, а не болтается под Инфлёй */
+  laurel: <g stroke="#2F5A2A" strokeWidth=".55" strokeLinejoin="round">
+    <path d="M10.4 22 Q12.2 6.2 29.4 1.4 M53.6 22 Q51.8 6.2 34.6 1.4" fill="none" stroke="#5E4A1E" strokeWidth="1.1" strokeLinecap="round" />
+    {LAUREL.map(([x, y, r, k], i) => <g key={i}>
+      <ellipse cx={x} cy={y} rx={3.9 * k} ry={1.65 * k} fill={i % 2 ? '#5E9A46' : '#467F35'} transform={`rotate(${r} ${x} ${y})`} />
+      <ellipse cx={f2p(64 - x)} cy={y} rx={3.9 * k} ry={1.65 * k} fill={i % 2 ? '#5E9A46' : '#467F35'} transform={`rotate(${-r} ${f2p(64 - x)} ${y})`} />
+    </g>)}
+    {[[13.6, 15], [19.6, 7.4], [50.4, 15], [44.4, 7.4]].map(([x, y]) => <circle key={`${x}`} cx={x} cy={y} r="1" fill="#E3B53C" stroke="#94700F" strokeWidth=".4" />)}
+    <path d="M29.6 0.6 Q32 2.6 34.4 0.6 L33.6 3.4 Q32 2.4 30.4 3.4 Z" fill="#E3B53C" stroke="#94700F" />
   </g>,
   boater: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
-    <ellipse cx="32" cy="8.4" rx="21" ry="3.6" fill="#E6C77E" />
-    <path d="M21.5 8 L22.5 -3.5 Q32 -6 41.5 -3.5 L42.5 8 Z" fill="#EBD08F" />
-    <path d="M21.9 2.2 Q32 4.6 42.1 2.2 L42.4 6 Q32 8.4 21.6 6 Z" fill="#2C5A8E" strokeWidth=".8" />
-    <path d="M24 -1 Q32 0.4 40 -1 M23 9 Q32 10.6 41 9" fill="none" stroke="#B89A55" strokeWidth=".7" />
+    <ellipse cx="32" cy="8.2" rx="22.6" ry="4.3" fill="#E2C27A" />
+    <path d="M12 9.6 Q32 13.4 52 9.6" fill="none" stroke="#B89A55" strokeWidth=".6" strokeDasharray="1.2 1.3" />
+    <path d="M19.6 7.6 L20.4 -1.6 Q32 -3.8 43.6 -1.6 L44.4 7.6 Q32 10.2 19.6 7.6 Z" fill="#EBD08F" />
+    <ellipse cx="32" cy="-1.7" rx="11.6" ry="2.2" fill="#F3DFA9" />
+    <path d="M20.1 1.8 Q32 4.1 43.9 1.8 L44.1 5.4 Q32 7.8 19.9 5.4 Z" fill="#2C5A8E" strokeWidth=".8" />
+    <path d="M22.4 -0.2 Q32 1.4 41.6 -0.2" fill="none" stroke="#C7A75E" strokeWidth=".55" strokeDasharray="1 1.2" />
+    <path d="M39.6 2.6 L41.8 3.2 L41.4 6.2 L39.2 5.6 Z" fill="#E3B53C" strokeWidth=".6" />
   </g>,
-  rosette: <g stroke={INK} strokeWidth=".9" strokeLinejoin="round">
-    <path d="M17.6 44 L15.5 52.5 L18.4 51 L19.8 53.6 L21 45 Z" fill="#2C5A8E" />
-    <path d="M22 44 L22.8 52.6 L24.8 50.6 L26.8 52.4 L24.6 44 Z" fill="#A0372A" />
-    <circle cx="21" cy="42" r="4.6" fill="#F4ECD8" />
-    <circle cx="21" cy="42" r="3" fill="#A0372A" strokeWidth=".6" /><circle cx="21" cy="42" r="1.3" fill="#FBE7A1" strokeWidth=".5" />
+  rosette: <g stroke={INK} strokeWidth=".8" strokeLinejoin="round">
+    <path d="M37.4 44 L35.4 54.6 L37.9 53 L39.6 55.4 L40.8 45.2 Z" fill="#2C5A8E" />
+    <path d="M41.6 45 L43.4 55.2 L44.8 52.6 L47.4 53.8 L44.6 43.8 Z" fill="#A0372A" />
+    <path d={ROSETTE_RING} fill="#F4ECD8" />
+    <circle cx="40.6" cy="40.6" r="4.2" fill="#2C5A8E" />
+    <circle cx="40.6" cy="40.6" r="2.3" fill="#E3B53C" stroke="#94700F" strokeWidth=".6" />
+    <path d="M39.4 39.4 Q40.6 38.6 41.8 39.4" fill="none" stroke="#FFF3CF" strokeWidth=".6" strokeLinecap="round" />
   </g>,
-  sash: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
-    <path d="M13.6 33.5 L18 30.6 L46.5 47.5 L42 50.6 Z" fill="#A0372A" />
-    <path d="M15.6 32.2 L44.4 49.1" stroke="#E3B53C" strokeWidth="1.1" />
-    <path d="M41 48 L44 57 L40.5 55.6 L38.6 58.8 L37.6 49.8 Z" fill="#8A2C22" />
+  sash: <g stroke={INK} strokeWidth=".9" strokeLinejoin="round">
+    <path d="M10.4 29.6 Q27 47 48.3 40.4 L47.3 45.6 Q26 52.6 11.5 35.4 Z" fill="#A0372A" />
+    <path d="M10.8 31.4 Q27 48.6 48 42.1 M11.2 33.6 Q26.6 50.8 47.6 44" fill="none" stroke="#E3B53C" strokeWidth=".75" />
+    <path d="M44.2 46 L42.4 55.2 L44.6 53.8 L46 56 L47.2 46.6 Z" fill="#8A2C22" />
+    <path d="M47.6 45.8 L50 54.6 L51 52.2 L53.2 52.8 L50.4 45 Z" fill="#8A2C22" />
+    <circle cx="47.2" cy="44.4" r="2.8" fill="#E3B53C" stroke="#94700F" />
   </g>,
   mayorchain: <g>
-    <g stroke={INK} strokeWidth=".7">
-      {[[17, 41], [20.4, 44.4], [24.2, 46.9], [28.2, 48.2], [35.8, 48.2], [39.8, 46.9], [43.6, 44.4], [47, 41]].map(([x, y], i) => <ellipse key={i} cx={x} cy={y} rx="2.1" ry="1.5" fill="#E3B53C" />)}
-      <path d="M30.6 49 L33.4 49 L33 51.2 L31 51.2 Z" fill="#B88A1A" />
-      <circle cx="32" cy="56" r="5.6" fill="#E3B53C" strokeWidth="1" />
-      <circle cx="32" cy="56" r="3.6" fill="#B88A1A" />
-      <path d="M29.8 57.6 L32 53.6 L34.2 57.6 Z" fill="#FBE7A1" strokeWidth=".5" />
+    <g stroke={INK} strokeWidth=".6">
+      {MAYOR_LINKS.map(([x, y, r], i) => <ellipse key={i} cx={x} cy={y} rx="2.3" ry="1.55" fill={i % 2 ? '#C99A2A' : '#E8C25A'} transform={`rotate(${r} ${x} ${y})`} />)}
+      <path d="M30.4 46.2 L33.6 46.2 L33.1 48.8 L30.9 48.8 Z" fill="#B88A1A" />
+      <circle cx="32" cy="53.6" r="5.8" fill="#E8C25A" strokeWidth=".9" />
+      <circle cx="32" cy="53.6" r="4" fill="#B88A1A" />
+      <path d="M30.4 50.8 H33.6 M30.4 56.4 H33.6 M31.2 51 V56.2 M32.8 51 V56.2" stroke="#FBE7A1" strokeWidth=".7" />
     </g>
-    {spark(30, 54, 0, 2.4)}{spark(43.6, 44.4, 1.1, 1.8)}{spark(20.4, 44.4, 2.2, 1.8)}
+    {spark(29.4, 51.6, 0, 2.2)}{spark(46.6, 37.4, 1.1, 1.7)}{spark(17.4, 37.4, 2.2, 1.7)}
   </g>,
-  ballot: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
-    <path d="M49 25 L61.5 26.6 L60 46 L47.5 44.4 Z" fill="#FFFDF6" />
-    <path d="M51 29 L58.5 30 M50.6 33.6 L58 34.6" stroke="#8A7A5C" strokeWidth=".8" />
-    <rect x="50.6" y="37" width="4.4" height="4.4" fill="#fff" strokeWidth=".8" transform="rotate(7 52.8 39.2)" />
-    <path d="M51.3 39.2 L52.8 40.8 L56.6 36" fill="none" stroke="#2E8A5B" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="53.5" cy="44.6" r="3.1" fill="#E8C766" />
+  ballot: <g stroke={INK} strokeWidth=".9" strokeLinejoin="round">
+    <g transform="rotate(9 56.4 31)">
+      <rect x="49.6" y="21" width="13.6" height="18" rx="1.2" fill="#FFFDF6" />
+      <path d="M49.6 22.2 Q49.6 21 50.8 21 L62 21 Q63.2 21 63.2 22.2 L63.2 24.6 L49.6 24.6 Z" fill="#2C5A8E" strokeWidth=".7" />
+      <path d="M51.8 27.6 H60.8 M51.8 30.2 H58.4 M57.8 34.6 H61.2" stroke="#8A7A5C" strokeWidth=".7" />
+      <rect x="51.8" y="32.4" width="4.4" height="4.4" rx=".6" fill="#fff" strokeWidth=".75" />
+      <path d="M52.5 34.4 L53.9 36 L57.8 31" fill="none" stroke="#2E8A5B" strokeWidth="1.6" strokeLinecap="round" />
+    </g>
+    <circle cx="51.4" cy="40" r="3.1" fill="#E8C766" strokeWidth="1" />
   </g>,
-  megaphone: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
-    <path d="M50.5 37 L60.5 27 L63.5 36.5 Z" fill="#D9472B" />
-    <ellipse cx="62" cy="31.8" rx="2.2" ry="5.2" fill="#F4ECD8" transform="rotate(-18 62 31.8)" />
-    <rect x="47.6" y="35.6" width="4.6" height="3.6" rx="1" fill="#3A3530" transform="rotate(-45 49.9 37.4)" />
-    <path d="M52.2 39 L53 44" stroke="#3A3530" strokeWidth="1.8" strokeLinecap="round" />
-    <circle cx="53.4" cy="44.6" r="3" fill="#E8C766" />
+  megaphone: <g stroke={INK} strokeWidth=".95" strokeLinejoin="round">
+    <path d="M52.4 35.8 L53.2 40.6" stroke="#3A3530" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M50.3 33.3 L56 22 L64 30 L52.7 35.7 Z" fill="#D9472B" />
+    <path d="M53.2 27.7 L58.3 32.8" stroke="#FFF3E6" strokeWidth="1.5" />
+    <ellipse cx="60" cy="26" rx="5.6" ry="2" fill="#F4ECD8" transform="rotate(45 60 26)" />
+    <path d="M61.9 18.9 A7.4 7.4 0 0 1 67.1 24.1 M64 17.3 A9.6 9.6 0 0 1 68.7 21.9" fill="none" strokeWidth=".75" strokeLinecap="round" />
+    <circle cx="53.4" cy="42.4" r="3.1" fill="#E8C766" strokeWidth="1" />
   </g>,
   gavel: <g stroke={INK} strokeWidth="1" strokeLinejoin="round">
-    <path d="M53.5 45 L59.5 30" stroke={INK} strokeWidth="3.2" strokeLinecap="round" /><path d="M53.5 45 L59.5 30" stroke="#8A5A2E" strokeWidth="1.9" strokeLinecap="round" />
-    <rect x="53.5" y="23" width="13" height="6.4" rx="1.6" fill="#7A4A26" transform="rotate(22 60 26.2)" />
-    <path d="M55.4 22.6 L56.6 29.2 M63.6 25.8 L62.4 32.4" stroke="#E3B53C" strokeWidth="1.2" transform="rotate(22 60 26.2)" />
-    <circle cx="54.6" cy="42.4" r="3" fill="#E8C766" />
+    <path d="M54.4 43 L60.8 27.6" strokeWidth="3.4" strokeLinecap="round" /><path d="M54.4 43 L60.8 27.6" stroke="#9A6634" strokeWidth="2" strokeLinecap="round" />
+    <g transform="rotate(22.4 61.4 26)">
+      <rect x="54.4" y="22.6" width="14" height="6.8" rx="2" fill="#7A4A26" />
+      <rect x="55.8" y="22.2" width="1.8" height="7.6" rx=".5" fill="#E3B53C" strokeWidth=".7" />
+      <rect x="65.2" y="22.2" width="1.8" height="7.6" rx=".5" fill="#E3B53C" strokeWidth=".7" />
+      <path d="M58.6 24 H64" stroke="#B57A45" strokeWidth=".8" strokeLinecap="round" />
+    </g>
+    <circle cx="54.2" cy="43.4" r="3.1" fill="#E8C766" />
   </g>,
   // шар «Инфляция» на нитке: то надувается, то сдувается — как цены
   balloon: <g stroke={INK} strokeLinejoin="round"><path d="M54.5 41 Q51 33 56 26 Q60 20 57 15.5" fill="none" strokeWidth=".9" /><circle cx="54.5" cy="42" r="3.2" fill="#E8C766" strokeWidth="1" /><g className="infla-balloon"><ellipse cx="57" cy="3.5" rx="9.5" ry="11" fill="#C8442F" strokeWidth="1.1" /><path d="M55.4 14.3 L57 16 L58.6 14.3 Z" fill="#A0372A" strokeWidth=".8" /><path d="M51 -2 Q52.5 -5.5 56 -6" fill="none" stroke="#FFD9CC" strokeWidth="1.8" strokeLinecap="round" /><text x="57" y="7.8" textAnchor="middle" fontSize="11" fontWeight="700" fontFamily="sans-serif" fill="#FFF3E6" stroke="none">%</text></g></g>,
@@ -327,7 +375,9 @@ export const OutfitContext = React.createContext(null);
 // высота рисунка с учётом головного убора — чтобы место под Инфлю оставляли заранее
 export const mascotHeight = (size, outfit) => size * (70 - (outfit && outfit.head && OUTFIT[outfit.head] ? -12 : 0)) / 64;
 
-export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
+/* react — откликаться на касание (по умолчанию да; внутри кнопки или плитки — нет: там касание — это нажатие кнопки, и
+   Инфля в каждой плитке не должна прыгать, пункт владельца 22.11, п. 1); still — неподвижная, без дыхания и моргания */
+export function Mascot({ mood = 'hello', size = 56, label, outfit = null, react = true, still = false }) {
   const ctxOutfit = React.useContext(OutfitContext);
   const m = MOUTH[mood] ? mood : 'hello';
   const gid = `infla-g-${React.useId().replace(/:/g, '')}`;
@@ -343,7 +393,10 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
   const taps = React.useRef([]); const pkTimer = React.useRef(0);
   React.useEffect(() => () => window.clearTimeout(pkTimer.current), []);
   const dizzyUntil = React.useRef(0);
-  const poke = () => {
+  const poke = (e) => {
+    if (!react) return;
+    const host = e && e.currentTarget && e.currentTarget.parentElement;
+    if (host && host.closest && host.closest('button, a[href], [role="button"], [role="tab"], label')) return;
     const now = Date.now();
     if (now < dizzyUntil.current) return; // голова кружится — до конца не мешаем
     taps.current = [...taps.current.filter((x) => now - x < 2500), now];
@@ -351,17 +404,17 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null }) {
     if (dizzy) { taps.current = []; dizzyUntil.current = now + 1150; }
     setPk((p) => {
       const n = p.n + 1;
-      const kind = dizzy ? 'dizzy' : ['jump', 'squish', 'spin'][n % 3];
+      const kind = dizzy ? 'dizzy' : ['jump', 'squish', 'tilt'][n % 3];
       const hearts = Array.from({ length: dizzy ? 5 : 3 }, (_, i) => ({ id: `${n}-${i}`, x: Math.round((i - (dizzy ? 2 : 1)) * 16 + (Math.random() - 0.5) * 10), star: dizzy || i === 1, d: i * 70 }));
       return { n, kind, hearts };
     });
     window.clearTimeout(pkTimer.current);
-    pkTimer.current = window.setTimeout(() => setPk((p) => ({ ...p, kind: '', hearts: [] })), dizzy ? 1150 : 900);
+    pkTimer.current = window.setTimeout(() => setPk((p) => ({ ...p, kind: '', hearts: [] })), dizzy ? 1150 : 1150);
   };
   const shown = pk.kind === 'dizzy' ? 'think' : pk.kind ? (m === 'sleep' ? 'hello' : 'joy') : m;
   const sm = MOUTH[shown] ? shown : m;
   return (
-    <span className="infla-touch" data-testid="mascot" data-mood={m} data-poke={pk.n} data-reaction={pk.kind || undefined} onPointerDown={poke}>
+    <span className={`infla-touch${react ? '' : ' quiet'}${still ? ' infla-still' : ''}`} data-testid="mascot" data-mood={m} data-poke={pk.n} data-reaction={pk.kind || undefined} onPointerDown={poke}>
       <style>{CSS}</style>
       <span className={`infla-pk${pk.kind ? ` p-${pk.kind}` : ''}`} key={`pk${pk.n}`}>
       <svg viewBox={`0 ${top} 64 ${70 - top}`} width={size} height={size * (70 - top) / 64} role="img" aria-label={label || `Инфля: ${({ hello: 'привет', wave: 'машет', joy: 'радуется', cheer: 'подбадривает', party: 'празднует', sleep: 'спит', think: 'думает' })[m]}`}

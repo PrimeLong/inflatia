@@ -29,3 +29,12 @@ playwright-report/
 
 # скриншоты всех экранов (e2e/screens.e2e.js)
 screens/
+
+# секреты и копии базы (docs/onreza.md): строки подключения и персональные данные в репозиторий не попадают
+.env
+.env.*
+!.env.example
+*.dump
+*backup*.jsonl.gz
+inflatia-backup-*
+upstash-backup-*

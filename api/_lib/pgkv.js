@@ -2,16 +2,19 @@
    Здесь — те команды Redis, которыми пользуется сервер (api/_lib/store.js, api/_lib/research-store.js), поверх одной
    таблицы. Код обработчиков не меняется: он получает клиента с теми же методами и теми же ответами, что у @upstash/redis.
 
-   Таблица inflatia_kv: k — ключ, f — поле ('' у обычного значения; поле хэша; элемент множества), v — значение (jsonb),
+   Таблица inflatia_kv (данные Инфляции) или inflatia_research (исследование — та же база, своя таблица; цели и доступ —
+   research/data-dictionary.md, раздел 1): k — ключ, f — поле ('' у обычного значения; поле хэша; элемент множества), v — значение (jsonb),
    exp — когда истекает (мс с 1970, NULL — бессрочно). Строки одного ключа — это значение, хэш или множество; типы у
    ключей сервера не пересекаются. Истёкшие строки не читаются и подчищаются заодно с записью (раз в сотню вызовов).
    Атомарность как в Redis: incr, set nx, rpush — одна команда SQL. */
 import pg from 'pg';
 
 export const TABLE = 'inflatia_kv';
-const SCHEMA = `CREATE TABLE IF NOT EXISTS ${TABLE} (
+export const RESEARCH_TABLE = 'inflatia_research';
+const TABLES = new Set([TABLE, RESEARCH_TABLE, 'inflatia_kv_test', 'inflatia_research_test']);
+const schemaOf = (t) => `CREATE TABLE IF NOT EXISTS ${t} (
   k text NOT NULL, f text NOT NULL DEFAULT '', v jsonb, exp bigint, PRIMARY KEY (k, f));
-CREATE INDEX IF NOT EXISTS ${TABLE}_exp ON ${TABLE} (exp) WHERE exp IS NOT NULL;`;
+CREATE INDEX IF NOT EXISTS ${t}_exp ON ${t} (exp) WHERE exp IS NOT NULL;`;
 const live = 'AND (exp IS NULL OR exp > $NOW)';
 
 /* Подключение: строка DATABASE_URL из панели ONREZA (режим Pooled). Сертификат проверяется всегда; если ONREZA
@@ -29,14 +32,26 @@ export function poolFrom(url, ca = '', maxConn = 3) {
   });
 }
 
+/* Один пул на функцию: база одна (DATABASE_URL), и данные Инфляции, и исследование ходят через одни и те же ≤3 соединения
+   (у PgBouncer ONREZA лимит соединений на базу). */
+const pools = new Map();
+export function sharedPool(url, ca = '') {
+  const key = `${url}\n${ca}`;
+  if (!pools.has(key)) pools.set(key, poolFrom(url, ca));
+  return pools.get(key);
+}
+
 // glob Redis (solo:*, rp:*) → LIKE; спецсимволы LIKE в ключах экранируются
 const likeOf = (glob) => glob.replace(/[\\%_]/g, (c) => `\\${c}`).replace(/\*/g, '%');
 const msOf = (opts) => (opts && opts.ex ? Date.now() + opts.ex * 1000 : opts && opts.px ? Date.now() + opts.px : null);
 
-export function pgKv(pool) {
+export function pgKv(pool, { table = TABLE } = {}) {
+  // имя таблицы подставляется в SQL — только из известного списка
+  if (!TABLES.has(table)) throw new Error(`pgkv: неизвестная таблица ${table}`);
+  const TABLE = table;
   let ready = null; let calls = 0;
   const q = async (sql, params = []) => {
-    if (!ready) ready = pool.query(SCHEMA).catch((e) => { ready = null; throw e; });
+    if (!ready) ready = pool.query(schemaOf(TABLE)).catch((e) => { ready = null; throw e; });
     await ready;
     // $NOW — «сейчас» для всех проверок срока в одной команде
     const now = Date.now();
@@ -56,6 +71,7 @@ export function pgKv(pool) {
   };
   return {
     kind: 'postgres',
+    table: TABLE,
     get: one,
     async set(k, v, opts = {}) {
       const exp = msOf(opts);
@@ -124,13 +140,16 @@ export function pgKv(pool) {
     // для переноса из Upstash и проверки: «что за ключ», срок в мс
     async pttl(k) { const r = await q(`SELECT max(exp) AS exp, count(*) AS n FROM ${TABLE} WHERE k = $1 ${live}`, [k]); const { exp, n } = r.rows[0]; return Number(n) === 0 ? -2 : exp == null ? -1 : Number(exp) - Date.now(); },
     ping: async () => { await q('SELECT 1'); return 'PONG'; },
+    // сколько живых ключей в таблице — для проверки переноса и резервной копии (scripts/db-backup.mjs)
+    count: async () => Number((await q(`SELECT count(DISTINCT k) AS n FROM ${TABLE} WHERE true ${live}`)).rows[0].n),
     end: () => pool.end(),
   };
 }
 
-// клиент по переменным окружения: null — переменной нет (тогда store.js берёт Upstash или память)
-export function pgKvFromEnv(name = 'DATABASE_URL') {
+/* клиент по переменным окружения: null — переменной нет (тогда store.js берёт Upstash или память). Одна база: таблица
+   данных Инфляции и таблица исследования — через общий пул DATABASE_URL */
+export function pgKvFromEnv(name = 'DATABASE_URL', { table = TABLE } = {}) {
   const url = process.env[name];
   if (!url) return null;
-  return pgKv(poolFrom(url, process.env.DATABASE_CA || ''));
+  return pgKv(sharedPool(url, process.env.DATABASE_CA || ''), { table });
 }

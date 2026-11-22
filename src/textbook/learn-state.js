@@ -5,7 +5,6 @@
 
    Серия дней — дни, когда пройден хотя бы один урок. Один пропуск в календарную неделю
    «замораживается» и серию не обнуляет. Без наказаний: пропуск просто не считается днём серии. */
-import { cleanMine, betterMine } from '../learn/mine-state.js';
 const DAY = 24 * 3600 * 1000;
 /* recall — верный ответ на «Вспомните» учебника (новый вопрос или подошёл срок повторения, recallXp);
    book — книга полки отмечена прочитанной (один раз, markBook) */
@@ -51,7 +50,7 @@ export const emptyLearn = () => ({
   runs: { started: 0, finished: 0, abandoned: 0 }, quits: {}, quitAt: {}, mistakes: [], hinted: [], solved: {}, unhint: {},
   profile: { goal: null, minutes: null, knows: false, at: 0 }, placement: { at: 0, opened: [] }, run: { n: 0, at: 0 },
   topics: {}, recent: '', recentAt: 0, daily: {},
-  mine: null, coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
+  coins: {}, spent: {}, claimed: {}, owned: {}, skipped: {}, wear: { head: null, face: null, neck: null, hand: null, frame: null, at: 0 }, freezeBuy: {}, frozen: {},
   policyAt: 0, policyOff: 0, policyLapse: 0, premiums: {}, monthPlan: {},
   seen: {}, best: {}, boost: 0, piggy: {}, piggyOut: {}, piggyTop: {}, piggyAdd: {}, garden: {}, harvest: {}, water: {},
   shown: {}, read: {}, readGem: {}, gems: {}, met: {}, fixed: {}, books: {}, graphs: {}, draws: {}, fines: {},
@@ -260,11 +259,18 @@ export const streakNow = (s, now = Date.now()) => (s.run && s.run.at ? s.run.n :
 const DAILY_FIELDS = ['l', 'n', 'p', 'a', 'c', 's', 'r', 'rc', 'g', 'pr', 'h', 'w'];
 const dayEntry = (s, day) => ({ l: 0, n: 0, p: 0, a: 0, c: 0, s: 0, r: 0, rc: 0, g: 0, pr: 0, h: 0, w: 0, ...(s.daily || {})[day] });
 export const dailyOf = (s, now = Date.now()) => dayEntry(s, dayOf(now));
+/* СКОЛЬКО СЕКУНД УРОКА ИДЁТ В ЦЕЛЬ ДНЯ — одна функция для цели дня и для итогов урока (пункт владельца 22.11, п. 2:
+   «в конце урока написало 44 минуты, а в цель дня засчитало 19»). Время урока и так только активное (вкладка видна,
+   касание не реже раза в минуту — src/learn/active-time.js), поэтому потолок — час за раз (раньше было 15 минут, и долгий
+   особый урок терял большую часть времени). В сегодняшние минуты — только время после полуночи (UTC): урок, начатый
+   вчера, не делает новый день наполовину выполненным. */
+export const LESSON_SECONDS_CAP = 3600;
+export const creditedSeconds = (seconds, now = Date.now()) => Math.max(0, Math.round(Math.min(LESSON_SECONDS_CAP, seconds || 0, (now - dayStart(now)) / 1000)));
 /* минуты занятия без «урока»: повтор особого урока («Персоналии», «Чтение», «Разбор графика», «Нарисуй сам»)
    опыта и счёта уроков не даёт, но время в цель дня идёт (пункт владельца 15.11: «минуты в квадратных уроках
-   не считает»). Те же границы, что у урока: не больше 15 минут за раз и только время после полуночи (UTC). */
+   не считает»). Те же границы, что у урока (creditedSeconds). */
 export function addStudySeconds(s, seconds, now = Date.now()) {
-  const add = Math.max(0, Math.round(Math.min(900, seconds || 0, (now - dayStart(now)) / 1000)));
+  const add = creditedSeconds(seconds, now);
   if (!add) return s;
   const day = dayOf(now); const d = dayEntry(s, day);
   return upd(s, { daily: { ...s.daily, [day]: { ...d, s: Math.min(86400, d.s + add) } } });
@@ -371,10 +377,8 @@ export function finishLesson(s, lessonId, { xp, accuracy, now = Date.now(), coun
   const d = dayEntry(s, day);
   // «Ранняя пташка» и «Сова» — по часам устройства (местное время), а не по UTC: утро у каждого своё
   const hour = new Date(now).getHours();
-  // в сегодняшние минуты — только время после полуночи (UTC): урок, начатый вчера, не делает новый день наполовину выполненным
-  const sinceMidnight = (now - dayStart(now)) / 1000;
   const entry = {
-    ...d, l: d.l + (lessonId || extra ? 1 : 0), n: d.n + (fresh || (extra && extra.fresh) ? 1 : 0), p: d.p + ((lessonId || extra) && accuracy >= 100 ? 1 : 0), s: d.s + Math.max(0, Math.round(Math.min(900, seconds, sinceMidnight))),
+    ...d, l: d.l + (lessonId || extra ? 1 : 0), n: d.n + (fresh || (extra && extra.fresh) ? 1 : 0), p: d.p + ((lessonId || extra) && accuracy >= 100 ? 1 : 0), s: d.s + creditedSeconds(seconds, now),
     g: d.g + (kind === 'game' ? 1 : 0), pr: d.pr + (mode === 'practice' ? 1 : 0), h: d.h | (hour < 8 ? 1 : 0) | (hour >= 22 ? 2 : 0),
   };
   return upd(s, {
@@ -746,8 +750,6 @@ function normalizeProgram(r) {
     seen: countMap(r.seen, MAX_SEEN, 9999), best: countMap(r.best, MAX_BEST, 1e6), boost: cnt(r.boost, 1e14),
     piggy: piggyMap(r.piggy), piggyOut: piggyMap(r.piggyOut), piggyTop: piggyTopMap(r.piggyTop), piggyAdd: piggyAddMap(r.piggyAdd), garden: gardenMap(r.garden), harvest: harvestMap(r.harvest), water: waterMap(r.water),
     // показанное: самые свежие SHOWN_MAX по времени
-    // шахта лавки — общая для устройств (пункт владельца 20.11, п. 7); нет — null
-    mine: r.mine && typeof r.mine === 'object' && (r.mine.v === 1 || r.mine.v === 2) ? cleanMine(r.mine, 0) : null,
     read: tsMap(r.read, 200), readGem: tsMap(r.readGem, 200), gems: tsMap(r.gems, 300), met: tsMap(r.met, 200), fixed: tsMap(r.fixed, 200), books: tsMap(r.books, 100), graphs: tsMap(r.graphs, 100), draws: tsMap(r.draws, 100),
     shown: Object.fromEntries(Object.entries(tsMap(r.shown, 5000)).sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)).slice(-SHOWN_MAX)),
   };
@@ -781,8 +783,6 @@ function mergeProgram(x, y) {
     harvest: minTs(x.harvest, y.harvest),
     water: Object.fromEntries([...new Set([...Object.keys(x.water), ...Object.keys(y.water)])].map((k) => [k, [x.water[k], y.water[k]].filter(Boolean).sort()[0]])),
     shown: minTs(x.shown, y.shown),
-    // шахта: дальше продвинутая (больше разбитых блоков) — сложить две шахты нельзя
-    mine: betterMine(x.mine, y.mine),
     read: minTs(x.read, y.read), readGem: minTs(x.readGem, y.readGem), gems: minTs(x.gems, y.gems), met: minTs(x.met, y.met), fixed: minTs(x.fixed, y.fixed), books: minTs(x.books, y.books), graphs: minTs(x.graphs, y.graphs), draws: minTs(x.draws, y.draws),
   };
 }
