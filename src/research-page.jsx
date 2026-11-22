@@ -1,7 +1,9 @@
 /* СТРАНИЦА ИССЛЕДОВАНИЯ «Игра и учёба в Инфляции» — /research (research/protocol.md; docs/mechanics.md, «Исследование»).
-   Отдельно от приложения: своя страница без оболочки, аккаунта и входа; ничего не читает из прогресса Инфляции и ходит
-   только в /api/research. Участника знает по случайному коду (он хранится в этом браузере, ключ ems-research-code, и его
-   можно ввести на другом устройстве).
+   Своя страница без оболочки приложения; ничего не читает из прогресса Инфляции и ходит только в /api/research. Запись —
+   только из аккаунта Инфляции (протокол 0.4: один аккаунт — одно участие, research/methodology.md, раздел 8): страница
+   берёт ключ входа из этого браузера (ems-account, его кладёт вход в приложении) и отправляет его только при записи и
+   «Продолжить с аккаунтом». Дальше участника знает случайный код (ключ ems-research-code в этом браузере; его можно ввести
+   на другом устройстве или получить там же после входа).
 
    Пока исследование закрыто (STUDY_STATUS — 'draft', сервер отвечает «не начато»), страница показывает только это:
    информация для участника не публикуется до правовой проверки.
@@ -19,6 +21,9 @@ import infoText from '../research/participant-information.md?raw';
 export const CODE_KEY = 'ems-research-code';
 const readCode = () => { try { return localStorage.getItem(CODE_KEY) || ''; } catch { return ''; } };
 const saveCode = (c) => { try { if (c) localStorage.setItem(CODE_KEY, c); else localStorage.removeItem(CODE_KEY); } catch { /* нет хранилища */ } };
+
+// ключ входа аккаунта Инфляции в этом браузере (src/account.jsx) — только ключ и логин для подписи
+const readAccount = () => { try { const a = JSON.parse(localStorage.getItem('ems-account') || 'null'); return a && a.token && a.login ? { token: a.token, login: a.login } : null; } catch { return null; } };
 
 async function api(action, body = {}) {
   const r = await fetch('/api/research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...body }) });
@@ -362,30 +367,47 @@ function Enroll({ onCode }) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(null);
+  const [account] = useState(readAccount);
   useEffect(() => { api('status').then((r) => setConsent(r.data.consent || null)); }, []);
   const go = async () => {
     setBusy(true); setErr('');
-    const r = await api('enroll', { adult, consent });
+    const r = await api('enroll', { adult, consent, token: account && account.token });
     setBusy(false);
     if (r.ok) { saveCode(r.data.code); onCode(r.data.code, true); } else setErr(r.data.error || 'Не удалось записаться');
+  };
+  const resume = async () => {
+    setErr('');
+    const r = await api('resume', { token: account && account.token });
+    if (r.ok) { saveCode(r.data.code); onCode(r.data.code, false); } else setErr(r.data.error || 'Не удалось найти участие');
   };
   return (
     <>
       <div className="rs-card rs-info" data-testid="rs-info"><Markdown text={infoBody(infoText)} /></div>
-      <div className="rs-card">
-        <label className="rs-check"><input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} data-testid="rs-adult" /><span>Мне 18 лет или больше.</span></label>
-        <label className="rs-check"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} data-testid="rs-agree" /><span>Я прочитал(а) информацию выше и согласен(на) участвовать.</span></label>
-        {err && <p className="rs-err" role="alert">{err}</p>}
-        <button type="button" className="rs-btn wide" disabled={!adult || !agree || busy || !consent} data-testid="rs-enroll" onClick={go}>Записаться</button>
-      </div>
+      {account ? (
+        <div className="rs-card">
+          <p className="rs-meta" data-testid="rs-account">Вы вошли как <b>{account.login}</b>. Участие привяжется к этому аккаунту: один аккаунт — одно участие, продолжить можно с любого устройства после входа.</p>
+          <label className="rs-check"><input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} data-testid="rs-adult" /><span>Мне 18 лет или больше.</span></label>
+          <label className="rs-check"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} data-testid="rs-agree" /><span>Я прочитал(а) информацию выше и согласен(на) участвовать.</span></label>
+          {err && <p className="rs-err" role="alert">{err}</p>}
+          <button type="button" className="rs-btn wide" disabled={!adult || !agree || busy || !consent} data-testid="rs-enroll" onClick={go}>Записаться</button>
+        </div>
+      ) : (
+        <div className="rs-card" data-testid="rs-need-account">
+          <h3 style={{ marginTop: 0 }}>Нужен аккаунт Инфляции</h3>
+          <p>Участие привязывается к аккаунту: так один человек участвует один раз и может продолжить с любого устройства. Войдите или зарегистрируйтесь в Инфляции и вернитесь на эту страницу.</p>
+          <a className="rs-btn ghost" href="/">Войти в Инфляцию</a>
+        </div>
+      )}
       <div className="rs-card">
         <h3 style={{ marginTop: 0 }}>Уже участвуете?</h3>
-        <p className="rs-meta">Введите свой код участника — например, с другого устройства.</p>
+        {account && <p className="rs-row"><button type="button" className="rs-btn ghost" data-testid="rs-resume" onClick={resume}>Продолжить с аккаунтом {account.login}</button></p>}
+        <p className="rs-meta">Или введите свой код участника.</p>
         <div className="rs-row">
           <input className="rs-input" style={{ flex: 1, minWidth: 200 }} value={have} onChange={(e) => setHave(e.target.value)} placeholder="XXXX-XXXX-XXX" aria-label="Код участника" data-testid="rs-code-input" />
           <button type="button" className="rs-btn ghost" disabled={have.trim().length < 11} data-testid="rs-code-go"
             onClick={async () => { const r = await api('progress', { code: have }); if (r.ok) { const c = have.trim().toUpperCase(); saveCode(c); onCode(c, false); } else setErr(r.data.error || 'Код не найден'); }}>Продолжить</button>
         </div>
+        {!account && err && <p className="rs-err" role="alert">{err}</p>}
       </div>
     </>
   );
@@ -414,7 +436,7 @@ export default function ResearchPage() {
   const head = (
     <>
       <h1>Игра и учёба в Инфляции</h1>
-      <p className="rs-sub">Исследование: помогают ли игровые механики учиться экономике. Отдельно от вашего аккаунта Инфляции.</p>
+      <p className="rs-sub">Исследование: помогают ли игровые механики учиться экономике. Участие привязано к аккаунту Инфляции, записи исследования хранятся отдельно от прогресса.</p>
     </>
   );
   if (status === null) return <Page>{head}<p aria-busy="true">Загружаем…</p></Page>;
@@ -444,7 +466,7 @@ export default function ResearchPage() {
         <div className="rs-card" data-testid="rs-code-card">
           <b>Ваш код участника</b>
           <div className="rs-code" data-testid="rs-code">{code}</div>
-          <p className="rs-meta">Запишите его: по нему можно продолжить на другом устройстве и отозвать участие. Имени и почты мы не спрашиваем.</p>
+          <p className="rs-meta">Запишите его: по нему можно продолжить на другом устройстве (или войти там в тот же аккаунт) и отозвать участие.</p>
           <button type="button" className="rs-btn ghost" onClick={() => { if (navigator.clipboard) navigator.clipboard.writeText(code).catch(() => {}); setFresh(false); }}>Скопировал(а)</button>
         </div>
       )}

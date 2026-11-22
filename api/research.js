@@ -1,11 +1,16 @@
 /* ИССЛЕДОВАНИЕ (research/protocol.md): запись участника, входной тест и распределение по группам, события обучения, итоговый
-   и отсроченный тесты, отзыв участия и выгрузка для анализа. Отдельно от аккаунтов: этот файл не читает сессию, логин
-   и сетевой адрес (заголовки запроса не читаются вовсе, кроме ключа выгрузки), не импортирует store.js и
-   accounts.js и пишет только в исследовательскую базу (api/_lib/research-store.js).
+   и отсроченный тесты, отзыв участия и выгрузка для анализа. База одна с Инфляцией (DATABASE_URL), но таблица своя —
+   inflatia_research (api/_lib/research-store.js); этот файл не импортирует store.js и accounts.js и не читает заголовки
+   запроса (кроме ключа выгрузки): сетевой адрес в исследование не попадает.
+
+   Связь с аккаунтом — только там, где она нужна методике (research/methodology.md, раздел 8), и только через мост
+   api/_lib/research-link.js: при записи и продолжении сервер по ключу входа (поле token в теле) узнаёт логин и год рождения.
+   Логин держит пару rla:/rlc: — один аккаунт, одно участие; год рождения проверяет критерий 18+. В записи исследования
+   (participants, events, tests) ни логин, ни год не пишутся; в выгрузку для анализа связь не идёт.
 
    Сейчас исследование ЗАКРЫТО: STUDY_STATUS в src/research/dictionary.js — 'draft' (протокол не утверждён, правовые
    основания не проверены). Пока это так, любое действие, кроме «status», отвечает 403 и ничего не пишет — даже если
-   исследовательская база подключена. Открыть — только коммитом, по порядку из research/protocol.md, «Порядок запуска».
+   база подключена. Открыть — только коммитом, по порядку из research/protocol.md, «Порядок запуска».
 
    Целостность (research/methodology.md, «Распределение»):
    — группа назначается только после входного теста, один раз: на время назначения участник блокируется (rlock, setNx на
@@ -30,16 +35,18 @@ import { publicForm, scoreItem, answerOk } from './_lib/research-key.js';
 import { cleanRecord, exportRecord, participantCode, normalizeCode } from '../src/research/record.js';
 import { forbiddenField as forbiddenFieldOf } from '../src/research/dictionary.js';
 import { armAt, stratumOf } from '../src/research/randomize.js';
-import { researchStore, hasResearchDb } from './_lib/research-store.js';
+import { researchStore, hasResearchDb, wipeParticipant, linkKeyOfLogin, linkKeyOfCode } from './_lib/research-store.js';
+import { accountOf } from './_lib/research-link.js';
 
 // версия информации для участника (research/participant-information.md); согласие с другой версией не принимается
-export const CONSENT_VERSION = '0.3';
+export const CONSENT_VERSION = '0.4';
+export const ADULT_AGE = 18;
 export const ENROLL_PER_DAY = 300;      // защита от массовой записи без адреса и логина
 export const EVENTS_PER_PARTICIPANT = 3000;
 export const LOCK_SECONDS = 30;
 export const STAGE_ORDER = ['enrolled', 'pretest', 'material', 'posttest', 'delayed'];
 export const PURGE_PHRASE = 'УДАЛИТЬ НАБОР';
-export const PURGE_PREFIXES = ['rp:', 're:', 'rt:', 'rx:', 'rslot:', 'rlock:', 'rcount:', 'rday:', 'rwithdrawn'];
+export const PURGE_PREFIXES = ['rp:', 're:', 'rt:', 'rx:', 'rslot:', 'rlock:', 'rcount:', 'rday:', 'rla:', 'rlc:', 'rwithdrawn'];
 export const ISSUE_SECONDS = 4 * 3600;   // выданные задачи теста ждут ответа 4 часа
 export const LAST_SECONDS = 30 * 60;     // отметка последнего действия живёт 30 минут
 const VERSION_RE = /^[a-z0-9][a-z0-9._-]{0,39}$/i;
@@ -54,8 +61,9 @@ const advance = (p, stage) => (STAGE_ORDER.indexOf(stage) > STAGE_ORDER.indexOf(
 const sameToken = (a, b) => { const x = Buffer.from(String(a || '')); const y = Buffer.from(String(b || '')); return x.length === y.length && x.length > 0 && timingSafeEqual(x, y); };
 
 /* Обработчик собирается из настроек: тест подставляет открытое исследование, хранилище в памяти и зерно; рабочий — ниже.
-   seed — зерно распределения; без него исследование открыть нельзя. coin — выбор порядка форм при записи (честная монета). */
-export function makeHandler({ status, store, seed = null, exportToken = '', now = () => Date.now(), newCode = participantCode, coin = () => globalThis.crypto.getRandomValues(new Uint8Array(1))[0] < 128 }) {
+   seed — зерно распределения; без него исследование открыть нельзя. coin — выбор порядка форм при записи (честная монета).
+   whoIs — кто вошёл по ключу входа: { login, birthYear } или null (рабочий — мост api/_lib/research-link.js). */
+export function makeHandler({ status, store, seed = null, exportToken = '', now = () => Date.now(), newCode = participantCode, coin = () => globalThis.crypto.getRandomValues(new Uint8Array(1))[0] < 128, whoIs = async () => null }) {
   const open = () => status === 'open' && seed != null && seed !== '';
   async function loadParticipant(code) {
     const c = normalizeCode(code);
@@ -117,18 +125,35 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
   const actions = {
     // состояние — без записи чего-либо: открыто ли исследование и какая версия протокола
     status: async () => ({ status: open() ? 'open' : STUDY_STATUS === 'closed' ? 'closed' : 'not-started', protocol: PROTOCOL_VERSION, consent: CONSENT_VERSION }),
-    // запись: только с подтверждением совершеннолетия и согласием с текущей версией информации; сервер назначает порядок форм
+    /* запись: только из аккаунта Инфляции (один аккаунт — одно участие), с подтверждением совершеннолетия и согласием
+       с текущей версией информации; сервер назначает порядок форм. Логин идёт только в пару связи rla:/rlc: */
     enroll: async (b) => {
       if (b.adult !== true) return { error: 'В пилоте участвуют только совершеннолетние', status: 400 };
       if (b.consent !== CONSENT_VERSION) return { error: 'Нужно согласие с текущей версией информации для участника', status: 400 };
+      const acc = await whoIs(b.token);
+      if (!acc || !acc.login) return { error: 'Войдите в аккаунт Инфляции: участие привязывается к аккаунту', status: 401 };
       const t = now();
+      // год рождения аккаунта: по году младше 18 — не принимаем, даже с отметкой (точной даты рождения нет)
+      if (acc.birthYear && new Date(t).getUTCFullYear() - acc.birthYear < ADULT_AGE) return { error: 'В пилоте участвуют только совершеннолетние', status: 400 };
+      if (await store().get(linkKeyOfLogin(acc.login))) return { error: 'Этот аккаунт уже участвует в исследовании', status: 409 };
       if ((await store().incr(`rday:${day(t)}`)) > ENROLL_PER_DAY) return { error: 'Запись на сегодня закрыта', status: 429 };
       const code = newCode();
       const p = { participant_code: code, protocol_version: PROTOCOL_VERSION, consent_version: CONSENT_VERSION, adult_confirmed: true, period: month(t), stage: 'enrolled',
         form_order: coin() ? 'AB' : 'BA', enrolled_on: day(t) };
       if (cleanRecord('participants', p).error) return { error: 'Запись не прошла проверку', status: 500 };
-      if (!(await store().setNx(`rp:${code}`, p))) return { error: 'Код уже занят — попробуйте ещё раз', status: 409 };
+      // сначала связь (setNx — два одновременных запроса одного аккаунта не запишут двух участников), потом участник
+      if (!(await store().setNx(linkKeyOfLogin(acc.login), code))) return { error: 'Этот аккаунт уже участвует в исследовании', status: 409 };
+      if (!(await store().setNx(`rp:${code}`, p))) { await store().del(linkKeyOfLogin(acc.login)); return { error: 'Код уже занят — попробуйте ещё раз', status: 409 }; }
+      await store().set(linkKeyOfCode(code), acc.login);
       return { code, forms: { pre: formFor(p, 'pre'), post: formFor(p, 'post'), delayed: 'C' } };
+    },
+    // продолжить на другом устройстве: по ключу входа — код участника этого аккаунта
+    resume: async (b) => {
+      const acc = await whoIs(b.token);
+      if (!acc || !acc.login) return { error: 'Войдите в аккаунт Инфляции', status: 401 };
+      const code = await store().get(linkKeyOfLogin(acc.login));
+      if (!code || !(await store().get(`rp:${code}`))) return { error: 'Этот аккаунт не участвует в исследовании', status: 404 };
+      return { code };
     },
     // задачи теста — без ответов; с этого момента сервер считает время теста
     form: async (b) => {
@@ -245,12 +270,10 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
       await store().set(`rp:${got.code}`, advance({ ...fresh, ...used }, b.kind === 'post' ? 'posttest' : 'delayed'));
       return { ok: true };
     },
-    // отзыв участия (до фиксации набора): все записи участника стираются, остаётся только общее число отозвавших
+    // отзыв участия (до фиксации набора): все записи участника и связь с аккаунтом стираются, остаётся только общее число отозвавших
     withdraw: async (b) => {
       const got = await loadParticipant(b.code); if (got.error) return got;
-      const progress = await store().keys(`rx:${got.code}:`);
-      await store().del(`rp:${got.code}`, `re:${got.code}`, `rt:${got.code}:pre`, `rt:${got.code}:post`, `rt:${got.code}:delayed`, `rslot:${got.code}`, `rlock:${got.code}`, ...progress);
-      await store().incr('rwithdrawn');
+      await wipeParticipant(store(), got.code);
       return { ok: true };
     },
   };
@@ -273,7 +296,7 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
         return res.status(200).json({ protocol: PROTOCOL_VERSION, participants, events, tests, withdrawn: (await store().get('rwithdrawn')) || 0 });
       }
       /* удаление набора при фиксации (research/retention-policy.md, «Удаление»): только по ключу исследователя и с фразой
-         подтверждения; стирает все ключи исследовательской базы, число отозвавших возвращает для отчёта */
+         подтверждения; стирает все ключи таблицы исследования (и связь с аккаунтами), число отозвавших возвращает для отчёта */
       if (action === 'purge') {
         if (!exportToken || !sameToken(req.headers && req.headers['x-research-token'], exportToken)) return res.status(403).json({ error: 'Нет доступа' });
         if (b.confirm !== PURGE_PHRASE) return res.status(400).json({ error: `Нужна фраза подтверждения: ${PURGE_PHRASE}` });
@@ -296,6 +319,6 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
 }
 
 /* Рабочий обработчик: открыт, только если исследование открыто И в коде (STUDY_STATUS), И в окружении (RESEARCH_STATUS),
-   подключена своя исследовательская база и задано зерно распределения (RESEARCH_ALLOC_SEED). */
+   подключена база (DATABASE_URL — таблица исследования в ней) и задано зерно распределения (RESEARCH_ALLOC_SEED). */
 const liveStatus = STUDY_STATUS === 'open' && process.env.RESEARCH_STATUS === 'open' && hasResearchDb() ? 'open' : 'closed';
-export default makeHandler({ status: liveStatus, store: researchStore, seed: process.env.RESEARCH_ALLOC_SEED || null, exportToken: process.env.RESEARCH_EXPORT_TOKEN || '' });
+export default makeHandler({ status: liveStatus, store: researchStore, seed: process.env.RESEARCH_ALLOC_SEED || null, exportToken: process.env.RESEARCH_EXPORT_TOKEN || '', whoIs: accountOf });

@@ -118,6 +118,7 @@ test('вход: первый запуск — приветствие, цель, 
   await expect(page.getByTestId('privacy')).toContainText('Что мы храним');
   await expect(page.getByTestId('privacy')).toContainText('Upstash');
   await expect(page.getByTestId('privacy')).toContainText('за пределами России');
+  await expect(page.getByTestId('privacy')).toContainText('ONREZA');
   // оператор и контакты — заглушки до решения владельца; знак маркировки — из одной константы (src/legal.js)
   await expect(page.getByTestId('privacy').getByTestId('operator')).toContainText('[ФИО/название]');
   await expect(page.getByTestId('privacy').getByTestId('operator')).toContainText('[адрес для обращений]');

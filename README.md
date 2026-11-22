@@ -37,9 +37,10 @@
 
 - React 19 + Vite (сборщик rolldown), JSX без строгой типизации (см. «Известные ограничения»)
 - `recharts` для графиков партии, KaTeX для формул учебника, `lucide-react` для иконок
-- Серверные функции на Vercel (`api/*.js`), хранилище — Upstash Redis (переменные окружения
-  `KV_REST_API_URL` и `KV_REST_API_TOKEN`, подключаются через Vercel Marketplace); без них
-  данные живут в памяти процесса и не переживают разные запросы.
+- Серверные функции на Vercel (`api/*.js`, регион `arn1`), база — одна, PostgreSQL ONREZA по `DATABASE_URL`
+  (таблицы `inflatia_kv` и `inflatia_research`, `docs/onreza.md`). Без `DATABASE_URL` — Upstash Redis
+  (`KV_REST_API_URL`, `KV_REST_API_TOKEN`; так работают превью), без обеих — память процесса.
+  Резервная копия базы — `node scripts/db-backup.mjs`.
 - Тесты: vitest (модель, курс, тексты, сервер) и Playwright (браузер: компьютер, телефон,
   Safari/WebKit, доступность через axe, визуальные эталоны).
 

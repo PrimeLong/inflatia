@@ -5,6 +5,9 @@ import dailyHandler from '../daily.js';
 import { dailyKey } from '../../src/lib/catalog.js';
 import { hashPassword } from '../_lib/accounts.js';
 import { getUser, setUser } from '../_lib/store.js';
+import { makeHandler as researchHandler, CONSENT_VERSION } from '../research.js';
+import { researchStore } from '../_lib/research-store.js';
+import { accountOf } from '../_lib/research-link.js';
 
 let ipN = 0;
 // у каждого запроса свой адрес — иначе в тестах сработал бы лимит регистраций
@@ -226,6 +229,39 @@ describe('данные и конфиденциальность', () => {
     expect((await acc({ action: 'me', token: r.data.token })).status).toBe(401);
     expect((await acc({ action: 'login', login, password: 'secret12' })).status).toBe(401);
     expect((await acc({ action: 'register', consentPage: true, consentPd: true, birthYear: 1990, login, password: 'secret23', name: 'Вера' })).status).toBe(200);
+  });
+});
+
+describe('аккаунт и исследование в одной базе (таблица исследования — своя)', () => {
+  // открытое исследование на той же базе, что аккаунты (в тестах — память), с настоящим мостом accountOf
+  const rs = researchHandler({ status: 'open', store: researchStore, seed: 'зерно', exportToken: 'к', whoIs: accountOf });
+  const study = (body) => call(rs, body);
+  it('запись — по ключу входа; «Скачать мои данные» включает свои записи исследования; «Удалить аккаунт» стирает и их', async () => {
+    const login = uniq('stud');
+    const r = await acc({ action: 'register', consentPage: true, consentPd: true, birthYear: 1990, login, password: 'secret12', name: 'Ира', playerId: `dev-${login}` });
+    expect((await study({ action: 'enroll', adult: true, consent: CONSENT_VERSION })).status).toBe(401);
+    const en = await study({ action: 'enroll', adult: true, consent: CONSENT_VERSION, token: r.data.token });
+    expect(en.status).toBe(200);
+    expect((await study({ action: 'enroll', adult: true, consent: CONSENT_VERSION, token: r.data.token })).status).toBe(409);
+    expect((await study({ action: 'resume', token: r.data.token })).data).toEqual({ code: en.data.code });
+    const ex = await acc({ action: 'export', token: r.data.token });
+    expect(ex.data.research.participant).toMatchObject({ participant_code: en.data.code, stage: 'enrolled' });
+    // в записи участника нет логина, ника и года рождения
+    expect(JSON.stringify(await researchStore().get(`rp:${en.data.code}`))).not.toMatch(new RegExp(`${login}|Ира|1990`));
+    expect((await acc({ action: 'delete', token: r.data.token, password: 'secret12' })).status).toBe(200);
+    expect(await researchStore().get(`rp:${en.data.code}`)).toBeNull();
+    expect(await researchStore().get(`rla:${login}`)).toBeNull();
+    expect(await researchStore().get(`rlc:${en.data.code}`)).toBeNull();
+    // логин снова свободен — новый владелец логина к старому участию не привязан
+    const again = await acc({ action: 'register', consentPage: true, consentPd: true, birthYear: 1990, login, password: 'secret23', name: 'Ира' });
+    expect((await study({ action: 'resume', token: again.data.token })).status).toBe(404);
+    expect((await acc({ action: 'export', token: again.data.token })).data.research).toBeNull();
+  });
+  it('подросток (по году рождения аккаунта младше 18) не записывается, даже с отметкой «мне 18»', async () => {
+    const teen = await acc({ action: 'register', consentPage: true, consentPd: true, login: uniq('teen'), password: 'secret12', birthYear: new Date().getUTCFullYear() - 16 });
+    const r = await study({ action: 'enroll', adult: true, consent: CONSENT_VERSION, token: teen.data.token });
+    expect(r.status).toBe(400);
+    expect(r.data.error).toMatch(/совершеннолетние/);
   });
 });
 

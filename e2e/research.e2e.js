@@ -14,7 +14,9 @@ const T0 = Date.UTC(2027, 2, 1, 9);
 // подменяем /api/research настоящим обработчиком; часы сервера двигает тест
 async function serve(page, { open = true } = {}) {
   const st = memoryStore(); const clock = { t: T0 }; const seen = [];
-  const h = makeHandler({ status: open ? 'open' : 'draft', store: () => st, seed: 'зерно-e2e', exportToken: 'ключ', now: () => clock.t, coin: () => true });
+  // вход в Инфляцию подменён: ключ «tok-…» — вошедший ученик (мост к аккаунтам отдаёт только логин и год рождения)
+  const whoIs = async (t) => (typeof t === 'string' && t.startsWith('tok-') ? { login: t.slice(4), birthYear: 1990 } : null);
+  const h = makeHandler({ status: open ? 'open' : 'draft', store: () => st, seed: 'зерно-e2e', exportToken: 'ключ', now: () => clock.t, coin: () => true, whoIs });
   const run = (req) => new Promise((resolve) => {
     const res = { code: 200, status(c) { this.code = c; return this; }, json(d) { resolve({ status: this.code, body: d }); return this; } };
     h(req, res);
@@ -29,6 +31,9 @@ async function serve(page, { open = true } = {}) {
   });
   return { st, clock, seen, h, run };
 }
+
+// войти в Инфляцию в этом браузере: ключ входа лежит там же, где его кладёт приложение (src/account.jsx)
+const signIn = (page, login) => page.addInitScript((l) => { localStorage.setItem('ems-account', JSON.stringify({ token: `tok-${l}`, login: l, name: l })); }, login);
 
 async function answerTest(page, { right = 12 } = {}) {
   const t = page.getByTestId('rs-test');
@@ -84,7 +89,13 @@ test('исследование закрыто (черновик): страниц
 test('исследование: полный цикл — запись, входной тест, группа, восемь уроков, итоговый и отсроченный тесты, выгрузка, отзыв и удаление', async ({ page }) => {
   test.setTimeout(180000);
   const { st, clock, seen, run } = await serve(page);
+  // без входа в аккаунт Инфляции записаться нельзя: участие привязывается к аккаунту (протокол 0.4)
   await page.goto('/research');
+  await expect(page.getByTestId('rs-need-account')).toBeVisible();
+  await expect(page.getByTestId('rs-enroll')).toHaveCount(0);
+  await signIn(page, 'vera');
+  await page.reload();
+  await expect(page.getByTestId('rs-account')).toContainText('vera');
   // информация для участника — из research/participant-information.md; без двух отметок записаться нельзя
   await expect(page.getByTestId('rs-info')).toContainText('Что видят технические провайдеры');
   await expect(page.getByTestId('rs-info')).toContainText('Telegram');
@@ -96,6 +107,12 @@ test('исследование: полный цикл — запись, вход
   await page.getByTestId('rs-enroll').click();
   const code = (await page.getByTestId('rs-code').textContent()).trim();
   expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{3}$/);
+  // «другое устройство»: кода в браузере нет — по входу в тот же аккаунт участие находится
+  await page.evaluate(() => localStorage.removeItem('ems-research-code'));
+  await page.reload();
+  await page.getByTestId('rs-resume').click();
+  await expect(page.getByTestId('rs-test')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('ems-research-code'))).toBe(code);
   // входной тест: форма A (порядок форм — AB), ответы сырые, «верно» считает сервер; 8 из 12 → слой high
   const pre = await answerTest(page, { right: 8 });
   expect(pre).toBe('A');
@@ -127,7 +144,7 @@ test('исследование: полный цикл — запись, вход
   // выгрузка: только поля словаря; уроки пройдены по данным сервера; баллы — по ключу
   const ex = (await run({ method: 'POST', query: {}, headers: { 'x-research-token': 'ключ' }, body: { action: 'export' } })).body;
   expect(ex.participants).toHaveLength(1);
-  expect(ex.participants[0]).toMatchObject({ participant_code: code, arm, stratum: 'high', stage: 'delayed', used_regular_app: 'no', protocol_version: '0.3' });
+  expect(ex.participants[0]).toMatchObject({ participant_code: code, arm, stratum: 'high', stage: 'delayed', used_regular_app: 'no', protocol_version: '0.4' });
   expect(ex.events.filter((e) => e.event_type === 'lesson_done').map((e) => e.lesson_id)).toEqual(MODULE.map((l) => l.id));
   expect(ex.events.find((e) => e.exercise_id === MODULE[0].exercises[0].id && e.attempt_no === 1).correct).toBe(false);
   expect(['pre', 'post', 'delayed'].map((k) => ex.tests.filter((t) => t.test_kind === k && t.correct).length)).toEqual([8, 10, 9]);
@@ -136,10 +153,10 @@ test('исследование: полный цикл — запись, вход
   await page.getByTestId('rs-withdraw-open').click();
   await page.getByTestId('rs-withdraw-yes').click();
   await expect(page.getByTestId('rs-gone')).toBeVisible();
-  for (const prefix of ['rp:', 're:', 'rt:', 'rx:', 'rslot:']) expect(await st.keys(prefix), prefix).toEqual([]);
+  for (const prefix of ['rp:', 're:', 'rt:', 'rx:', 'rslot:', 'rla:', 'rlc:']) expect(await st.keys(prefix), prefix).toEqual([]);
   expect(await st.get('rwithdrawn')).toBe(1);
   expect(await page.evaluate(() => localStorage.getItem('ems-research-code'))).toBeNull();
-  // фиксация набора: удаление всей исследовательской базы по ключу и фразе подтверждения
+  // фиксация набора: удаление всех ключей таблицы исследования по ключу и фразе подтверждения
   const purge = (await run({ method: 'POST', query: {}, headers: { 'x-research-token': 'ключ' }, body: { action: 'purge', confirm: 'УДАЛИТЬ НАБОР' } })).body;
   expect(purge).toMatchObject({ ok: true, withdrawn: 1 });
   expect(await st.keys('r')).toEqual([]);
@@ -154,6 +171,7 @@ test('исследование: две версии модуля — одно с
   for (const want of ['game', 'plain']) {
     const ctx = await browser.newContext(); const page = await ctx.newPage();
     const { st } = await serve(page);
+    await signIn(page, `u-${want}`);
     // занять позиции слоя так, чтобы следующий участник попал в нужную группу
     let slot = 0; while (armAt('зерно-e2e', 'high', slot) !== want) slot += 1;
     for (let k = 0; k < slot; k += 1) await st.incr('rcount:high');
