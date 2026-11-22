@@ -8,6 +8,9 @@
    лицензия; автор и лицензия — в src/learn/people-photos.js, его пишет scripts/fetch-portraits.mjs).
    Нет файла — гравированный медальон с инициалами, а не чужая картинка.
    Модуль чистый: его читают Путь, экран урока, профиль и тесты. */
+import { quizOrder } from './quiz-order.js';
+
+export { quizOrder };
 
 export const MET_XP = 12;
 
@@ -498,7 +501,7 @@ export const isMet = (learn, id) => !!((learn && learn.met) || {})[id];
 /* Алмазный уровень «Персоналий» (docs/mechanics.md, «Особые уроки юнита»): «Чья это идея?» — идея каждого человека
    подборки без имени; варианты — люди подборки и один человек из другой (первый из следующих подборок, кого здесь нет).
    Порядок вариантов у каждой идеи свой (сдвиг по кругу), чтобы верный не стоял всегда на одном месте. */
-export function quizIdea(g) {
+export function quizIdea(g, order = 0) {
   const own = g.people.map((p) => p.name);
   const i = PEOPLE.findIndex((x) => x.id === g.id);
   const rest = [...PEOPLE.slice(i + 1), ...PEOPLE.slice(0, Math.max(0, i))];
@@ -512,12 +515,13 @@ export function quizIdea(g) {
   const shuffle = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i -= 1) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const inOrder = (opts) => { const at = own.map((n) => opts.indexOf(n)); return at.every((x, i) => i === 0 || x > at[i - 1]); };
   const used = [];
-  return g.people.map((p, k) => {
+  const items = g.people.map((p, k) => {
     let opts = shuffle(names);
     for (let t = 0; t < 40 && (inOrder(opts) || used.includes(opts.indexOf(p.name))); t += 1) opts = shuffle(names);
     used.push(opts.indexOf(p.name));
     return { k, idea: p.idea, answer: p.name, options: opts };
   });
+  return quizOrder(items, order);
 }
 // человек по имени — для портретов в «Чья это идея?» (лишний вариант — из другой группы)
 export const personByName = (name) => { for (const g of PEOPLE) { const p = g.people.find((x) => x.name === name); if (p) return { p, g }; } return null; };

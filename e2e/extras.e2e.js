@@ -199,19 +199,28 @@ test('«Чтение» на алмаз: контекст после ответа
       if (await p.getAttribute('data-kind') === 'mark') await p.locator('[data-testid=reading-word][data-hit="1"]').first().click();
       else await p.locator('[data-testid=reading-opt][data-ok]').click();
       await expect(p.getByTestId('reading-context')).toBeVisible();
+      // «Назад» — к прошлой странице: её ответ на месте (пункт владельца 22.11, п. 7), «Дальше» — обратно
+      if (k === 2) {
+        await page.getByTestId('reading-back').click();
+        await expect(reading.getByTestId('reading-page')).toHaveAttribute('data-page', '1');
+        await expect(reading.getByTestId('reading-context')).toBeVisible();
+        await page.getByTestId('reading-next').click();
+        await expect(reading.getByTestId('reading-page')).toHaveAttribute('data-page', '2');
+      }
       await page.getByTestId('reading-next').click();
     }
-    // «Кто это сказал?» — у каждой цитаты автор и год
+    // «Кто это сказал?» — одна цитата на экран, ответ — карточка автора; цитаты не в порядке страниц (пункт владельца 22.11, пп. 6, 8)
     const who = reading.getByTestId('reading-who');
     await expect(who).toBeVisible();
-    const items = who.getByTestId('reading-who-item');
-    await expect(items).toHaveCount(3);
+    await expect(who.getByTestId('reading-who-item')).toHaveCount(1);
     await expect(page.getByTestId('reading-next')).toBeDisabled();
     for (let k = 0; k < 3; k += 1) {
-      const it = items.nth(k);
+      const it = who.getByTestId('reading-who-item');
+      await expect(it).toHaveAttribute('data-answered', 'false');
       if (wrongWho && k === 0) await it.locator('[data-testid=reading-who-opt]:not([data-ok])').first().click();
       else await it.locator('[data-testid=reading-who-opt][data-ok]').click();
-      await expect(it).toHaveAttribute('data-answered', 'true');
+      await expect(who.getByTestId('reading-who-says')).toContainText(/\d{4}/);
+      await expect(who.locator('.rd-who-dots i.ok, .rd-who-dots i.bad')).toHaveCount(k + 1);
     }
     await page.getByTestId('reading-next').click();
     return page.getByTestId('reading-done');
@@ -1600,5 +1609,51 @@ test('«Нарисуй сам» на ПК: один ползунок (стран
   await page.getByTestId('draw-close').click();
   await expect(g).toHaveCount(0);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe('hidden');
+  expect(errors).toEqual([]);
+});
+
+// пункты владельца 22.11, пп. 4, 5, 7: в особых уроках можно вернуться на шаг; вышли посреди — на Пути «продолжить»; у шапки нет черты
+test('особые уроки 22.11: «Назад» в «Нарисуй сам» открывает прошлый шаг с решением; вышли — на Пути «продолжить», в карточке — «Продолжить»', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ems-textbook-v1')) return;
+    const at = Date.now() - 86400000;
+    const ids = ['sc-i1', 'sc-i1b', 'sc-l1', 'sc-l2', 'sc-i2', 'sc-l3', 'sc-w', 'sc-l4', 'sc-l5', 'sc-l6', 'sc-s1', 'sc-radio', 'sc-g', 'sc-rev', 'sc-sum', 'lm-i1'];
+    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { lessons: Object.fromEntries(ids.map((id) => [id, { at, runs: 1, best: 90 }])) } }));
+  });
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const stop = page.locator('[data-testid=path-extra][data-extra="draw"][data-id="draw-labor"]');
+  await stop.scrollIntoViewIfNeeded(); await stop.click();
+  await page.getByTestId('extra-start').click();
+  const g = page.getByTestId('draw-lesson');
+  // у шапки особого урока нет черты снизу — как у урока
+  expect(await g.getByTestId('special-head').evaluate((el) => getComputedStyle(el).boxShadow)).toBe('none');
+  const ink = g.getByTestId('draw-ink');
+  await ink.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  // шаг 1 — верно: точки из ответа
+  for (const [x, y] of JSON.parse(await ink.getAttribute('data-answer')).pts) {
+    const [cx, cy] = await ink.evaluate((svg, [vx, vy]) => { const q = new DOMPoint(vx, vy).matrixTransform(svg.getScreenCTM()); return [q.x, q.y]; }, [x, y]);
+    await page.mouse.click(cx, cy);
+  }
+  await g.getByTestId('draw-check').click();
+  await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
+  await g.getByTestId('draw-next').click();
+  await expect(g).toHaveAttribute('data-task', '1');
+  // «Назад» — прошлый шаг для просмотра: решение на графике, рисовать нельзя; «Вернуться» — к текущему
+  await g.getByTestId('draw-back').click();
+  await expect(g.getByTestId('draw-peek')).toContainText('Шаг 1 из');
+  // на прошлом шаге поле не принимает точки, проверки нет
+  await expect(ink).toHaveClass(/\boff\b/);
+  await expect(g.getByTestId('draw-check')).toHaveCount(0);
+  await g.getByTestId('draw-return').click();
+  await expect(g.getByTestId('draw-peek')).toHaveCount(0);
+  await expect(g.getByTestId('draw-check')).toBeVisible();
+  // вышли посреди — на Пути у остановки «продолжить», в карточке — «Продолжить»
+  await g.getByTestId('draw-close').click();
+  await expect(page.locator('[data-testid=path-extra-title]').filter({ hasText: 'продолжить — нарисуй сам' })).toHaveCount(1);
+  await stop.click();
+  await expect(page.getByTestId('extra-start')).toHaveText('Продолжить');
+  await expect(page.getByTestId('extra-resume-note')).toBeVisible();
+  await page.getByTestId('extra-start').click();
+  await expect(page.getByTestId('draw-lesson')).toHaveAttribute('data-task', '1');
   expect(errors).toEqual([]);
 });

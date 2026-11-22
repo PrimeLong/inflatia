@@ -65,9 +65,12 @@ export const GRAPH_CSS = `${STAGE_CSS}
   .gl-blank { display: inline-block; min-width: 64px; border-bottom: 2.5px solid var(--g-blue); margin: 0 2px; vertical-align: -2px; color: transparent; }
   .gl-cloze { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
   .gl-cloze .gl-opt { padding: 9px 14px; border-radius: 12px; font: 600 15px/1.3 var(--ds-sans); }
+  /* варианты пропуска — фишками в ряд, а не полноширинными кнопками столбиком с большими промежутками (жалоба 22.11,
+     graph-monopoly, алмаз: «почему такой большой промежуток у кнопок») */
+  .gl-cloze .ds-opt { width: auto; flex: 0 1 auto; margin: 0; min-height: 44px; padding: 9px 16px; font: 600 15.5px/1.3 var(--ds-sans); }
   .gl-opt { text-align: left; padding: 14px 16px; border-radius: 16px; border: 2px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink);
     font: 600 16px/1.35 var(--ds-sans); cursor: pointer; transition: transform .15s, border-color .2s; }
-  .gl-opt:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--g-blue); }
+  .gl-opt:hover:not(:disabled) { border-color: var(--g-blue); }
   .gl-opt.ok { border-color: var(--ds-ok); background: color-mix(in srgb, var(--ds-ok) 10%, var(--ds-card)); }
   .gl-opt.bad { border-color: var(--ds-warn, #D9822B); background: color-mix(in srgb, var(--ds-warn, #D9822B) 10%, var(--ds-card)); }
   .gl-fb { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font: 400 15px/1.5 var(--ds-sans); background: color-mix(in srgb, var(--ds-ok) 10%, var(--ds-card)); }
@@ -145,12 +148,12 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       const qs = cloze.filter(Boolean).length;
       const ok = qs - czMiss.current.size + (firstOk.current ? 1 : 0); const all = qs + 1;
       const won = ok === all; const had = hasGem(learn, id);
-      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: Math.min(900, activeMs() / 1000), kind: 'graph', extra: { fresh: false } }), id) : addStudySeconds(t, activeMs() / 1000); };
+      const apply = (s) => { const t = countAnswers(s, ok, all); return won && !had ? markGem(finishLesson(t, null, { xp: GRAPH_XP, accuracy: 100, seconds: activeMs() / 1000, kind: 'graph', extra: { fresh: false } }), id) : addStudySeconds(t, activeMs() / 1000); };
       const pay = payExtra(learn, update, apply, { id, diamond: true, won, gem: had, accuracy: (ok / all) * 100 });
       setResult({ xp: won && !had ? GRAPH_XP : 0, right: ok, total: all, ms: activeMs(), diamond: true, won, replay: won && had, ...pay });
     } else if (!peek && update) {
       const right = firstOk.current ? 1 : 0; const accuracy = firstOk.current ? 100 : 60;
-      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? addStudySeconds(t, activeMs() / 1000) : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: Math.min(900, activeMs() / 1000), kind: 'graph', extra: { fresh: true } }), id); };
+      const apply = (s) => { const t = countAnswers(s, right, 1); return already ? addStudySeconds(t, activeMs() / 1000) : markGraph(finishLesson(t, null, { xp: GRAPH_XP, accuracy, seconds: activeMs() / 1000, kind: 'graph', extra: { fresh: true } }), id); };
       const pay = payExtra(learn, update, apply, { id, fresh: !already, accuracy });
       setResult({ xp: already ? 0 : GRAPH_XP, right, total: 1, accuracy, ms: activeMs(), replay: already, ...pay });
     }
@@ -170,7 +173,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
          подсказка из урока (peek) — без серии */}
       <SpecialHead closeLabel="Закрыть" closeTestid="graph-close" onClose={() => { Audio.play('paper'); onClose(); }} run={peek ? null : run}
         total={n + 1}
-        answers={[...Array.from({ length: phase === 'tour' ? k : n }, (_, i) => !czMiss.current.has(i)), ...(firstOk.current != null ? [firstOk.current] : [])]} >
+        answers={[...Array.from({ length: phase === 'tour' ? k : n }, (_, i) => !czMiss.current.has(i)), ...(firstOk.current != null ? [firstOk.current] : [])]}
+        onBack={phase !== 'done' && !(phase === 'tour' && k === 0) ? back : null} >
       <SpecialLabel kind="Разбор графика" title={g.title} gem={gem} gemTestid="graph-gem-tag">
         {/* «Сообщить об ошибке»: шаг (или вопрос) и его текст уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в разборе? Шаг, его текст и устройство приложатся сами." context={() => ({

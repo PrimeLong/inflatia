@@ -6,6 +6,7 @@
    Чтение привязано к юниту Пути и открывается после его первого урока; прочитанное встаёт книгой на
    полку (learn.read, src/textbook/learn-state.js). Опыт — один раз. Модуль чистый: его читают Путь,
    экран чтения (src/learn-reading.jsx) и тесты. */
+import { quizOrder } from './quiz-order.js';
 
 export const READ_XP = 12;
 // «Чтение» на алмаз (docs/mechanics.md, «Чтение»): опыт — один раз, за первый взятый алмаз
@@ -586,19 +587,22 @@ export const isReadGem = (learn, id) => !!((learn && learn.readGem) || {})[id];
 /* «Кто это сказал?» — последняя страница «Чтения» на алмаз: каждая цитата подборки (начало, до 12 слов) и на выбор
    авторы с годом — авторы этой подборки и один из другой (первый по списку подборок, с другим именем). */
 export const whoLabel = (p) => `${p.author}, ${p.year}`;
-export function quizWho(r) {
+export function quizWho(r, order = 0) {
   const own = [...new Set(r.pages.map(whoLabel))];
   const names = new Set(r.pages.map((p) => p.author));
   const other = READINGS.filter((x) => x.id !== r.id).flatMap((x) => x.pages).find((p) => !names.has(p.author));
   const options = [...own, ...(other ? [whoLabel(other)] : [])];
-  return r.pages.map((p, k) => {
+  const items = r.pages.map((p, k) => {
     const words = p.quote.split(/\s+/);
-    if (words.length <= 12) return { k, quote: p.quote, answer: whoLabel(p), options };
+    const base = { k, answer: whoLabel(p), author: p.author, year: p.year, book: p.book, options };
+    if (words.length <= 12) return { ...base, quote: p.quote };
     // обрыв — не на коротком служебном слове («и…», «как…») и без запятой перед многоточием
     const cut = words.slice(0, 12);
     while (cut.length > 6 && cut[cut.length - 1].replace(/[^А-Яа-яЁёA-Za-z]/g, '').length <= 3) cut.pop();
-    return { k, quote: `${cut.join(' ').replace(/[,;:—–-]+$/, '')}…`, answer: whoLabel(p), options };
+    return { ...base, quote: `${cut.join(' ').replace(/[,;:—–-]+$/, '')}…` };
   });
+  // цитаты — не в порядке страниц (пункт владельца 22.11, п. 8 — как в «Чья это идея?»)
+  return quizOrder(items, order);
 }
 export const readingOpen = (unitState) => !!unitState && unitState.lessons.some((l) => l.done);
 // сколько книг на полке

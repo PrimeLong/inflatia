@@ -245,7 +245,7 @@ export const CSS = `
   /* остановка Пути — объёмная монета: снизу кромка темнее, нажатие опускает её */
   .ln-token { position: relative; width: 62px; height: 62px; border-radius: 50%; border: 3px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink2); cursor: pointer;
     display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 0 var(--ds-rule2); margin-bottom: 5px; transition: transform .08s, box-shadow .08s; }
-  .ln-token:not(.locked):hover { transform: translateY(-2px); }
+  .ln-token:not(.locked):hover { filter: brightness(1.04); }
   .ln-token:not(.locked):hover > svg { animation: ds-wiggle .5s ease-in-out .25s; }
   .ln-token:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ds-rule2); }
   .ln-token.done { background: var(--u); color: #fff; border-color: color-mix(in srgb, var(--u) 82%, #fff); box-shadow: 0 5px 0 color-mix(in srgb, var(--u) 68%, #000); }
@@ -292,7 +292,7 @@ export const CSS = `
   .ln-graph-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
     border: 1.5px solid color-mix(in srgb, #2459A6 45%, var(--ds-rule2)); background: color-mix(in srgb, #2459A6 8%, var(--ds-card)); color: var(--ds-ink);
     font: 700 14px var(--ds-sans); transition: transform .15s, background .2s; }
-  .ln-graph-btn:hover { transform: translateY(-1px); background: color-mix(in srgb, #2459A6 14%, var(--ds-card)); }
+  .ln-graph-btn:hover { background: color-mix(in srgb, #2459A6 14%, var(--ds-card)); }
   .ln-graph-btn svg { color: #2459A6; }
   .ds-dark .ln-graph-btn svg { color: #8DB6F2; }
   .ln-token.ln-extra.fix { --x: var(--ds-bad); border-width: 3px; }
@@ -303,7 +303,7 @@ export const CSS = `
   .ln-token.ln-extra.diamond { background: linear-gradient(135deg, #FFC2D2 0%, #E5527B 45%, #B3123F 62%, #7A0C2B 100%); border-color: #FFD6E1; color: #fff;
     box-shadow: 0 5px 0 #7A0C2B, 0 6px 14px rgba(179,18,63,.35); }
   .ln-token.ln-extra.locked { border-style: dashed; color: var(--ds-ink3); background: var(--ds-card2); box-shadow: none; }
-  .ln-token.ln-extra:not(.locked):hover { transform: translateY(-2px); }
+  .ln-token.ln-extra:not(.locked):hover { filter: brightness(1.04); }
   .ds .nw { white-space: nowrap; }
   .ln-ticket-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 14px; }
   .ln-ticket-meta > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -1019,8 +1019,12 @@ function unitGems(st, learn) {
 }
 function ExtraSheet({ x, onStart, onClose }) {
   const info = extraInfo(x);
-  // незаконченный особый урок — сохранён на сутки, как урок (src/learn-special.jsx, useSpecialResume)
-  const resume = ['read', 'people', 'graph', 'draw'].includes(x.type) ? getResume(`${x.type}:${x.id}`) : null;
+  /* незаконченный особый урок — сохранён на сутки, как урок (src/learn-special.jsx, useSpecialResume); алмазный уровень —
+     своё место (ключ с «:gem»): «Продолжить» и у него (пункт владельца 22.11, п. 4: «в обычном уроке предлагают продолжить,
+     а в особенном такого нет») */
+  const resumable = ['read', 'people', 'graph', 'draw'].includes(x.type);
+  const resume = resumable ? getResume(`${x.type}:${x.id}`) : null;
+  const gemResume = resumable ? getResume(`${x.type}:${x.id}:gem`) : null;
   if (!info) return null;
   const Icon = EXTRA_ICON[x.type] || BookOpen;
   const pl = placeOf(info.unitId);
@@ -1044,8 +1048,8 @@ function ExtraSheet({ x, onStart, onClose }) {
         {/* пройденный особый урок — и на алмазном уровне, у всех четырёх видов (пункты владельца 08.11 и 08.11, вечер) */}
         {x.done && EXTRA_GEM[x.type] && (
           <>
-            <Button wide icon={Gem} data-testid="extra-gem" style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
-              {x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
+            <Button wide icon={Gem} data-testid="extra-gem" data-resume={gemResume ? 'true' : undefined} style={{ '--u': DIAMOND_COLOR }} onClick={() => { Audio.prime(); Audio.play('click'); onStart({ ...x, diamond: true }); }}>
+              {gemResume ? 'Алмазный уровень — продолжить' : x.gem ? 'Алмазный уровень — ещё раз' : 'Алмазный уровень'}
             </Button>
             <div className="ds-faint" style={{ fontSize: 13.5, lineHeight: 1.4, textAlign: 'center', margin: '-2px 6px 2px' }} data-testid="extra-gem-what">
               Алмаз: {EXTRA_GEM[x.type]}; без единой ошибки{x.gem ? '' : ` — ${indexed(COIN.diamond)}–${indexed(COIN.diamond + COIN.diamondPerfect)} монет`}.
@@ -1054,7 +1058,7 @@ function ExtraSheet({ x, onStart, onClose }) {
         )}
         {/* вышли посреди — «Продолжить», как у обычного урока (пункт владельца 16.11); внутри урока полосы «Продолжаем…» нет */}
         <Button wide variant={x.done && EXTRA_GEM[x.type] && !resume ? 'ghost' : undefined} data-testid="extra-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart(x); }}>{resume ? 'Продолжить' : x.done ? 'Открыть снова' : 'Начать'}</Button>
-        {resume && <div className="ds-faint" style={{ fontSize: 13, textAlign: 'center', marginTop: 2 }} data-testid="extra-resume-note">Урок сохранён с того места, где вы вышли.</div>}
+        {(resume || gemResume) && <div className="ds-faint" style={{ fontSize: 13, textAlign: 'center', marginTop: 2 }} data-testid="extra-resume-note">{resume && gemResume ? 'Урок и алмазный уровень сохранены' : gemResume ? 'Алмазный уровень сохранён' : 'Урок сохранён'} с того места, где вы вышли.</div>}
       </div>
     </Sheet>
   );
@@ -1110,7 +1114,8 @@ function Route({ st, stops, seen, reduced, visible, resumes, onLesson, onExtra =
               </button>
               <button type="button" className={`ln-stop-title ln-extra-title side-${ts.side} ${x.open || x.done ? '' : 'locked'}`} tabIndex={-1} aria-hidden="true"
                 data-testid="path-extra-title" data-side={ts.side} style={ts.style}
-                onClick={() => { Audio.play('click'); onExtra(x); }}><small>{x.type === 'fix' ? (resumes.has(x.id) ? 'продолжить — ошибки юнита' : 'сначала — ошибки юнита') : EXTRA_KIND[x.type]}</small>{x.title}</button>
+                onClick={() => { Audio.play('click'); onExtra(x); }}><small>{x.type === 'fix' ? (resumes.has(x.id) ? 'продолжить — ошибки юнита' : 'сначала — ошибки юнита')
+                  : resumes.has(`${x.type}:${x.id}`) || resumes.has(`${x.type}:${x.id}:gem`) ? `продолжить — ${EXTRA_KIND[x.type].toLowerCase()}` : EXTRA_KIND[x.type]}</small>{x.title}</button>
             </div>
           );
         }

@@ -40,7 +40,7 @@ export const DS_CSS = `
   .ds-btn { --b: var(--u); --edge: color-mix(in srgb, var(--b) 68%, #000); position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 12px 24px;
     border: none; border-radius: 14px; font: 700 16px/1.2 var(--ds-head); letter-spacing: .04em; text-transform: uppercase; color: #fff; background: var(--b); cursor: pointer;
     box-shadow: 0 4px 0 var(--edge); margin-bottom: 4px;
-    transition: transform .08s ease, box-shadow .08s ease, filter .15s; }
+    transition: transform .14s cubic-bezier(.3,.7,.4,1), box-shadow .14s cubic-bezier(.3,.7,.4,1), filter .2s; }
   .ds-btn:hover:not(:disabled) { filter: brightness(1.06) saturate(1.05); }
   /* основная кнопка: при наведении по ней пробегает блик (в покое он за краем кнопки и не виден). Запускает
      его installShine ниже: только если мышь задержалась на кнопке, и, раз начавшись, блик доходит до
@@ -72,8 +72,8 @@ export const DS_CSS = `
   .ds-btn--ghost.ds-btn--small:active:not(:disabled) { transform: none; opacity: .75; }
   .ds-icon-btn { background: none; border: none; color: var(--ds-ink2); width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
   .ds-icon-btn:hover { background: var(--ds-card2); }
-  .ds-icon-btn { transition: background-color .15s, transform .1s; }
-  .ds-icon-btn:active { transform: scale(.9); }
+  .ds-icon-btn { transition: background-color .18s, transform .16s cubic-bezier(.3,.7,.4,1); }
+  .ds-icon-btn:active { transform: scale(.94); }
 
   /* карточка-документ, панель, строки */
   /* текст только для чтения с экрана: подписи к значкам и числам */
@@ -83,7 +83,8 @@ export const DS_CSS = `
   .ds-card--flat { box-shadow: 0 2px 0 var(--ds-rule); }
   .ds-card--button { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; margin: 10px 0; }
   .ds-card--button { transition: transform .15s ease, box-shadow .15s ease, border-color .15s; }
-  .ds-card--button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 0 var(--ds-rule), 0 10px 22px -12px var(--ds-shade); }
+  /* наведение — тенью, без подъёма: поднятая карточка уходила из-под курсора у нижнего края и дрожала (жалоба 22.11) */
+  .ds-card--button:hover:not(:disabled) { box-shadow: 0 4px 0 var(--ds-rule), 0 10px 22px -12px var(--ds-shade); }
   .ds-card--button:hover:not(:disabled) > span:first-child { animation: ds-wiggle .5s ease-in-out .25s; }
   .ds-card--button:active:not(:disabled) { transform: translateY(1px); }
   .ds-card--button:disabled { opacity: .6; cursor: default; }
@@ -97,7 +98,7 @@ export const DS_CSS = `
 
   /* варианты ответа, плитки, клавиши */
   .ds-opt { display: block; width: 100%; text-align: left; padding: 13px 16px; margin: 8px 0; font: 16px/1.45 var(--ds-sans); color: var(--ds-ink);
-    background: var(--ds-card); border: 2px solid var(--ds-rule2); border-radius: 14px; cursor: pointer; transition: border-color .12s, background .12s, transform .06s, box-shadow .06s;
+    background: var(--ds-card); border: 2px solid var(--ds-rule2); border-radius: 14px; cursor: pointer; transition: border-color .18s, background .18s, transform .14s cubic-bezier(.3,.7,.4,1), box-shadow .14s cubic-bezier(.3,.7,.4,1);
     --edge: var(--ds-rule2); box-shadow: 0 3px 0 var(--edge); }
   /* нажатие только сдвигает плитку и прячет кромку — размеры не меняются, соседи не прыгают
      (раньше утоньшалась нижняя рамка: в шторке, прижатой к низу, от этого «проседали» кнопки выше) */
@@ -113,13 +114,13 @@ export const DS_CSS = `
   .ds-opt.wrong::after { content: '✕'; color: var(--ds-sel-ink); }
   .ds-opt:disabled { cursor: default; }
   .ds-chip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 44px; padding: 8px 13px; margin: 4px; font: 15px/1.3 var(--ds-sans); color: var(--ds-ink);
-    background: var(--ds-card); border: 2px solid var(--ds-rule2); border-radius: 12px; cursor: pointer; --edge: var(--ds-rule2); box-shadow: 0 2px 0 var(--edge); transition: transform .06s, box-shadow .06s; }
+    background: var(--ds-card); border: 2px solid var(--ds-rule2); border-radius: 12px; cursor: pointer; --edge: var(--ds-rule2); box-shadow: 0 2px 0 var(--edge); transition: transform .14s cubic-bezier(.3,.7,.4,1), box-shadow .14s cubic-bezier(.3,.7,.4,1); }
   .ds-chip:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 0 0 var(--edge); }
   .ds-chip[aria-pressed="true"], .ds-opt[aria-pressed="true"], .ds-opt[aria-checked="true"] { animation: ds-pop .26s cubic-bezier(.3,1.6,.5,1); }
   .ds-chip[aria-pressed="true"] { --edge: color-mix(in srgb, var(--u) 75%, var(--ds-card)); border-color: var(--edge); background: color-mix(in srgb, var(--u) 11%, var(--ds-card)); color: var(--ds-ink); }
   .ds-chip.right { --edge: var(--ds-ok); border-color: var(--ds-ok); }
   .ds-key { padding: 13px 0; font: 20px var(--ds-mono); color: var(--ds-ink); background: var(--ds-card); border: 2px solid var(--ds-rule2); border-radius: 12px; cursor: pointer;
-    box-shadow: 0 3px 0 var(--ds-rule2); transition: transform .06s, box-shadow .06s; }
+    box-shadow: 0 3px 0 var(--ds-rule2); transition: transform .14s cubic-bezier(.3,.7,.4,1), box-shadow .14s cubic-bezier(.3,.7,.4,1); }
   .ds-key:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ds-rule2); }
 
   /* поля и переключатели */
@@ -129,7 +130,7 @@ export const DS_CSS = `
   .ds-label > input { margin-top: 6px; }
   .ds-toggle { width: 48px; height: 28px; border-radius: 14px; border: 1px solid var(--ds-rule2); background: var(--ds-card2); position: relative; cursor: pointer; flex-shrink: 0; }
   .ds-toggle { transition: background-color .2s ease, border-color .2s ease; }
-  .ds-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--ds-card); border: 1px solid var(--ds-rule2); transition: left .28s cubic-bezier(.3,1.5,.5,1), width .15s; }
+  .ds-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--ds-card); border: 1px solid var(--ds-rule2); transition: left .28s cubic-bezier(.3,1.15,.5,1), width .18s; }
   .ds-toggle:active::after { width: 24px; }
   .ds-toggle[aria-checked="true"]:active::after { left: 19px; }
   .ds-toggle[aria-checked="true"] { background: var(--u); border-color: var(--u); }
@@ -195,7 +196,7 @@ export const DS_CSS = `
   @keyframes ds-ping { 0% { transform: scale(1); opacity: .7 } 70%, 100% { transform: scale(2.6); opacity: 0 } }
   .ds-new { animation: ds-badge .5s cubic-bezier(.3, 1.6, .5, 1) .15s backwards; }
   @keyframes ds-badge { from { transform: scale(.3) rotate(-12deg); opacity: 0 } }
-  .ds-icon-btn svg { transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
+  .ds-icon-btn svg { transition: transform .25s cubic-bezier(.3, 1.1, .5, 1); }
   .ds-icon-btn:hover svg { transform: scale(1.1) rotate(-6deg); }
   .ds-nav button:active > svg { transform: scale(.88); }
 

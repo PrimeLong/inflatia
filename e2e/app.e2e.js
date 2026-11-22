@@ -1437,13 +1437,13 @@ test('вход: «Мир» на пробу — с приветствия в «М
 });
 
 // пункт владельца 21.11, п. 5: «анимации взаимодействия с Инфлёй — нажать на неё»
-test('Инфля откликается на касание: прыжок, сплющилась, крутанулась по очереди, на миг радуется, сердечки; пять касаний — закружилась', async ({ page }) => {
+test('Инфля откликается на касание: подпрыгнула, сплющилась, качнулась по очереди, на миг радуется, сердечки; пять касаний — закружилась', async ({ page }) => {
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   const infla = page.getByTestId('mascot').filter({ visible: true }).first();
   await infla.scrollIntoViewIfNeeded();
   await infla.click();
   await expect(infla).toHaveAttribute('data-poke', '1');
-  await expect(infla).toHaveAttribute('data-reaction', /jump|squish|spin/);
+  await expect(infla).toHaveAttribute('data-reaction', /jump|squish|tilt/);
   await expect(infla.locator('.infla-heart')).toHaveCount(3);
   await expect(infla.locator('svg[aria-label]')).toHaveAttribute('aria-label', /Инфля/);
   // на миг — радость (рот и глаза радости), потом снова как была

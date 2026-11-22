@@ -5,13 +5,13 @@
 import { SpecialShell, SpecialDesk, SpecialHead, SpecialLabel, useAnswerRun, useSpecialResume, resumedState } from './learn-special.jsx';
 import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ArrowRight, Gem } from 'lucide-react';
+import { Check, ArrowLeft, ArrowRight, Gem, X } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Button, AnswerBar } from './ds.jsx';
 import { ReportFlag, REPORT_CSS, EXPLAIN_REASONS } from './learn-report.jsx';
 import { useReducedMotion } from './ds-art.jsx';
 import { READING_BY_ID, READ_XP, READ_GEM_XP, quoteWords, isRead, isReadGem, shelfOf, quizWho, readingAuthorId } from './learn/reading.js';
-import { PEOPLE } from './learn/people.js';
+import { PEOPLE, initialsOf } from './learn/people.js';
 import { cachedPhoto } from './learn/portraits.js';
 import { tallyAnswer, streakNow, finishLesson, markRead, markReadGem, countAnswers, addStudySeconds } from './textbook/learn-state.js';
 import { ExtraResult, payExtra } from './learn-extra-result.jsx';
@@ -88,9 +88,27 @@ const CSS = `
   /* «Чтение» на алмаз: контекст — после ответа; последняя страница — «Кто это сказал?» */
   .rd-ctx.hid { color: var(--ds-ink3); font-style: italic; }
   .rd-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); letter-spacing: .06em; text-transform: uppercase; color: #fff; background: #B3123F; }
-  .rd-who-q { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--ds-rule); }
-  .rd-who-q q { display: block; font: italic 400 17px/1.45 var(--ds-news, 'PT Serif', Georgia, serif); quotes: '«' '»'; margin-bottom: 8px; }
-  @media (prefers-reduced-motion: reduce) { .rd-sheet, .rd-w, .rd-w.hit, .rd-book.new, .rd-fb { animation: none; } .rd-w.hit { background-size: 100% 100%; } }
+  /* «Кто это сказал?» — одна цитата на экран, ответ — карточка автора (как «Чья это идея?» в «Персоналиях») */
+  .rd-who-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .rd-who-dots { display: flex; gap: 6px; flex: none; } .rd-who-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--ds-rule2); transition: background .25s, transform .25s; }
+  .rd-who-dots i.on { background: var(--rd); transform: scale(1.25); } .rd-who-dots i.ok { background: var(--ds-ok); } .rd-who-dots i.bad { background: var(--ds-bad); }
+  .rd-who-item { margin-top: 18px; animation: rd-who-in .45s cubic-bezier(.25,.8,.3,1) backwards; }
+  @keyframes rd-who-in { from { opacity: 0; transform: translateY(6px); } }
+  .rd-who-quote { margin: 0 0 16px; padding: 16px 18px; border-radius: 16px; background: color-mix(in srgb, var(--rd) 6%, var(--ds-paper)); border: 1px solid color-mix(in srgb, var(--rd) 18%, var(--ds-rule2));
+    font: italic 400 19px/1.5 var(--ds-news, 'PT Serif', Georgia, serif); quotes: '«' '»'; }
+  .rd-who-quote::before { content: open-quote; } .rd-who-quote::after { content: close-quote; }
+  .rd-who-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @media (min-width: 640px) { .rd-who-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .rd-who-pick { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px 10px; border-radius: 16px; border: 2px solid var(--ds-rule2);
+    background: var(--ds-card); color: var(--ds-ink); font: 600 14px/1.25 var(--ds-sans); text-align: center; cursor: pointer; transition: border-color .2s, box-shadow .2s, opacity .25s; }
+  .rd-who-pick:hover:not(:disabled) { border-color: color-mix(in srgb, var(--rd) 55%, var(--ds-rule2)); box-shadow: 0 6px 16px -10px var(--ds-shade); }
+  .rd-who-pick:disabled { cursor: default; }
+  .rd-who-pick small { font: 400 12.5px var(--ds-sans); color: var(--ds-ink2); }
+  .rd-who-pick.ok { border-color: var(--ds-ok); background: var(--ds-ok-bg); } .rd-who-pick.bad { border-color: var(--ds-bad); } .rd-who-pick.off { opacity: .5; }
+  .rd-who-mark { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+  .rd-who-mark.ok { background: var(--ds-ok); } .rd-who-mark.bad { background: var(--ds-bad); }
+  .rd-who-says { margin-top: 12px; font: 600 15px/1.4 var(--ds-sans); } .rd-who-says.ok { color: var(--ds-ok); } .rd-who-says.bad { color: var(--ds-bad); }
+  @media (prefers-reduced-motion: reduce) { .rd-sheet, .rd-w, .rd-w.hit, .rd-book.new, .rd-fb, .rd-who-item { animation: none; } .rd-w.hit { background-size: 100% 100%; } }
 `;
 
 // варианты — в случайном порядке, один раз на страницу
@@ -198,33 +216,57 @@ function Shelf({ learn, fresh = null, here = null }) {
 }
 
 /* «Кто это сказал?» — последняя страница «Чтения» на алмаз: у каждой цитаты выбрать автора и год, ответ — один раз */
+/* «Кто это сказал?» — алмазный уровень «Чтения» в том же формате, что «Чья это идея?» в «Персоналиях» (пункт владельца 22.11,
+   п. 6: «не нравится формат теста в чтении на алмазе»; прежний — все цитаты стеной кнопок на одной странице): одна цитата на
+   экран, ответ — карточка автора с портретом, точки сверху — сколько верно, после ответа — автор, книга и год, и следующая
+   цитата сама. Порядок цитат — не порядок страниц (п. 8). picks — по k вопроса */
+const splitLabel = (o) => { const i = o.lastIndexOf(', '); return i > 0 ? [o.slice(0, i), o.slice(i + 2)] : [o, '']; };
 function WhoPage({ items, picks, onPick }) {
+  const reduced = useReducedMotion();
+  const first = items.findIndex((it) => picks[it.k] == null);
+  const [at, setAt] = useState(first < 0 ? items.length - 1 : first);
+  // варианты — вперемешку у каждой цитаты, один раз за заход
   const opts = useMemo(() => items.map((it) => shuffled(it.options.map((text) => ({ text })))), [items]);
+  const it = items[at];
+  const mine = picks[it.k];
+  useEffect(() => {
+    if (mine == null || at >= items.length - 1) return undefined;
+    const t = setTimeout(() => setAt(at + 1), reduced ? 500 : 1300);
+    return () => clearTimeout(t);
+  }, [mine, at, items.length, reduced]);
   return (
-    <article className="rd-sheet" data-testid="reading-who">
-      <div className="rd-who">
-        <span className="rd-seal" aria-hidden="true"><Gem size={22} /></span>
+    <article className="rd-sheet rd-who-sheet" data-testid="reading-who">
+      <div className="rd-who-head">
         <div style={{ minWidth: 0 }}>
           <div className="rd-name">Кто это сказал?</div>
-          <div className="rd-meta">Алмазный уровень · у каждой цитаты — автор и год</div>
+          <div className="rd-meta">Алмазный уровень: коснитесь автора. Алмаз — без единой ошибки.</div>
+        </div>
+        <div className="rd-who-dots" aria-label={`Цитата ${at + 1} из ${items.length}`}>
+          {items.map((x, n) => { const p = picks[x.k]; return <i key={x.k} className={p == null ? (n === at ? 'on' : '') : p === x.answer ? 'ok' : 'bad'} />; })}
         </div>
       </div>
-      {items.map((it, k) => {
-        const pick = picks[k];
-        return (
-          <div key={it.k} className="rd-who-q" data-testid="reading-who-item" data-answered={pick != null ? 'true' : undefined}>
-            <q>{it.quote}</q>
-            <div className="rd-opts" role="group" aria-label="Кто это сказал">
-              {opts[k].map((o) => {
-                const ok = o.text === it.answer;
-                const state = pick == null ? '' : ok ? 'ok' : pick === o.text ? 'bad' : '';
-                return <button key={o.text} type="button" className={`ds-opt ${state === 'ok' ? 'right' : state === 'bad' ? 'wrong' : ''}`} aria-pressed={pick === o.text} disabled={pick != null} data-testid="reading-who-opt" data-ok={ok ? '1' : undefined}
-                  onClick={() => onPick(k, o.text)}>{o.text}</button>;
-              })}
-            </div>
-          </div>
-        );
-      })}
+      <div className="rd-who-item" key={it.k} data-testid="reading-who-item" data-answered={mine != null ? 'true' : 'false'}>
+        <blockquote className="rd-who-quote">{it.quote}</blockquote>
+        <div className="rd-who-grid" role="group" aria-label="Кто это сказал">
+          {opts[at].map((o) => {
+            const [name, year] = splitLabel(o.text);
+            const ok = o.text === it.answer;
+            const st = mine == null ? '' : ok ? 'ok' : mine === o.text ? 'bad' : 'off';
+            return (
+              <button key={o.text} type="button" className={`rd-who-pick ${st}`} disabled={mine != null} data-testid="reading-who-opt" data-ok={ok ? '1' : undefined}
+                aria-label={`${name}${year ? `, ${year}` : ''}`} onClick={() => onPick(it.k, o.text)}>
+                <AuthorSeal p={{ author: name, initials: initialsOf(name) }} />
+                <span className="rd-who-name">{name}</span>
+                {year && <small>{year}</small>}
+                {st === 'ok' && <span className="rd-who-mark ok" aria-hidden="true"><Check size={15} strokeWidth={3} /></span>}
+                {st === 'bad' && <span className="rd-who-mark bad" aria-hidden="true"><X size={15} strokeWidth={3} /></span>}
+              </button>
+            );
+          })}
+        </div>
+        {mine != null && <div className={`rd-who-says ${mine === it.answer ? 'ok' : 'bad'}`} role="status" data-testid="reading-who-says">
+          {mine === it.answer ? 'Верно: ' : 'Это '}{it.author}, «{it.book}», {it.year}.</div>}
+      </div>
     </article>
   );
 }
@@ -242,7 +284,9 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   const [result, setResult] = useState(null); // итоги урока: опыт, монеты, выплаты
   const activeMs = useActiveMs(was ? was.ms || 0 : 0);
   // алмазный уровень: после страниц — «Кто это сказал?»; алмаз — без единой ошибки
-  const who = useMemo(() => (gem && r ? quizWho(r) : []), [gem, r]);
+  // порядок цитат — свой на каждый заход, при продолжении — тот же (п. 8)
+  const [whoSeed] = useState(() => (was && was.whoSeed) || 1 + Math.floor(Math.random() * 2 ** 30));
+  const who = useMemo(() => (gem && r ? quizWho(r, whoSeed) : []), [gem, r, whoSeed]);
   const [whoStage, setWhoStage] = useState(() => !!(was && was.whoStage));
   const [picks, setPicks] = useState(() => (was ? was.picks || {} : {}));
   const [won, setWon] = useState(null);
@@ -250,16 +294,17 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
   // место — после каждого ответа и перехода; дочитали — сохранённое убираем
   useEffect(() => {
     if (done) { resume.drop(); return; }
-    if (answers.length || idx > 0 || whoStage) resume.save({ pos: idx, idx, answers, whoStage, picks, run: run.current(), ms: activeMs() });
+    if (answers.length || idx > 0 || whoStage) resume.save({ pos: idx, idx, answers, whoStage, picks, whoSeed, run: run.current(), ms: activeMs() });
   }, [idx, answers, whoStage, picks, done]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!r) return null;
   const page = r.pages[idx];
   const answered = answers[idx] || null;
-  const whoDone = who.length > 0 && who.every((_, k) => picks[k] != null);
+  const whoDone = who.length > 0 && who.every((it) => picks[it.k] != null);
   const pick = (k, text) => {
     if (picks[k] != null) return;
-    Audio.play(text === who[k].answer ? 'up' : 'down');
-    run.answer(text === who[k].answer);
+    const it = who.find((x) => x.k === k);
+    Audio.play(text === it.answer ? 'up' : 'down');
+    run.answer(text === it.answer);
     setPicks((p) => ({ ...p, [k]: text }));
   };
   const toTop = () => window.requestAnimationFrame(() => { const el = document.querySelector('.rd-root'); if (el) el.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); });
@@ -269,6 +314,10 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     run.answer(!!a.ok);
     setAnswers((list) => { const next = [...list]; next[idx] = a; return next; });
   };
+  /* назад — к прошлой странице (пункт владельца 22.11, п. 7: «в особых уроках нельзя вернуться»): её ответ и разбор на месте,
+     изменить ответ нельзя; с «Кто это сказал?» — к последней странице */
+  const canBack = !done && (whoStage || idx > 0);
+  const back = () => { if (!canBack) return; Audio.play('paper'); if (whoStage) setWhoStage(false); else setIdx(idx - 1); toTop(); };
   const next = () => {
     Audio.play('paper');
     if (idx + 1 < r.pages.length) { setIdx(idx + 1); toTop(); return; }
@@ -276,10 +325,10 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
     const right = answers.filter((a) => a && a.ok).length;
     const seconds = Math.round(activeMs() / 1000);
     // ответы — в задание дня «N верных ответов», и при перечитывании (docs/mechanics.md)
-    const whoRight = who.filter((it, k) => picks[k] === it.answer).length;
+    const whoRight = who.filter((it) => picks[it.k] === it.answer).length;
     if (gem) {
       // алмаз — без единой ошибки и на страницах, и в «Кто это сказал?»; опыт и монеты — за первый взятый
-      const clean = right === r.pages.length && who.every((it, k) => picks[k] === it.answer);
+      const clean = right === r.pages.length && who.every((it) => picks[it.k] === it.answer);
       const ok = right + whoRight; const all = r.pages.length + who.length; const had = isReadGem(learn, r.id);
       const apply = (s) => { const t = countAnswers(s, ok, all); return clean && !had ? markReadGem(finishLesson(t, null, { xp: READ_GEM_XP, accuracy: 100, seconds, kind: 'read', extra: { fresh: false } }), r.id) : addStudySeconds(t, seconds); };
       const pay = payExtra(learn, update, apply, { id: r.id, diamond: true, won: clean, gem: had, accuracy: (ok / all) * 100 });
@@ -308,7 +357,8 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
       {/* шапка как у урока: «✕», полоса прогресса по страницам, молния «верно подряд» и Инфля (learn-special.jsx) */}
       <SpecialHead closeLabel="Закрыть чтение" closeTestid="reading-close" onClose={() => { Audio.play('paper'); onClose(); }} run={run}
         total={r.pages.length + (gem ? 1 : 0)}
-        answers={[...answers.filter(Boolean).map((a) => !!a.ok), ...(whoDone ? [who.every((it, k) => picks[k] === it.answer)] : [])]} >
+        answers={[...answers.filter(Boolean).map((a) => !!a.ok), ...(whoDone ? [who.every((it) => picks[it.k] === it.answer)] : [])]}
+        onBack={canBack ? back : null} >
       <SpecialLabel kind="Чтение" title={r.title} gem={gem} gemTestid="reading-gem-tag">
         {/* «Сообщить об ошибке» — подборка, страница, вопрос и ответ уходят в жалобу */}
         <ReportFlag withText text="Ошибка?" reasons={EXPLAIN_REASONS} sub="Что не так в чтении? Цитата, вопрос и устройство приложатся сами." context={() => ({
@@ -348,9 +398,14 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
         <div className="ln-inner">
           {done
             ? <Button wide icon={Check} data-testid="reading-finish" onClick={() => { Audio.play('click'); onClose(); }}>{gem ? 'Готово' : 'Дальше'}</Button>
-            : whoStage ? <Button wide icon={Check} disabled={!whoDone} data-testid="reading-next" onClick={next}>{whoDone ? 'Готово' : 'Выберите автора у каждой цитаты'}</Button>
-            : <Button wide icon={answered && idx + 1 === r.pages.length ? Check : ArrowRight} disabled={!answered} data-testid="reading-next" onClick={next}>
-              {!answered ? (page.ask.kind === 'mark' ? 'Коснитесь слов в цитате' : 'Выберите ответ') : idx + 1 < r.pages.length || gem ? 'Дальше' : 'На полку'}</Button>}
+            : whoStage ? <>
+              <Button variant="secondary" icon={ArrowLeft} data-testid="reading-back" onClick={back}>Назад</Button>
+              <Button wide icon={Check} disabled={!whoDone} data-testid="reading-next" onClick={next}>{whoDone ? 'Готово' : 'Выберите автора у каждой цитаты'}</Button>
+            </> : <>
+              <Button variant="secondary" icon={ArrowLeft} disabled={idx === 0} data-testid="reading-back" onClick={back}>Назад</Button>
+              <Button wide icon={answered && idx + 1 === r.pages.length ? Check : ArrowRight} disabled={!answered} data-testid="reading-next" onClick={next}>
+              {!answered ? (page.ask.kind === 'mark' ? 'Коснитесь слов в цитате' : 'Выберите ответ') : idx + 1 < r.pages.length || gem ? 'Дальше' : 'На полку'}</Button>
+            </>}
         </div>
       </div>
     </div>

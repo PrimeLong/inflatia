@@ -47,17 +47,30 @@ describe('особые уроки: время — активное, и при п
       expect(src, f).toContain('addStudySeconds(');
     });
   });
-  it('addStudySeconds: секунды — в минуты дня, без опыта и без счёта уроков; не больше 15 минут за раз', async () => {
+  it('addStudySeconds: секунды — в минуты дня, без опыта и без счёта уроков; не больше часа за раз', async () => {
     const { emptyLearn, addStudySeconds, goalToday, dailyOf } = await import('../../textbook/learn-state.js');
     const now = Date.UTC(2026, 10, 15, 14);
     let s = addStudySeconds(emptyLearn(), 130, now);
     expect(goalToday(s, now).done).toBe(2);
     expect(dailyOf(s, now).l).toBe(0); expect(Object.keys(s.xp)).toHaveLength(0);
     s = addStudySeconds(s, 58 * 60, now);
-    expect(goalToday(s, now).done).toBe(17); // 130 с + потолок 900 с
+    expect(goalToday(s, now).done).toBe(60); // 130 с + 58 мин
+    s = addStudySeconds(emptyLearn(), 3 * 3600, now);
+    expect(dailyOf(s, now).s).toBe(3600); // потолок — час за раз
     expect(addStudySeconds(s, 0, now)).toBe(s);
     // сразу после полуночи в сегодняшний день идёт только время после неё
     const early = Date.UTC(2026, 10, 15, 0, 1);
     expect(dailyOf(addStudySeconds(emptyLearn(), 600, early), early).s).toBe(60);
+  });
+  // пункт владельца 22.11, п. 2: «в конце урока написало 44 минуты я занимался, а в цель дня 19 засчитало»
+  it('итоги урока и цель дня считают одно и то же: 44 минуты урока — 44 минуты в цели дня', async () => {
+    const { emptyLearn, finishLesson, goalToday, creditedSeconds } = await import('../../textbook/learn-state.js');
+    const now = Date.UTC(2026, 10, 22, 15, 40);
+    const s = finishLesson(emptyLearn(), 'sc-l1', { xp: 10, accuracy: 90, now, seconds: 44 * 60 });
+    expect(creditedSeconds(44 * 60, now)).toBe(44 * 60);
+    expect(goalToday(s, now).done).toBe(44);
+    const { readFileSync } = await import('node:fs');
+    // итоги урока показывают, сколько ушло в цель дня, той же функцией
+    expect(readFileSync(new URL('../../learn-lesson.jsx', import.meta.url), 'utf8')).toContain('creditedSeconds(');
   });
 });

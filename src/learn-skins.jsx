@@ -14,7 +14,9 @@
    фон неподвижен, без отклика. Фон — слой под содержимым урока, касаний не ловит. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from './ds-art.jsx';
-import { ANSWER_EVENT } from './learn-decor.jsx';
+import { ANSWER_EVENT, tellAnswer } from './learn-decor.jsx';
+import { DsRoot, Button, IconButton } from './ds.jsx';
+import { X, Check, RotateCcw } from 'lucide-react';
 import { THEMES } from './MacroSimulator.jsx';
 
 export const SKINS = {
@@ -480,5 +482,59 @@ export function SkinPreview({ id }) {
         <span className="ds-btn">Проверить</span>
       </div>
     </div>
+  );
+}
+
+/* ПРИМЕРКА ТЕМЫ (пункт владельца 22.11, п. 11: «нужен предпросмотр для стилей в лавке»): урок во весь экран в этой теме —
+   живой фон, свои варианты и кнопки; можно ответить и увидеть отклик темы на верный и неверный ответ (монета, свеча, галочка,
+   звезда), до покупки. Ничего не покупает и не меняет — только показывает. */
+const TRY_Q = { text: 'Кофе подорожал. Что будет с объёмом спроса на кофе?', opts: [{ t: 'Вырастет', ok: false }, { t: 'Упадёт', ok: true }, { t: 'Не изменится', ok: false }],
+  why: 'Закон спроса: при прочих равных чем выше цена, тем меньше покупают.' };
+const TRY_CSS = `
+  .sk-try { position: fixed; inset: 0; z-index: 520; overflow-y: auto; background: var(--ds-paper); }
+  .sk-try-head { position: relative; z-index: 2; max-width: 592px; margin: 0 auto; padding: calc(10px + env(safe-area-inset-top)) 14px 6px; display: flex; align-items: center; gap: 10px; }
+  .sk-try-head > span { flex: 1; min-width: 0; font: 800 11.5px/1.3 var(--ds-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ds-ink2); }
+  .sk-try-body { position: relative; z-index: 2; max-width: 592px; margin: 0 auto; padding: 14px 14px 32px; display: grid; gap: 10px; }
+  .sk-try-body h2 { margin: 6px 0 8px; font: 700 23px/1.3 var(--ds-serif, 'PT Serif', Georgia, serif); }
+  .sk-try-fb { margin-top: 4px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--ds-rule2); background: var(--sk-surface, var(--ds-card)); font: 400 15px/1.45 var(--ds-sans); }
+  .sk-try-fb b { display: block; margin-bottom: 2px; } .sk-try-fb.ok b { color: var(--ds-ok); } .sk-try-fb.bad b { color: var(--ds-bad); }
+  .sk-try-note { font: 400 13.5px/1.4 var(--ds-sans); color: var(--ds-ink2); text-align: center; margin-top: 4px; }
+`;
+export function SkinTryOn({ id, note = '', onClose }) {
+  const s = SKINS[id];
+  const [pick, setPick] = useState(null);
+  useEffect(() => {
+    const esc = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', esc);
+    // примерка — слой поверх лавки: страница под ней не прокручивается
+    const els = [document.documentElement, document.body]; const was = els.map((el) => el.style.overflow);
+    els.forEach((el) => { el.style.overflow = 'hidden'; });
+    return () => { window.removeEventListener('keydown', esc); els.forEach((el, k) => { el.style.overflow = was[k]; }); };
+  }, [onClose]);
+  if (!s) return null;
+  const choose = (i) => { if (pick != null) return; setPick(i); tellAnswer(TRY_Q.opts[i].ok); };
+  const ok = pick != null && TRY_Q.opts[pick].ok;
+  return (
+    <DsRoot theme={skinTheme(s)} className="sk-try sk-on" data-skin={s.key} style={skinVars(s)} role="dialog" aria-modal="true" aria-label={`Примерка: тема «${s.title}»`} data-testid="skin-tryon">
+      <style>{SKIN_CSS + TRY_CSS}</style>
+      <LessonSkin id={s.id} />
+      <div className="sk-try-head">
+        <span>Примерка · тема «{s.title}»</span>
+        <IconButton label="Закрыть примерку" icon={X} data-testid="skin-tryon-close" onClick={onClose} />
+      </div>
+      <div className="sk-try-body">
+        <span className="ln-kind">Выбор ответа</span>
+        <h2>{TRY_Q.text}</h2>
+        {TRY_Q.opts.map((o, i) => (
+          <button key={o.t} type="button" className={`ds-opt ${pick === i ? (o.ok ? 'right' : 'wrong') : pick != null && o.ok ? 'right' : ''}`} aria-pressed={pick === i} disabled={pick != null}
+            data-testid="skin-tryon-opt" data-ok={o.ok ? 'true' : undefined} onClick={() => choose(i)}>{o.t}</button>
+        ))}
+        {pick != null && <div className={`sk-try-fb ${ok ? 'ok' : 'bad'}`} role="status" data-testid="skin-tryon-fb"><b>{ok ? 'Верно!' : 'Не совсем.'}</b>{TRY_Q.why}</div>}
+        {pick == null
+          ? <Button wide disabled icon={Check}>Выберите ответ</Button>
+          : <Button wide variant="secondary" icon={RotateCcw} data-testid="skin-tryon-again" onClick={() => setPick(null)}>Ответить ещё раз</Button>}
+        <div className="sk-try-note">{note || 'Так будет выглядеть каждый урок с этой темой.'} Примерка ничего не покупает.</div>
+      </div>
+    </DsRoot>
   );
 }

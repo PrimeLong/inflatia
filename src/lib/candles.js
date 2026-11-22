@@ -51,14 +51,18 @@ export function noteExtreme(seen, q, key, v) {
 // экстремумы одного ключа по кварталам — в виде, который ждёт quarterCandles
 export const seenFor = (seen, key) => Object.fromEntries(Object.entries(seen || {}).filter(([, v]) => v && v[key]).map(([q, v]) => [q, v[key]]));
 
-// шкала цен по свечам и дополнительным уровням (средняя цена входа) с полями pad
-export function priceRange(candles, extra = [], pad = 0.08) {
+/* шкала цен по свечам и дополнительным уровням (средняя цена входа) с полями pad. minRel — наименьший размах шкалы в долях
+   цены: живые котировки внутри квартала колеблются на сотые доли процента, и без нижней границы шкала растягивала их
+   на весь график — свечи становились огромными «плитками» (пункт владельца 22.11, п. 12) */
+export function priceRange(candles, extra = [], pad = 0.08, minRel = 0) {
   const vals = [];
   (candles || []).forEach((k) => { vals.push(k.h, k.l); });
   extra.filter(Number.isFinite).forEach((v) => vals.push(v));
   if (!vals.length) return { min: 0, max: 1 };
   let min = Math.min(...vals); let max = Math.max(...vals);
   if (max - min < Math.abs(max) * 1e-4 || max === min) { const d = Math.abs(max) * 0.002 || 1; min -= d; max += d; }
+  const want = Math.abs((max + min) / 2) * minRel;
+  if (max - min < want) { const mid = (max + min) / 2; min = mid - want / 2; max = mid + want / 2; }
   const p = (max - min) * pad;
   return { min: min - p, max: max + p };
 }

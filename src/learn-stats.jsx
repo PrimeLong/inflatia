@@ -41,7 +41,7 @@ export const STATS_CSS = `
   .st-meter-fill { animation: st-fill .9s cubic-bezier(.3,.8,.4,1) both; transform-origin: 0 50%; }
   @keyframes st-fill { from { transform: scaleX(0) } to { transform: scaleX(1) } }
   .st-tile { transition: transform .15s ease; }
-  .st-tile:hover { transform: translateY(-2px); }
+  .st-tile:hover { box-shadow: 0 6px 16px -10px var(--ds-shade); }
   @media (prefers-reduced-motion: reduce) { .st-col i, .st-meter-fill { animation: none; } .st-tile { transition: none; } }
   .st-col.met i { background: var(--st-tone, var(--u, #4D7C0F)); }
   .st-col.none i { height: 3px !important; background: var(--ds-rule2, var(--c-border, #ccc)); border-radius: 2px; }

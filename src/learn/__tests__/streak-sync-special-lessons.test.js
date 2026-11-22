@@ -60,14 +60,14 @@ describe('«Чтение» на алмаз', async () => {
     READINGS.forEach((r) => {
       const q = quizWho(r);
       expect(q).toHaveLength(r.pages.length);
-      q.forEach((it, k) => {
+      q.forEach((it) => {
         expect(it.options, r.id).toContain(it.answer);
         expect(new Set(it.options).size, r.id).toBe(it.options.length);
         expect(it.options.length, r.id).toBeGreaterThanOrEqual(2);
         const own = new Set(r.pages.map((p) => p.author));
         expect(it.options.filter((o) => ![...own].some((a) => o.startsWith(`${a},`))), r.id).toHaveLength(1);
         expect(it.quote.replace(/…$/, '').split(/\s+/).length, r.id).toBeLessThanOrEqual(12);
-        expect(r.pages[k].quote.startsWith(it.quote.replace(/…$/, '')), r.id).toBe(true);
+        expect(r.pages[it.k].quote.startsWith(it.quote.replace(/…$/, '')), r.id).toBe(true);
         expect(it.quote, r.id).not.toMatch(/[,;:]…$/);
       });
     });
@@ -146,9 +146,26 @@ describe('алмаз — у всех особых уроков (08.11, вече�
       // люди урока в вариантах — не в том порядке, в каком их показывали (жалоба 19.11: «буквально по порядку люди идут»)
       const names = g.people.map((p) => p.name);
       q.forEach((it) => { const at = names.map((n) => it.options.indexOf(n)); expect(at.every((x, i) => i === 0 || x > at[i - 1]), `${g.id}: ${it.options.join(', ')}`).toBe(false); });
-      // одинаково при каждом заходе — урок можно продолжить
+      // с тем же числом захода — тот же порядок: урок можно продолжить
       expect(quizIdea(g)).toEqual(q);
     });
+  });
+  // пункт владельца 22.11, п. 8: «в тесте люди идут по порядку, тебе нужно просто запомнить, кто за кем идёт»
+  it('алмазные тесты «Чья это идея?» и «Кто это сказал?»: ни один вопрос не на своём месте из урока; порядок — свой у каждого захода', async () => {
+    const { READINGS, quizWho } = await import('../reading.js');
+    const orders = new Set();
+    for (let seed = 1; seed <= 40; seed += 1) {
+      PEOPLE.forEach((g) => {
+        const q = quizIdea(g, seed);
+        expect(q.map((it) => it.k).sort()).toEqual(g.people.map((_, i) => i));
+        q.forEach((it, pos) => expect(it.k, `${g.id} #${seed}`).not.toBe(pos));
+        if (g === PEOPLE[0]) orders.add(q.map((it) => it.k).join());
+      });
+      READINGS.forEach((r) => quizWho(r, seed).forEach((it, pos) => expect(it.k, `${r.id} #${seed}`).not.toBe(pos)));
+    }
+    // у трёх человек ровно два порядка без совпадений — встречаются оба
+    expect(orders.size).toBe(2);
+    expect(quizIdea(PEOPLE[0], 7)).toEqual(quizIdea(PEOPLE[0], 7));
   });
   it('«Разбор графика» на алмаз: в каждом графике не меньше пяти пропусков; пропуск — выделенное в тексте шага; варианты разные', () => {
     GRAPHS.forEach((g) => {

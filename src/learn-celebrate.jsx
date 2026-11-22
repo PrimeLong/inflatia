@@ -146,7 +146,7 @@ const CSS = `
   .cb-btns { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; animation: cb-rise .5s ease-out var(--at) backwards; }
   .cb-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 26px; border: none; border-radius: 999px; cursor: pointer;
     font: 700 16px var(--ds-head); letter-spacing: .03em; color: #1B1612; background: #fff; box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); transition: transform .15s, box-shadow .2s; }
-  .cb-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -12px rgba(0,0,0,.7); }
+  .cb-btn:hover { box-shadow: 0 16px 34px -12px rgba(0,0,0,.7); }
   .cb-btn:active { transform: scale(.96); }
   .cb-btn.ghost { color: #fff; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
   .cb-btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--cb) 40%, #fff); outline-offset: 3px; }

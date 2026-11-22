@@ -112,7 +112,8 @@ export const NOTIFY_CSS = `
   .nw-ava-issue { color: #fff; background: color-mix(in srgb, var(--t) 88%, #000); }
   .nw-ava-friend { top: 2px; background: var(--ds-card); box-shadow: 0 0 0 4px var(--ds-paper), inset 0 0 0 2px var(--ds-rule); overflow: hidden; }
   .ds-card.nw-issue { position: relative; overflow: hidden; padding: 0; margin: 0; border-top: 5px solid var(--t); transition: transform .25s cubic-bezier(.2, .9, .3, 1), box-shadow .25s; }
-  @media (hover: hover) { .nw-issue:hover { transform: translateY(-3px); box-shadow: 0 6px 0 var(--ds-rule), 0 18px 32px -18px var(--ds-shade); } }
+  /* без подъёма при наведении: выпуск уходил из-под курсора у нижнего края и дрожал (жалоба 22.11: «то же самое у новостей») */
+  @media (hover: hover) { .nw-issue:hover { box-shadow: 0 6px 0 var(--ds-rule), 0 18px 32px -18px var(--ds-shade); } }
   /* подписи цветом выпуска — притемнённым: на карточке читаются с контрастом не ниже 4,5:1 */
   .nw-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px 0; font: 700 12px/1.2 var(--ds-sans); letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--t) 72%, #000); }
   .ds-dark .nw-meta { color: color-mix(in srgb, var(--t) 40%, #fff); }

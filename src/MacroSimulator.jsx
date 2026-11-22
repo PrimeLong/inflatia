@@ -264,7 +264,7 @@ export const GlobalStyle = () => (
       box-shadow: 0 1px 2px rgba(0,0,0,0.14), 0 12px 28px -16px rgba(0,0,0,0.55);
       transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
       user-select: none; -webkit-user-select: none; }
-    .ems-card-btn:hover, .ems-card-btn:focus-visible { transform: translateY(-2px); border-color: ${COLOR.gold};
+    .ems-card-btn:hover, .ems-card-btn:focus-visible { border-color: ${COLOR.gold};
       background: ${COLOR.panelRaised}; box-shadow: 0 1px 2px rgba(0,0,0,0.18), 0 18px 36px -16px rgba(0,0,0,0.65); }
     .ems-card-btn:active { transform: translateY(0); }
     .ems-card-icon { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
@@ -283,7 +283,7 @@ export const GlobalStyle = () => (
     @media (hover: none) { .ems-booklink-x { opacity: .75; } }
     .ems-theme-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px 6px 9px; border-radius: 999px; font-size: 12px;
       cursor: pointer; transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
-    .ems-theme-chip:hover { transform: translateY(-1px); }
+    .ems-theme-chip:hover { filter: brightness(1.05); }
     .ems-theme-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2); }
     @media (prefers-reduced-motion: reduce) {
       .ems-card-btn, .ems-card-icon, .ems-card-chevron, .ems-theme-chip { transition: none !important; }
@@ -582,7 +582,7 @@ export const playerCss = () => `
     color: #fff; font: 700 10.5px/1.15 var(--ds-sans, sans-serif); letter-spacing: -.01em; overflow-wrap: anywhere; text-shadow: 0 1px 2px rgba(0,0,0,.35);
     background: linear-gradient(150deg, color-mix(in srgb, var(--m) 70%, #fff) -20%, var(--m) 55%, color-mix(in srgb, var(--m) 60%, #000) 130%); transition: transform .14s, box-shadow .2s, filter .2s; }
   .mp-mood i { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,.22); display: grid; place-items: center; }
-  .mp-mood:hover { transform: translateY(-2px); filter: saturate(1.15); } .mp-mood:active { transform: scale(.95); }
+  .mp-mood:hover { filter: saturate(1.15); } .mp-mood:active { transform: scale(.95); }
   .mp-mood[aria-checked="true"] { box-shadow: 0 0 0 2px ${COLOR.panelRaised}, 0 0 0 4px var(--m), 0 10px 20px -10px var(--m); }
   .mp-mood[aria-checked="true"] i { background: #fff; } .mp-mood[aria-checked="true"] i::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--m); }
   .mp-hint { font-size: 12px; color: color-mix(in srgb, currentColor 62%, transparent); margin: 0 0 10px; line-height: 1.4; }

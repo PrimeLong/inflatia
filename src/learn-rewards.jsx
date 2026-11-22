@@ -68,7 +68,7 @@ export const REWARD_CSS = `
     box-shadow: inset 0 0 0 3px var(--ds-card), inset 0 0 0 4px var(--ds-rule); }
   .rw-item[data-on="true"] { box-shadow: inset 0 0 0 3px var(--ds-card), inset 0 0 0 4px var(--u); }
   .rw-item { transition: transform .15s ease; }
-  .rw-item:hover { transform: translateY(-2px); }
+  .rw-item:hover { box-shadow: 0 6px 16px -10px var(--ds-shade); }
   /* гардероб — примерочная: Инфля в зеркале, вкладки по местам, плитки купленных вещей */
   .rw-ward { display: grid; grid-template-columns: 1fr; gap: 12px; }
   @media (min-width: 520px) { .rw-ward { grid-template-columns: 170px minmax(0, 1fr); align-items: start; } }

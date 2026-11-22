@@ -5,7 +5,7 @@
    Пока открыт урок — плашка скрыта (в шапке урока своя кнопка музыки). Звучит и книга — плашка музыки встаёт над плашкой
    книги. В обучении играет «Волна» (src/audio/tracks.js, waveNext). */
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Play, Pause, SkipForward, SkipBack, Heart, ThumbsDown, ChevronUp } from 'lucide-react';
+import { X, Play, Pause, SkipForward, SkipBack, Heart, ThumbsDown, ChevronUp, GripVertical } from 'lucide-react';
 import { Audio, AudioControls } from './MacroSimulator.jsx';
 import { learnMusic, setLearnMusic, toggleMusicLike, toggleMusicDislike, musicLikes, musicDislikes, MOOD_TINT, musicPaused, setMusicPaused } from './ds-tokens.js';
 import { MINI_CSS, Bars } from './learn-bookdock.jsx';
@@ -28,6 +28,14 @@ const DOCK_CSS = `
   .lm-dock .lm-dislike.on { color: #5B6B8A; }
   .lm-dock .lb-mini-t { margin: 0 4px; }
   .lm-dock .lb-mini-t b { display: block; }
+  /* плашку можно сдвинуть (жалоба 21.11: «полоску с музыкой нужно двигать, а то она закрывает тексты»): за ручку слева или
+     за пустое место; сдвиг — поверх обычного места (translate), запоминается на устройстве; двойной щелчок по ручке — на место */
+  .lm-dock.moved { transform: translate(calc(-50% + var(--mx, 0px)), var(--my, 0px)); animation: none; }
+  .lm-dock.dragging { transition: none; cursor: grabbing; user-select: none; }
+  .lm-dock .lm-grip { flex: none; width: 22px; height: 36px; margin-right: -2px; display: grid; place-items: center; border: 0; background: none; color: var(--ds-ink3);
+    cursor: grab; touch-action: none; border-radius: 8px; padding: 0; }
+  .lm-dock .lm-grip:hover { color: var(--ds-ink); background: color-mix(in srgb, var(--b) 10%, transparent); }
+  .lm-dock.dragging .lm-grip { cursor: grabbing; }
   .lm-dock .lb-mini-t b.in-next { animation: lm-in-r .35s ease-out; } .lm-dock .lb-mini-t b.in-prev { animation: lm-in-l .35s ease-out; }
   @keyframes lm-in-r { from { opacity: 0; transform: translateX(14px); } } @keyframes lm-in-l { from { opacity: 0; transform: translateX(-14px); } }
   .lm-dock .lm-skip { position: relative; }
@@ -48,8 +56,19 @@ const DOCK_CSS = `
   @media (prefers-reduced-motion: reduce) { .lm-dock .lb-mini-t b, .lm-dock .lm-skip, .lm-dock .lm-skip svg { animation: none !important; } }
 `;
 
+const POS_KEY = 'ems-music-dock-pos';
+const readPos = () => { try { const v = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); return v && Number.isFinite(v.x) && Number.isFinite(v.y) ? v : null; } catch { return null; } };
+// сдвиг не уводит плашку за край окна: rect — где плашка стоит без сдвига
+export const clampDock = (p, rect, vw, vh) => ({
+  x: Math.round(Math.max(4 - rect.left, Math.min(vw - 4 - rect.right, p.x))),
+  y: Math.round(Math.max(4 - rect.top, Math.min(vh - 4 - rect.bottom, p.y))),
+});
+
 export function MusicDock() {
   const [, tick] = useState(0);
+  const [pos, setPos] = useState(readPos);
+  const [dragging, setDragging] = useState(false);
+  const lastGrip = useRef(0);
   // пауза на плашке — плашка остаётся до «×» или ухода из обучения; пауза сохраняется и после ухода с сайта (ems-music-paused)
   const [paused, setPaused] = useState(() => !!musicPaused() && !learnMusic());
   const [kick, setKick] = useState(null);
@@ -99,11 +118,39 @@ export function MusicDock() {
   // развернуть: тот же проигрыватель, что в учебнике, — открывается над плашкой
   const expand = () => { const b = wrap.current && wrap.current.querySelector('[data-testid="music-dock-open"]'); if (b) b.click(); };
   const label = np.locked === 'wave' || !np.locked ? '«Волна»' : np.moodLabel;
+  // перетаскивание: за ручку или за пустое место плашки (не за кнопки)
+  const startDrag = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    const grip = !!(e.target.closest && e.target.closest('.lm-grip'));
+    if (!grip && e.target.closest && e.target.closest('button')) return;
+    if (grip) { const t = Date.now(); if (t - lastGrip.current < 350) { lastGrip.current = 0; setPos(null); try { localStorage.removeItem(POS_KEY); } catch { /* нет хранилища */ } return; } lastGrip.current = t; }
+    const el = wrap.current; if (!el) return;
+    e.preventDefault();
+    const start = pos || { x: 0, y: 0 };
+    const r = el.getBoundingClientRect();
+    const base = { left: r.left - start.x, right: r.right - start.x, top: r.top - start.y, bottom: r.bottom - start.y };
+    const x0 = e.clientX; const y0 = e.clientY; let last = start;
+    setDragging(true);
+    const move = (ev) => { last = clampDock({ x: start.x + ev.clientX - x0, y: start.y + ev.clientY - y0 }, base, window.innerWidth, window.innerHeight); setPos(last); };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      setDragging(false);
+      try { localStorage.setItem(POS_KEY, JSON.stringify(last)); } catch { /* нет хранилища */ }
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  };
   return (
     <>
       <style>{MINI_CSS}{DOCK_CSS}</style>
-      <div ref={wrap} className="lb-mini lm-dock" role="region" aria-label="Музыка" data-dd-anchor="" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
-        style={{ '--b': MOOD_TINT[np.mood] || MOOD_TINT.wave, '--dock-b': `${navH}px` }}>
+      <div ref={wrap} className={`lb-mini lm-dock${pos ? ' moved' : ''}${dragging ? ' dragging' : ''}`} role="region" aria-label="Музыка" data-dd-anchor="" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
+        data-moved={pos ? 'true' : undefined} onPointerDown={startDrag}
+        style={{ '--b': MOOD_TINT[np.mood] || MOOD_TINT.wave, '--dock-b': `${navH}px`, ...(pos ? { '--mx': `${pos.x}px`, '--my': `${pos.y}px` } : null) }}>
+        <button type="button" className="lm-grip" aria-label="Передвинуть плашку музыки (двойной щелчок — на место)" title="Потяните, чтобы передвинуть; двойной щелчок — на место" data-testid="music-dock-grip"
+          onKeyDown={(e) => { const d = { ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] }[e.key]; if (!d || !wrap.current) return; e.preventDefault();
+            const cur = pos || { x: 0, y: 0 }; const r = wrap.current.getBoundingClientRect(); const base = { left: r.left - cur.x, right: r.right - cur.x, top: r.top - cur.y, bottom: r.bottom - cur.y };
+            const next = clampDock({ x: cur.x + d[0], y: cur.y + d[1] }, base, window.innerWidth, window.innerHeight); setPos(next); try { localStorage.setItem(POS_KEY, JSON.stringify(next)); } catch { /* нет хранилища */ } }}>
+          <GripVertical size={16} aria-hidden="true" />
+        </button>
         <button type="button" className={`lb-mini-skip lm-skip${kick === 'prev' ? ' kick prev' : ''}`} onClick={() => skip(false)} aria-label="Предыдущая пьеса" data-testid="music-dock-prev" data-kick={kick === 'prev' ? 'true' : undefined}>
           <SkipBack size={17} aria-hidden="true" />
         </button>

@@ -31,7 +31,8 @@ const CSS = `
   /* шапка — одна, без своей подложки-плашки и черты: поверх содержимого — мягкое затухание цвета фона урока */
   /* шапка — на фоне страницы, без полупрозрачной «вуали»-градиента (жалоба 21.11, draw-budget: «сверху отвратительная вуаль
      не по стилю»): содержимое под ней уходит за тонкую линию, как в уроке */
-  .sp-top { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; background: var(--ds-paper); box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-rule) 70%, transparent); }
+  /* без черты снизу: у обычного урока её нет (пункт владельца 22.11, п. 5: «что за странная линия сверху у особых уроков») */
+  .sp-top { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; background: var(--ds-paper); }
   .sk-on .sp-top { background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 78%, transparent) 60%, transparent); }
   .sp-top .ln-head { padding-bottom: 6px; }
   /* Инфля серии — прямо в шапке, как в уроке (обёртка с высотой 40 px поджимала её к верхнему краю — пункт владельца 21.11, п. 2) */
@@ -102,7 +103,9 @@ export function useAnswerRun(start = 0, startLog = [], onAnswer = null) {
 
 /* шапка особого урока — та же, что у урока: «✕», полоса прогресса (answers — верно/неверно по пройденным шагам, total — всего
    шагов), молния «верно подряд» и Инфля. Без серии (подсказка из урока — peek) — только «✕» и полоса */
-export function SpecialHead({ closeLabel = 'Выйти из урока', closeTestid, onClose, answers = [], total, run = null, children = null }) {
+/* onBack / onForward — на шаг назад и обратно касанием полосы прогресса, как в уроке (пункт владельца 22.11, п. 7: «в особых
+   уроках нельзя вернуться»); прошлый шаг открывается для просмотра, ответ на нём уже не меняется */
+export function SpecialHead({ closeLabel = 'Выйти из урока', closeTestid, onClose, answers = [], total, run = null, children = null, onBack = null, onForward = null }) {
   /* особый урок — слой поверх страницы, как урок: страница под ним не прокручивается и не показывает свой ползунок —
      на ПК их было два рядом (жалоба 21.11, draw-budget: «почему тут два скролл-ползунка») */
   useEffect(() => {
@@ -116,7 +119,7 @@ export function SpecialHead({ closeLabel = 'Выйти из урока', closeTe
       <style>{CSS}</style>
       <div className="ln-head">
         <IconButton label={closeLabel} icon={X} data-testid={closeTestid} data-nav="back" onClick={onClose} />
-        <ProgressChart answers={answers} total={total} testid="special-progress" />
+        <ProgressChart answers={answers} total={total} testid="special-progress" onBack={onBack} onForward={onForward} />
         {run && <StreakFlame n={run.n} plus={false} />}
         {run && <span className="sp-run" data-testid="special-run" data-n={run.n} aria-label={`Верных ответов подряд: ${run.n}`}><InflaMeter streak={run.n} mood={run.mood} size={34} /></span>}
         {run && <AudioControls wave learn icon={Music} label="Музыка" testid="lesson-music" className="ln-music" />}

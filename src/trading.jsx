@@ -94,6 +94,10 @@ const TT_CSS = `
   .tt-tick b { font-weight: 700; color: var(--tt-ink2); } .tt-tick:hover b { color: var(--tt-ink); }
   /* карточки счёта */
   .tt-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 12px; border-bottom: 1px solid var(--tt-line); }
+  /* как идёт время в терминале (пункт владельца 22.11, п. 12: «не понятно, что нужно квартал заканчивать») */
+  .tt-howto { display: flex; align-items: flex-start; gap: 10px; margin: 12px 12px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--tt-up) 40%, var(--tt-line));
+    background: color-mix(in srgb, var(--tt-up) 8%, var(--tt-card)); font-size: 13.5px; line-height: 1.45; color: var(--tt-ink); }
+  .tt-howto b { color: var(--tt-up); } .tt-howto .n { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--tt-up); color: #062016; font-weight: 800; font-size: 13px; }
   .tt-stat { background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
   .tt-stat > span { display: block; font-size: 11.5px; color: var(--tt-ink3); text-transform: uppercase; letter-spacing: .06em; }
   .tt-stat > b { display: block; font-size: 18px; font-weight: 700; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -254,7 +258,7 @@ function FlashPrice({ value, dec = 2, className = '', testid }) {
 
 /* свечной график: ось цен справа, сетка, последняя цена — линия с ярлыком, средняя цена входа — пунктир,
    сделки — треугольники B/S, перекрестие с ценами открытия, максимума, минимума и закрытия */
-function CandleChart({ candles, mode, avg, marks, bench, height = 300, unitLabel }) {
+function CandleChart({ candles, mode, avg, marks, bench, height = 300, unitLabel, live = false }) {
   const box = React.useRef(null);
   const [w, setW] = useState(640);
   const [hover, setHover] = useState(null);
@@ -267,7 +271,8 @@ function CandleChart({ candles, mode, avg, marks, bench, height = 300, unitLabel
   }, []);
   const AX = 64; const T = 30; const B = 24; const H = height;
   const plotW = w - AX - 8; const plotH = H - T - B;
-  const r = priceRange(candles, [avg, ...(bench || [])]);
+  // «Сейчас» — колебания внутри квартала: шкала не уже 1,5% цены, чтобы свеча в сотую долю процента не заняла весь график
+  const r = priceRange(candles, [avg, ...(bench || [])], 0.08, live ? 0.015 : 0.004);
   const y = (v) => T + (1 - (v - r.min) / (r.max - r.min)) * plotH;
   const n = Math.max(candles.length, 12);
   const step = plotW / n;
@@ -280,7 +285,9 @@ function CandleChart({ candles, mode, avg, marks, bench, height = 300, unitLabel
   const lastDir = last ? Math.sign(last.c - last.o) : 0;
   const lineD = candles.map((k, i) => `${i ? 'L' : 'M'}${c1(x(i))} ${c1(y(k.c))}`).join(' ');
   const benchD = bench ? bench.map((v, i) => (Number.isFinite(v) ? `${i && Number.isFinite(bench[i - 1]) ? 'L' : 'M'}${c1(x(i))} ${c1(y(v))}` : '')).join(' ') : '';
-  const labEvery = Math.max(1, Math.ceil(candles.length / Math.max(2, Math.floor(plotW / 70))));
+  // подписи кварталов не налезают друг на друга: шаг — по самой длинной подписи («I кв. 2032 (старт)»)
+  const labW = Math.max(70, ...candles.map((k) => (k.label && !k.open ? k.label.length * 6.4 + 14 : 0)));
+  const labEvery = Math.max(1, Math.ceil(candles.length / Math.max(2, Math.floor(plotW / labW))));
   const pick = (e) => {
     const rect = box.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
@@ -400,11 +407,17 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
   const [query, setQuery] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
   const [sortBy, setSortBy] = useState('group');
-  const [tf, setTf] = useState('live');
+  // со второго квартала — сразу квартальные свечи: в них видно, как двигаются цены; «Сейчас» — колебания внутри квартала
+  const [tf, setTfState] = useState(() => ((history || []).length >= 2 ? '2y' : 'live'));
+  const tfTouched = React.useRef(false);
+  const setTf = (v) => { tfTouched.current = true; setTfState(v); };
+  // прошло два квартала, а период ещё не выбирали — переключаемся на квартальные свечи
+  const histLen = (history || []).length;
+  React.useEffect(() => { if (!tfTouched.current && histLen >= 2) setTfState((v) => (v === 'live' ? '2y' : v)); }, [histLen]);
   const [chartMode, setChartMode] = useState('candle');
   const [showBench, setShowBench] = useState(false);
   // живые котировки, которые терминал видел: лента на каждый ключ цены и экстремумы идущего квартала (src/lib/candles.js)
-  const tape = React.useRef({}); const seen = React.useRef({});
+  const tape = React.useRef({}); const seen = React.useRef({}); const tapeQ = React.useRef(null);
   const parts = bookParts(book, economy, live);
   const equity = book.cash + parts.spot + parts.futPnl + parts.optVal;
   const lvl = parts.gross > 0.01 ? equity / parts.gross : 9;
@@ -437,6 +450,8 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
   const maxAmount = side === 'buy' ? maxBuy : maxSell;
   const amt = clamp(amount, 0, maxAmount);
   const chg = prev && prev[instr.key] ? (economy[instr.key] / prev[instr.key] - 1) * 100 : 0;
+  // первый квартал: прошлого нет — вместо «▲ 0,0%» прочерк (пункт владельца 22.11, п. 12: «странно, что всё по нулям»)
+  const hasPrev = (key) => !!(prev && Number.isFinite(prev[key]) && prev[key]);
   // одна таблица «как на бирже»: цена, изменение, позиция и результат по каждой
   // строке считаются в одном месте — и для сортировки, и для отрисовки
   const rows = useMemo(() => INSTRUMENTS.map((i) => {
@@ -484,9 +499,14 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
   const lastQRow = (history || [])[(history || []).length - 1];
   const curQ = (lastQRow && Number.isFinite(lastQRow.q) ? lastQRow.q : -1) + 1;
   React.useEffect(() => {
+    // «Сейчас» — только котировки идущего квартала: скачок цены между кварталами в живых свечах выглядел сплошной плиткой
+    if (tapeQ.current !== curQ) { tape.current = {}; tapeQ.current = curQ; }
     const done = new Set();
     INSTRUMENTS.forEach((i) => {
       if (done.has(i.key)) return; done.add(i.key);
+      // первый кадр нового квартала: живая котировка ещё старая — её в свечи «Сейчас» не пишем (иначе — свеча-плитка во весь скачок)
+      const target = economy[i.key]; const lv = live[i.key];
+      if (Number.isFinite(target) && Number.isFinite(lv) && target !== 0 && Math.abs(lv / target - 1) > 0.02) return;
       const p = priceOf(i, economy, live);
       pushTick(tape.current, i.key, p, 360); noteExtreme(seen.current, curQ, i.key, p);
     });
@@ -540,7 +560,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
           <div key={copy} className="tt-tape-in" aria-hidden={copy ? 'true' : undefined}>
             {rows.filter((r) => r.i.kind !== 'opt').map((r) => (
               <button key={r.i.id} type="button" className="tt-tick num" tabIndex={copy ? -1 : 0} onClick={() => pick(r.i.id)} title={r.i.name}>
-                <b>{r.i.ticker}</b><span>{ruNum(r.pr, 2)}</span><span className={tone(Math.sign(r.chgQ))}>{arrow(Math.sign(r.chgQ))} {ruNum(Math.abs(r.chgQ), 1)}%</span>
+                <b>{r.i.ticker}</b><span>{ruNum(r.pr, 2)}</span>{hasPrev(r.i.key) ? <span className={tone(Math.sign(r.chgQ))}>{arrow(Math.sign(r.chgQ))} {ruNum(Math.abs(r.chgQ), 1)}%</span> : <span className="tt-flat">—</span>}
               </button>
             ))}
           </div>
@@ -549,16 +569,24 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
 
       <div className="tt-stats">
         <div className="tt-stat" data-testid="tt-stat" data-kind="equity"><span>Капитал</span><b className="num">{fmtMln(equity)}</b>
-          <small className={`num ${tone(eqChg.dir)}`}>{arrow(eqChg.dir)} {fmtSigned1(eqChg.pct)}% с начала</small></div>
+          {(history || []).length || (book.trades || []).length ? <small className={`num ${tone(eqChg.dir)}`}>{arrow(eqChg.dir)} {fmtSigned1(eqChg.pct)}% с начала</small> : <small className="tt-flat">стартовый капитал</small>}</div>
         <div className="tt-stat" data-testid="tt-stat" data-kind="cash"><span>Свободно</span><b className={`num ${book.cash < 0 ? 'tt-down' : ''}`}>{fmtMln(book.cash)}</b>
           <small className="tt-flat">{book.cash < 0 ? 'в долг у брокера' : 'можно вложить'}</small></div>
-        <div className="tt-stat" data-testid="tt-stat" data-kind="gross"><span>В позициях</span><b className="num">{fmtMln(parts.gross)}</b>
-          <small className="tt-flat">{openCount} {plural(openCount, 'позиция', 'позиции', 'позиций')}</small></div>
-        <div className="tt-stat" data-testid="tt-stat" data-kind="realized"><span>Зафиксировано</span><b className={`num ${tone(Math.sign(book.realized))}`}>{fmtMlnSigned(book.realized)}</b>
-          <small className="tt-flat">по закрытым сделкам</small></div>
+        <div className="tt-stat" data-testid="tt-stat" data-kind="gross"><span>В позициях</span><b className="num">{openCount ? fmtMln(parts.gross) : '—'}</b>
+          <small className="tt-flat">{openCount ? `${openCount} ${plural(openCount, 'позиция', 'позиции', 'позиций')}` : 'пока ничего: заявка — справа'}</small></div>
+        <div className="tt-stat" data-testid="tt-stat" data-kind="realized"><span>Зафиксировано</span><b className={`num ${tone(Math.sign(book.realized))}`}>{(book.trades || []).length ? fmtMlnSigned(book.realized) : '—'}</b>
+          <small className="tt-flat">{(book.trades || []).length ? 'по закрытым сделкам' : 'сделок пока не было'}</small></div>
         <div className="tt-stat" data-testid="tt-stat" data-kind="margin"><span>Обеспечение</span>
           <b className="num" style={{ color: parts.gross > 0.01 ? lvlTone : undefined }} data-testid="tt-margin-level">{parts.gross <= 0.01 ? 'без позиций' : lvl > 1.2 ? 'с запасом' : `${Math.round(lvl * 100)}%`}</b>
           <div className="tt-meter" aria-hidden="true"><i style={{ width: `${clamp(lvl / 1.2 * 100, 0, 100)}%`, background: lvlTone }} /></div></div>
+      </div>
+      {/* как идёт время: цены главным образом двигаются, когда завершаете квартал (пункт владельца 22.11, п. 12) — в первых
+         двух кварталах подробно, потом одной строкой */}
+      <div className="tt-howto" role="note" data-testid="tt-howto">
+        <span className="n" aria-hidden="true">!</span>
+        {(history || []).length < 2
+          ? <span><b>Как идёт время.</b> Внутри квартала котировки только слегка колеблются. Главное движение цен — когда вы нажимаете <b>«Завершить квартал»</b> внизу: экономика делает ход — ставка, инфляция, прибыли компаний, — и цены сдвигаются. Купите или продайте бумаги, затем завершите квартал и посмотрите на результат.</span>
+          : <span>Сделки — здесь, цены двигает <b>«Завершить квартал»</b> внизу экрана.</span>}
       </div>
       {parts.gross > 0.01 && lvl < 0.45 && (
         <div className={`tt-alert ${lvl < MAINTENANCE ? 'bad' : 'warn'}`} role="status">
@@ -604,7 +632,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
                     <span className="tt-badge" style={{ '--c': i.color }} aria-hidden="true">{i.ticker.replace('F-', '').slice(0, 4)}</span>
                     <span className="nm"><b>{i.name}</b><small className={has && q < 0 ? 'tt-down' : ''}>{i.ticker} · {sub}</small></span>
                     <Spark values={sparkOf(i.key)} w={44} />
-                    <span className="px num"><b>{ruNum(pr, 2)}</b><small className={tone(Math.sign(chgQ))}>{arrow(Math.sign(chgQ))} {ruNum(Math.abs(chgQ), 1)}%</small></span>
+                    <span className="px num"><b>{ruNum(pr, 2)}</b>{hasPrev(i.key) ? <small className={tone(Math.sign(chgQ))}>{arrow(Math.sign(chgQ))} {ruNum(Math.abs(chgQ), 1)}%</small> : <small className="tt-flat" title="Первый квартал: прошлого нет">—</small>}</span>
                   </button>
                 </React.Fragment>
               );
@@ -618,7 +646,8 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
             <div className="ttl"><b data-testid="tt-name">{instr.name}</b><small>{instr.ticker} · {instr.group}{instr.kind === 'fut' ? ` · плечо ${instr.lev}:1` : ''}</small></div>
             <div className="tt-price">
               <FlashPrice value={price} testid="tt-price" />
-              <span className={`tt-pill num ${tone(Math.sign(chg))}`}>{arrow(Math.sign(chg))} {fmtSigned1(chg)}% за квартал</span>
+              {hasPrev(instr.key) ? <span className={`tt-pill num ${tone(Math.sign(chg))}`}>{arrow(Math.sign(chg))} {fmtSigned1(chg)}% за квартал</span>
+                : <span className="tt-pill num tt-flat" data-testid="tt-first-q">первый квартал</span>}
             </div>
           </div>
           <p className="tt-note">{instr.note}</p>
@@ -649,7 +678,7 @@ export function TradingTerminal({ economy, prev, book, onTrade, history }) {
             )}
           </div>
           {candles.length >= 2 ? (
-            <CandleChart candles={candles} mode={chartMode} avg={instr.kind === 'opt' ? null : avg} marks={tf === 'live' ? [] : marks} bench={tf !== 'live' && showBench ? benchLine : null} unitLabel={instr.name} />
+            <CandleChart candles={candles} mode={chartMode} live={tf === 'live'} avg={instr.kind === 'opt' ? null : avg} marks={tf === 'live' ? [] : marks} bench={tf !== 'live' && showBench ? benchLine : null} unitLabel={instr.name} />
           ) : (
             <div className="tt-chart tt-empty" data-testid="tt-chart" data-candles={candles.length} style={{ height: 300, display: 'grid', placeItems: 'center' }}>Котировки собираются — первая свеча через несколько секунд.</div>
           )}

@@ -1249,65 +1249,34 @@ test('лавка: фрагмент пластинки — «загружаетс
   expect(errors).toEqual([]);
 });
 
-// пункт владельца 19.11, п. 12: новая работа — «Шахта», инкременталка: забой, руда, скупщик, улучшения, монеты
-test('лавка: «Шахта» — удары по забою ведут вглубь и дают руду; скупщик — жетоны; кирка — улучшение; монета — по растущей цене', async ({ page }) => {
-  const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
-  await shopTab(page, 'mine');
-  const mine = page.getByTestId('mine');
-  await expect(mine).toBeVisible();
-  const face = mine.getByTestId('mine-face');
-  for (let i = 0; i < 40; i += 1) await face.click();
-  await expect.poll(async () => Number(await mine.getAttribute('data-depth'))).toBeGreaterThan(5);
-  await expect(mine.getByTestId('mine-bag').locator('[data-ore="coal"]')).toContainText(/Уголь [1-9]/);
-  const coal = mine.locator('[data-testid=mine-market][data-ore="coal"]');
-  await coal.getByTestId('mine-sell-some').click();
-  await expect.poll(async () => Number(await mine.getAttribute('data-tokens'))).toBeGreaterThan(5);
-  // кирка: уровень растёт, жетоны списываются
-  const pick = mine.locator('[data-testid=mine-upgrade][data-id="pick"]');
-  await pick.getByTestId('mine-buy').click();
-  await expect(pick).toHaveAttribute('data-level', '1');
-  await expect(mine.getByTestId('mine-ladder').locator('span')).toHaveCount(5);
-  await expect(mine.getByTestId('mine-order')).toHaveCount(3);
-  // прогресс шахты — после перезагрузки та же глубина
-  const depth = Number(await mine.getAttribute('data-depth'));
-  await page.reload({ waitUntil: 'networkidle' });
-  await shopTab(page, 'mine');
-  await expect.poll(async () => Number(await page.getByTestId('mine').getAttribute('data-depth'))).toBeGreaterThanOrEqual(depth);
-  await expectNoSidewaysScroll(page);
-  expect(errors).toEqual([]);
+// пункт владельца 22.11, п. 10: «Удаляй шахту» — вкладки нет, копии шахты на устройстве стираются
+test('лавка: «Шахты» больше нет — вкладки нет, старая копия шахты на устройстве стирается', async ({ page }) => {
+  await page.addInitScript(() => { if (!sessionStorage.getItem('mine-seeded')) { sessionStorage.setItem('mine-seeded', '1'); localStorage.setItem('ems-mine-v2', '{"v":2,"depth":40}'); localStorage.setItem('ems-mine-v1', '{}'); } });
+  await openApp(page, '/', '{}', { tab: 'shop' });
+  const tabs = page.getByTestId('shop-tabs');
+  await expect(tabs.getByRole('tab', { name: /Протереть/ })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: /Шахта/ })).toHaveCount(0);
+  expect(await page.evaluate(() => [localStorage.getItem('ems-mine-v2'), localStorage.getItem('ems-mine-v1')])).toEqual([null, null]);
 });
 
-// пункты владельца 20.11, п. 7–8: шахта общая для устройств (в прогрессе обучения); склад, рынок, заказы, рубежи
-test('лавка: «Шахта» v2 — с другого устройства та же шахта; рубежи дают монеты; цена руды падает с каждым сданным куском; полный склад виден', async ({ page }) => {
-  await page.addInitScript(() => {
-    if (localStorage.getItem('ems-textbook-v1')) return;
-    // шахта пришла с телефона вместе с прогрессом: на этом устройстве своей копии нет
-    localStorage.setItem('ems-textbook-v1', JSON.stringify({ learn: { mine: { v: 2, depth: 130, blocks: 260, hit: 0, tokens: 500, lv: {}, found: ['coal', 'copper', 'silver'], ores: { coal: 30, copper: 10 }, at: Date.now(), sold: { day: '', n: {} } } } }));
-  });
+// пункт владельца 22.11, п. 11: «нужен предпросмотр для стилей в лавке» — тема урока примеряется до покупки
+test('лавка: тему урока можно примерить до покупки — урок во весь экран в этой теме, ответ с откликом темы, ничего не покупается', async ({ page }) => {
   const { errors } = await openApp(page, '/', '{}', { tab: 'shop' });
-  await shopTab(page, 'mine');
-  const mine = page.getByTestId('mine');
-  await expect(mine).toHaveAttribute('data-depth', '130');
-  await expect(mine).toHaveAttribute('data-cap', '40');
-  await expect(mine.getByTestId('mine-store')).toHaveAttribute('data-full', 'true');
-  await expect(mine.getByTestId('mine-store')).toContainText('Полон');
-  // рубежи 25, 60, 120 м пройдены — забрать монеты; следующий — 250 м
-  await mine.getByTestId('mine-milestone-take').click();
-  await expect(mine.getByTestId('mine-note')).toContainText('Рубеж 120 м');
-  await expect(mine.getByTestId('mine-milestone')).toHaveAttribute('data-next', '250');
-  await expect(mine.getByTestId('mine-milestone-take')).toHaveCount(0);
-  // цена угля падает с каждым сданным сегодня куском
-  const coal = mine.locator('[data-testid=mine-market][data-ore="coal"]');
-  const price = async () => Number((await coal.getByTestId('mine-price').textContent()).match(/кусок — ([\d,]+)/)[1].replace(',', '.'));
-  const p0 = await price();
-  await coal.getByTestId('mine-sell-some').click();
-  await expect.poll(price).toBeLessThan(p0);
-  await expect(mine.getByTestId('mine-store')).toHaveAttribute('data-full', 'false');
-  // заказы дня — три
-  await expect(mine.getByTestId('mine-order')).toHaveCount(3);
-  // ушли со вкладки — шахта записана в прогресс обучения (он уезжает на сервер и на другие устройства)
-  await shopTab(page, 'dust');
-  await expect.poll(() => page.evaluate(() => { const p = JSON.parse(localStorage.getItem('ems-textbook-v1')); return p.learn.mine && p.learn.mine.ores.coal; })).toBe(20);
-  await expectNoSidewaysScroll(page);
+  await shopTab(page, 'lesson');
+  const item = page.getByTestId('shop-themes').getByTestId('shop-item').first();
+  const id = await item.getAttribute('data-item');
+  await expect(item).toHaveAttribute('data-owned', 'false');
+  await item.getByTestId('theme-try').click();
+  const tryon = page.getByTestId('skin-tryon');
+  await expect(tryon).toBeVisible();
+  await expect(tryon).toHaveAttribute('data-skin', /\w+/);
+  await tryon.locator('[data-testid=skin-tryon-opt][data-ok]').click();
+  await expect(tryon.getByTestId('skin-tryon-fb')).toContainText('Верно');
+  await tryon.getByTestId('skin-tryon-again').click();
+  await tryon.locator('[data-testid=skin-tryon-opt]:not([data-ok])').first().click();
+  await expect(tryon.getByTestId('skin-tryon-fb')).toContainText('Не совсем');
+  await page.keyboard.press('Escape');
+  await expect(tryon).toHaveCount(0);
+  await expect(page.locator(`[data-testid=shop-item][data-item="${id}"]`).first()).toHaveAttribute('data-owned', 'false');
   expect(errors).toEqual([]);
 });

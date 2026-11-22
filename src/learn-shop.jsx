@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { trackDaily } from './lib/client.js';
 import { loadAccount } from './account.jsx';
 import { noScarcity } from './lib/age.js';
-import { ShieldCheck, Check, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles, Play, Pause, Pickaxe } from 'lucide-react';
+import { ShieldCheck, Check, Coins, TrendingUp, TrendingDown, Minus, Gem, Zap, Ghost, Crown, Lock, Plus, Store, Palette, Shirt, PiggyBank, ChevronDown, Sparkles, Play, Pause, Eye } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
 import { Mascot } from './mascot.jsx';
 import { Button, Card, Heading } from './ds.jsx';
@@ -17,7 +17,7 @@ import { featureOpen, FeatureLocked } from './learn-unlock.jsx';
 import { DeskDecor } from './learn-decor.jsx';
 import MUSIC_FILES from 'virtual:music-files';
 import { setLearnMusic, setMusicPaused } from './ds-tokens.js';
-import { SkinPreview, SKIN_CSS } from './learn-skins.jsx';
+import { SkinPreview, SKIN_CSS, SkinTryOn } from './learn-skins.jsx';
 // сад — отдельный ленивый чанк: грузится, только когда открыли «Сад»
 const GardenView = React.lazy(() => import('./learn-garden.jsx').then((m) => ({ default: m.GardenView })));
 /* Пока грузится сад (замечание владельца 18.11, вечер, п. 8: «когда загружается сад, нужна приятная анимация»): из земли
@@ -225,15 +225,19 @@ function ShopItem({ o, learn, day, wear, b, onBuy, onToggle, deal = false, goal 
   const desk = o.slot === 'desk'; const theme = o.slot === 'theme'; const rec = o.slot === 'record';
   const owned = !!(learn.owned || {})[o.id]; const on = (desk ? deskOf(learn) : theme ? themeOf(learn) : wear[o.slot]) === o.id;
   const price = priceOf(o.id, day, learn); const full = priceOf(o.id, day);
+  // тема урока — примерка во весь экран до покупки (пункт владельца 22.11, п. 11)
+  const [trying, setTrying] = useState(false);
   return (
     <div className="rw-item" data-testid="shop-item" data-item={o.id} data-owned={String(owned)} data-on={String(on)} data-deal={deal ? 'true' : undefined} data-rare={o.rare && !o.season ? 'true' : undefined} data-season={o.season || undefined}>
       {deal && !owned && !calm && <span className="rw-deal" data-testid="shop-deal">−{Math.round(DEAL_OFF * 100)}%</span>}
       {o.season ? <span className="rw-rare rw-season"><Ghost size={11} aria-hidden="true" />хеллоуин</span> : theme ? <span className="rw-rare rw-theme-tag"><Palette size={11} aria-hidden="true" />тема урока</span> : desk ? <span className="rw-rare rw-desk-tag"><Gem size={11} aria-hidden="true" />в урок</span> : o.rare && <span className="rw-rare"><Gem size={11} aria-hidden="true" />редкое</span>}
       {/* украшение урока — живое прямо на витрине: его можно потрогать до покупки */}
-      {rec ? <RecordDisc o={o} /> : theme ? <SkinPreview id={o.id} /> : desk ? <div className="rw-desk-stage"><DeskDecor id={o.id} height={64} preview label={`${o.title}: потрогайте`} /></div>
+      {rec ? <RecordDisc o={o} /> : theme ? <button type="button" className="rw-try-pv" style={{ display: 'block', width: '100%', padding: 0, border: 0, background: 'none', cursor: 'pointer', font: 'inherit', color: 'inherit' }} aria-label={`Примерить: ${o.title}`} onClick={() => { Audio.play('click'); setTrying(true); }}><SkinPreview id={o.id} /></button> : desk ? <div className="rw-desk-stage"><DeskDecor id={o.id} height={64} preview label={`${o.title}: потрогайте`} /></div>
         : <Mascot mood="hello" size={o.rare ? 62 : 50} outfit={{ [o.slot]: o.id }} label={`Инфля: ${o.title}`} />}
       <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.25 }}>{o.title}</div>
       {o.note && <div className="rw-note">{o.note}</div>}
+      {theme && <Button small variant="ghost" icon={Eye} data-testid="theme-try" onClick={() => { Audio.play('click'); setTrying(true); }}>Примерить</Button>}
+      {trying && <SkinTryOn id={o.id} note={o.note} onClose={() => setTrying(false)} />}
       {owned
         ? rec ? <Button small onClick={() => playRecord(o)} data-testid="record-play">Поставить</Button>
         : <Button small variant={on ? 'secondary' : 'primary'} onClick={() => onToggle(o)} data-testid={desk ? 'desk-toggle' : theme ? 'theme-toggle' : undefined}>{on ? (desk ? 'Убрать из уроков' : theme ? 'Выключить' : 'Снять') : (desk ? 'Повесить в уроки' : theme ? 'Включить в уроках' : 'Надеть')}</Button>
@@ -326,7 +330,8 @@ function Wardrobe({ learn, wear, onWear }) {
                   return (
                     <button key={o.id} type="button" className="rw-tile" aria-pressed={on} data-item={o.id} data-on={String(on)} onClick={() => onWear(o.slot, on ? null : o.id)}>
                       {on && <span className="rw-on" aria-hidden="true"><Check size={13} /></span>}
-                      <Mascot mood="hello" size={50} outfit={{ [o.slot]: o.id }} label={`Инфля: ${o.title}`} />
+                      {/* в плитке Инфля неподвижна и на касание не отвечает: касание — это «надеть» (пункт владельца 22.11, п. 1) */}
+                      <Mascot mood="hello" size={50} outfit={{ [o.slot]: o.id }} label={`Инфля: ${o.title}`} still react={false} />
                       <span>{o.title}</span>
                     </button>
                   );
@@ -491,7 +496,7 @@ function DustCard({ learn, onOpen }) {
    дня (касание — график и что такое кроны), ниже шесть вкладок: «Витрина» (вещи дня, на Хеллоуин —
    и сезонные), «Для урока» (темы и украшения урока), «Ювелир» (редкое, на что копят), «Гардероб»
    (примерочная), «Полезное» (копилка, страховка серии, двойной опыт) и «Протереть» (мини-игра
-   «Пыльная витрина»), «Шахта» (инкременталка, src/learn-mine.jsx). Вкладка помнится, пока открыто приложение; из уведомления «вклад созрел»
+   «Пыльная витрина»). «Шахту» владелец убрал 22.11.2026. Вкладка помнится, пока открыто приложение; из уведомления «вклад созрел»
    лавка открывается на «Полезном». */
 const SHOP_TABS = [
   { id: 'showcase', label: 'Витрина', icon: Store },
@@ -500,11 +505,10 @@ const SHOP_TABS = [
   { id: 'wardrobe', label: 'Гардероб', icon: Shirt },
   { id: 'useful', label: 'Полезное', icon: PiggyBank },
   { id: 'dust', label: 'Протереть', icon: Sparkles },
-  { id: 'mine', label: 'Шахта', icon: Pickaxe },
 ];
 let lastShopTab = 'showcase';
-// шахта — своим файлом: грузится, когда открывают вкладку (src/learn-mine.jsx)
-const MineGame = React.lazy(() => import('./learn-mine.jsx'));
+// шахту владелец убрал 22.11.2026: её копии на этом устройстве больше не нужны
+try { if (typeof localStorage !== 'undefined') { localStorage.removeItem('ems-mine-v2'); localStorage.removeItem('ems-mine-v1'); } } catch { /* приватный режим */ }
 // «за ноябрь»; проценты — до десятых, с запятой
 // «1 декабря», «инфляция ноября»
 const MONTH_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -655,11 +659,6 @@ export function ShopView({ learn, update, now = Date.now(), focus = null }) {
             <ClothCard learn={learn} update={update} />
             <PolishCard learn={learn} update={update} />
             <LogCard learn={learn} update={update} />
-          </>}
-
-          {tab === 'mine' && <>
-            <Heading level={3} title="Шахта" sub="Работа: бейте забой, уходите вглубь — там руда дороже. Руду — в жетоны, жетоны — в улучшения или в монеты лавки." />
-            <div style={{ marginTop: 10 }}><React.Suspense fallback={<div className="ds-sub" style={{ padding: 20 }}>Спускаемся в шахту…</div>}><MineGame learn={learn} update={update} /></React.Suspense></div>
           </>}
 
           {tab === 'lesson' && <>
