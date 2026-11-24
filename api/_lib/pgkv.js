@@ -1,6 +1,6 @@
-/* База на ONREZA (docs/onreza.md): управляемый PostgreSQL вместо Upstash Redis, сайт и функции остаются на Vercel.
-   Здесь — те команды Redis, которыми пользуется сервер (api/_lib/store.js, api/_lib/research-store.js), поверх одной
-   таблицы. Код обработчиков не меняется: он получает клиента с теми же методами и теми же ответами, что у @upstash/redis.
+/* База на ONREZA (docs/onreza.md): управляемый PostgreSQL. Здесь — те команды Redis, которыми пользуется сервер
+   (api/_lib/store.js, api/_lib/research-store.js), поверх одной таблицы. Код обработчиков не меняется: он получает клиента
+   с теми же методами и теми же ответами, что у @upstash/redis.
 
    Таблица inflatia_kv (данные Инфляции) или inflatia_research (исследование — та же база, своя таблица; цели и доступ —
    research/data-dictionary.md, раздел 1): k — ключ, f — поле ('' у обычного значения; поле хэша; элемент множества), v — значение (jsonb),
@@ -15,30 +15,54 @@ const TABLES = new Set([TABLE, RESEARCH_TABLE, 'inflatia_kv_test', 'inflatia_res
 const schemaOf = (t) => `CREATE TABLE IF NOT EXISTS ${t} (
   k text NOT NULL, f text NOT NULL DEFAULT '', v jsonb, exp bigint, PRIMARY KEY (k, f));
 CREATE INDEX IF NOT EXISTS ${t}_exp ON ${t} (exp) WHERE exp IS NOT NULL;`;
+/* Таблица уже есть почти всегда: сначала дешёвая проверка без блокировок (to_regclass), DDL — только если чего-то нет.
+   Иначе каждый новый процесс начинал бы с CREATE INDEX IF NOT EXISTS, который ждёт блокировку таблицы на время записей. */
+async function ensureSchema(pool, t) {
+  const r = await pool.query('SELECT to_regclass($1) IS NOT NULL AS tab, to_regclass($2) IS NOT NULL AS idx', [t, `${t}_exp`]);
+  if (r.rows[0] && r.rows[0].tab && r.rows[0].idx) return;
+  await pool.query(schemaOf(t));
+}
 const live = 'AND (exp IS NULL OR exp > $NOW)';
 
-/* Подключение: строка DATABASE_URL из панели ONREZA (режим Pooled). Сертификат проверяется всегда; если ONREZA
-   подписывает его своим центром (например, Russian Trusted Root CA), этот корневой сертификат кладут в DATABASE_CA. */
-export function poolFrom(url, ca = '', maxConn = 3) {
+/* Подключение: строка DATABASE_URL из панели ONREZA. Сертификат проверяется всегда (rejectUnauthorized: true). Сертификат
+   базы ONREZA подписан публичным центром — свой корневой сертификат не нужен; DATABASE_CA — только если ONREZA перейдёт
+   на сертификат Russian Trusted Root CA и Node.js процесса его не знает (в ONREZA Compute этот корень уже в доверенных,
+   а явный ca отключает доверие платформы — поэтому без нужды DATABASE_CA не задавать).
+
+   Размер пула: на Vercel каждый экземпляр функции держал свой пул, поэтому не больше 3 соединений. В ONREZA Compute процесс
+   один на экземпляр и живёт долго — тот же предел по умолчанию, но его можно задать PG_POOL_MAX (1…10): соединений с базой
+   не больше PG_POOL_MAX × число экземпляров (обычно 1, на время переключения версии — 2). Простаивающее соединение
+   закрывается через PG_IDLE_MS (по умолчанию 30 с): база ONREZA засыпает при простое, а открытое соединение ей мешает. */
+const envInt = (name, def, lo, hi) => { const n = Number(process.env[name]); return Number.isFinite(n) && n > 0 ? Math.max(lo, Math.min(hi, Math.round(n))) : def; };
+export const poolMax = () => envInt('PG_POOL_MAX', 3, 1, 10);
+export function poolFrom(url, ca = '', maxConn = poolMax()) {
   const u = new URL(url);
   const local = ['localhost', '127.0.0.1', ''].includes(u.hostname) || u.searchParams.get('host');
-  // параметры Prisma из строки панели ONREZA (connection_limit, pool_timeout) — не для pg: лимит соединений берём, но не больше 3
+  // параметры Prisma из строки панели ONREZA (connection_limit, pool_timeout) — не для pg: лимит соединений берём, но не больше maxConn
   const limit = Number(u.searchParams.get('connection_limit')) || maxConn;
   ['sslmode', 'sslrootcert', 'connection_limit', 'pool_timeout', 'pgbouncer', 'schema'].forEach((k) => u.searchParams.delete(k));
-  return new pg.Pool({
+  const pool = new pg.Pool({
     connectionString: u.toString(),
     ssl: local ? false : (ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: true }),
-    max: Math.max(1, Math.min(maxConn, limit)), idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000,
+    max: Math.max(1, Math.min(maxConn, limit)), idleTimeoutMillis: envInt('PG_IDLE_MS', 30_000, 1_000, 600_000), connectionTimeoutMillis: 8_000,
+    // соединение, которое база закрыла сама (сон, перезапуск), не роняет процесс: пул откроет новое
   });
+  pool.on('error', (e) => console.error('pg pool error:', e && e.code ? e.code : 'unknown'));
+  return pool;
 }
 
-/* Один пул на функцию: база одна (DATABASE_URL), и данные Инфляции, и исследование ходят через одни и те же ≤3 соединения
-   (у PgBouncer ONREZA лимит соединений на базу). */
+/* Один пул на процесс: база одна (DATABASE_URL), и данные Инфляции, и исследование ходят через одни и те же соединения. */
 const pools = new Map();
 export function sharedPool(url, ca = '') {
   const key = `${url}\n${ca}`;
   if (!pools.has(key)) pools.set(key, poolFrom(url, ca));
   return pools.get(key);
+}
+// при остановке процесса (server/index.js): дождаться и закрыть все соединения с базой
+export async function closePools() {
+  const all = [...pools.values()]; pools.clear();
+  await Promise.allSettled(all.map((p) => p.end()));
+  return all.length;
 }
 
 // glob Redis (solo:*, rp:*) → LIKE; спецсимволы LIKE в ключах экранируются
@@ -51,7 +75,7 @@ export function pgKv(pool, { table = TABLE } = {}) {
   const TABLE = table;
   let ready = null; let calls = 0;
   const q = async (sql, params = []) => {
-    if (!ready) ready = pool.query(schemaOf(TABLE)).catch((e) => { ready = null; throw e; });
+    if (!ready) ready = ensureSchema(pool, TABLE).catch((e) => { ready = null; throw e; });
     await ready;
     // $NOW — «сейчас» для всех проверок срока в одной команде
     const now = Date.now();
@@ -95,6 +119,23 @@ export function pgKv(pool, { table = TABLE } = {}) {
       return ks.map((k) => (m.has(k) ? m.get(k) : null));
     },
     incr: (k) => incrBy(k, 1),
+    /* несколько счётчиков одной командой (аналитика: одно событие — несколько ключей): то же, что incrby + expire на новом
+       ключе, но за один запрос к базе вместо двух на ключ. Новый или истёкший ключ получает срок ttlSeconds (0 — без срока),
+       живой ключ сохраняет свой. Ключи сортируются: одновременные пачки берут блокировки строк в одном порядке. */
+    async incrMany(pairs, ttlSeconds = 0) {
+      const merged = new Map();
+      for (const [k, n] of pairs) merged.set(k, (merged.get(k) || 0) + n);
+      const ks = [...merged.keys()].sort();
+      if (!ks.length) return [];
+      const exp = ttlSeconds ? Date.now() + ttlSeconds * 1000 : null;
+      const r = await q(`INSERT INTO ${TABLE} (k, f, v, exp) SELECT k, '', to_jsonb(n), $3::bigint FROM unnest($1::text[], $2::bigint[]) AS t(k, n)
+        ON CONFLICT (k, f) DO UPDATE SET
+          v = to_jsonb(CASE WHEN ${TABLE}.exp IS NOT NULL AND ${TABLE}.exp <= $NOW THEN 0 ELSE COALESCE((${TABLE}.v #>> '{}')::bigint, 0) END + (EXCLUDED.v #>> '{}')::bigint),
+          exp = CASE WHEN ${TABLE}.exp IS NOT NULL AND ${TABLE}.exp <= $NOW THEN EXCLUDED.exp ELSE ${TABLE}.exp END
+        RETURNING k, v`, [ks, ks.map((k) => merged.get(k)), exp]);
+      const got = new Map(r.rows.map((x) => [x.k, Number(x.v)]));
+      return ks.map((k) => [k, got.get(k)]);
+    },
     incrby: (k, n) => incrBy(k, n),
     // хэш: поле — f; пустой хэш — null, как у Upstash
     async hgetall(k) {

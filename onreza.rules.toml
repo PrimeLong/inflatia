@@ -1,0 +1,48 @@
+# ПРАВИЛА EDGE ONREZA (docs.onreza.ru/edge-rules) — исполняются до маршрутов манифеста, для статики и для сервера.
+# Заголовки безопасности — те же, что в server/headers.js и были в vercel.json (сверяет scripts/build-onreza.mjs и
+# server/__tests__/onreza-build.test.js). Адреса экранов приложения (src/lib/route.js) переписываются на /index.html
+# слоя STATIC; если эти правила не применились, манифест ведёт адреса экранов на сервер, и он отдаёт копию index.html.
+schema = "EDGE_RULE_SET_V1"
+
+[actions.security_headers.set_headers]
+headers = {
+  "content-security-policy" = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' data: blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+  "x-content-type-options" = "nosniff",
+  "referrer-policy" = "strict-origin-when-cross-origin",
+  "permissions-policy" = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+  "x-frame-options" = "DENY",
+}
+
+[[rule]]
+id = "spa-screens"
+when.any = [
+  { path = { exact = "/book" } },
+  { path = { exact = "/league" } },
+  { path = { exact = "/shop" } },
+  { path = { exact = "/profile" } },
+  { path = { exact = "/world" } },
+  { path = { exact = "/news" } },
+  { path = { exact = "/research" } },
+]
+action.rewrite = { target = "/index.html", if_no_file = false }
+
+[[rule]]
+id = "spa-book-chapter"
+when.path = { glob = "/book/{chapter}" }
+action.rewrite = { target = "/index.html", if_no_file = true }
+
+# файлы сборки с хэшем в имени не меняются — браузер хранит их год
+[[rule]]
+id = "assets-immutable"
+when.path = { prefix = "/assets/" }
+action.set_headers = { headers = { "cache-control" = "public, max-age=31536000, immutable" } }
+
+# ответы API — с персональными данными: ни браузер, ни edge их не хранят
+[[rule]]
+id = "api-no-cache"
+when.path = { prefix = "/api/" }
+action.bypass_cache = {}
+
+[[rule]]
+id = "security-headers"
+action.use = "security_headers"

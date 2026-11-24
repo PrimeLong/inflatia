@@ -58,6 +58,27 @@ describe.skipIf(!URL_)('pgkv: команды Redis поверх PostgreSQL', () 
     expect(await kv.pttl('cnt:min')).toBe(-1);
   });
 
+  it('incrMany: пачка счётчиков одной командой — как incrby + expire на новом ключе; одновременные пачки атомарны', async () => {
+    expect(await kv.incrMany([['cnt:a', 1], ['cnt:b', 5], ['cnt:a', 2]], 60)).toEqual([['cnt:a', 3], ['cnt:b', 5]]);
+    const ttl = await kv.pttl('cnt:a');
+    expect(ttl).toBeGreaterThan(50_000); expect(ttl).toBeLessThanOrEqual(60_000);
+    // живой ключ сохраняет свой срок, значение растёт
+    await kv.expire('cnt:b', 300);
+    expect(await kv.incrMany([['cnt:b', 1]], 60)).toEqual([['cnt:b', 6]]);
+    expect(await kv.pttl('cnt:b')).toBeGreaterThan(200_000);
+    // без срока — бессрочно
+    await kv.incrMany([['cnt:forever', 1]], 0);
+    expect(await kv.pttl('cnt:forever')).toBe(-1);
+    // истёкший — с нуля и с новым сроком
+    await kv.expire('cnt:a', 0.001);
+    await new Promise((r) => setTimeout(r, 15));
+    expect(await kv.incrMany([['cnt:a', 1]], 60)).toEqual([['cnt:a', 1]]);
+    expect(await kv.pttl('cnt:a')).toBeGreaterThan(50_000);
+    // 20 одновременных пачек по трём ключам в разном порядке — без потерь и без взаимной блокировки
+    await Promise.all(Array.from({ length: 20 }, (_, i) => kv.incrMany(i % 2 ? [['cnt:x', 1], ['cnt:y', 1], ['cnt:z', 1]] : [['cnt:z', 1], ['cnt:y', 1], ['cnt:x', 1]], 60)));
+    expect(await kv.mget('cnt:x', 'cnt:y', 'cnt:z')).toEqual([20, 20, 20]);
+    expect(await kv.incrMany([], 60)).toEqual([]);
+  });
   it('mget: в порядке ключей, отсутствующие — null', async () => {
     expect(await kv.mget('user:ann', 'nope', 'session:t1')).toEqual([expect.objectContaining({ login: 'ann' }), null, 'ann']);
     expect(await kv.mget()).toEqual([]);

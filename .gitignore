@@ -38,3 +38,6 @@ screens/
 *backup*.jsonl.gz
 inflatia-backup-*
 upstash-backup-*
+
+# сборка для ONREZA (scripts/build-onreza.mjs)
+onreza-build/

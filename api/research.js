@@ -24,13 +24,17 @@
    Достоверность (замечания владельца 18.11, пп. 1–3) — клиенту не верим ни в правильности, ни во времени, ни в завершении:
    — задачи теста выдаёт сервер (действие «form»), ключ ответов — только на сервере (api/_lib/research-key.js); клиент шлёт
      сырые ответы, «верно / неверно» считает сервер; поле correct от клиента — 400;
-   — ответы на задания модуля идут действием «answer»: сервер сверяет с ключом модуля (src/research/module.js), сам ставит
-     номер попытки, номер задания и активное время по своим часам; «урок пройден» пишет сервер, когда получил ответ на каждое
-     задание урока; клиент может сообщить только «начал урок» и «начал занятие» (CLIENT_EVENT_TYPES);
+   — ответы на задания модуля идут действием «answer»: сервер сверяет с ключом модуля (api/_lib/research-module-key.js —
+     только на сервере; в браузер идут условия без ответов, src/research/module.js), сам ставит номер попытки, номер задания
+     и активное время по своим часам, разбор отдаёт вместе с результатом; «урок пройден» пишет сервер, когда получил ответ на
+     каждое задание урока; клиент может сообщить только «начал урок» и «начал занятие» (CLIENT_EVENT_TYPES);
+   — ответ принимается, только если урок начат (событие «начал урок» записано сервером) и задания идут по порядку: на
+     задание k — после ответов на 1…k−1 этого урока; вернуться к прежнему заданию можно (замечание владельца 24.11, п. 3);
    — итоговый тест до 14-го дня — только после восьми уроков, пройденных по данным сервера; с 14-го по 16-й — у всех. */
 import { timingSafeEqual } from 'node:crypto';
 import { PROTOCOL_VERSION, STUDY_STATUS, TEST_ITEMS, TEST_WINDOWS, EVENT_LAST_DAY, MODULE_LESSONS, CLIENT_EVENT_TYPES, SERVER_FIELDS, POST_FREE_DAY, IDLE_CAP } from '../src/research/dictionary.js';
-import { MODULE_BY_LESSON, EXERCISE_INDEX, checkModuleAnswer } from '../src/research/module.js';
+import { MODULE_BY_LESSON } from '../src/research/module.js';
+import { EXERCISE_INDEX, checkModuleAnswer, whyOf } from './_lib/research-module-key.js';
 import { publicForm, scoreItem, answerOk } from './_lib/research-key.js';
 import { cleanRecord, exportRecord, participantCode, normalizeCode } from '../src/research/record.js';
 import { forbiddenField as forbiddenFieldOf } from '../src/research/dictionary.js';
@@ -133,8 +137,12 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
       const acc = await whoIs(b.token);
       if (!acc || !acc.login) return { error: 'Войдите в аккаунт Инфляции: участие привязывается к аккаунту', status: 401 };
       const t = now();
-      // год рождения аккаунта: по году младше 18 — не принимаем, даже с отметкой (точной даты рождения нет)
-      if (acc.birthYear && new Date(t).getUTCFullYear() - acc.birthYear < ADULT_AGE) return { error: 'В пилоте участвуют только совершеннолетние', status: 400 };
+      /* год рождения аккаунта обязателен (замечание владельца 24.11, п. 2): без него совершеннолетие не проверить — запись не
+         принимается. По году младше 18 — тоже нет, даже с отметкой «мне 18»; в год 18-летия решает отметка участника
+         (точной даты рождения аккаунт не хранит — research/protocol.md, «Участники») */
+      const by = Number(acc.birthYear);
+      if (!Number.isInteger(by) || by < 1900 || by > new Date(t).getUTCFullYear()) return { error: 'Укажите год рождения в профиле Инфляции: в пилоте участвуют только совершеннолетние, без года рождения это не проверить', status: 400 };
+      if (new Date(t).getUTCFullYear() - by < ADULT_AGE) return { error: 'В пилоте участвуют только совершеннолетние', status: 400 };
       if (await store().get(linkKeyOfLogin(acc.login))) return { error: 'Этот аккаунт уже участвует в исследовании', status: 409 };
       if ((await store().incr(`rday:${day(t)}`)) > ENROLL_PER_DAY) return { error: 'Запись на сегодня закрыта', status: 429 };
       const code = newCode();
@@ -208,6 +216,8 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
       if (!CLIENT_EVENT_TYPES.includes(raw.event_type)) return { error: 'Это событие пишет сервер: ответ на задание — действием «answer», «урок пройден» — сам по ответам', status: 400 };
       if (raw.event_type === 'lesson_start' && !MODULE_LESSONS.includes(raw.lesson_id)) return { error: 'Урок не из модуля исследования', status: 400 };
       const extra = raw.event_type === 'session_start' ? { session_no: Math.min(200, await store().incr(rx(got.code, 'sess'))) } : { lesson_id: raw.lesson_id };
+      // начало урока — по часам сервера: без него ответы на задания урока не принимаются (действие «answer»)
+      if (raw.event_type === 'lesson_start') await store().setNx(rx(got.code, `start:${raw.lesson_id}`), now());
       await tick(got.code);
       const { record, error } = cleanRecord('events', { participant_code: got.code, study_day: d, event_type: raw.event_type, ...extra });
       if (error) return { error, status: 400 };
@@ -227,6 +237,10 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
       if (!hit) return { error: 'Задание не из модуля исследования', status: 400 };
       if (!answerOk(b.answer) || b.answer == null || b.answer === '') return { error: 'Ответ не распознан', status: 400 };
       const code = got.code; const lesson = hit.lesson_id;
+      // урок начат — сервер записал «начал урок»; задания — по порядку: на k-е — после ответов на 1…k−1
+      if ((await store().get(rx(code, `start:${lesson}`))) == null) return { error: 'Сначала откройте урок', status: 409 };
+      const answered = Number(await store().get(rx(code, `cnt:${lesson}`))) || 0;
+      if (hit.task_no > answered + 1) return { error: 'Сначала ответьте на предыдущие задания урока', status: 409 };
       const correct = checkModuleAnswer(b.exercise_id, b.answer) === true;
       const attempt = await store().incr(rx(code, `att:${b.exercise_id}`));
       const secs = await tick(code);
@@ -237,8 +251,8 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
       if ((await store().push(`re:${code}`, record)) > EVENTS_PER_PARTICIPANT) return { error: 'Слишком много событий', status: 429 };
       let lessonDone = false;
       if (await store().setNx(rx(code, `seen:${b.exercise_id}`), 1)) {
-        const answered = await store().incr(rx(code, `cnt:${lesson}`));
-        if (answered === MODULE_BY_LESSON[lesson].exercises.length && (await store().setNx(rx(code, `done:${lesson}`), d))) {
+        const nAnswered = await store().incr(rx(code, `cnt:${lesson}`));
+        if (nAnswered === MODULE_BY_LESSON[lesson].exercises.length && (await store().setNx(rx(code, `done:${lesson}`), d))) {
           lessonDone = true;
           const total = Math.min(7200, (await store().get(rx(code, `sec:${lesson}`))) || 0);
           await store().push(`re:${code}`, { participant_code: code, study_day: d, event_type: 'lesson_done', lesson_id: lesson, active_seconds: total });
@@ -246,7 +260,7 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
       }
       const fresh = (await store().get(`rp:${code}`)) || got.p;
       if (fresh.stage === 'pretest') await store().set(`rp:${code}`, advance(fresh, 'material'));
-      return { correct, attempt_no: attempt, lesson_done: lessonDone };
+      return { correct, attempt_no: attempt, lesson_done: lessonDone, why: whyOf(b.exercise_id) };
     },
     // где участник: группа, день, пройденные по данным сервера уроки, какие тесты уже приняты
     progress: async (b) => {

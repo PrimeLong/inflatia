@@ -11,10 +11,10 @@
    Ход участника: информация и согласие → код → входной тест → группа (назначает сервер) → восемь уроков модуля → итоговый
    тест (после восьми уроков или с 14-го дня) → отсроченный (28–35-й день). Отозвать участие можно на любом шаге.
 
-   Две версии модуля (src/research/module.js) — одно содержание: те же объяснения, задания и разборы. «Игровая» добавляет
+   Две версии модуля (src/research/module.js; ключ ответов — только на сервере) — одно содержание: те же объяснения, задания и разборы. «Игровая» добавляет
    опыт, серию верных ответов, карту уроков со звёздами и праздник в конце урока; «обычная» — тот же текст без них.
    Правильность ответа, номер попытки и время считает сервер; страница показывает то, что он вернул. */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MODULE } from './research/module.js';
 import infoText from '../research/participant-information.md?raw';
 
@@ -212,7 +212,8 @@ function TestRunner({ code, kind, onDone }) {
   );
 }
 
-/* урок модуля: объяснение, потом задания по одному; ответ проверяет сервер, разбор — одинаковый в обеих версиях */
+/* урок модуля: объяснение, потом задания по одному; ответ проверяет сервер и присылает разбор (ключа ответов в коде
+   страницы нет — api/_lib/research-module-key.js); разбор — одинаковый в обеих версиях */
 function Lesson({ code, lesson, game, onBack, onDone, onGain }) {
   const [step, setStep] = useState(-1); // -1 — объяснение
   const [value, setValue] = useState(undefined);
@@ -220,10 +221,13 @@ function Lesson({ code, lesson, game, onBack, onDone, onGain }) {
   const [busy, setBusy] = useState(false);
   const [finished, setFinished] = useState(null);
   const [right, setRight] = useState(0);
-  useEffect(() => { api('event', { code, event: { event_type: 'lesson_start', lesson_id: lesson.id } }); }, [code, lesson.id]);
+  // «начал урок» пишет сервер; ответы на задания он принимает только после этой отметки — первый ответ её дожидается
+  const started = useRef(null);
+  useEffect(() => { started.current = api('event', { code, event: { event_type: 'lesson_start', lesson_id: lesson.id } }); }, [code, lesson.id]);
   const ex = step >= 0 ? lesson.exercises[step] : null;
   const check = async () => {
     setBusy(true);
+    if (started.current) await started.current;
     const r = await api('answer', { code, exercise_id: ex.id, answer: String(value) });
     setBusy(false);
     if (!r.ok) { setFb({ error: r.data.error || 'Не удалось проверить ответ' }); return; }
@@ -267,7 +271,7 @@ function Lesson({ code, lesson, game, onBack, onDone, onGain }) {
           {fb && !fb.error && (
             <div className={`rs-fb ${fb.correct ? 'ok' : 'bad'}`} role="status" data-testid="rs-feedback" data-correct={String(fb.correct)}>
               <b>{fb.correct ? 'Верно' : 'Пока нет'}{game && fb.correct ? <span className="rs-gain"> +{fb.attempt_no === 1 ? 10 : 5} опыта</span> : null}</b>
-              {ex.why}
+              {fb.why}
             </div>
           )}
           {fb && fb.error && <p className="rs-err" role="alert">{fb.error}</p>}

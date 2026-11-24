@@ -18,6 +18,7 @@ import {
   newRecoveryCode, hashRecovery, checkRecovery, sessionValue, checkName, nameBanned, isBlocked, nameNextAt, nameForOthers, RENAME_DAYS, DAY_MS, NAME_EVERY_DAYS,
 } from './_lib/accounts.js';
 import { isOwner } from './reports.js';
+import { clientIp } from './_lib/client-ip.js';
 import { randomUUID } from 'node:crypto';
 
 const EMBLEMS = new Set(['star', 'crown', 'landmark', 'coins', 'shield', 'anchor', 'factory', 'wheat']);
@@ -45,8 +46,6 @@ const validPlayerId = (id) => typeof id === 'string' && id.length > 0 && id.leng
 // аккаунтов ботом и перебора кодов восстановления
 const REG_PER_HOUR = 5;
 const RECOVER_PER_HOUR = 10;
-const clientIp = (req) => String((req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || 'local')
-  .split(',')[0].trim().slice(0, 64);
 const storage = () => (hasKv() ? 'kv' : 'memory');
 // заблокированному (не сменил запрещённый ник в срок) — только эти действия
 const BLOCKED_OK = new Set(['me', 'update', 'logout', 'export', 'delete', 'password', 'recovery_new']);

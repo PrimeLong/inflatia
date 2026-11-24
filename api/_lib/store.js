@@ -8,8 +8,12 @@
    (те же команды, что у Redis), и Upstash не используется. */
 import { pgKvFromEnv } from './pgkv.js';
 
+/* Сервер ONREZA Compute (server/index.js ставит INFLATIA_RUNTIME=compute) работает только с PostgreSQL ONREZA: Upstash (США)
+   там не подключается, даже если его переменные случайно перенесли, а без DATABASE_URL сервер не запускается
+   (server/index.js) — данные в памяти процесса пропали бы при остановке или новой версии. */
+export const onCompute = () => process.env.INFLATIA_RUNTIME === 'compute';
 let redis = pgKvFromEnv('DATABASE_URL');
-if (!redis) {
+if (!redis && !onCompute()) {
   try {
     const { Redis } = await import('@upstash/redis');
     if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) redis = Redis.fromEnv();
@@ -306,6 +310,8 @@ export async function deleteUserData({ login, playerId }) {
    живут 120 дней; счётчики упражнений и их список — бессрочно (их немного). */
 const COUNTER_TTL = 60 * 60 * 24 * 120;
 export async function bumpCounters(keys, ttlSeconds = COUNTER_TTL) {
+  // PostgreSQL ONREZA: все ключи события — одним запросом (api/_lib/pgkv.js, incrMany)
+  if (redis && redis.incrMany) { await redis.incrMany(keys.map((k) => [`cnt:${k}`, 1]), ttlSeconds); return true; }
   if (redis) {
     for (const k of keys) {
       const n = await redis.incr(`cnt:${k}`);
@@ -318,6 +324,7 @@ export async function bumpCounters(keys, ttlSeconds = COUNTER_TTL) {
 }
 // счётчик-сумма (например, минуты уроков): прибавить n, а не единицу
 export async function addCounters(pairs, ttlSeconds = COUNTER_TTL) {
+  if (redis && redis.incrMany) { await redis.incrMany(pairs.map(([k, n]) => [`cnt:${k}`, n]), ttlSeconds); return true; }
   if (redis) {
     for (const [k, n] of pairs) {
       const v = await redis.incrby(`cnt:${k}`, n);
