@@ -32,6 +32,8 @@ export const LESSON_KIND = {
 /* Практика: ошибки прошлых уроков (по id упражнения), не больше двенадцати. Если ошибок
    мало — добираем до восьми упражнениями из слабых тем. */
 export const PRACTICE_MIN = 8;
+// «Повторить ошибки» — не короче стольких карточек: ошибки и похожие задания их уроков (пункт владельца 24.11, п. 10)
+export const PRACTICE_PAD = 5;
 export const PRACTICE_MAX = 12;
 export const LEVEL_REVIEW_SIZE = 15;
 

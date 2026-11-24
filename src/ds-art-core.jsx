@@ -42,8 +42,16 @@ export const ART_CSS = `
   @keyframes ds-lid-on { from { transform: scaleY(0); } to { transform: scaleY(1); } }
   @keyframes ds-coin-pop { from { transform: translateY(7px); opacity: 0; } to { transform: none; opacity: 1; } }
   .ds-coins { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 400; perspective: 600px; }
-  .ds-coins i { position: absolute; top: 0; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #F7DC8A, #C9971F 60%, #8E6612);
-    box-shadow: inset 0 0 0 2px rgba(120,80,10,.55), inset 0 0 0 4px rgba(255,236,170,.6); animation: ds-fall var(--t) cubic-bezier(.3,.6,.45,1) var(--d) 1 forwards; }
+  /* монета с объёмом (пункт владельца 24.11, п. 8: «монеты — 2D-картинка, им нужен объём»): лицевая сторона с рельефным
+     ободком и бликом, под ней — ребро толщиной 3 px (несколько слоёв по глубине) и тёмная оборотная сторона; при повороте
+     вокруг вертикали видно ребро, а не исчезающий в линию диск */
+  .ds-coins i { position: absolute; top: 0; width: 22px; height: 22px; border-radius: 50%; transform-style: preserve-3d;
+    background: radial-gradient(circle at 34% 30%, #FFF6CF 0 9%, #F7DC8A 20%, #D9A42A 55%, #9A7413 100%);
+    box-shadow: inset 0 0 0 1.5px #7A5A0E, inset 0 0 0 3px #F3D27A, inset 0 0 0 4px rgba(122,88,10,.55), inset -3px -4px 6px rgba(90,60,5,.45);
+    animation: ds-fall var(--t) cubic-bezier(.3,.6,.45,1) var(--d) 1 forwards; }
+  .ds-coins i::before, .ds-coins i::after { content: ''; position: absolute; inset: 0; border-radius: 50%; }
+  .ds-coins i::before { background: linear-gradient(90deg, #6E500C, #B88A1E 45%, #6E500C); transform: translateZ(-1.5px); box-shadow: 0 0 0 .5px #5A410A; }
+  .ds-coins i::after { background: radial-gradient(circle at 60% 65%, #C9971F, #7A5A0E 70%); transform: translateZ(-3px) rotateY(180deg); box-shadow: inset 0 0 0 1.5px #5A410A; }
   .ds-level { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
   .ds-level-track { flex: 1; display: flex; gap: 3px; height: 12px; }
   .ds-level-track i { flex: 1; min-width: 0; border-radius: 3px; background: var(--ds-rule); transition: background .25s; }

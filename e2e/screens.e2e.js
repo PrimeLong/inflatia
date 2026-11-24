@@ -507,7 +507,7 @@ for (const theme of ['light', 'dark']) {
       await (await pathLesson(page, 'cs-s1')).click();
       await expect(page.getByTestId('theory-notice')).toBeVisible();
       await shot(page, '55-theory-notice', theme);
-      await page.getByTestId('theory-known').click();
+      await page.getByTestId('theory-notice').getByTestId('lesson-start').click();
       await expect(page.getByTestId('lesson')).toBeVisible();
       await exitLesson(page);
       await openLesson(page, 'cs-i1');

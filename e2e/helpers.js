@@ -124,6 +124,17 @@ export async function expectGateOnly(page) {
 export const FIRST_SCREEN_JS_KB = 600;
 
 /* короткая запись для теста: WAV (браузер распознаёт формат по содержимому, а не по имени .mp3), тихий синус */
+/* ответ файлом с поддержкой Range, как у настоящего сервера статики: музыка играет потоком через <audio>, и перемотка
+   (продолжить с той же секунды) без Range в Chromium не работает */
+export function fulfillRange(route, body, contentType) {
+  const m = /bytes=(\d*)-(\d*)/.exec(route.request().headers().range || '');
+  if (!m) return route.fulfill({ status: 200, contentType, body, headers: { 'accept-ranges': 'bytes', 'content-length': String(body.length) } });
+  const start = m[1] ? Number(m[1]) : Math.max(0, body.length - Number(m[2]));
+  const end = m[1] && m[2] ? Math.min(Number(m[2]), body.length - 1) : body.length - 1;
+  const part = body.subarray(start, end + 1);
+  return route.fulfill({ status: 206, contentType, body: part,
+    headers: { 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${body.length}`, 'content-length': String(part.length) } });
+}
 export function testWav(seconds = 3, rate = 8000) {
   const n = seconds * rate; const buf = Buffer.alloc(44 + n * 2);
   buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write('WAVE', 8); buf.write('fmt ', 12); buf.writeUInt32LE(16, 16);

@@ -56,7 +56,11 @@ const CSS = `
   .dg-fx { pointer-events: none; }
   .dg-rag { position: absolute; left: 0; top: 0; width: 60px; height: 46px; margin: -22px 0 0 -30px; pointer-events: none; opacity: 0; transition: opacity .15s; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
   .dg-rag.on { opacity: 1; }
-  .dg-polish { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font: 700 12.5px var(--ds-sans); color: #F3D98E; }
+  /* своей строкой под плашкой монет, а не вплотную к ней (пункт владельца 24.11, п. 14: «в витрине эмодзи слишком близко
+     к монетам»): звёздочка полироля и галочка журнала — со своим отступом */
+  .dg-polish { display: flex; width: fit-content; align-items: center; gap: 7px; margin: 10px auto 0; padding: 3px 10px 3px 8px; border-radius: 999px;
+    font: 700 12.5px var(--ds-sans); color: #F3D98E; background: rgba(243, 217, 142, .12); }
+  .dg-polish + .dg-polish { margin-top: 6px; }
   .dg-shine { position: absolute; top: -20%; bottom: -20%; left: -60%; width: 38%; pointer-events: none; transform: skewX(-18deg);
     background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent); animation: dg-sweep 1.1s cubic-bezier(.4, 0, .2, 1) forwards; }
   @keyframes dg-sweep { to { left: 130%; } }

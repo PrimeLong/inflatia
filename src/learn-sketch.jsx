@@ -347,6 +347,8 @@ export function Sketch({ mode = 'lesson' }) {
       live.current = { s, id: e.pointerId, ink: inks(r)[p.color] };
       try { r.setPointerCapture(e.pointerId); } catch { /* указатель уже отпущен */ }
       r.dataset.sketching = 'true';
+      /* правой кнопкой стирают — и курсор на это время ластик, а не карандаш (пункт владельца 24.11, п. 6) */
+      if (right && p.tool !== 'eraser') { live.current.cursor = r.style.getPropertyValue('--sk-cursor'); r.style.setProperty('--sk-cursor', ringCursor(strokeWidth('eraser', p.size), null)); r.dataset.sketchErasing = 'true'; }
       if (s.tool === 'eraser') erase(0); else schedule();
     };
     const move = (e) => {
@@ -367,6 +369,7 @@ export function Sketch({ mode = 'lesson' }) {
       live.current = null;
       cancelAnimationFrame(frame.current); frame.current = 0;
       delete r.dataset.sketching;
+      if (L.cursor !== undefined) { r.style.setProperty('--sk-cursor', L.cursor); delete r.dataset.sketchErasing; }
       const full = strokes.current.length >= SKETCH.maxStrokes;
       strokes.current = pushStroke(strokes.current, L.s);
       // готовый штрих — на основной холст, живой слой — чистый; черновик переполнен — старейший штрих ушёл, холст заново

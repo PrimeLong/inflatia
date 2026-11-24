@@ -1448,10 +1448,18 @@ test('Инфля откликается на касание: подпрыгну�
   await expect(infla.locator('svg[aria-label]')).toHaveAttribute('aria-label', /Инфля/);
   // на миг — радость (рот и глаза радости), потом снова как была
   await expect(infla).not.toHaveAttribute('data-reaction', /./, { timeout: 3000 });
-  // пять быстрых касаний (щелчок Playwright ждёт конца анимации — касания шлём сами)
-  const seen = await infla.evaluate(async (el) => { const out = []; for (let k = 0; k < 5; k += 1) { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await new Promise((r) => setTimeout(r, 60)); out.push(el.getAttribute('data-reaction')); } return out; });
-  // пятое касание подряд — закружилась; пока кружится, новые касания её не сбивают
-  expect(seen).toContain('dizzy');
-  expect(seen[seen.length - 1]).toBe('dizzy');
+  // пять быстрых касаний (щелчок Playwright ждёт конца анимации — касания шлём сами). Пункт владельца 24.11, п. 2: начатое
+  // движение доигрывает — касания во время него его не перезапускают; пятое — «закружилась» сразу после него
+  const seen = await infla.evaluate(async (el) => { const out = []; for (let k = 0; k < 5; k += 1) { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await new Promise((r) => setTimeout(r, 60)); out.push([el.getAttribute('data-reaction'), el.getAttribute('data-poke')]); } return out; });
+  expect(seen[0][0]).toMatch(/jump|squish|tilt/);
+  // касания 2–4 только посчитаны: то же движение, тот же номер
+  expect(new Set(seen.slice(0, 4).map((x) => x[1])).size).toBe(1);
+  await expect(infla).toHaveAttribute('data-reaction', 'dizzy', { timeout: 2000 });
+  // кружится и переводит дух — новые касания её не сбивают
+  const n = await infla.getAttribute('data-poke');
+  await infla.evaluate((el) => { for (let k = 0; k < 3; k += 1) el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); });
+  await expect(infla).toHaveAttribute('data-poke', n);
+  // лицо меняется плавно: глаза и рот — в своей обёртке с проявлением, сама картинка не пересоздаётся
+  await expect(infla.locator('svg .infla-face')).toHaveCount(2);
   expect(errors).toEqual([]);
 });

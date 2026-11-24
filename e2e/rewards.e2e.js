@@ -387,12 +387,17 @@ test('церемонии: юнит пройден — «Новая марка»,
   });
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
   const scene = page.getByTestId('celebrate');
-  // почтовая марка юнита со зданием; касание по сцене — сразу финал
+  // почтовая марка юнита со зданием; пропустить — только кнопкой «Пропустить» (пункт владельца 24.11, п. 7: случайное касание
+  // по сцене постановку не пропускает)
   await expect(scene).toHaveAttribute('aria-label', 'Новая марка в альбоме: Мастерская');
   await expect(scene.getByTestId('celebrate-stamp')).toBeVisible();
   await expect(scene.getByTestId('celebrate-stamp').getByTestId('engraving')).toHaveAttribute('data-alive', 'true');
+  const running = () => scene.evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === 'running' && a.effect.getComputedTiming().endTime !== Infinity).length);
   await scene.click({ position: { x: 8, y: 8 } });
+  expect(await running()).toBeGreaterThan(0);
+  await scene.getByTestId('celebrate-skip').click();
   await expect(scene.getByTestId('celebrate-done')).toBeVisible();
+  expect(await running()).toBe(0);
   await scene.getByTestId('celebrate-done').click();
   // марка месяца — с монетами испытания
   await expect(scene).toHaveAttribute('aria-label', /^Марка месяца: /);

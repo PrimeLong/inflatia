@@ -6,7 +6,7 @@ import katex from 'katex';
 import { parseChapter, collectBlocks } from '../src/textbook/markdown.js';
 import { TRACKS } from '../src/audio/tracks.js';
 import {
-  openApp, openTab, openTasks, openBook, bookBack, toToc, expectNoSidewaysScroll, testWav, withTestFlag, showUnit, installHooks, pathNode, startLesson,
+  openApp, openTab, openTasks, openBook, bookBack, toToc, expectNoSidewaysScroll, testWav, fulfillRange, withTestFlag, showUnit, installHooks, pathNode, startLesson,
 } from './helpers.js';
 
 installHooks();
@@ -17,7 +17,7 @@ test('музыка: у пьесы есть запись в public/music — иг
   await page.addInitScript((ids) => { window.__INFLATIA_MUSIC_FILES__ = ids; }, Object.keys(TRACKS));
   const asked = [];
   const wav = testWav(8);
-  await page.route('**/music/*.mp3', (route) => { asked.push(new URL(route.request().url()).pathname); return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: wav }); });
+  await page.route('**/music/*.mp3', (route) => { asked.push(new URL(route.request().url()).pathname); return fulfillRange(route, wav, 'audio/wav'); });
   const { errors } = await openApp(page);
   await openBook(page);
   await page.getByTestId('textbook').getByRole('button', { name: /Спрос и предложение/ }).click();
@@ -246,7 +246,8 @@ test('музыка в обучении: мини-плашка над вклад�
     const el = document.querySelector('[data-testid="music-panel-out"]');
     return el ? getComputedStyle(el).animationName : null;
   });
-  expect(leaving).toBe('mp-out');
+  // на телефоне панель — снизу во всю ширину (пункт владельца 24.11, п. 3) и уходит вниз своей анимацией
+  expect(leaving).toMatch(/^mp-(sheet-)?out$/);
   await expect(page.getByTestId('music-panel-out')).toHaveCount(0);
   // в уроке плашки нет, но в шапке урока — своя кнопка музыки (пункт владельца 16.11: «в уроке нигде нет переключения музыки»)
   await openTab(page, 'path');
@@ -326,7 +327,7 @@ test('музыка: пауза на плашке переживает уход �
   await withTestFlag(page);
   await page.addInitScript((ids) => { window.__INFLATIA_MUSIC_FILES__ = ids; }, Object.keys(TRACKS));
   const wav = testWav(20);
-  await page.route('**/music/*.mp3', (route) => route.fulfill({ status: 200, contentType: 'audio/mpeg', body: wav }));
+  await page.route('**/music/*.mp3', (route) => fulfillRange(route, wav, 'audio/wav'));
   const { errors } = await openApp(page);
   await openTab(page, 'profile');
   await page.getByTestId('prof-settings-open').click();
@@ -1106,11 +1107,12 @@ test('теория из карточки урока: внизу отмечен �
   await showUnit(page, 'consumer');
   await page.locator('[data-testid=path-lesson][data-lesson="cs-s1"]').click();
   await expect(page.getByTestId('theory-notice')).toBeVisible();
-  // пункт владельца 18.11: вместо непонятной «Теория уже была в уроке» — три ясных действия
-  await expect(page.getByTestId('theory-notice')).toContainText('Можно прочитать его сейчас — или начать урок сразу');
+  // пункт владельца 18.11: вместо непонятной «Теория уже была в уроке» — ясные действия; 24.11, п. 16: «Начать урок» и есть
+  // «я знаю эту тему» — отдельной кнопки нет, и после него про раздел не напоминаем
+  await expect(page.getByTestId('theory-notice')).toContainText('Можно прочитать его сейчас — или начать урок сразу, и про этот раздел мы больше не напомним');
   await expect(page.getByTestId('theory-open')).toHaveText('Открыть теорию');
   await expect(page.getByTestId('theory-notice').getByTestId('lesson-start')).toHaveText('Начать урок');
-  await expect(page.getByTestId('theory-known')).toHaveText('Я знаю эту тему — не напоминать');
+  await expect(page.getByTestId('theory-known')).toHaveCount(0);
   await expect(page.getByTestId('theory-notice')).not.toContainText('уже была в уроке');
   await page.getByTestId('theory-open').click();
   await expect(page.getByTestId('learn-book')).toBeVisible();

@@ -1267,13 +1267,16 @@ const shopsChart = {
   build: (A, v) => {
     const p = shopsParams(A);
     const Q = p.q;
-    const line = (fix, per) => [{ x: 0, y: fix }, { x: Q, y: fix + per * Q }];
-    const moved = v.pa !== p.pa || v.pb !== p.pb || v.f !== p.f;
-    const top = num(A, 'max', Math.ceil((Math.max(v.pa * Q, v.f + v.pb * Q, p.pa * Q, p.f + p.pb * Q) * 1.08) / 2000) * 2000);
     const e = shopsEven(v.pa, v.pb, v.f);
-    const inside = e != null && e > 0 && e < Q;
+    /* точка «одинаково» — и на самом краю (жалоба ученика 24.11: при доставке 1500 и ценах 1200 и 1050 линии сходятся ровно
+       на 10 кг, а точка пропадала); пересечение дальше края — ось растягивается до него (не больше чем вчетверо) */
+    const X = e != null && e > Q && e <= 4 * Q ? Math.ceil((e * 1.2) / 2) * 2 : Q;
+    const line = (fix, per) => [{ x: 0, y: fix }, { x: X, y: fix + per * X }];
+    const moved = v.pa !== p.pa || v.pb !== p.pb || v.f !== p.f;
+    const top = num(A, 'max', Math.ceil((Math.max(v.pa * X, v.f + v.pb * X, p.pa * Q, p.f + p.pb * Q) * 1.08) / 2000) * 2000);
+    const inside = e != null && e > 0 && e <= X + 1e-9;
     return {
-      xDomain: [0, Q], yDomain: [0, top], xLabel: 'кофе, кг', yLabel: 'кроны',
+      xDomain: [0, X], yDomain: [0, top], xLabel: 'кофе, кг', yLabel: 'кроны',
       curves: [
         ...(moved && v.f !== p.f ? [{ id: 'B0', points: line(p.f, p.pb), ghost: true, color: 'gold' }] : []),
         ...(moved && v.pa !== p.pa ? [{ id: 'A0', points: line(0, p.pa), ghost: true, color: 'teal' }] : []),
@@ -1286,7 +1289,7 @@ const shopsChart = {
         ...(inside ? [{ x: e, y: v.pa * e, label: 'одинаково', guide: true }] : []),
       ],
       readout: [
-        { label: 'Одинаково при', value: inside ? `${r1(e)} кг` : e == null ? 'база не дешевле за кг' : `больше ${Q} кг` },
+        { label: 'Одинаково при', value: inside ? `${r1(e)} кг` : e == null ? 'база не дешевле за кг' : `больше ${X} кг` },
         { label: `${Q} кг у дома`, value: r1(v.pa * Q) },
         { label: `${Q} кг на базе`, value: r1(v.f + v.pb * Q) },
       ],

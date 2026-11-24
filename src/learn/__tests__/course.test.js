@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import katex from 'katex';
 import {
   UNITS, UNIT_BY_ID, LESSONS, EXERCISES, pilotUnits, buildLesson, buildUnitCheck, buildPractice, practiceIds, canPractice, instantiate, check, ready, answerText, estimate, pathState, SECONDS, KIND_LABEL, STEP_PICS,
-  GAME_KINDS, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, retryWorth, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart, examPoints,
+  GAME_KINDS, PRACTICE_PAD, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, retryWorth, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart, examPoints,
 } from '../course.js';
 import { CAST } from '../cast.js';
 import { WALLET, bestOf, gapOf } from '../wallet.js';
@@ -586,7 +586,11 @@ describe('юнит «Спрос и предложение»: все виды у�
   });
   it('проверка юнита и практика ошибок не берут раунды мини-игр', () => {
     for (let s = 1; s <= N; s += 1) buildUnitCheck(PILOT, seeded(s)).items.forEach((i) => expect(GAME_KINDS).not.toContain(i.kind));
-    expect(buildPractice(['sd-g-market', 'sd-e2-petrol']).items.map((i) => i.of || i.id)).toEqual(['sd-e2-petrol']);
+    const pr = buildPractice(['sd-g-market', 'sd-e2-petrol']).items;
+    expect(pr.filter((i) => !i.pad).map((i) => i.of || i.id)).toEqual(['sd-e2-petrol']);
+    // одна ошибка — не урок из одной карточки (пункт владельца 24.11, п. 10): добор — задания того же урока, без мини-игр
+    expect(pr.length).toBeGreaterThanOrEqual(PRACTICE_PAD);
+    pr.filter((i) => i.pad).forEach((i) => { expect(EXERCISES[i.of || i.id].lesson).toBe(EXERCISES['sd-e2-petrol'].lesson); expect(GAME_KINDS).not.toContain(i.kind); });
     // ошибка в мини-игре в «Повторить ошибки» не считается: решить её там негде
     const learn = addMistake(addMistake(emptyLearn(), 'sd-g-market', 1), 'sd-e2-petrol', 2);
     expect(practiceIds(learn)).toEqual(['sd-e2-petrol']);

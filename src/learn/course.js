@@ -16,13 +16,13 @@ import { pathBlocks } from './money.js';
 import { plural } from '../lib/plural.js';
 import { walletYears, WALLET } from './wallet.js';
 import {
-  LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, LEVEL_REVIEW_SIZE, FIX_MIN, mistakeUnit, fixIds,
+  LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, PRACTICE_PAD, LEVEL_REVIEW_SIZE, FIX_MIN, mistakeUnit, fixIds,
   fixDue, fixCount, canPractice, practiceIds, pathState, unitTitle, hydrateCourse,
 } from './course-core.js';
 
 // лёгкая часть курса — в course-core.js; отсюда она видна под прежними именами
 export {
-  LEVELS, UNIT_LEVEL, LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, LEVEL_REVIEW_SIZE,
+  LEVELS, UNIT_LEVEL, LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, PRACTICE_PAD, LEVEL_REVIEW_SIZE,
   FIX_MIN, mistakeUnit, fixIds, fixDue, fixCount, canPractice, practiceIds, pathState, unitTitle,
 };
 
@@ -961,8 +961,13 @@ function practiceEntry(id) {
 }
 // что из ошибок можно решить в практике — для указателя курса (course-core.js): id → юнит
 export const practiceUnitOf = (id) => (practiceEntry(id) || {}).unitId || null;
+/* один термин — один вопрос за повторение (жалоба ученика 23.11, pr-w: «Это же буквально прошлый вопрос»: плитки «Общий
+   продукт» шли сразу после «Какой это термин: весь выпуск при данном числе работников?»). Ключ — урок и термин у заданий
+   слов (tiles, which); у остальных — своё задание */
+export const termKey = (id) => { const m = /^(.+):(tiles|which):(.+)$/.exec(String(id)); return m ? `${m[1]}:${m[3]}` : String(id); };
 export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}) {
-  const exs = mistakeIds.map(practiceEntry).filter(Boolean);
+  const seenTerm = new Set();
+  const exs = mistakeIds.map(practiceEntry).filter(Boolean).filter((e) => { const k = termKey(e.id); if (seenTerm.has(k)) return false; seenTerm.add(k); return true; });
   // ошибка возвращается похожей задачей или с новыми числами — ответ не запомнить
   const avoidMistakes = new Set(exs.map((e) => e.id));
   const items = shuffle(exs, rand).slice(0, PRACTICE_MAX).map((e) => (e.level >= 2 ? { ...hardInstance(e, rand), practice: true } : freshCopy(e, rand, { practice: true }, { avoid: avoidMistakes, sibling: true })));
@@ -971,8 +976,18 @@ export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}
     if (items.length >= PRACTICE_MIN) break;
     const lesson = LESSON_BY_ID[lessonId];
     if (!lesson) continue;
-    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => basic(e) && !have.has(e.id)), rand);
-    pool.slice(0, PRACTICE_MIN - items.length).forEach((e) => { have.add(e.id); items.push(instantiate(e, rand, { practice: true, weak: true })); });
+    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => basic(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), rand);
+    pool.slice(0, PRACTICE_MIN - items.length).forEach((e) => { have.add(e.id); seenTerm.add(termKey(e.id)); items.push(instantiate(e, rand, { practice: true, weak: true })); });
+  }
+  /* ошибок мало, а слабых уроков нет — добрать заданиями тех же уроков, где ошибки (пункт владельца 24.11, п. 10: «странно,
+     что доступен повтор ошибки с одной ошибкой, и в итоге урок — одна карточка»): не меньше PRACTICE_PAD карточек */
+  const homes = [...new Set(exs.map((e) => e.lesson).filter(Boolean))];
+  for (const lessonId of homes) {
+    if (items.length >= PRACTICE_PAD) break;
+    const lesson = LESSON_BY_ID[lessonId];
+    if (!lesson) continue;
+    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => e && basic(e) && reviewable(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), rand);
+    pool.slice(0, PRACTICE_PAD - items.length).forEach((e) => { have.add(e.id); seenTerm.add(termKey(e.id)); items.push(instantiate(e, rand, { practice: true, pad: true })); });
   }
   return { items };
 }

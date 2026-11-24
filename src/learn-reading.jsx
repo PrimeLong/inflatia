@@ -69,12 +69,18 @@ const CSS = `
   .rd-shelf { position: relative; height: 168px; display: flex; align-items: flex-end; justify-content: center; gap: 6px; padding: 0 18px; }
   .rd-shelf::after { content: ''; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px; border-radius: 3px; background: linear-gradient(#b08a5c, #8a6a44); box-shadow: 0 6px 12px -6px rgba(0,0,0,.4); }
   .ds-dark .rd-shelf::after { background: linear-gradient(#6b5236, #4a3826); }
-  .rd-book { position: relative; flex: none; width: 38px; border-radius: 4px 4px 2px 2px; display: flex; align-items: center; justify-content: center; color: #fff;
-    background: linear-gradient(90deg, rgba(0,0,0,.18), transparent 18%, transparent 82%, rgba(0,0,0,.22)), var(--b);
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,.12), 0 2px 0 rgba(0,0,0,.08); }
-  .rd-book span { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 12.5px var(--ds-head); letter-spacing: .04em; white-space: nowrap; }
-  .rd-book::before, .rd-book::after { content: ''; position: absolute; left: 4px; right: 4px; height: 2px; background: rgba(255,255,255,.55); }
-  .rd-book::before { top: 12px; } .rd-book::after { bottom: 12px; }
+  /* подборка цитат — свиток, а не книга (пункт владельца 24.11, п. 17: «в конце чтения показывает 14 книг, хотя их 12»):
+     на полке «Чтения» — подборки, по одной на юнит; книги библиотеки — на полке в профиле. Бумага, сверху и снизу — валики
+     цвета юнита, по бумаге — лента с названием */
+  .rd-book { position: relative; flex: none; width: 36px; margin: 7px 0; border-radius: 3px; display: flex; align-items: center; justify-content: center; color: color-mix(in srgb, var(--b) 75%, #000);
+    background: linear-gradient(90deg, rgba(0,0,0,.10), transparent 20%, transparent 80%, rgba(0,0,0,.12)), #F6EBD3;
+    box-shadow: inset 0 0 0 1px rgba(120, 90, 40, .22), 0 2px 0 rgba(0,0,0,.06); }
+  .ds-dark .rd-book { background: linear-gradient(90deg, rgba(0,0,0,.16), transparent 20%, transparent 80%, rgba(0,0,0,.2)), #D9CBAE; }
+  .rd-book span { position: relative; writing-mode: vertical-rl; transform: rotate(180deg); font: 700 12px var(--ds-head); letter-spacing: .04em; white-space: nowrap;
+    padding: 6px 2px; border-radius: 2px; background: color-mix(in srgb, var(--b) 16%, transparent); }
+  .rd-book::before, .rd-book::after { content: ''; position: absolute; left: -4px; right: -4px; height: 9px; border-radius: 5px;
+    background: linear-gradient(#fff3 0 30%, transparent 70%), var(--b); box-shadow: inset 0 -1px 0 rgba(0,0,0,.25), 0 1px 2px rgba(0,0,0,.18); }
+  .rd-book::before { top: -7px; } .rd-book::after { bottom: -7px; }
   .rd-book.empty { background: color-mix(in srgb, var(--b) 7%, transparent); border: 2px dashed color-mix(in srgb, var(--b) 35%, var(--ds-rule)); box-shadow: none; color: color-mix(in srgb, var(--b) 60%, var(--ds-ink3)); }
   .rd-book.empty::before, .rd-book.empty::after { display: none; }
   .rd-book.new { animation: rd-drop .9s cubic-bezier(.3, 1.4, .5, 1) .2s backwards; }
@@ -198,7 +204,7 @@ function Shelf({ learn, fresh = null, here = null }) {
   const books = shelfOf(learn);
   const rows = Array.from({ length: Math.ceil(books.length / PER_SHELF) }, (_, i) => books.slice(i * PER_SHELF, (i + 1) * PER_SHELF));
   return (
-    <div className="rd-shelves" data-testid="reading-shelf" aria-label="Полка прочитанного">
+    <div className="rd-shelves" data-testid="reading-shelf" aria-label="Полка «Чтения»: подборки цитат, по одной на юнит">
       {rows.map((row, r) => (
         <div key={r} className="rd-shelf" data-testid="reading-shelf-row">
           {row.map((b, j) => {
@@ -384,7 +390,7 @@ export default function ReadingView({ id, learn, update, onClose, gem = false })
           <Shelf learn={learn} fresh={got ? r.id : null} here={r.id} />
           <div className="ds-sub" style={{ fontSize: 15.5, lineHeight: 1.5, marginTop: 18 }} data-testid="reading-shelf-count">
             {/* считаются подборки цитат «Чтения», а не книги библиотеки: «6 из 12 книг» читалось как счёт библиотеки, где книг девять (пункт владельца 15.11) */}
-            {got ? 'Подборка встала на полку.' : 'Подборка уже стояла на полке.'} Прочитано подборок цитат — {shelfOf(learn).filter((b) => b.done || b.id === r.id).length} из {shelfOf(learn).length}.
+            {got ? 'Свиток встал на полку.' : 'Свиток уже стоял на полке.'} Прочитано подборок цитат — {shelfOf(learn).filter((b) => b.done || b.id === r.id).length} из {shelfOf(learn).length}, по одной в каждом юните. Книги библиотеки — на полке в профиле.
           </div>
           {/* цитата на память — та, с которой подборка начиналась */}
           <div className="rd-keep" data-testid="reading-keep">

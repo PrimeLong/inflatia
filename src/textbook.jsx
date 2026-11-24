@@ -4,6 +4,7 @@
    ссылки на настоящие учебники — src/textbook/toc.js, прогресс — src/textbook/progress.js. */
 import { followStep } from './lib/follow.js';
 import { newGlide, glideAt, glideDecay, glideKeep } from './lib/glide.js';
+import { useHoldRepeat } from './lib/hold.js';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -975,6 +976,8 @@ function TbCalc({ onUse, label = 'В ответ' }) {
     else if (k === '√') setExpr((e) => pressRoot(e));
     else setExpr((e) => (e.length < 40 ? e + ({ '÷': '/', '×': '*', '−': '-' }[k] || k) : e));
   };
+  // «⌫» держат — стирает подряд (src/lib/hold.js)
+  const hold = useHoldRepeat(() => press('⌫'));
   return (
     <div className="tb-calc" data-testid="tb-calc">
       <div className="tb-calc-display">
@@ -984,7 +987,7 @@ function TbCalc({ onUse, label = 'В ответ' }) {
       </div>
       <div className="tb-calc-keys" role="group" aria-label="Калькулятор">
         {TB_KEYS.map((k) => (
-          <button key={k} type="button" className={k === '=' ? 'eq' : k === 'C' || k === '⌫' ? 'fn' : '÷×−+^√()'.includes(k) ? 'op' : ''} data-calc={k} onClick={() => press(k)} aria-label={TB_LABEL[k] || k}>{k}</button>
+          <button key={k} type="button" className={k === '=' ? 'eq' : k === 'C' || k === '⌫' ? 'fn' : '÷×−+^√()'.includes(k) ? 'op' : ''} data-calc={k} {...(k === '⌫' ? hold : { onClick: () => press(k) })} aria-label={TB_LABEL[k] || k}>{k}</button>
         ))}
         <button type="button" className="ems-btn primary tb-calc-use" disabled={v == null} data-testid="tb-calc-use"
           onClick={() => { Audio.play('click'); onUse(fmtResult(v).replace('−', '-')); }}>{label}</button>

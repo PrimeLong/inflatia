@@ -158,6 +158,10 @@ const CSS = `
   .cb-confetti i.stamp { background: #FFFBF1; box-shadow: inset 0 0 0 2px var(--c); outline: 2px dotted #FFFBF1; outline-offset: -1px; }
   @keyframes cb-fall { 0% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) rotateY(0) } 85% { opacity: 1 }
     100% { opacity: 0; transform: translate3d(var(--dx), 108vh, 0) rotate(var(--rot)) rotateY(900deg) } }
+  .cb-skip { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: 14px; z-index: 5; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.35);
+    background: rgba(0,0,0,.22); color: #fff; font: 600 13px var(--ds-sans, sans-serif); cursor: pointer; backdrop-filter: blur(6px); animation: cb-skip-off .2s ease-in var(--at, 0ms) forwards; }
+  .cb-skip:hover { background: rgba(0,0,0,.34); }
+  @keyframes cb-skip-off { to { opacity: 0; visibility: hidden; pointer-events: none; } }
   /* на ПК сцена крупнее: на большом экране марка и печать терялись */
   .cb-body { position: relative; display: flex; flex-direction: column; align-items: center; }
   @media (min-width: 900px) and (min-height: 760px) { .cb-body { zoom: 1.3; } }
@@ -295,17 +299,18 @@ function Scene({ tone, label, seed, confettiAt, stage, shakeAt, eyebrow, title, 
   const reduced = useReducedMotion();
   // фокус — на сцене: Enter — «Дальше», Esc — закрыть
   useEffect(() => { if (ref.current) ref.current.focus(); }, []);
-  // касание до конца постановки — сразу финал (бесконечные движения — блик, лучи — остаются)
-  const skip = (e) => {
-    if (e.target.closest('button')) return;
+  /* пропустить постановку — только кнопкой «Пропустить» (пункт владельца 24.11, п. 7: «выдали марку месяца, нажал — и
+     скипнул анимацию»): случайное касание по сцене больше ничего не пропускает. Бесконечные движения — блик, лучи — остаются */
+  const skip = () => {
     const root = ref.current;
     if (!root || !root.getAnimations) return;
     root.getAnimations({ subtree: true }).forEach((a) => { try { if (a.effect && a.effect.getComputedTiming().endTime !== Infinity) a.finish(); } catch { /* уже кончилась */ } });
   };
   return (
     <div className="cb" ref={ref} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} style={{ '--cb': tone }} data-testid={testid}
-      onClick={skip} onKeyDown={(e) => { if (e.key === 'Escape' || (e.key === 'Enter' && e.target === ref.current)) { e.preventDefault(); onDone(); } }}>
+      onKeyDown={(e) => { if (e.key === 'Escape' || (e.key === 'Enter' && e.target === ref.current)) { e.preventDefault(); onDone(); } }}>
       <style>{CSS}</style>
+      {!reduced && <button type="button" className="cb-skip" style={{ '--at': `${buttonsAt}ms` }} data-testid="celebrate-skip" onClick={skip}>Пропустить</button>}
       <div className="cb-glow" aria-hidden="true" />
       <div className="cb-rays" aria-hidden="true" />
       <div className="cb-grain" aria-hidden="true" />

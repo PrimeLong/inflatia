@@ -4,6 +4,7 @@
    (слово с оборотом, герой «Истории», «Слушай» с голосом браузера и подсветкой текста).
    Всё своё: SVG и Web Speech API, без библиотек и внешних запросов. При «уменьшить движение»
    карточки не летают, подсветка текста не бежит. */
+import { useHoldRepeat } from './lib/hold.js';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Coffee, Croissant, Landmark, ScrollText, RotateCcw, Play, Timer, Delete, Trophy, GraduationCap, Radio, Feather, Check,
@@ -999,6 +1000,8 @@ export function Calculator({ onUse = null, disabled = false, useLabel = 'В от
      строку (выражение слева, результат справа), пять колонок клавиш, «стереть» и «очистить» —
      в той же сетке, «В ответ» — в последнем ряду. */
   const KEYS = [['7', '8', '9', '÷', 'del'], ['4', '5', '6', '×', 'C'], ['1', '2', '3', '−', '('], ['0', ',', '^', '+', ')'], ['√', '=']];
+  // «стереть» держат — стирает подряд, как на клавиатуре (src/lib/hold.js)
+  const hold = useHoldRepeat(() => press('del'));
   const LABEL = { '÷': 'Разделить', '×': 'Умножить', '−': 'Вычесть', '+': 'Прибавить', '^': 'Степень', '√': 'Квадратный корень', '=': 'Равно', del: 'Стереть символ', C: 'Очистить' };
   return (
     <div className="lp-calc" data-testid="calculator">
@@ -1009,7 +1012,7 @@ export function Calculator({ onUse = null, disabled = false, useLabel = 'В от
       <div className="lp-calc-keys" role="group" aria-label="Калькулятор">
         {KEYS.flat().map((k) => (
           <button key={k} type="button" className={`ds-key ${'÷×−+^√='.includes(k) ? 'lp-op' : ''}`} disabled={disabled} data-calc={k} aria-label={LABEL[k] || k}
-            onClick={() => press(k === '÷' ? '/' : k === '×' ? '*' : k === '−' ? '-' : k)}>{k === 'del' ? <Delete size={18} aria-hidden="true" /> : k}</button>
+            {...(k === 'del' ? hold : { onClick: () => press(k === '÷' ? '/' : k === '×' ? '*' : k === '−' ? '-' : k) })}>{k === 'del' ? <Delete size={18} aria-hidden="true" /> : k}</button>
         ))}
         {onUse && <button type="button" className="ds-btn lp-calc-use" disabled={disabled || v == null} data-testid="calc-use" onClick={() => { Audio.play('click'); onUse(fmtResult(v).replace('−', '-')); }}>{useLabel}</button>}
       </div>

@@ -92,6 +92,23 @@ export function createAudioEngine(options = {}) {
   const testFiles = typeof window !== 'undefined' && window.__INFLATIA_TEST__ && Array.isArray(window.__INFLATIA_MUSIC_FILES__) ? window.__INFLATIA_MUSIC_FILES__ : [];
   const musicFiles = new Set(options.musicFiles || (options.context ? [] : [...MUSIC_FILES, ...testFiles]));
   const fetchMusic = options.fetchMusic || ((url) => fetch(url).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); }));
+  /* ПОТОКОМ (пункт владельца 24.11, п. 1: «у друга одна песня грузилась 10 минут — может не ждать, пока она полностью
+     прогрузится?»): раньше запись качалась целиком (4–6 МБ) и декодировалась, и только потом звучала. Теперь её играет
+     элемент <audio>, подключённый к той же шине пьесы (createMediaElementSource): звук идёт, как только набралось несколько
+     секунд, остальное докачивается по ходу. Громкость, затухания, переходы и пауза — те же. Целиком (fetch + decode) —
+     запасной путь: старый браузер без createMediaElementSource, офлайн-замер громкости и тесты (fetchMusic). */
+  const makeAudioEl = options.createAudioElement || (typeof window !== 'undefined' && typeof window.Audio === 'function' ? () => new window.Audio() : null);
+  const streamable = () => !!(makeAudioEl && ctx && typeof ctx.createMediaElementSource === 'function' && (options.createAudioElement || (!options.context && !options.fetchMusic)));
+  const loadStream = (id) => new Promise((res, rej) => {
+    const el = makeAudioEl();
+    el.preload = 'auto';
+    const ok = () => { off(); res({ stream: true, el, node: null, plays: 0, cur: 0, get duration() { return Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 3600; } }); };
+    const bad = () => { off(); rej(new Error('audio error')); };
+    const off = () => { el.removeEventListener('canplay', ok); el.removeEventListener('error', bad); };
+    el.addEventListener('canplay', ok); el.addEventListener('error', bad);
+    el.src = `/music/${id}.mp3`;
+    if (typeof el.load === 'function') el.load();
+  });
   const fileBufs = {}; const fileBroken = {}; const fileReady = {};
   let fileSrc = null; let fileEnd = 0; let fileFor = null; let fileToken = 0; let fileGain = null; let fileStart = 0; let fileFading = false; let xfades = 0;
   /* пауза — не «стоп» (пункт владельца 16.11: «ставлю на паузу и включаю снова, а она с самого начала»): запоминаем, где
@@ -904,10 +921,10 @@ export function createAudioEngine(options = {}) {
      затухания на переходах и заставки действуют на неё так же, как на синтез */
   const loadFile = (id) => {
     if (!fileBufs[id]) {
-      fileBufs[id] = fetchMusic(`/music/${id}.mp3`).then((ab) => new Promise((res, rej) => {
+      fileBufs[id] = (streamable() ? loadStream(id) : fetchMusic(`/music/${id}.mp3`).then((ab) => new Promise((res, rej) => {
         // старый Safari умеет decodeAudioData только с колбэками
         try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); } catch (err) { rej(err); }
-      })).then((buf) => { fileReady[id] = buf; return buf; });
+      }))).then((buf) => { fileReady[id] = buf; return buf; });
       fileBufs[id].catch(() => { fileBroken[id] = true; delete fileBufs[id]; });
     }
     return fileBufs[id];
@@ -921,8 +938,34 @@ export function createAudioEngine(options = {}) {
     if (fileSrc) { const src = fileSrc; try { src.stop(Math.max(now(), at || 0)); } catch { /* уже остановлена */ } }
     fileSrc = null; fileFor = null; fileEnd = 0; fileGain = null;
   };
+  /* запись потоком: элемент играет с offset в момент at; stop(at) — пауза в этот момент. Один элемент на пьесу: новый запуск
+     той же пьесы отменяет отложенную остановку прошлого (rec.cur — номер текущего запуска) */
+  const playStream = (rec, at, from, offset) => {
+    const g = ctx.createGain(); g.gain.setValueAtTime(from, at);
+    if (!rec.node) rec.node = ctx.createMediaElementSource(rec.el);
+    try { rec.node.disconnect(); } catch { /* ещё не подключён */ }
+    rec.node.connect(g); g.connect(songBus);
+    const playId = (rec.plays += 1); rec.cur = playId;
+    try { rec.el.currentTime = offset; } catch { /* метаданных ещё нет — с начала */ }
+    let startTimer = null;
+    const go = () => { startTimer = null; if (rec.cur !== playId) return; const p = rec.el.play(); if (p && p.catch) p.catch(() => {}); };
+    const wait = Math.max(0, (at - now()) * 1000);
+    // до 0,12 с — сразу: элемент всё равно начинает с буфера, а таймер сдвинул бы старт на такт
+    if (wait > 120) startTimer = setTimeout(go, wait); else go();
+    const src = {
+      stream: true, el: rec.el, buffer: { get duration() { return rec.duration; } },
+      stop(atStop) {
+        if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+        const kill = () => { if (rec.cur === playId) { rec.el.pause(); rec.cur = 0; } };
+        const d = Math.max(0, ((atStop || 0) - now()) * 1000);
+        if (d > 5) setTimeout(kill, d); else kill();
+      },
+    };
+    return { src, g };
+  };
   // источник записи со своей громкостью: на переходах затухает он сам, а не общая шина пьесы
   const playBuf = (buf, at, from = 1, offset = 0) => {
+    if (buf && buf.stream) return playStream(buf, at, from, offset);
     const src = ctx.createBufferSource(); src.buffer = buf;
     const g = ctx.createGain(); g.gain.setValueAtTime(from, at);
     src.connect(g); g.connect(songBus);
@@ -956,6 +999,12 @@ export function createAudioEngine(options = {}) {
   const fileTick = () => {
     const t = now();
     nextTime = t + 0.06; stepIdx = 0;
+    /* потоком запись может постоять, пока докачивается: конец и начало сверяем с самим элементом, иначе переход начался бы
+       раньше времени на длину остановок */
+    if (fileSrc && fileSrc.stream && !fileFading) {
+      const el = fileSrc.el;
+      if (!el.paused && el.currentTime > 0 && Number.isFinite(el.duration) && el.duration > 0) { fileStart = t - el.currentTime; fileEnd = t + (el.duration - el.currentTime); }
+    }
     if (pending === track.id) {
       pending = null;
       if (songBus) { songBus.gain.cancelScheduledValues(t); songBus.gain.setTargetAtTime(songLevel(track), t, 0.4); }

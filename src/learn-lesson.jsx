@@ -317,10 +317,13 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
       // «6 050 крон» — одно число: пробелы между разрядами (и неразрывные) не разрывают его
       const numOf = (o) => { const m = String(o.raw).replace('−', '-').replace(/(\d)[ \u00A0\u202F\u2009](?=\d{3}\b)/g, '$1').match(/^-?\d+(?:[.,]\d+)?/); return m ? Number(m[0].replace(',', '.')) : null; };
       const numeric = inst.options.every((o) => numOf(o) != null);
+      /* варианты со счётом внутри («На базе: 1600 против 1800») — тоже задача на расчёт: калькулятор есть, только без
+         «Выбрать ответ» — вариант выбирают сами (жалоба ученика 24.11, tr-e2-even: «Где калькулятор?») */
+      const counting = !numeric && inst.options.every((o) => /\d/.test(String(o.raw))) && inst.options.some((o) => /\d{2,}/.test(String(o.raw)));
       return (
         <div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
-          {numeric && !locked && (
+          {(numeric || counting) && !locked && (
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
               <button type="button" className="ds-chip" aria-pressed={!!inst._calc} data-testid="calc-open" onClick={() => { Audio.play('tick'); inst._setCalc(!inst._calc); }}>
                 <Calculator size={15} style={{ verticalAlign: -3, marginRight: 4 }} aria-hidden="true" />Калькулятор
@@ -332,6 +335,7 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
               <ChoiceCalc options={inst.options} numOf={numOf} onPick={(key) => { pick(key); inst._setCalc(false); }} />
             </div>
           )}
+          {counting && inst._calc && !locked && <div style={{ marginBottom: 12 }} data-testid="calc-free"><CalcPad /></div>}
           {inst.options.map((o) => (
             <button key={o.key} type="button" className={`ds-opt ${optClass(o.key, o.correct)}`} aria-pressed={resp === o.key} data-key={o.key} disabled={locked}
               onClick={() => pick(o.key)}><Inline nodes={o.text} ctx={ctx} /></button>
@@ -761,8 +765,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     // «Работа над ошибками»: решённые ошибки снимаются, когда урок пройден целиком (docs/mechanics.md)
     fixed: new Set(rs ? rs.fixed || [] : []),
   });
-  // сохранённый незаконченный урок: обычный — по уроку, «Работа над ошибками» — по юниту
-  const resumeKey = run.mode === 'fix' ? `fix:${run.unitId}` : run.lessonId;
+  /* сохранённый незаконченный урок: обычный — по уроку, «Работа над ошибками» — по юниту, «Повторить ошибки» — одно место
+     на всё (пункт владельца 24.11, п. 4: «работу над ошибками нельзя продолжить»: вышли — начиналось заново) */
+  const resumeKey = run.mode === 'fix' ? `fix:${run.unitId}` : run.mode === 'practice' ? 'practice' : run.lessonId;
   const [started, setStarted] = useState(!!rs);
   /* урок — слой поверх страницы: пока он открыт, страница под ним не прокручивается и не
      показывает свой ползунок (на ПК он висел сбоку урока, даже когда прокручивать нечего) */
@@ -773,6 +778,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     return () => { els.forEach((el, k) => { el.style.overflow = was[k]; }); };
   }, [hidden]);
   const retryable = run.mode === 'lesson' || run.mode === 'practice' || run.mode === 'fix';
+  /* дождь монет на итогах — один раз (жалоба ученика 24.11, tr-l1: «можно жать на подробности урока, потом возвращаться — и
+     каждый раз анимация с монетами»): пока открыт учебник, урок скрыт, и после возврата CSS-анимация шла заново */
+  const coinsAt = useRef(0);
+  if (stage === 'done' && result && !coinsAt.current) coinsAt.current = Date.now();
+  const coinsLive = !!coinsAt.current && !hidden && Date.now() - coinsAt.current < 3500;
   const total = plan.items.length;
   const cur = queue[pos];
   const orig = cur ? (cur.orig || cur.uid) : null;
@@ -905,6 +915,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       opened = placementOpened(plan.items, a.first);
       apply = (s) => setPlacement(opened.reduce((t, u) => passUnit(t, u, { now }), s), opened, now);
     } else {
+      if (run.mode === 'practice') dropResume(resumeKey);
       xp = firstOk * XP.correct + a.bonus;
       // «Работа над ошибками» пройдена — Путь открыт дальше; второй такой в этом юните не будет
       apply = (s) => {
@@ -973,7 +984,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
      крестиком, после каждого ответа и когда страницу закрывают или прячут — закрытый браузер и
      перезагрузка больше не теряют урок (жалоба: «случайно закрыл браузер — всё слетело») */
   const snapshot = () => {
-    if ((run.mode !== 'lesson' && run.mode !== 'fix') || !started || stage === 'done') return;
+    if ((run.mode !== 'lesson' && run.mode !== 'fix' && run.mode !== 'practice') || !started || stage === 'done') return;
     const a = acc.current;
     const at = fb && !fb.empty ? pos + 1 : pos;
     if (at >= queue.length) { dropResume(resumeKey); return; }
@@ -1321,7 +1332,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
 
       {stage === 'done' && result && (
         <div className="ln-body"><div className="ln-inner" data-testid="lesson-result">
-          {(run.mode !== 'check' || result.pass) && <CoinShower seed={result.xp + 1} />}
+          {(run.mode !== 'check' || result.pass) && coinsLive && <CoinShower seed={result.xp + 1} />}
           {/* итоги — как сертификат: гильош по краям, розетка-печать с Инфлей */}
           <Card style={{ padding: 0, overflow: 'hidden', textAlign: 'center', position: 'relative' }}>
             <span style={{ position: 'absolute', top: 30, right: 14 }}>
