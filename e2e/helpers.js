@@ -163,6 +163,21 @@ export async function answerExercise(page, { wrong = false, skipOpen = false } =
       if (ch === '-') await ex.getByRole('button', { name: 'Минус' }).click();
       else await ex.getByRole('group', { name: 'Цифровая клавиатура' }).getByRole('button', { name: ch, exact: true }).click();
     }
+  } else if (kind === 'data') {
+    // «Данные»: касание элемента (у круговой — строка подписи: центр сектора может прийтись на дырку кольца), число с
+    // экранной клавиатуры, вывод — вариантом
+    const view = ex.getByTestId('data-view');
+    if (ans.ask === 'pick') {
+      const pie = (await view.getAttribute('data-view')) === 'pie';
+      const keys = await view.locator(pie ? '[data-legend]' : '[data-key]').evaluateAll((els, p) => [...new Set(els.map((e) => (p ? e.dataset.legend : e.dataset.key)))], pie);
+      const k = wrong ? keys.find((x) => x !== ans.key) : ans.key;
+      await view.locator(pie ? `[data-legend="${k}"]` : `[data-key="${k}"]`).first().click();
+    } else if (ans.ask === 'number') {
+      for (const ch of wrong ? '99999' : ans.value) {
+        if (ch === '-') await ex.getByRole('button', { name: 'Минус' }).click();
+        else await ex.getByRole('group', { name: 'Цифровая клавиатура' }).getByRole('button', { name: ch, exact: true }).click();
+      }
+    } else await ex.locator(wrong ? `.ds-opt[data-key]:not([data-key="${ans.key}"])` : `.ds-opt[data-key="${ans.key}"]`).first().click();
   } else if (kind === 'match') {
     // «вставьте слово»: место (определение), потом слово из банка
     const keys = Object.keys(ans);

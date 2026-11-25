@@ -40,6 +40,7 @@
      scenario — сценарий партии, lab — рычаг в Лаборатории (?cb=fixed&mode=hold&scenario=…),
      tycoon — задание в «Своём деле», chapter — глава, card — карточка «игра ↔ учебник»,
      appendix — приложение (cards, limits, glossary). */
+import { DATA_VIEWS, DATA_ASKS, PIE_MAX, parseDataRows, dataKeys } from '../learn/data.js';
 import { DIAGRAM_KINDS } from './diagrams.js';
 import { plural } from '../lib/plural.js';
 
@@ -370,7 +371,12 @@ export const parseChapter = (text) => parseBlocks(text);
        и разборе {=выражение} подставляется по параметрам (имя=по умолчанию:от..до[:шаг]), calc — формула
        ответа; с параметрами по умолчанию — как написано, в повторах — новые числа (varyInstance);
      shift chart=тип answer="S-" options="D+ D- S+ S-" — «куда сдвинется?», ловушки «!! D+ | почему»;
-     news headline="…" vars="P:цена Q:количество" expect="P:+ Q:-" — «газета».
+     news headline="…" vars="P:цена Q:количество" expect="P:+ Q:-" — «газета»;
+     data view=table|bar|hbar|line|pie ask=pick|number|choice — «Данные» (src/learn/data.js): строки «| подпись | число |»
+       (первая — заголовок с именами рядов, если в ней не числа) — таблица или диаграмма; title="…" — заголовок, vunit="…" —
+       единица значений, note="…" — источник, from=… — начало оси (для заданий «найдите подвох»). Ответ: pick answer="Июнь"
+       (или «Июнь / На базе» при нескольких рядах) — коснуться элемента, ловушки «!! Май | почему»; number answer=… tol=…
+       unit=… — число, как в расчёте, ловушки «!! 37 | почему»; choice — строки «+ вывод» и «- вывод | почему».
    Всё после строки «---» — объяснение, которое показывается после ответа.
    context="…" — то, что ученик услышал в «Слушай»: в самом радиоуроке вопрос его не повторяет,
    а в повторении, практике и проверке (вне эфира) context встаёт перед условием.
@@ -393,7 +399,7 @@ export const EXAM_FORMS = ['pick', 'match', 'one'];
 export const LESSON_KINDS = ['intro', 'practice', 'words', 'story', 'listen', 'game', 'review', 'summary'];
 // шаги «Откройте сами»: demand — день в кофейне, точки «цена — сколько купили» складываются в кривую спроса
 export const DISCOVER_KINDS = ['demand'];
-const EX_KINDS = ['choice', 'gap', 'tf', 'match', 'sort', 'calc', 'shift', 'news', 'tiles', 'curve', 'price', 'point', 'open', 'domino', 'exam'];
+const EX_KINDS = ['choice', 'gap', 'tf', 'match', 'sort', 'calc', 'shift', 'news', 'tiles', 'curve', 'price', 'point', 'open', 'domino', 'exam', 'data'];
 export const DOMINO_EFFECTS = ['D+', 'D-', 'S+', 'S-', 'P', 'Q', 'ceil', 'street'];
 const MARKET = ['a', 'b', 'c', 'd', 'dA', 'dC'];
 const market = (attrs) => Object.fromEntries(MARKET.map((k) => [k, attrs[k] != null ? Number(attrs[k]) : (k === 'dA' || k === 'dC' ? 0 : NaN)]));
@@ -517,7 +523,8 @@ function parseExercise(kind, attrs, body) {
   const explain = sep >= 0 ? parseBlocks(body.slice(sep + 1).join('\n')) : null;
   const isOpt = (l) => /^[+-]\s/.test(l.trim());
   const isTrap = (l) => l.trim().startsWith('!!');
-  const special = (l) => isOpt(l) || isTrap(l);
+  // у «Данных» строки «| … |» — сами данные, а не текст условия
+  const special = (l) => isOpt(l) || isTrap(l) || (kind === 'data' && l.trim().startsWith('|'));
   const prompt = parseBlocks(main.filter((l) => !special(l)).join('\n'));
   const why = splitWhy;
   const ex = { type: 'ex', kind, id: attrs.id, attrs, prompt, explain, ...(attrs.context ? { context: parseInline(attrs.context) } : {}) };
@@ -600,6 +607,44 @@ function parseExercise(kind, attrs, body) {
     if (ex.links.length < 4 || ex.links.length > 5) throw new Error(`В «Домино» ${attrs.id} звеньев ${ex.links.length}, нужно 4–5`);
     const total = ex.links.length + ex.decoys.length;
     if (total < 7 || total > 8) throw new Error(`В «Домино» ${attrs.id} карточек ${total}, нужно 7–8`);
+  }
+  if (kind === 'data') {
+    const where = `В задании «Данные» ${attrs.id}`;
+    ex.view = attrs.view || 'table';
+    if (!DATA_VIEWS.includes(ex.view)) throw new Error(`${where}: view — ${DATA_VIEWS.join(', ')}`);
+    ex.data = parseDataRows(main, where);
+    // by=row — касание выбирает строку целиком (у таблицы с несколькими столбцами, у групп столбцов)
+    if (attrs.by === 'row') ex.data.by = 'row'; else if (attrs.by) throw new Error(`${where}: by — только row`);
+    ex.ask = attrs.ask || (opts.length ? 'choice' : 'pick');
+    if (!DATA_ASKS.includes(ex.ask)) throw new Error(`${where}: ask — ${DATA_ASKS.join(', ')}`);
+    ex.title = attrs.title || ''; ex.vunit = attrs.vunit || ''; ex.note = attrs.note || '';
+    if (attrs.from != null) ex.from = Number(attrs.from);
+    const vals = ex.data.rows.flatMap((r) => r.values);
+    if (ex.view === 'pie' && (ex.data.cols.length > 1 || vals.some((v) => v < 0))) throw new Error(`${where}: у круговой диаграммы — один ряд без отрицательных чисел`);
+    if (ex.view === 'pie' && ex.data.rows.length > PIE_MAX) throw new Error(`${where}: у круговой диаграммы — не больше ${PIE_MAX} секторов (больше не различить цветом)`);
+    if (ex.from != null && !(ex.from < Math.max(...vals))) throw new Error(`${where}: from — ниже самого большого значения`);
+    if (ex.ask === 'pick') {
+      const keys = dataKeys(ex.data);
+      if (!keys.includes(attrs.answer)) throw new Error(`${where}: answer=«${attrs.answer}» — нет такого элемента (${keys.join('; ')})`);
+      ex.answer = attrs.answer;
+      ex.traps = traps.map((t) => {
+        if (!keys.includes(t.key) || t.key === ex.answer) throw new Error(`${where}: ловушка «${t.key}» — не элемент данных или верный ответ`);
+        return { key: t.key, why: t.why };
+      });
+      if (opts.length) throw new Error(`${where}: у ответа касанием нет вариантов «+ / -»`);
+    }
+    if (ex.ask === 'number') {
+      const forms = String(attrs.unit || '').split('|').map((f) => f.trim());
+      ex.answer = Number(attrs.answer); ex.tol = attrs.tol != null ? Number(attrs.tol) : null; ex.unit = forms[forms.length - 1];
+      if (forms.length === 3) ex.units = forms;
+      if (!Number.isFinite(ex.answer)) throw new Error(`${where}: answer — число`);
+      ex.traps = traps.map((t) => ({ value: parseNumber(t.key), why: t.why }));
+      if (opts.length) throw new Error(`${where}: у ответа числом нет вариантов «+ / -»`);
+    }
+    if (ex.ask === 'choice') {
+      ex.options = opts.map((o) => ({ text: parseInline(o.raw), raw: o.raw, correct: o.correct, why: o.why }));
+      if (ex.options.filter((o) => o.correct).length !== 1 || ex.options.length < 2) throw new Error(`${where}: вариантов — от двух, верный — один`);
+    }
   }
   if (kind === 'news') {
     ex.headline = attrs.headline || '';

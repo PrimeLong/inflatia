@@ -15,6 +15,7 @@ import { CAST } from './cast.js';
 import { pathBlocks } from './money.js';
 import { plural } from '../lib/plural.js';
 import { walletYears, WALLET } from './wallet.js';
+import { itemText } from './data.js';
 import {
   LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, PRACTICE_PAD, LEVEL_REVIEW_SIZE, FIX_MIN, mistakeUnit, fixIds,
   fixDue, fixCount, canPractice, practiceIds, pathState, unitTitle, hydrateCourse,
@@ -27,14 +28,14 @@ export {
 };
 
 // сколько секунд на упражнение: одно касание — около десяти, расчёт и сборка — дольше
-export const SECONDS = { choice: 12, gap: 12, tf: 10, shift: 12, news: 16, match: 22, sort: 22, calc: 28, tiles: 20, curve: 15, price: 18, point: 15, swipe: 60, rush: 60, wallet: 120, open: 30, domino: 35, exam: 45 };
+export const SECONDS = { choice: 12, gap: 12, tf: 10, shift: 12, news: 16, match: 22, sort: 22, calc: 28, tiles: 20, curve: 15, price: 18, point: 15, swipe: 60, rush: 60, wallet: 120, open: 30, domino: 35, exam: 45, data: 25 };
 export const IDEA_SECONDS = 25;
 export const KIND_LABEL = {
   choice: 'Выбор ответа', gap: 'Заполните пропуск', tf: 'Верно или неверно', shift: 'Куда сдвинется?',
   news: 'Газета', match: 'Сопоставьте пары', sort: 'Разложите по корзинам', calc: 'Быстрый расчёт',
   tiles: 'Соберите определение', curve: 'Сдвиньте кривую', price: 'Найдите цену', point: 'Отметьте равновесие',
   swipe: 'Мини-игра', rush: 'Мини-игра на время', wallet: 'Сбереги кошелёк', open: 'Как бы вы поступили?', domino: 'Домино',
-  exam: 'Задание экзамена',
+  exam: 'Задание экзамена', data: 'Данные',
 };
 /* Задание в формате ЕГЭ или ОГЭ (docs/mechanics.md, «Задания урока»): ответ — цифрами, как в бланке.
    Буквы пунктов соответствия — как на экзамене: А, Б, В, Г, Д, Е (без Ё и Й). */
@@ -168,6 +169,8 @@ function fromBlock(b) {
     case 'point': return { ...e, market: b.market };
     case 'open': return e;
     case 'domino': return { ...e, headline: b.headline, scene: b.scene, links: b.links, decoys: b.decoys };
+    case 'data': return { ...e, data: b.data, view: b.view, ask: b.ask, title: b.title, vunit: b.vunit, note: b.note, ...(b.from != null ? { from: b.from } : {}),
+      ...(b.ask === 'choice' ? { options: b.options } : { answer: b.answer, traps: b.traps || [], ...(b.ask === 'number' ? { tol: b.tol, unit: b.unit, ...(b.units ? { units: b.units } : {}) } : {}) }) };
     default: throw new Error(b.kind);
   }
 }
@@ -358,6 +361,13 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
       const decoys = ex.decoys.map((d, k) => ({ key: `f${k}`, text: d.text, raw: d.raw, why: d.why, link: null }));
       return { ...base, headline: ex.headline, scene: ex.scene, chain: links.map((l) => l.key), deck: shuffle([...links, ...decoys], rand) };
     }
+    // «Данные»: таблица или диаграмма и ответ — касанием, числом или выбором вывода (src/learn/data.js)
+    case 'data': {
+      const d = { ...base, data: ex.data, view: ex.view, ask: ex.ask, title: ex.title || '', vunit: ex.vunit || '', note: ex.note || '', ...(ex.from != null ? { from: ex.from } : {}) };
+      if (ex.ask === 'choice') return { ...d, options: shuffle(ex.options.map((o, k) => ({ key: `o${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand) };
+      if (ex.ask === 'number') return { ...d, answer: ex.answer, tol: ex.tol, unit: ex.unit, ...(ex.units ? { units: ex.units } : {}), traps: ex.traps || [] };
+      return { ...d, answer: ex.answer, traps: ex.traps || [] };
+    }
     // «Сбереги кошелёк»: пять лет — новость, прогноз и ставка — подбираются под этот экземпляр
     case 'wallet':
       return { ...base, title: ex.title, years: walletYears(ex.items.map((it, k) => ({ key: `g${k}`, text: it.text, raw: it.raw, level: it.level })), rand) };
@@ -417,6 +427,13 @@ export function check(inst, resp) {
       return { ok, why: ok ? null : text('Равновесие — там, где кривые пересекаются: объём спроса равен объёму предложения.') };
     }
     case 'swipe': case 'rush': case 'wallet': return { ok: gameOk(inst, resp), why: null };
+    // «Данные»: число — как расчёт, вывод — как выбор, касание — элемент данных и ловушка его «почему»
+    case 'data': {
+      if (inst.ask === 'choice') return check({ ...inst, kind: 'choice' }, resp);
+      if (inst.ask === 'number') return check({ ...inst, kind: 'calc' }, resp);
+      const tr = (inst.traps || []).find((t) => t.key === resp);
+      return { ok: resp === inst.answer, why: resp !== inst.answer && tr ? tr.why : null };
+    }
     // открытый вопрос: любой продуманный ответ засчитан, дальше — разбор
     // пропуск — не ошибка: у открытого вопроса неверного ответа нет, разбор откроется и так
     case 'open': return resp && resp.skip ? { ok: true, why: null, skipped: true } : { ok: String(resp || '').trim().length >= OPEN_MIN, why: null };
@@ -477,6 +494,7 @@ export function ready(inst, resp) {
     case 'sort': return Object.keys(resp).length === inst.items.length;
     case 'news': return inst.vars.every((v) => resp[v.key]);
     case 'calc': return String(resp).trim().length > 0;
+    case 'data': return inst.ask === 'number' ? String(resp).trim().length > 0 : !!resp;
     case 'tiles': return Array.isArray(resp) && resp.length > 0;
     case 'curve': return !!(resp.D || resp.S);
     case 'point': return Number.isFinite(resp.q) && Number.isFinite(resp.p);
@@ -535,6 +553,7 @@ export function answerText(inst) {
     case 'wallet': return gameRule('wallet');
     case 'open': return 'свой ответ — пара продуманных предложений';
     case 'domino': return inst.chain.map((k) => plain(inst.deck.find((c) => c.key === k).text)).join(' → ');
+    case 'data': return inst.ask === 'choice' ? answerText({ ...inst, kind: 'choice' }) : inst.ask === 'number' ? answerText({ ...inst, kind: 'calc' }) : itemText(inst.data, inst.answer, inst.vunit);
     default: return '';
   }
 }

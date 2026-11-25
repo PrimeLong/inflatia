@@ -7,6 +7,7 @@ import {
   GAME_KINDS, PRACTICE_PAD, LESSON_KIND, LEVELS, levelOf, flashCards, equilibrium, marketAxes, qd, qs, gameOk, gameLeft, freshCopy, retryOf, retryWorth, gameScore, comboOf, GAME_PASS, DIAMOND_HARD, promptSaysContext, firstPart, examPoints,
 } from '../course.js';
 import { CAST } from '../cast.js';
+import { dataKeys } from '../data.js';
 import { WALLET, bestOf, gapOf } from '../wallet.js';
 import { placeOf } from '../../ds-tokens.js';
 import { collectMath, collectBlocks } from '../../textbook/markdown.js';
@@ -361,6 +362,29 @@ describe('упражнения: ровно один верный ответ', ()
           // сцена: звенья со сдвигом кривой — те, что про кривую; цепочка про новость газеты
           inst.deck.filter((c) => c.link != null).forEach((c) => c.effects.filter((e) => /^[DS][+-]$/.test(e)).forEach((e) => expect(c.raw, `${ex.id}: ${e}`).toMatch(e[0] === 'D' ? /спрос/i : /предложени/i)));
           expect(inst.headline).toMatch(/^[^a-zа-яё]*$/);
+          break;
+        }
+        /* «Данные» (пункт владельца 24.11, п. 12): у касания — ровно один верный элемент, ловушки — другие элементы со своим
+           «почему»; у числа — как у расчёта; у вывода — как у выбора, с одним верным */
+        case 'data': {
+          expect(['table', 'bar', 'hbar', 'line', 'pie']).toContain(inst.view);
+          expect(inst.data.rows.length).toBeGreaterThanOrEqual(2);
+          if (inst.ask === 'pick') {
+            const keys = dataKeys(inst.data);
+            expect(keys).toContain(inst.answer);
+            keys.forEach((k) => expect(check(inst, k).ok, `${ex.id}: ${k}`).toBe(k === inst.answer));
+            inst.traps.forEach((t) => { expect(keys).toContain(t.key); expect(check(inst, t.key).why, `${ex.id}: у ловушки «${t.key}» нет «почему»`).toBeTruthy(); });
+            expect(ready(inst, null)).toBe(false);
+          } else if (inst.ask === 'number') {
+            expect(check(inst, String(inst.answer).replace('.', ',')).ok).toBe(true);
+            expect(check(inst, String(inst.answer * 10 + 7)).ok).toBe(false);
+            inst.traps.forEach((t) => { expect(check(inst, String(t.value)).ok).toBe(false); expect(check(inst, String(t.value)).why).toBeTruthy(); });
+          } else {
+            expect(inst.options.filter((o) => o.correct)).toHaveLength(1);
+            inst.options.forEach((o) => expect(check(inst, o.key).ok).toBe(o.correct));
+            inst.options.filter((o) => !o.correct).forEach((o) => expect(o.why, `${ex.id}: у неверного вывода «${o.raw}» нет «почему»`).toBeTruthy());
+          }
+          expect(inst.explain && inst.explain.length, `${ex.id}: разбор после ---`).toBeTruthy();
           break;
         }
         default: throw new Error(inst.kind);

@@ -2023,8 +2023,11 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   useEffect(() => {
     if (typeof window === 'undefined' || !window.__INFLATIA_TEST__) return undefined;
     const on = (e) => { if (e.detail && e.detail.id) openExtra({ open: true, ...e.detail }); };
+    // урок из названных заданий: { lessonId, only: [id…] } — проверить вид задания, не проходя урок целиком
+    const run1 = (e) => { if (e.detail && Array.isArray(e.detail.only)) start({ mode: 'lesson', lessonId: e.detail.lessonId, only: e.detail.only }); };
     window.addEventListener('inflatia:test-open-extra', on);
-    return () => window.removeEventListener('inflatia:test-open-extra', on);
+    window.addEventListener('inflatia:test-run', run1);
+    return () => { window.removeEventListener('inflatia:test-open-extra', on); window.removeEventListener('inflatia:test-run', run1); };
   });
   // гость: после выбора цели — сразу первый урок Пути, без карточки урока
   useEffect(() => { if (firstLesson) { onFirstLesson(); start({ mode: 'lesson', lessonId: LESSONS[0].id }); } // eslint-disable-next-line react-hooks/exhaustive-deps

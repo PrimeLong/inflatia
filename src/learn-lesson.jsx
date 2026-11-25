@@ -20,7 +20,7 @@ import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
   UNITS, LEVEL_BY_ID, levelUnits, LESSON_BY_ID, KIND_LABEL, SHIFT_CURVES, LESSON_KIND, GAME_KINDS, SELF_CHECK, OPEN_MIN, buildLesson, buildUnitCheck, buildLevelCheck, buildPractice,
   practiceIds, canPractice, check, ready, answerText, unitFor, buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix, EXAM_LETTERS,
-  buildLevelReview, SECONDS,
+  buildLevelReview, SECONDS, EXERCISES, instantiate,
 } from './learn/course.js';
 import {
   startLesson, recordAttempt, addMistake, resolveMistake, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak, XP, setPlacement, dayOf, recordSeen, recordBest,
@@ -38,6 +38,8 @@ import { saveResume, dropResume } from './learn/resume.js';
 import { Mascot } from './mascot.jsx';
 import { markTerms, termTitle, termText, termFormula, isWorldTerm } from './learn/terms.js';
 import { PLAY_CSS, CurveEx, PriceEx, PointEx, TilesEx, TimerBar, GameRound, WalletRound, WordDeck, Calculator as CalcPad } from './learn-play.jsx';
+import { DataView, PICK_HINT } from './learn-data.jsx';
+import { itemText } from './learn/data.js';
 import { Feed, FEED_CSS } from './learn-feed.jsx';
 import { DiscoverDay, MODEL_CSS, DOMINO_CSS, DominoEx } from './learn-model.jsx';
 import { partsOfLesson } from './learn/model.js';
@@ -77,6 +79,8 @@ const testAnswer = (inst) => {
     case 'swipe': case 'rush': case 'wallet': return JSON.stringify('game');
     case 'open': return JSON.stringify('open');
     case 'domino': return JSON.stringify(inst.chain);
+    case 'data': return JSON.stringify(inst.ask === 'choice' ? { ask: 'choice', key: inst.options.find((o) => o.correct).key }
+      : inst.ask === 'number' ? { ask: 'number', value: String(Math.round(inst.answer * 100) / 100).replace('.', ',') } : { ask: 'pick', key: inst.answer });
     default: return undefined;
   }
 };
@@ -322,7 +326,7 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
       const counting = !numeric && inst.options.every((o) => /\d/.test(String(o.raw))) && inst.options.some((o) => /\d{2,}/.test(String(o.raw)));
       return (
         <div>
-          <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          {!inst._bare && <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>}
           {(numeric || counting) && !locked && (
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
               <button type="button" className="ds-chip" aria-pressed={!!inst._calc} data-testid="calc-open" onClick={() => { Audio.play('tick'); inst._setCalc(!inst._calc); }}>
@@ -544,12 +548,25 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         </div>
       );
     }
+    /* «Данные» (src/learn-data.jsx): таблица или диаграмма; ответ — касанием элемента, числом (поле и калькулятор, как в
+       расчёте) или выбором вывода (как в выборе) — те же поля, что у этих видов, без второго условия */
+    case 'data': {
+      const nested = inst.ask === 'number' ? { ...inst, kind: 'calc', _bare: true } : inst.ask === 'choice' ? { ...inst, kind: 'choice', _bare: true } : null;
+      return (
+        <div>
+          <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          <DataView inst={inst} resp={inst.ask === 'pick' ? resp : null} locked={locked} fb={fb} onPick={(k) => { if (!locked) { Audio.play('tick'); setResp(k); } }} />
+          {inst.ask === 'pick' && !locked && <div className="ds-sub dv-hint" data-testid="data-hint">{PICK_HINT[inst.view]}</div>}
+          {nested && <ExerciseView inst={nested} resp={resp} setResp={setResp} locked={locked} fb={fb} ctx={ctx} onSubmit={onSubmit} />}
+        </div>
+      );
+    }
     case 'calc': {
       const val = resp || '';
       const press = (k) => { if (locked) return; Audio.play('tick'); if (k === 'del') setResp(val.slice(0, -1)); else if (val.length < 10) setResp(val + k); };
       return (
         <div>
-          <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          {!inst._bare && <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>}
           {/* поле ответа и «Ответ / Калькулятор» — одной строкой: на телефоне задача и клавиши помещаются на экран */}
           <div className="ln-calc-row">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -659,6 +676,8 @@ const RACE_OFFER_KEY = 'ems-race-offer';
    в течение суток (resume). */
 // урок собирается под ученика: уровень сложности, ошибки, подсказки и слабые темы (src/learn/program.js)
 function newPlan(run, learn) {
+  // только в тестах (window.__INFLATIA_TEST__, событие inflatia:test-run в src/learn.jsx): урок из названных заданий
+  if (run.only && typeof window !== 'undefined' && window.__INFLATIA_TEST__) return { items: run.only.filter((id) => EXERCISES[id]).map((id) => instantiate(EXERCISES[id], Math.random)), cards: {} };
   // урок уже пройден — расчёты в нём с новыми числами
   if (run.mode === 'lesson') { const p = buildLesson(run.lessonId, Math.random, { ...lessonOpts(learn), diamond: !!run.diamond, replay: !!((learn.lessons || {})[run.lessonId] || {}).runs }); return { items: p.items, cards: p.cards, seconds: p.seconds, diamond: !!run.diamond }; }
   // проверка юнита или тест уровня (levelId): сдан — юнит или все юниты уровня сданы
@@ -1237,7 +1256,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       {!feed && stage === 'work' && inst && (
         <>
           <div className="ln-body"><div className="ln-inner" ref={shakeRef} key={inst.uid}
-            data-testid="ex" data-kind={inst.kind} data-answer={testAnswer(inst)}>
+            data-testid="ex" data-kind={inst.kind} data-id={inst.id} data-answer={testAnswer(inst)}>
             <div className="ln-kind ds-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* повтор ошибки — одна плашка: у повторённого задания из прошлых уроков «повторение» не дублируем */}
               {kindName}{inst.review && !inst.retry && <span className="ds-badge" data-testid="ex-review-badge" data-past={inst.past || undefined}>повторение{inst.past ? ` · ${placeOf(inst.past).place}` : ''}</span>}
@@ -1280,7 +1299,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         if (liveCard) entries.push({ kind: 'msg', key: `m:${cur.uid}:${idx}`, card: liveCard, index: (n += 1), live: true });
         else if (stage === 'work' && inst) {
           entries.push({ kind: 'q', key: `q:${inst.uid}`, live: true, flag: <ReportFlag context={() => exerciseContext(inst, { lesson, resp: respRef.current, correct: answerText(inst) })} />, node: (
-            <div className={anim.kind === 'shake' && fb && !fb.ok ? 'ds-shake' : ''} data-testid="ex" data-kind={inst.kind} data-answer={testAnswer(inst)}>
+            <div className={anim.kind === 'shake' && fb && !fb.ok ? 'ds-shake' : ''} data-testid="ex" data-kind={inst.kind} data-id={inst.id} data-answer={testAnswer(inst)}>
               {inst.retry && !fb && <div className="ds-sub" style={{ fontSize: 14, marginBottom: 6 }} data-testid="ex-retry" data-fresh={inst.fresh || 'same'}><RotateCcw size={15} aria-hidden="true" style={{ verticalAlign: -2 }} /> {RETRY_TEXT[inst.fresh] || RETRY_TEXT.same}</div>}
               <ExerciseView inst={inst} ctx={termCtx} resp={resp} setResp={(v) => { setResp(v); if (fb && fb.empty) setFb(null); }} locked={!!fb && !fb.empty} fb={fb && !fb.empty ? fb : null} onSubmit={(v) => doCheck(v)} />
             </div>
@@ -1434,6 +1453,8 @@ function answerOf(inst, resp) {
     }
     case 'tf': return resp === true || resp === 'true' ? 'Верно' : resp === false || resp === 'false' ? 'Неверно' : null;
     case 'calc': return resp ? `${String(resp).replace('-', '−')}${inst.unit ? ` ${unitFor(inst, resp)}` : ''}` : null;
+    case 'data': return inst.ask === 'choice' ? answerOf({ ...inst, kind: 'choice' }, resp) : inst.ask === 'number' ? answerOf({ ...inst, kind: 'calc' }, resp)
+      : resp ? itemText(inst.data, resp, inst.vunit) : null;
     case 'open': return String(resp || '').trim() || null;
     case 'domino': {
       const falls = resp && resp.falls ? resp.falls.length : 0;
