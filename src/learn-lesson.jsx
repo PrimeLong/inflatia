@@ -497,6 +497,8 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         <div className="ln-exam" data-form={inst.form}>
           <div className="ln-exam-head"><span className="ln-exam-tag" data-testid="exam-tag">{tag}</span><span className="ds-faint">в формате экзамена</span></div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          {/* задание 9 ЕГЭ: диаграмма или таблица — над выводами */}
+          {inst.data && <DataView inst={inst} />}
           {inst.form === 'match' ? (
             <>
               <div className="ln-exam-bins">{inst.bins.map((b, i) => <span key={b}><b>{i + 1}</b>{b}</span>)}</div>

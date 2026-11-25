@@ -1,7 +1,9 @@
 /* БРАУЗЕРНЫЕ СЦЕНАРИИ — вид задания «Данные» (пункт владельца 24.11, п. 12): таблица, столбцы, полосы, график и круговая
-   диаграмма; ответ касанием элемента, числом с экранной клавиатуры или выбором вывода. Задания — из уроков «Базара»
-   (src/textbook/chapters/prices.md), урок из названных заданий — событием inflatia:test-run (только при флаге теста). */
+   диаграмма; ответ касанием элемента, числом с экранной клавиатуры или выбором вывода. Подробно — пять заданий «Базара»
+   (src/textbook/chapters/prices.md); потом — все задания «Данные» и задания 9 ЕГЭ (диаграмма и «найдите выводы») из
+   всех глав. Урок из названных заданий — событием inflatia:test-run (только при флаге теста). */
 import { test, expect } from '@playwright/test';
+import { readFileSync, readdirSync } from 'node:fs';
 import { openApp, withTestFlag, answerExercise, expectNoSidewaysScroll, installHooks } from './helpers.js';
 
 installHooks();
@@ -114,4 +116,54 @@ test('«Данные»: выбор с клавиатуры — фокус на �
   await page.keyboard.press('Space');
   await expect(view.locator('[data-key="Май"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(bar).toHaveAttribute('aria-pressed', 'false');
+});
+
+// все задания «Данные» и задания 9 ЕГЭ курса — прямо из глав: новое задание попадёт в проверку само
+const CHAPTERS = new URL('../src/textbook/chapters/', import.meta.url);
+const ALL = readdirSync(CHAPTERS).filter((f) => f.endsWith('.md')).flatMap((f) => {
+  const md = readFileSync(new URL(f, CHAPTERS), 'utf8');
+  return [...md.matchAll(/^:::ex (data|exam) id=(\S+)([^\n]*)$/gm)].filter((m) => m[1] === 'data' || / view=/.test(m[3])).map((m) => ({ id: m[2], kind: m[1] }));
+});
+
+test('задание 9 ЕГЭ: метка «ЕГЭ · задание 9», диаграмма над выводами, ответ цифрами; ошибка — разбор каждого вывода', async ({ page }) => {
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const ege = ALL.filter((x) => x.kind === 'exam').map((x) => x.id);
+  expect(ege.length).toBeGreaterThanOrEqual(5);
+  await runOnly(page, [ege[0]]);
+  const ex = page.getByTestId('ex');
+  await expect(ex).toHaveAttribute('data-kind', 'exam');
+  await expect(ex.getByTestId('exam-tag')).toHaveText('ЕГЭ · задание 9');
+  await expect(ex).toContainText('Найдите в приведённом списке выводы, которые можно сделать на основе диаграммы');
+  // диаграмма — только для чтения: ни одного элемента-кнопки
+  const view = ex.getByTestId('data-view');
+  await expect(view).toBeVisible();
+  await expect(view).toHaveAttribute('data-ask', 'view');
+  await expect(view.locator('[role="button"], button')).toHaveCount(0);
+  await expectNoSidewaysScroll(page);
+  await answerExercise(page, { wrong: true });
+  // как на экзамене: баллы и почему не следует каждый ошибочно выбранный вывод
+  const fb = page.getByTestId('ex-feedback');
+  await expect(fb).toContainText('на экзамене это 0 баллов');
+  await expect(fb).toContainText(/Пункт \d: /);
+  expect(errors).toEqual([]);
+});
+
+test('все задания «Данные» и задания 9 ЕГЭ курса открываются и решаются, без прокрутки вбок', async ({ page }) => {
+  test.setTimeout(240000);
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  expect(ALL.length).toBeGreaterThanOrEqual(30);
+  await runOnly(page, ALL.map((x) => x.id));
+  const seen = [];
+  for (let k = 0; k < ALL.length; k += 1) {
+    const ex = page.getByTestId('ex');
+    await expect(ex.getByTestId('data-view')).toBeVisible();
+    seen.push(await ex.getAttribute('data-id'));
+    await expectNoSidewaysScroll(page);
+    await answerExercise(page);
+    await page.getByRole('button', { name: 'Дальше', exact: true }).click();
+  }
+  expect(seen.sort()).toEqual(ALL.map((x) => x.id).sort());
+  expect(errors).toEqual([]);
 });

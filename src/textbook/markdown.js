@@ -394,7 +394,9 @@ export const parseChapter = (text) => parseBlocks(text);
    Задание в формате экзамена (exam test=ЕГЭ|ОГЭ no=N form=pick|match|one): pick — «выберите верные
    суждения», строки «+ верное» и «- неверное | почему» (4–6 пунктов, верных 2–4), ответ — цифры
    по возрастанию; match — «установите соответствие», bins="Столбец 1|Столбец 2", строки
-   «- пример >> столбец» (4–6 пунктов), ответ — цифры под буквами; one — один верный из четырёх. */
+   «- пример >> столбец» (4–6 пунктов), ответ — цифры под буквами; one — один верный из четырёх.
+   С view=table|bar|hbar|line|pie и строками «| подпись | число |» (как у «Данных») — задание 9 ЕГЭ: диаграмма или
+   таблица и «найдите выводы, которые можно сделать на основе диаграммы»; title, vunit, note — подписи рисунка. */
 export const EXAM_FORMS = ['pick', 'match', 'one'];
 export const LESSON_KINDS = ['intro', 'practice', 'words', 'story', 'listen', 'game', 'review', 'summary'];
 // шаги «Откройте сами»: demand — день в кофейне, точки «цена — сколько купили» складываются в кривую спроса
@@ -524,7 +526,7 @@ function parseExercise(kind, attrs, body) {
   const isOpt = (l) => /^[+-]\s/.test(l.trim());
   const isTrap = (l) => l.trim().startsWith('!!');
   // у «Данных» строки «| … |» — сами данные, а не текст условия
-  const special = (l) => isOpt(l) || isTrap(l) || (kind === 'data' && l.trim().startsWith('|'));
+  const special = (l) => isOpt(l) || isTrap(l) || ((kind === 'data' || (kind === 'exam' && attrs.view)) && l.trim().startsWith('|'));
   const prompt = parseBlocks(main.filter((l) => !special(l)).join('\n'));
   const why = splitWhy;
   const ex = { type: 'ex', kind, id: attrs.id, attrs, prompt, explain, ...(attrs.context ? { context: parseInline(attrs.context) } : {}) };
@@ -549,6 +551,18 @@ function parseExercise(kind, attrs, body) {
       const right = ex.options.filter((o) => o.correct).length;
       if (ex.form === 'one' && (ex.options.length !== 4 || right !== 1)) throw new Error(`В задании ${attrs.id} (один ответ) — 4 пункта, верный один`);
       if (ex.form === 'pick' && (ex.options.length < 4 || ex.options.length > 6 || right < 2 || right > 4)) throw new Error(`В задании ${attrs.id} (верные суждения) — 4–6 пунктов, верных 2–4`);
+    }
+    /* задание 9 ЕГЭ — анализ диаграммы или таблицы: view= и строки данных «| … |», как у «Данных»; пункты — выводы,
+       «+» — следует из данных, «- … | почему» — не следует. Только «выберите выводы» (form=pick) */
+    if (attrs.view) {
+      const where = `В задании ${attrs.id} (анализ данных)`;
+      if (ex.form !== 'pick') throw new Error(`${where}: с диаграммой — только form=pick («найдите выводы»)`);
+      ex.view = attrs.view;
+      if (!DATA_VIEWS.includes(ex.view)) throw new Error(`${where}: view — ${DATA_VIEWS.join(', ')}`);
+      ex.data = parseDataRows(main, where);
+      ex.title = attrs.title || ''; ex.vunit = attrs.vunit || ''; ex.note = attrs.note || '';
+      if (attrs.from != null) ex.from = Number(attrs.from);
+      if (ex.view === 'pie' && (ex.data.cols.length > 1 || ex.data.rows.length > PIE_MAX)) throw new Error(`${where}: у круговой — один ряд, до ${PIE_MAX} секторов`);
     }
   }
   if (kind === 'tiles') {

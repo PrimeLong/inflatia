@@ -73,7 +73,8 @@ export function installCourse(index) {
   // свои копии: полный курс потом дополняет эти объекты, а сам указатель остаётся как был
   fill(index.units.map((u) => ({ ...u, lessons: u.lessons.map((l) => ({ ...l, charts: [...l.charts], kinds: [...l.kinds] })) })));
   Object.keys(MISTAKE_UNIT).forEach((k) => delete MISTAKE_UNIT[k]);
-  Object.assign(MISTAKE_UNIT, index.mistakeUnits || {});
+  // карта «задание → юнит» в указателе упакована по юнитам: { юнит: "id id id" } (course-index-build.js, packMistakeUnits)
+  Object.entries(index.mistakeUnits || {}).forEach(([u, ids]) => { String(ids).split(' ').forEach((id) => { if (id) MISTAKE_UNIT[id] = u; }); });
   Object.keys(LESSON_SECTIONS).forEach((k) => delete LESSON_SECTIONS[k]);
   Object.assign(LESSON_SECTIONS, index.sections || {});
 }

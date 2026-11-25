@@ -159,7 +159,8 @@ function fromBlock(b) {
     case 'tf': return { ...e, answer: b.answer, wrongWhy: null };
     case 'match': return { ...e, pairs: b.pairs };
     case 'sort': return { ...e, bins: b.bins, items: b.items };
-    case 'exam': return { ...e, test: b.test, no: b.no, form: b.form, ...(b.form === 'match' ? { bins: b.bins, items: b.items } : { options: b.options }) };
+    case 'exam': return { ...e, test: b.test, no: b.no, form: b.form, ...(b.form === 'match' ? { bins: b.bins, items: b.items } : { options: b.options }),
+      ...(b.data ? { data: b.data, view: b.view, title: b.title, vunit: b.vunit, note: b.note, ...(b.from != null ? { from: b.from } : {}) } : {}) };
     case 'calc': return b.variant ? { ...e, variant: b.variant } : { ...e, answer: b.answer, tol: b.tol, unit: b.unit, traps: b.traps, ...(b.units ? { units: b.units } : {}), ...(b.source ? { source: b.source } : {}), ...(b.vary ? { vary: b.vary } : {}) };
     case 'shift': return { ...e, chart: b.chart, chartAttrs: b.chartAttrs, answer: b.answer, choices: b.choices || shiftChoices(b.chart), traps: b.traps };
     case 'news': return { ...e, headline: b.headline, vars: b.vars, expect: b.expect };
@@ -326,7 +327,9 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
     // пункты перемешаны и пронумерованы заново — ответ цифрами не заучить
     case 'exam': return ex.form === 'match'
       ? { ...base, test: ex.test, no: ex.no, form: 'match', bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `e${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand) }
-      : { ...base, test: ex.test, no: ex.no, form: ex.form, options: shuffle(ex.options.map((o, k) => ({ key: `e${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand) };
+      : { ...base, test: ex.test, no: ex.no, form: ex.form, options: shuffle(ex.options.map((o, k) => ({ key: `e${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand),
+        // задание 9 ЕГЭ: диаграмма или таблица над выводами (рисунок «Данных», без касания)
+        ...(ex.data ? { data: ex.data, view: ex.view, ask: 'view', title: ex.title, vunit: ex.vunit, note: ex.note, ...(ex.from != null ? { from: ex.from } : {}) } : {}) };
     case 'calc': {
       if (ex.variant) {
         const tpl = TEMPLATE_BY_ID[ex.variant];
@@ -779,7 +782,13 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
     // одна и та же задача (тот же генератор чисел) дважды не приходит
     const avoid = new Set([...order.slice(0, 15), ...pastPool].map((e) => e.id));
     const items = []; const used = new Set();
-    const add = (e, extra, sibling) => { const it = freshCopy(e, rand, extra, { avoid, sibling }); if (used.has(it.id)) return false; items.push(it); used.add(it.id); return true; };
+    // похожая задача — не из уже взятых: иначе ошибка или подсказанное задание молча выпадали из повторения
+    const add = (e, extra, sibling) => {
+      const av = new Set([...avoid, ...used]);
+      let it = freshCopy(e, rand, extra, { avoid: av, sibling });
+      if (used.has(it.id) && sibling) it = freshCopy(e, rand, extra, { avoid: av, sibling: false });
+      if (used.has(it.id)) return false; items.push(it); used.add(it.id); return true;
+    };
     let k = 0;
     for (; k < order.length && items.length < REVIEW_SIZE - pastN; k += 1) add(order[k], { review: true }, mistakes.includes(order[k].id) || hinted.includes(order[k].id));
     let got = 0;
@@ -819,6 +828,19 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
     const k = items.map((it, i) => i).reverse().find((i) => i > 0 && !!items[i].review === dropReview && !SELF_CHECK.includes(items[i].kind) && items[i].kind !== 'exam');
     if (k == null) break;
     items.splice(k, 1);
+  }
+  /* десять заданий — нижняя граница урока, а он всё ещё дольше пяти минут (два «Домино», экзамен и долгие расчёты
+     или «Домино» прошлого урока в повторении): самое долгое задание, кроме своих «Домино» и экзамена, меняем на
+     быстрое из того же источника — своё на своё, повторение на повторение. Без этого урок выходил на 311–313 с */
+  for (let guard = 0; estimate(items) > LESSON_MAX_SECONDS && guard < items.length; guard += 1) {
+    const pinnedOwn = (it) => !it.review && (SELF_CHECK.includes(it.kind) || it.kind === 'exam');
+    const slow = items.map((it, i) => ({ it, i })).filter(({ it, i }) => i > 0 && !pinnedOwn(it) && (it.seconds || SECONDS[it.kind]) > 12);
+    if (!slow.length) break;
+    const { it, i } = slow.reduce((a, b) => ((b.it.seconds || SECONDS[b.it.kind]) > (a.it.seconds || SECONDS[a.it.kind]) ? b : a));
+    const used = new Set(items.map((x) => x.of || x.id));
+    const repl = (it.review ? prev : all).find((e) => SECONDS[e.kind] <= 12 && !used.has(e.id));
+    if (!repl) break;
+    items[i] = it.review ? freshCopy(repl, rand, { review: true }, { sibling: false }) : instantiate(repl, rand);
   }
   // сильному ученику — задачи семинарского и олимпиадного уровня вместо последних своих
   if (level === 'hard') {

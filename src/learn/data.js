@@ -66,11 +66,12 @@ export function fmtData(v) {
   return `${neg ? '−' : ''}${int}${f ? `,${f}` : ''}`;
 }
 
-// шаг сетки: 1, 2, 2,5 или 5 × 10ⁿ — 4–6 делений от from до максимума
-export function niceScale(min, max, ticks = 5) {
+/* шаг сетки: 1, 2, 2,5 или 5 × 10ⁿ — 4–6 делений от from до максимума. integer — данные целые (штуки, проценты
+   опроса): шаг тоже целый, без делений «2,5» и «7,5» */
+export function niceScale(min, max, ticks = 5, { integer = false } = {}) {
   const span = Math.max(1e-9, max - min);
   const raw = span / ticks; const p = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * p).find((s) => s >= raw);
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * p).filter((s) => !integer || Number.isInteger(s)).find((s) => s >= raw) || Math.max(1, Math.ceil(raw));
   const lo = Math.floor(min / step) * step; const hi = Math.ceil(max / step) * step;
   const out = [];
   for (let v = lo; v <= hi + step / 2; v += step) out.push(Math.round(v * 1e6) / 1e6);

@@ -4,6 +4,7 @@
    сокращение без записи здесь тест не пропустит. en — английская расшифровка латинского сокращения: она встаёт
    в скобках в строку обозначений под формулой (src/textbook/symbols.js); enBy — своя для главы. Модуль чистый. */
 export const ABBR = {
+  QR: { full: 'QR-код (quick response, «быстрый отклик»): квадратный код, который читает камера телефона', near: /QR-код/i, en: 'quick response' },
   MR: { full: 'предельная выручка (marginal revenue)', near: /предельн\S* выручк/i, en: 'marginal revenue' },
   MC: { full: 'предельные издержки (marginal cost)', near: /предельн\S* издерж/i, en: 'marginal cost' },
   TR: { full: 'общая выручка (total revenue)', near: /(общ|вся|всей|полн)\S* выручк|выручка\S*\s*\$?TR/i, en: 'total revenue' },

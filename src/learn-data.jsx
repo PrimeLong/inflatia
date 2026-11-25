@@ -13,6 +13,12 @@ export const DATA_CSS = `
   .ds-dark .dv { --dv-b: #4FC7B8; --dv-c: #B39DFF; }
   .dv-title { margin: 0 2px 6px; font: 700 14.5px/1.3 var(--ds-sans); color: var(--ds-ink); }
   .dv-title small { font-weight: 500; color: var(--ds-ink2); font-size: 13px; }
+  .dv-title .dv-unit-line { display: block; margin-top: 2px; }
+  /* таблица шире карточки (много столбцов на телефоне) — прокручивается внутри карточки, страница вбок не едет */
+  .dv-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .dv-table.dense th, .dv-table.dense td { padding: 7px 5px; }
+  .dv-table.dense thead th { letter-spacing: 0; }
+  .dv-table thead th { hyphens: auto; }
   .dv svg { display: block; width: 100%; height: auto; overflow: visible; }
   .dv text { font-family: var(--ds-sans); fill: var(--ds-ink2); }
   .dv .dv-val { fill: var(--ds-ink); font-weight: 700; }
@@ -102,7 +108,7 @@ function Bars({ inst, act, stateOf, horizontal, W }) {
   const vals = data.rows.flatMap((r) => r.values);
   const from = inst.from != null ? inst.from : Math.min(0, ...vals);
   const hL = Math.round(Math.min(170, Math.max(104, W * 0.32)));
-  const sc = niceScale(from, Math.max(...vals), horizontal ? ticksFor(W - hL - 58, textW(fmtData(Math.max(...vals)), 12) + 6) : 5);
+  const sc = niceScale(from, Math.max(...vals), horizontal ? ticksFor(W - hL - 58, textW(fmtData(Math.max(...vals)), 12) + 6) : 5, { integer: vals.every(Number.isInteger) });
   const lo = inst.from != null ? inst.from : sc.lo; const hi = sc.hi;
   const ticks = sc.ticks.filter((t) => t >= lo - 1e-9);
   const unitLabel = (r, c, v) => `${data.rows[r].label}${multi(data) ? `, ${data.cols[c]}` : ''}: ${fmtData(v)}${inst.vunit ? ` ${inst.vunit}` : ''}`;
@@ -173,7 +179,7 @@ function Line({ inst, act, stateOf, W }) {
   const { data } = inst; const n = data.rows.length;
   const vals = data.rows.flatMap((r) => r.values);
   const from = inst.from != null ? inst.from : Math.min(0, ...vals);
-  const sc = niceScale(from, Math.max(...vals));
+  const sc = niceScale(from, Math.max(...vals), 5, { integer: vals.every(Number.isInteger) });
   const lo = inst.from != null ? inst.from : sc.lo; const hi = sc.hi;
   const L = 48; const R = 18; const T = 26; const step = (W - L - R - 24) / Math.max(1, n - 1);
   const fs = step < 52 ? 11 : 12.5; const fit = Math.max(6, Math.floor((step - 4) / (fs * 0.56)));
@@ -194,7 +200,14 @@ function Line({ inst, act, stateOf, W }) {
           <g key={`${c}-${i}`} data-key={key} data-state={st} {...act(key, `${row.label}${multi(data) ? `, ${col}` : ''}: ${fmtData(v)}${inst.vunit ? ` ${inst.vunit}` : ''}`)}>
             <circle cx={x(i)} cy={y(v)} r={Math.min(22, Math.max(14, step / 2))} fill="transparent" />
             <circle className="dv-shape" cx={x(i)} cy={y(v)} r="5.5" fill={SERIES[c]} stroke="var(--ds-card)" strokeWidth="1.5" />
-            {data.cols.length === 1 && n <= 8 && <text className={markCls(st)} x={x(i)} y={y(v) - 11} fontSize={step < 52 ? 11.5 : 12.5} textAnchor="middle">{markOf(st)}{fmtData(v)}</text>}
+            {/* подпись значения: один ряд — над точкой; два-три ряда (до шести точек) — у верхнего над точкой, у нижнего
+                под ней: иначе по графику «ставка и инфляция» не посчитать разницу */}
+            {n <= (data.cols.length === 1 ? 8 : 6) && (() => {
+              const vs = row.values; const top = vs.every((w, k) => k === c || w < v || (w === v && k > c));
+              const low = !top && vs.every((w, k) => k === c || w > v || (w === v && k > c));
+              if (data.cols.length > 1 && !top && !low) return null;
+              return <text className={markCls(st)} x={x(i)} y={top || data.cols.length === 1 ? y(v) - 11 : y(v) + 19} fontSize={step < 52 ? 11.5 : 12.5} textAnchor="middle" style={data.cols.length > 1 ? { fill: SERIES[c] } : undefined}>{markOf(st)}{fmtData(v)}</text>;
+            })()}
           </g>
         );
       }))}
@@ -204,6 +217,8 @@ function Line({ inst, act, stateOf, W }) {
 
 function Pie({ inst, act, stateOf, pickable, onPick, resp, W }) {
   const { data } = inst; const vals = data.rows.map((r) => r.values[0]); const pc = shares(vals); const sum = vals.reduce((a, b) => a + b, 0) || 1;
+  // данные уже в процентах (сумма 100): в подписи — одни проценты, без «25% · 25»
+  const pctData = vals.every((v, i) => Math.abs(v - pc[i]) < 1e-9);
   const cx = W / 2; const cy = 104; const R = 96; const r0 = 50;
   let a0 = -Math.PI / 2;
   const arcs = data.rows.map((row, i) => {
@@ -233,7 +248,7 @@ function Pie({ inst, act, stateOf, pickable, onPick, resp, W }) {
           return (
             <Tag key={row.label} type={pickable ? 'button' : undefined} className="dv-pie-item" data-legend={key} data-state={st} aria-pressed={pickable ? resp === key : undefined}
               onClick={pickable ? () => onPick(key) : undefined} tabIndex={pickable ? -1 : undefined}>
-              <i style={{ background: PIE[i % PIE.length] }} aria-hidden="true" />{MARK[st] && <span className="dv-mark" aria-hidden="true">{MARK[st]}</span>}{row.label}<b>{pc[i]}% · {fmtData(vals[i])}</b>
+              <i style={{ background: PIE[i % PIE.length] }} aria-hidden="true" />{MARK[st] && <span className="dv-mark" aria-hidden="true">{MARK[st]}</span>}{row.label}<b>{pctData ? `${pc[i]}%` : `${pc[i]}% · ${fmtData(vals[i])}`}</b>
             </Tag>
           );
         })}
@@ -245,7 +260,7 @@ function Pie({ inst, act, stateOf, pickable, onPick, resp, W }) {
 function Table({ inst, stateOf, pickable, onPick, resp, locked }) {
   const { data } = inst; const many = multi(data);
   return (
-    <table className="dv-table dv-fade">
+    <div className="dv-scroll"><table className={`dv-table dv-fade${data.cols.length >= 3 ? ' dense' : ''}`}>
       {(many || data.label) && (
         <thead><tr><th scope="col">{data.label}</th>{data.cols.map((c) => <th key={c} scope="col" style={{ textAlign: 'right' }}>{c}</th>)}</tr></thead>
       )}
@@ -267,7 +282,7 @@ function Table({ inst, stateOf, pickable, onPick, resp, locked }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -286,7 +301,8 @@ export function DataView({ inst, resp = null, onPick = () => {}, locked = false,
   return (
     <figure className="dv" data-testid="data-view" data-view={view} data-ask={inst.ask} data-checked={String(!!fb && inst.ask === 'pick')} style={{ margin: 0 }}>
       <style>{DATA_CSS}</style>
-      {inst.title && <figcaption className="dv-title">{inst.title}{inst.vunit && <small>, {inst.vunit}</small>}</figcaption>}
+      {/* заголовок-вопрос («Что для вас главное…?») — единица своей строкой, без «?, % опрошенных» */}
+      {inst.title && <figcaption className="dv-title">{inst.title}{inst.vunit && (/[?!]$/.test(inst.title) ? <small className="dv-unit-line">{inst.vunit}</small> : <small>, {inst.vunit}</small>)}</figcaption>}
       <div ref={box}>
         {view === 'table' ? <Table {...props} /> : view === 'pie' ? <Pie {...props} /> : view === 'line' ? <Line {...props} /> : <Bars {...props} horizontal={view === 'hbar'} />}
       </div>
