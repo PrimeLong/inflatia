@@ -242,13 +242,39 @@ function drawMobile(ctx, m, col) {
   m.coins.forEach((c) => {
     const x = c.ax + Math.sin(c.a) * c.L; const y = m.top + Math.cos(c.a) * c.L;
     ctx.globalAlpha = 0.55; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c.ax, m.top); ctx.lineTo(x, y); ctx.stroke(); ctx.globalAlpha = 1;
-    const sx = Math.max(0.12, Math.abs(Math.cos(c.spin)));
-    ctx.save(); ctx.translate(x, y + 9); ctx.scale(sx, 1);
-    const g = ctx.createLinearGradient(-9, -9, 9, 9);
-    g.addColorStop(0, '#FFE9A3'); g.addColorStop(0.5, Math.cos(c.spin) > 0 ? '#E0AE2E' : '#C99417'); g.addColorStop(1, '#9A7413');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(122, 88, 10, .7)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, Math.PI * 2); ctx.stroke();
-    if (c.glow > 0.05) { ctx.globalAlpha = Math.min(1, c.glow); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-3, -3, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    /* монета с объёмом (пункт владельца 24.11, п. 8): у неё есть толщина — повернувшись, она показывает ребро с насечкой,
+       а не схлопывается в линию; лицо — с рельефным ободком и бликом, который скользит по монете при вращении */
+    const cs = Math.cos(c.spin); const sx = Math.max(0.06, Math.abs(cs)); const R = 9; const T = 3.2;
+    const edge = Math.sin(c.spin) * T; const cx = x; const cy = y + R;
+    // ребро: полоса между лицом и оборотом; насечка — штрихи поперёк
+    ctx.save(); ctx.translate(cx, cy);
+    ctx.fillStyle = '#7A5A0E';
+    ctx.beginPath(); ctx.ellipse(edge, 0, R * sx, R, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, -R); ctx.lineTo(edge, -R); ctx.lineTo(edge, R); ctx.lineTo(0, R); ctx.closePath(); ctx.fill();
+    if (Math.abs(edge) > 0.8) {
+      const eg = ctx.createLinearGradient(0, -R, 0, R); eg.addColorStop(0, '#C99A2A'); eg.addColorStop(0.5, '#8E6612'); eg.addColorStop(1, '#5A410A');
+      ctx.fillStyle = eg; ctx.fillRect(Math.min(0, edge), -R * 0.92, Math.abs(edge), R * 1.84);
+      ctx.strokeStyle = 'rgba(60, 40, 5, .45)'; ctx.lineWidth = 0.6;
+      for (let k = -R + 2; k < R - 1; k += 2.2) { ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(edge, k); ctx.stroke(); }
+    }
+    // лицо
+    ctx.scale(sx, 1);
+    const hx = -3.5 * Math.sign(cs || 1); const g = ctx.createRadialGradient(hx, -3.5, 0.8, 0, 0, R);
+    g.addColorStop(0, '#FFF6CF'); g.addColorStop(0.3, cs > 0 ? '#F2CF6B' : '#DDB04A'); g.addColorStop(0.75, cs > 0 ? '#D29E26' : '#B98918'); g.addColorStop(1, '#8E6612');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#6E500C'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, R - 0.5, 0, Math.PI * 2); ctx.stroke();
+    // рельефный ободок: светлый сверху-слева, тень снизу-справа
+    ctx.lineWidth = 1.3;
+    ctx.strokeStyle = 'rgba(255, 240, 190, .85)'; ctx.beginPath(); ctx.arc(0, 0, 6.6, Math.PI * 0.8, Math.PI * 1.8); ctx.stroke();
+    ctx.strokeStyle = 'rgba(110, 78, 8, .75)'; ctx.beginPath(); ctx.arc(0, 0, 6.6, Math.PI * 1.8, Math.PI * 2.8); ctx.stroke();
+    // знак в центре — выпуклая звёздочка
+    ctx.fillStyle = 'rgba(122, 88, 10, .55)'; ctx.beginPath();
+    for (let k = 0; k < 10; k += 1) { const r = k % 2 ? 1.6 : 3.6; const a = -Math.PI / 2 + (k * Math.PI) / 5; ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a) * r + 0.4, Math.sin(a) * r + 0.4); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255, 238, 170, .8)'; ctx.beginPath();
+    for (let k = 0; k < 10; k += 1) { const r = k % 2 ? 1.6 : 3.6; const a = -Math.PI / 2 + (k * Math.PI) / 5; ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill();
+    if (c.glow > 0.05) { ctx.globalAlpha = Math.min(1, c.glow); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(hx, -3.5, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     ctx.restore();
   });
 }

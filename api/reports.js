@@ -9,6 +9,7 @@ import { getReports, setReport, setReports, deleteReport, deleteReports, hit, ha
 import { isRude, RUDE_MESSAGE } from '../src/lib/moderation.js';
 import { userBySession } from './_lib/accounts.js';
 import { randomBytes } from 'node:crypto';
+import { clientIp } from './_lib/client-ip.js';
 
 export const REASONS = {
   answer: 'Ошибка в ответе',
@@ -37,7 +38,6 @@ export function sanitizeCrash(body) {
   return { reason: 'crash', kind, comment: stack ? `${message}\n${stack}` : message, context, sig: `${context.build || ''}|${message}|${stack.split('\n')[1] || ''}`.slice(0, 400) };
 }
 export const REPORTS_PER_HOUR = 20;
-const clientIp = (req) => String((req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || 'local').split(',')[0].trim();
 export const ownerLogins = () => String(process.env.OWNER_LOGINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 export const isOwner = (user) => !!user && ownerLogins().includes(String(user.login).toLowerCase());
 

@@ -24,6 +24,10 @@ const DOCK_CSS = `
   html[data-book-dock] .lm-dock { bottom: calc(var(--dock-b, 72px) + 88px); }
   html[data-music-dock] .ln-to-map { bottom: calc(160px + env(safe-area-inset-bottom)); }
   html[data-music-dock][data-book-dock] .ln-to-map { bottom: calc(238px + env(safe-area-inset-bottom)); }
+  /* «×» — плашка уходит вниз и тает, а не пропадает в тот же кадр (пункт владельца 24.11, п. 5: «очень странно закрывается
+     проигрыватель»); translate складывается с transform центровки */
+  .lm-dock.closing { animation: lm-out .22s cubic-bezier(.4,0,.8,.4) forwards; pointer-events: none; }
+  @keyframes lm-out { to { opacity: 0; translate: 0 16px; } }
   .lm-dock .lm-like.on { color: #E0457B; }
   .lm-dock .lm-dislike.on { color: #5B6B8A; }
   .lm-dock .lb-mini-t { margin: 0 4px; }
@@ -53,7 +57,7 @@ const DOCK_CSS = `
     animation: lm-load 0.9s linear infinite; }
   @keyframes lm-load { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .lm-dock .lb-mini-play.loading::after { animation-duration: 3s; } }
-  @media (prefers-reduced-motion: reduce) { .lm-dock .lb-mini-t b, .lm-dock .lm-skip, .lm-dock .lm-skip svg { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .lm-dock .lb-mini-t b, .lm-dock .lm-skip, .lm-dock .lm-skip svg, .lm-dock.closing { animation: none !important; } }
 `;
 
 const POS_KEY = 'ems-music-dock-pos';
@@ -73,6 +77,9 @@ export function MusicDock() {
   const [paused, setPaused] = useState(() => !!musicPaused() && !learnMusic());
   const [kick, setKick] = useState(null);
   const kickT = useRef(0);
+  const [closing, setClosing] = useState(false);
+  const closeT = useRef(0);
+  useEffect(() => () => window.clearTimeout(closeT.current), []);
   const wrap = useRef(null);
   useEffect(() => Audio.onChange(() => tick((n) => n + 1)), []);
   /* вернулись на сайт: та же пьеса встаёт на паузу на той же секунде — движок грузится без звука (пункт владельца 18.11) */
@@ -92,7 +99,7 @@ export function MusicDock() {
   /* пауза из большого проигрывателя (открыт с плашки) — тоже пауза, а не выключение: плашка остаётся, и проигрыватель над
      ней не пропадает (замечание владельца 18.11, вечер: «исчезает проигрыватель, когда нажимаешь на нём паузу») */
   const pausedNow = paused || (!on && !!musicPaused());
-  const show = Audio.loaded() && (on || pausedNow);
+  const show = Audio.loaded() && (on || pausedNow || closing);
   const np = Audio.nowPlaying();
   // в обучении экономики нет — играет «Волна», если музыку не закрепили за настроением
   useEffect(() => { if (on && Audio.loaded() && !Audio.nowPlaying().locked) Audio.setPlaylist('wave'); }, [on]);
@@ -142,7 +149,7 @@ export function MusicDock() {
   return (
     <>
       <style>{MINI_CSS}{DOCK_CSS}</style>
-      <div ref={wrap} className={`lb-mini lm-dock${pos ? ' moved' : ''}${dragging ? ' dragging' : ''}`} role="region" aria-label="Музыка" data-dd-anchor="" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
+      <div ref={wrap} className={`lb-mini lm-dock${pos ? ' moved' : ''}${dragging ? ' dragging' : ''}${closing ? ' closing' : ''}`} role="region" aria-label="Музыка" data-dd-anchor="" data-testid="music-dock" data-state={on ? 'playing' : 'paused'}
         data-moved={pos ? 'true' : undefined} onPointerDown={startDrag}
         style={{ '--b': MOOD_TINT[np.mood] || MOOD_TINT.wave, '--dock-b': `${navH}px`, ...(pos ? { '--mx': `${pos.x}px`, '--my': `${pos.y}px` } : null) }}>
         <button type="button" className="lm-grip" aria-label="Передвинуть плашку музыки (двойной щелчок — на место)" title="Потяните, чтобы передвинуть; двойной щелчок — на место" data-testid="music-dock-grip"
@@ -170,7 +177,13 @@ export function MusicDock() {
           onClick={() => { if (!np.id) return; const was = !!np.disliked; Audio.setDislikes(toggleMusicDislike(np.id)); Audio.setLikes(musicLikes()); if (!was && on) skip(true); }}><ThumbsDown size={17} fill={np.disliked ? 'currentColor' : 'none'} aria-hidden="true" /></button>
         {/* развернуть полный проигрыватель: плейлист, «Что играть», громкость */}
         <AudioControls wave learn icon={ChevronUp} label="Развернуть проигрыватель" testid="music-dock-open" className="lm-open" />
-        <button type="button" className="lb-mini-skip" onClick={() => { Audio.setMusic(false); setLearnMusic(false); setMusicPaused(null); setPaused(false); }} aria-label="Выключить музыку" data-testid="music-dock-close"><X size={17} aria-hidden="true" /></button>
+        <button type="button" className="lb-mini-skip" onClick={() => {
+          // музыка выключается и запоминается выключенной сразу (уйти с сайта можно в ту же секунду); плашка уходит следом — 0,22 с
+          Audio.setMusic(false); setLearnMusic(false); setMusicPaused(null); setPaused(false);
+          const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          if (calm) return;
+          setClosing(true); window.clearTimeout(closeT.current); closeT.current = window.setTimeout(() => setClosing(false), 220);
+        }} aria-label="Выключить музыку" data-testid="music-dock-close"><X size={17} aria-hidden="true" /></button>
       </div>
     </>
   );

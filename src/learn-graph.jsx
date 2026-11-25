@@ -27,7 +27,9 @@ export const GRAPH_CSS = `${STAGE_CSS}
   /* слой 310: над уроком (300), но под шторками (320) — «Сообщить об ошибке» открывается поверх */
   .gl { --g-blue: #2459A6; --g-rust: #B4441A; --g-teal: #0E7A72; --g-gold: #9A6A00; --g-grid: color-mix(in srgb, var(--ds-ink) 9%, transparent);
     position: fixed; inset: 0; z-index: 310; overflow-y: auto; overscroll-behavior: contain; color: var(--ds-ink);
-    background: radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--g-blue) 12%, var(--ds-paper)), var(--ds-paper) 60%), var(--ds-paper); }
+    /* фон — ровный, тот же, что у липкой шапки (.sp-top): у подкрашенного сверху фона край шапки был виден полосой, которая
+       «резала» текст при прокрутке (жалоба ученика 24.11, draw-prices, шаг 1: «резкая полоска, что режет текст») */
+    background: var(--ds-paper); }
   .ds-dark .gl, .gl.dark { --g-blue: #8DB6F2; --g-rust: #F29A6E; --g-teal: #5ED3C4; --g-gold: #E9C25A; }
   /* шапка с полоской шагов — одним липким блоком: полоска не прилипает к кромке шапки и не уезжает
      под неё при прокрутке (на телефоне она стояла вплотную к «потолку») */
@@ -53,14 +55,19 @@ export const GRAPH_CSS = `${STAGE_CSS}
   .gl-text b { color: var(--ds-ink); font-weight: 700; }
   .gl-step { display: inline-block; margin-bottom: 6px; font: 700 12px var(--ds-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ds-ink2); }
   @keyframes gl-rise { from { opacity: 0; transform: translateY(10px) } }
-  .gl-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--ds-paper) 92%, transparent); border-top: 1px solid var(--ds-rule2); backdrop-filter: blur(8px); }
+  /* низ: вместо черты поперёк графика — мягкое затухание над кнопками (та же жалоба) */
+  .gl-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--ds-paper); }
+  .gl-foot::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 22px; pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--ds-paper)); }
   .gl-foot > div { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; }
   .gl-foot > div > :last-child { flex: 1; }
 
   /* вопрос и финал */
   .gl-quiz h2 { margin: 18px 0 12px; font: 700 21px/1.3 var(--ds-head); }
-  .gl-opts { display: grid; gap: 10px; }
+  /* варианты — плотным столбиком: у .ds-opt свои поля сверху и снизу, и вместе с промежутком сетки выходило 26 px между
+     кнопками (жалоба ученика 24.11, graph-prices: «кнопки слишком далеко друг от друга») */
+  .gl-opts { display: grid; gap: 8px; }
+  .gl-opts .ds-opt { margin: 0; }
   .gl-gem-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--ds-sans); color: #fff; background: ${DIAMOND_COLOR}; flex: none; }
   .gl-blank { display: inline-block; min-width: 64px; border-bottom: 2.5px solid var(--g-blue); margin: 0 2px; vertical-align: -2px; color: transparent; }
   .gl-cloze { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -132,8 +139,12 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
     Audio.play(ok ? 'coin' : 'down');
     setCz((m) => ({ ...m, [k]: [...(m[k] || []), o] }));
   };
+  /* вариант сначала выбирают, потом — «Проверить», как в обычном уроке (жалоба ученика 24.11, graph-prices: «в обычном уроке
+     выбор варианта требует подтверждения») */
+  const [sel, setSel] = useState(() => (was ? was.picked : null));
+  const choose = (i) => { if (answered) return; Audio.play('tick'); setSel(i); };
   const pick = (i) => {
-    if (answered) return;
+    if (answered || i == null) return;
     const ok = !!order[i].ok;
     if (firstOk.current == null) { firstOk.current = ok; run.answer(ok); }
     Audio.play(ok ? 'coin' : 'down');
@@ -233,8 +244,8 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
           <h2>{g.quiz.q}</h2>
           <div className="gl-opts" role="group" aria-label="Варианты ответа">
             {order.map((o, i) => {
-              const st = picked === i ? (o.ok ? 'ok' : 'bad') : answered && o.ok ? 'ok' : '';
-              return <button key={o.i} type="button" className={`ds-opt ${st === 'ok' ? 'right' : st === 'bad' ? 'wrong' : ''}`} aria-pressed={picked === i} disabled={answered} data-testid="graph-opt" data-ok={o.ok ? 'true' : 'false'} onClick={() => pick(i)}>{o.text}</button>;
+              const st = picked === i && sel === i ? (o.ok ? 'ok' : 'bad') : answered && o.ok ? 'ok' : '';
+              return <button key={o.i} type="button" className={`ds-opt ${st === 'ok' ? 'right' : st === 'bad' ? 'wrong' : ''}`} aria-pressed={sel === i} disabled={answered} data-testid="graph-opt" data-ok={o.ok ? 'true' : 'false'} onClick={() => choose(i)}>{o.text}</button>;
             })}
           </div>
         </div>
@@ -257,7 +268,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
       {sketch && <><style>{SKETCH_CSS}</style><Sketch mode="graph" /></>}
       {/* нижняя полоса — как у урока (.ln-foot, жалобы 19.11: «полоса внизу не как в уроках», «кнопки не по стилю»): после ответа
          на вопрос — плашка ответа урока со штампом и пояснением */}
-      {phase === 'quiz' && picked != null ? (
+      {phase === 'quiz' && picked != null && sel === picked ? (
         <div className={`ln-foot sp-foot fb ${order[picked].ok ? 'ok' : 'bad'}`} data-testid="graph-foot">
           <AnswerBar ok={!!order[picked].ok}>
             <div className="ln-fb-body" role="status" data-testid="graph-feedback" data-ok={String(!!order[picked].ok)}>{order[picked].why}{order[picked].ok ? '' : ' Выберите другой ответ.'}</div>
@@ -271,9 +282,11 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
             ? <Button wide data-testid="graph-finish" onClick={() => { Audio.play('click'); onClose(); }}>{result ? 'Дальше' : 'Готово'}</Button>
             : <>
               <Button variant="secondary" icon={ArrowLeft} disabled={phase === 'tour' && k === 0} data-testid="graph-back" onClick={back}>Назад</Button>
-              <Button wide icon={phase === 'quiz' ? Check : ArrowRight} disabled={(phase === 'quiz' && !answered) || (phase === 'tour' && !cOk)} data-testid="graph-next" onClick={next}>
-                {phase === 'quiz' ? 'Готово' : phase === 'tour' && !cOk ? 'Выберите пропущенное' : k < n - 1 ? 'Дальше' : 'К вопросу'}
-              </Button>
+              {phase === 'quiz'
+                ? <Button wide icon={Check} disabled={sel == null} data-testid="graph-check" onClick={() => pick(sel)}>Проверить</Button>
+                : <Button wide icon={ArrowRight} disabled={phase === 'tour' && !cOk} data-testid="graph-next" onClick={next}>
+                  {phase === 'tour' && !cOk ? 'Выберите пропущенное' : k < n - 1 ? 'Дальше' : 'К вопросу'}
+                </Button>}
             </>}
         </div>
       </div>

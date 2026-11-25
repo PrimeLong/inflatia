@@ -6,6 +6,7 @@ import { makeHandler } from '../api/research.js';
 import { memoryStore } from '../api/_lib/research-store.js';
 import { keyFor } from '../api/_lib/research-key.js';
 import { MODULE } from '../src/research/module.js';
+import { answerOf, whyOf } from '../api/_lib/research-module-key.js';
 import { armAt } from '../src/research/randomize.js';
 
 const DAY = 86400000;
@@ -59,15 +60,17 @@ async function passLesson(page, lesson, { wrongFirst = false } = {}) {
   for (const [i, ex] of lesson.exercises.entries()) {
     prompts.push(await page.getByTestId('rs-prompt').textContent());
     if (wrongFirst && i === 0) {
-      if (ex.kind === 'number') await page.getByTestId('rs-num').fill('999999'); else await page.locator(`[data-testid=rs-opt]:not([data-id="${ex.answer}"])`).first().click();
+      if (ex.kind === 'number') await page.getByTestId('rs-num').fill('999999'); else await page.locator(`[data-testid=rs-opt]:not([data-id="${answerOf(ex.id)}"])`).first().click();
       await page.getByTestId('rs-check').click();
       await expect(page.getByTestId('rs-feedback')).toHaveAttribute('data-correct', 'false');
       await page.getByTestId('rs-retry').click();
     }
-    if (ex.kind === 'number') await page.getByTestId('rs-num').fill(String(ex.answer));
-    else await page.locator(`[data-testid=rs-opt][data-id="${ex.answer}"]`).click();
+    if (ex.kind === 'number') await page.getByTestId('rs-num').fill(String(answerOf(ex.id)));
+    else await page.locator(`[data-testid=rs-opt][data-id="${answerOf(ex.id)}"]`).click();
     await page.getByTestId('rs-check').click();
     await expect(page.getByTestId('rs-feedback')).toHaveAttribute('data-correct', 'true');
+    // разбор пришёл с сервера вместе с проверкой (в коде страницы ключа нет)
+    await expect(page.getByTestId('rs-feedback')).toContainText(whyOf(ex.id));
     await page.getByTestId('rs-next').click();
   }
   await expect(page.getByTestId('rs-lesson-done')).toBeVisible();

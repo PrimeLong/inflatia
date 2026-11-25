@@ -676,7 +676,8 @@ export function DominoEx({ inst, resp, setResp, locked, fb, onSubmit, prompt }) 
     <div className="lm-dom" data-testid="domino" data-placed={r.placed.length} data-falls={r.falls.length}>
       <div className="lm-news"><div className="lm-news-mast">Вестник Инфляции</div><div className="lm-news-head" data-testid="domino-headline">{inst.headline}</div></div>
       <div className="lm-dom-prompt">{prompt}</div>
-      <DominoScene inst={inst} sc={sc} />
+      {/* scene=none — «Домино» не про кофейню (труд, деньги, издержки): только газета и цепочка */}
+      {inst.scene !== 'none' && <DominoScene inst={inst} sc={sc} />}
       <div className="lm-chain" aria-label="Цепочка">
         {inst.chain.map((k, i) => {
           const on = i < shown.length;

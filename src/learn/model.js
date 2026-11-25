@@ -180,6 +180,8 @@ export const VERBS = {
   swipe: { verb: 'предсказывать', model: true }, rush: { verb: 'предсказывать', model: true }, wallet: { verb: 'решать', model: true },
   open: { verb: 'объяснять' }, domino: { verb: 'строить', model: true }, discover: { verb: 'исследовать', model: true },
   exam: { verb: 'ответить' },
+  // «Данные»: прочитать таблицу или диаграмму и ответить — касанием элемента, числом или выводом
+  data: { verb: 'ответить' },
 };
 // глаголы урока: его шаги «Откройте сами» и свои упражнения (практика берёт «Домино» всегда)
 export function lessonVerbs(lesson) {

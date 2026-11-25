@@ -1875,3 +1875,36 @@ test('задание дня, выполненное в уроке, выплач�
   await expect(page.getByTestId('notify-toast')).toContainText('Задание');
   expect(errors).toEqual([]);
 });
+
+// разнообразие практики (пункт владельца 25.11): «Домино» без кофейной сцены, рынок труда со своими подписями осей,
+// «Соберите определение» в практике — открываются и решаются, без прокрутки вбок
+test('новые виды в практике: «Домино» без сцены, рынок труда, сборка определения', async ({ page }) => {
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const run = async (id) => {
+    await expect(async () => {
+      await page.evaluate((x) => window.dispatchEvent(new CustomEvent('inflatia:test-run', { detail: { lessonId: 'lm-l2', only: [x] } })), id);
+      await expect(page.getByTestId('ex')).toHaveAttribute('data-id', id, { timeout: 1500 });
+    }).toPass({ timeout: 15000 });
+  };
+  await run('lm-dom-order');
+  const dom = page.getByTestId('domino');
+  await expect(dom.getByTestId('domino-headline')).toHaveText('ВЕЛОЗАВОД «СПИЦА» ПОЛУЧИЛ ЗАКАЗ НА 5000 ВЕЛОСИПЕДОВ');
+  // не про кофейню — без улицы с чашками
+  await expect(dom.getByTestId('domino-scene')).toHaveCount(0);
+  await expectNoSidewaysScroll(page);
+  await answerExercise(page, { wrong: true });
+  await page.reload({ waitUntil: 'networkidle' });
+  await run('lm-e2-curve');
+  await expect(page.getByTestId('market-y')).toHaveText('W, зарплата в час');
+  await expect(page.getByTestId('market-x')).toHaveText('L, число пекарей');
+  await answerExercise(page);
+  await page.reload({ waitUntil: 'networkidle' });
+  await run('lm-e2-point');
+  await answerExercise(page);
+  await page.reload({ waitUntil: 'networkidle' });
+  await run('pr-e1-tiles');
+  await answerExercise(page);
+  await expectNoSidewaysScroll(page);
+  expect(errors).toEqual([]);
+});

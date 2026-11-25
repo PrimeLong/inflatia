@@ -20,7 +20,7 @@ import { activeClock, tickClock, actClock } from './learn/active-time.js';
 import {
   UNITS, LEVEL_BY_ID, levelUnits, LESSON_BY_ID, KIND_LABEL, SHIFT_CURVES, LESSON_KIND, GAME_KINDS, SELF_CHECK, OPEN_MIN, buildLesson, buildUnitCheck, buildLevelCheck, buildPractice,
   practiceIds, canPractice, check, ready, answerText, unitFor, buildPlacement, placementOpened, placementFailed, retryOf, retryWorth, gameNeed, gameRule, buildFix, EXAM_LETTERS,
-  buildLevelReview, SECONDS,
+  buildLevelReview, SECONDS, EXERCISES, instantiate,
 } from './learn/course.js';
 import {
   startLesson, recordAttempt, addMistake, resolveMistake, addHinted, clearHinted, finishLesson, passUnit, lessonDone, lessonXp, streak, XP, setPlacement, dayOf, recordSeen, recordBest,
@@ -38,6 +38,8 @@ import { saveResume, dropResume } from './learn/resume.js';
 import { Mascot } from './mascot.jsx';
 import { markTerms, termTitle, termText, termFormula, isWorldTerm } from './learn/terms.js';
 import { PLAY_CSS, CurveEx, PriceEx, PointEx, TilesEx, TimerBar, GameRound, WalletRound, WordDeck, Calculator as CalcPad } from './learn-play.jsx';
+import { DataView, PICK_HINT } from './learn-data.jsx';
+import { itemText } from './learn/data.js';
 import { Feed, FEED_CSS } from './learn-feed.jsx';
 import { DiscoverDay, MODEL_CSS, DOMINO_CSS, DominoEx } from './learn-model.jsx';
 import { partsOfLesson } from './learn/model.js';
@@ -77,6 +79,8 @@ const testAnswer = (inst) => {
     case 'swipe': case 'rush': case 'wallet': return JSON.stringify('game');
     case 'open': return JSON.stringify('open');
     case 'domino': return JSON.stringify(inst.chain);
+    case 'data': return JSON.stringify(inst.ask === 'choice' ? { ask: 'choice', key: inst.options.find((o) => o.correct).key }
+      : inst.ask === 'number' ? { ask: 'number', value: String(Math.round(inst.answer * 100) / 100).replace('.', ',') } : { ask: 'pick', key: inst.answer });
     default: return undefined;
   }
 };
@@ -317,10 +321,13 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
       // «6 050 крон» — одно число: пробелы между разрядами (и неразрывные) не разрывают его
       const numOf = (o) => { const m = String(o.raw).replace('−', '-').replace(/(\d)[ \u00A0\u202F\u2009](?=\d{3}\b)/g, '$1').match(/^-?\d+(?:[.,]\d+)?/); return m ? Number(m[0].replace(',', '.')) : null; };
       const numeric = inst.options.every((o) => numOf(o) != null);
+      /* варианты со счётом внутри («На базе: 1600 против 1800») — тоже задача на расчёт: калькулятор есть, только без
+         «Выбрать ответ» — вариант выбирают сами (жалоба ученика 24.11, tr-e2-even: «Где калькулятор?») */
+      const counting = !numeric && inst.options.every((o) => /\d/.test(String(o.raw))) && inst.options.some((o) => /\d{2,}/.test(String(o.raw)));
       return (
         <div>
-          <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
-          {numeric && !locked && (
+          {!inst._bare && <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>}
+          {(numeric || counting) && !locked && (
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
               <button type="button" className="ds-chip" aria-pressed={!!inst._calc} data-testid="calc-open" onClick={() => { Audio.play('tick'); inst._setCalc(!inst._calc); }}>
                 <Calculator size={15} style={{ verticalAlign: -3, marginRight: 4 }} aria-hidden="true" />Калькулятор
@@ -332,6 +339,7 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
               <ChoiceCalc options={inst.options} numOf={numOf} onPick={(key) => { pick(key); inst._setCalc(false); }} />
             </div>
           )}
+          {counting && inst._calc && !locked && <div style={{ marginBottom: 12 }} data-testid="calc-free"><CalcPad /></div>}
           {inst.options.map((o) => (
             <button key={o.key} type="button" className={`ds-opt ${optClass(o.key, o.correct)}`} aria-pressed={resp === o.key} data-key={o.key} disabled={locked}
               onClick={() => pick(o.key)}><Inline nodes={o.text} ctx={ctx} /></button>
@@ -489,6 +497,8 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         <div className="ln-exam" data-form={inst.form}>
           <div className="ln-exam-head"><span className="ln-exam-tag" data-testid="exam-tag">{tag}</span><span className="ds-faint">в формате экзамена</span></div>
           <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          {/* задание 9 ЕГЭ: диаграмма или таблица — над выводами */}
+          {inst.data && <DataView inst={inst} />}
           {inst.form === 'match' ? (
             <>
               <div className="ln-exam-bins">{inst.bins.map((b, i) => <span key={b}><b>{i + 1}</b>{b}</span>)}</div>
@@ -540,12 +550,25 @@ function ExerciseView({ inst, resp, setResp, locked, fb, ctx = noopCtx, onSubmit
         </div>
       );
     }
+    /* «Данные» (src/learn-data.jsx): таблица или диаграмма; ответ — касанием элемента, числом (поле и калькулятор, как в
+       расчёте) или выбором вывода (как в выборе) — те же поля, что у этих видов, без второго условия */
+    case 'data': {
+      const nested = inst.ask === 'number' ? { ...inst, kind: 'calc', _bare: true } : inst.ask === 'choice' ? { ...inst, kind: 'choice', _bare: true } : null;
+      return (
+        <div>
+          <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          <DataView inst={inst} resp={inst.ask === 'pick' ? resp : null} locked={locked} fb={fb} onPick={(k) => { if (!locked) { Audio.play('tick'); setResp(k); } }} />
+          {inst.ask === 'pick' && !locked && <div className="ds-sub dv-hint" data-testid="data-hint">{PICK_HINT[inst.view]}</div>}
+          {nested && <ExerciseView inst={nested} resp={resp} setResp={setResp} locked={locked} fb={fb} ctx={ctx} onSubmit={onSubmit} />}
+        </div>
+      );
+    }
     case 'calc': {
       const val = resp || '';
       const press = (k) => { if (locked) return; Audio.play('tick'); if (k === 'del') setResp(val.slice(0, -1)); else if (val.length < 10) setResp(val + k); };
       return (
         <div>
-          <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>
+          {!inst._bare && <div className="ln-prompt ds-text tb-body"><Blocks blocks={inst.prompt} ctx={ctx} /></div>}
           {/* поле ответа и «Ответ / Калькулятор» — одной строкой: на телефоне задача и клавиши помещаются на экран */}
           <div className="ln-calc-row">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -655,6 +678,8 @@ const RACE_OFFER_KEY = 'ems-race-offer';
    в течение суток (resume). */
 // урок собирается под ученика: уровень сложности, ошибки, подсказки и слабые темы (src/learn/program.js)
 function newPlan(run, learn) {
+  // только в тестах (window.__INFLATIA_TEST__, событие inflatia:test-run в src/learn.jsx): урок из названных заданий
+  if (run.only && typeof window !== 'undefined' && window.__INFLATIA_TEST__) return { items: run.only.filter((id) => EXERCISES[id]).map((id) => instantiate(EXERCISES[id], Math.random)), cards: {} };
   // урок уже пройден — расчёты в нём с новыми числами
   if (run.mode === 'lesson') { const p = buildLesson(run.lessonId, Math.random, { ...lessonOpts(learn), diamond: !!run.diamond, replay: !!((learn.lessons || {})[run.lessonId] || {}).runs }); return { items: p.items, cards: p.cards, seconds: p.seconds, diamond: !!run.diamond }; }
   // проверка юнита или тест уровня (levelId): сдан — юнит или все юниты уровня сданы
@@ -761,8 +786,9 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     // «Работа над ошибками»: решённые ошибки снимаются, когда урок пройден целиком (docs/mechanics.md)
     fixed: new Set(rs ? rs.fixed || [] : []),
   });
-  // сохранённый незаконченный урок: обычный — по уроку, «Работа над ошибками» — по юниту
-  const resumeKey = run.mode === 'fix' ? `fix:${run.unitId}` : run.lessonId;
+  /* сохранённый незаконченный урок: обычный — по уроку, «Работа над ошибками» — по юниту, «Повторить ошибки» — одно место
+     на всё (пункт владельца 24.11, п. 4: «работу над ошибками нельзя продолжить»: вышли — начиналось заново) */
+  const resumeKey = run.mode === 'fix' ? `fix:${run.unitId}` : run.mode === 'practice' ? 'practice' : run.lessonId;
   const [started, setStarted] = useState(!!rs);
   /* урок — слой поверх страницы: пока он открыт, страница под ним не прокручивается и не
      показывает свой ползунок (на ПК он висел сбоку урока, даже когда прокручивать нечего) */
@@ -773,6 +799,11 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
     return () => { els.forEach((el, k) => { el.style.overflow = was[k]; }); };
   }, [hidden]);
   const retryable = run.mode === 'lesson' || run.mode === 'practice' || run.mode === 'fix';
+  /* дождь монет на итогах — один раз (жалоба ученика 24.11, tr-l1: «можно жать на подробности урока, потом возвращаться — и
+     каждый раз анимация с монетами»): пока открыт учебник, урок скрыт, и после возврата CSS-анимация шла заново */
+  const coinsAt = useRef(0);
+  if (stage === 'done' && result && !coinsAt.current) coinsAt.current = Date.now();
+  const coinsLive = !!coinsAt.current && !hidden && Date.now() - coinsAt.current < 3500;
   const total = plan.items.length;
   const cur = queue[pos];
   const orig = cur ? (cur.orig || cur.uid) : null;
@@ -905,6 +936,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       opened = placementOpened(plan.items, a.first);
       apply = (s) => setPlacement(opened.reduce((t, u) => passUnit(t, u, { now }), s), opened, now);
     } else {
+      if (run.mode === 'practice') dropResume(resumeKey);
       xp = firstOk * XP.correct + a.bonus;
       // «Работа над ошибками» пройдена — Путь открыт дальше; второй такой в этом юните не будет
       apply = (s) => {
@@ -973,7 +1005,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
      крестиком, после каждого ответа и когда страницу закрывают или прячут — закрытый браузер и
      перезагрузка больше не теряют урок (жалоба: «случайно закрыл браузер — всё слетело») */
   const snapshot = () => {
-    if ((run.mode !== 'lesson' && run.mode !== 'fix') || !started || stage === 'done') return;
+    if ((run.mode !== 'lesson' && run.mode !== 'fix' && run.mode !== 'practice') || !started || stage === 'done') return;
     const a = acc.current;
     const at = fb && !fb.empty ? pos + 1 : pos;
     if (at >= queue.length) { dropResume(resumeKey); return; }
@@ -1226,7 +1258,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
       {!feed && stage === 'work' && inst && (
         <>
           <div className="ln-body"><div className="ln-inner" ref={shakeRef} key={inst.uid}
-            data-testid="ex" data-kind={inst.kind} data-answer={testAnswer(inst)}>
+            data-testid="ex" data-kind={inst.kind} data-id={inst.id} data-answer={testAnswer(inst)}>
             <div className="ln-kind ds-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* повтор ошибки — одна плашка: у повторённого задания из прошлых уроков «повторение» не дублируем */}
               {kindName}{inst.review && !inst.retry && <span className="ds-badge" data-testid="ex-review-badge" data-past={inst.past || undefined}>повторение{inst.past ? ` · ${placeOf(inst.past).place}` : ''}</span>}
@@ -1269,7 +1301,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
         if (liveCard) entries.push({ kind: 'msg', key: `m:${cur.uid}:${idx}`, card: liveCard, index: (n += 1), live: true });
         else if (stage === 'work' && inst) {
           entries.push({ kind: 'q', key: `q:${inst.uid}`, live: true, flag: <ReportFlag context={() => exerciseContext(inst, { lesson, resp: respRef.current, correct: answerText(inst) })} />, node: (
-            <div className={anim.kind === 'shake' && fb && !fb.ok ? 'ds-shake' : ''} data-testid="ex" data-kind={inst.kind} data-answer={testAnswer(inst)}>
+            <div className={anim.kind === 'shake' && fb && !fb.ok ? 'ds-shake' : ''} data-testid="ex" data-kind={inst.kind} data-id={inst.id} data-answer={testAnswer(inst)}>
               {inst.retry && !fb && <div className="ds-sub" style={{ fontSize: 14, marginBottom: 6 }} data-testid="ex-retry" data-fresh={inst.fresh || 'same'}><RotateCcw size={15} aria-hidden="true" style={{ verticalAlign: -2 }} /> {RETRY_TEXT[inst.fresh] || RETRY_TEXT.same}</div>}
               <ExerciseView inst={inst} ctx={termCtx} resp={resp} setResp={(v) => { setResp(v); if (fb && fb.empty) setFb(null); }} locked={!!fb && !fb.empty} fb={fb && !fb.empty ? fb : null} onSubmit={(v) => doCheck(v)} />
             </div>
@@ -1321,7 +1353,7 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
 
       {stage === 'done' && result && (
         <div className="ln-body"><div className="ln-inner" data-testid="lesson-result">
-          {(run.mode !== 'check' || result.pass) && <CoinShower seed={result.xp + 1} />}
+          {(run.mode !== 'check' || result.pass) && coinsLive && <CoinShower seed={result.xp + 1} />}
           {/* итоги — как сертификат: гильош по краям, розетка-печать с Инфлей */}
           <Card style={{ padding: 0, overflow: 'hidden', textAlign: 'center', position: 'relative' }}>
             <span style={{ position: 'absolute', top: 30, right: 14 }}>
@@ -1423,6 +1455,8 @@ function answerOf(inst, resp) {
     }
     case 'tf': return resp === true || resp === 'true' ? 'Верно' : resp === false || resp === 'false' ? 'Неверно' : null;
     case 'calc': return resp ? `${String(resp).replace('-', '−')}${inst.unit ? ` ${unitFor(inst, resp)}` : ''}` : null;
+    case 'data': return inst.ask === 'choice' ? answerOf({ ...inst, kind: 'choice' }, resp) : inst.ask === 'number' ? answerOf({ ...inst, kind: 'calc' }, resp)
+      : resp ? itemText(inst.data, resp, inst.vunit) : null;
     case 'open': return String(resp || '').trim() || null;
     case 'domino': {
       const falls = resp && resp.falls ? resp.falls.length : 0;

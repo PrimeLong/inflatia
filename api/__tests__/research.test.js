@@ -10,6 +10,7 @@ import { participantCode } from '../../src/research/record.js';
 import { armAt } from '../../src/research/randomize.js';
 import { TEST_ITEMS, MODULE_LESSONS } from '../../src/research/dictionary.js';
 import { MODULE } from '../../src/research/module.js';
+import { answerOf, whyOf } from '../_lib/research-module-key.js';
 import { keyFor, publicForm, scoreItem } from '../_lib/research-key.js';
 
 // запрос, у которого чтение любого заголовка, кроме ключа выгрузки, — ошибка теста
@@ -22,7 +23,7 @@ const DAY = 86400000;
 const T0 = Date.UTC(2027, 1, 1, 10);
 let n = 0;
 // ключ входа «tok-<логин>» — вошедший ученик; в логине «kid» — год рождения 2015 (младше 18)
-const whoIs = async (t) => (typeof t === 'string' && t.startsWith('tok-') ? { login: t.slice(4), birthYear: t.includes('kid') ? 2015 : 1990 } : null);
+const whoIs = async (t) => (typeof t === 'string' && t.startsWith('tok-') ? { login: t.slice(4), birthYear: t.includes('noyear') ? null : t.includes('kid') ? 2015 : 1990 } : null);
 const openStudy = (clock = { t: T0 }) => {
   const st = memoryStore();
   return { st, clock, h: makeHandler({ status: 'open', store: () => st, seed: 'зерно-теста', exportToken: 'секрет-исследователя', whoIs,
@@ -41,7 +42,8 @@ const take = async (h, code, kind, form, right, extra = {}) => {
 };
 // пройти урок модуля: ответить на каждое задание (верно)
 const passLesson = async (h, code, lesson) => {
-  for (const ex of MODULE.find((l) => l.id === lesson).exercises) await call(h, { action: 'answer', code, exercise_id: ex.id, answer: String(ex.answer) });
+  await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: lesson } });
+  for (const ex of MODULE.find((l) => l.id === lesson).exercises) await call(h, { action: 'answer', code, exercise_id: ex.id, answer: String(answerOf(ex.id)) });
 };
 
 describe('исследование: сервер', () => {
@@ -144,7 +146,7 @@ describe('исследование: сервер', () => {
     clock.t = T0 + 2 * DAY;
     expect((await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: 'hh-i1' } })).data).toEqual({ ok: true });
     clock.t += 40000;
-    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '8 000' })).data).toEqual({ correct: true, attempt_no: 1, lesson_done: false });
+    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '8 000' })).data).toEqual({ correct: true, attempt_no: 1, lesson_done: false, why: whyOf('hh-i1-a') });
     clock.t += 20000;
     expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-b', answer: '3000' })).data).toMatchObject({ correct: false, attempt_no: 1 });
     clock.t += 15000;
@@ -193,6 +195,7 @@ describe('исследование: сервер', () => {
     expect(r.status).toBe(200);
     expect(scoreItem('A', 'q01', '6 500')).toBe(true); expect(scoreItem('A', 'q01', '6400')).toBe(false); expect(scoreItem('B', 'q11', '12,5%')).toBe(true);
     // ответ на задание модуля: correct, attempt_no, active_seconds от клиента — 400
+    await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: 'hh-i1' } });
     expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '1', correct: true })).status).toBe(400);
     expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '1', active_seconds: 600 })).status).toBe(400);
     expect((await call(h, { action: 'answer', code, exercise_id: 'нет-такого', answer: '1' })).status).toBe(400);
@@ -233,9 +236,10 @@ describe('исследование: сервер', () => {
     const code = await enroll(h);
     await take(h, code, 'pre', 'A', 6);
     const lesson = MODULE[0];
-    for (const ex of lesson.exercises.slice(0, -1)) await call(h, { action: 'answer', code, exercise_id: ex.id, answer: String(ex.answer) });
+    await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: lesson.id } });
+    for (const ex of lesson.exercises.slice(0, -1)) await call(h, { action: 'answer', code, exercise_id: ex.id, answer: String(answerOf(ex.id)) });
     const last = lesson.exercises[lesson.exercises.length - 1];
-    const res = await Promise.all(Array.from({ length: 5 }, () => call(h, { action: 'answer', code, exercise_id: last.id, answer: String(last.answer) })));
+    const res = await Promise.all(Array.from({ length: 5 }, () => call(h, { action: 'answer', code, exercise_id: last.id, answer: String(answerOf(last.id)) })));
     expect(res.filter((r) => r.data.lesson_done)).toHaveLength(1);
     expect(res.map((r) => r.data.attempt_no).sort()).toEqual([1, 2, 3, 4, 5]);
     expect((await st.list(`re:${code}`)).filter((e) => e.event_type === 'lesson_done')).toHaveLength(1);
@@ -336,5 +340,53 @@ describe('исследование: сервер', () => {
     expect(r.data).toMatchObject({ ok: true, withdrawn: 1 });
     expect(r.data.deleted).toBeGreaterThan(10);
     expect(await st.keys('r')).toEqual([]);
+  });
+});
+
+describe('исследование: замечания владельца 24.11 (ключ, возраст, порядок)', () => {
+  it('без года рождения в аккаунте запись не проходит — даже с отметкой «мне 18»', async () => {
+    const { h, st } = openStudy();
+    const r = await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'tok-noyear' });
+    expect(r.status).toBe(400);
+    expect(r.data.error).toMatch(/год рождения/);
+    expect(await st.keys('rp:')).toEqual([]);
+    expect(await st.keys('rla:')).toEqual([]);
+    // младше 18 по году — нет; 18 и старше по году и с отметкой — да
+    expect((await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'tok-kid2' })).status).toBe(400);
+    expect((await call(h, { action: 'enroll', adult: true, consent: CONSENT_VERSION, token: 'tok-adult2' })).status).toBe(200);
+  });
+  it('ответ — только после «начал урок», записанного сервером', async () => {
+    const { h } = openStudy();
+    const code = await enroll(h);
+    await take(h, code, 'pre', 'A', 6);
+    const r = await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '8000' });
+    expect(r.status).toBe(409);
+    expect(r.data.error).toMatch(/откройте урок/);
+    await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: 'hh-i1' } });
+    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '8000' })).status).toBe(200);
+    // начало другого урока не открывает ответы в этом
+    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-l1-a', answer: 'а' })).status).toBe(409);
+  });
+  it('задания — по порядку: на третье нельзя раньше второго; вернуться к прежнему можно', async () => {
+    const { h } = openStudy();
+    const code = await enroll(h);
+    await take(h, code, 'pre', 'A', 6);
+    await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: 'hh-i1' } });
+    const skip = await call(h, { action: 'answer', code, exercise_id: 'hh-i1-c', answer: 'а' });
+    expect(skip.status).toBe(409);
+    expect(skip.data.error).toMatch(/предыдущие задания/);
+    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '1' })).data).toMatchObject({ correct: false, attempt_no: 1 });
+    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-b', answer: '3500' })).status).toBe(200);
+    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '8000' })).data).toMatchObject({ correct: true, attempt_no: 2 });
+    expect((await call(h, { action: 'answer', code, exercise_id: 'hh-i1-c', answer: 'а' })).status).toBe(200);
+  });
+  it('разбор приходит с проверкой: после ответа, и верного, и неверного', async () => {
+    const { h } = openStudy();
+    const code = await enroll(h);
+    await take(h, code, 'pre', 'A', 6);
+    await call(h, { action: 'event', code, event: { event_type: 'lesson_start', lesson_id: 'hh-i1' } });
+    const bad = await call(h, { action: 'answer', code, exercise_id: 'hh-i1-a', answer: '1' });
+    expect(bad.data).toMatchObject({ correct: false, why: whyOf('hh-i1-a') });
+    expect(whyOf('hh-i1-a')).toContain('8000');
   });
 });

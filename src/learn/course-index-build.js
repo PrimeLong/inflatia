@@ -16,6 +16,18 @@ export function mistakeUnitsMap() {
   return out;
 }
 
+/* та же карта в указателе — по юнитам: { юнит: "id id id" }. Пара «id: юнит» на каждое задание — 1–2 тысячи раз имя
+   юнита; так указатель на ~40 КБ легче, и стартовый чанк course-core не упирается в предел 400 КБ (25.11: 29 новых
+   заданий «Данные» и ЕГЭ — и сборка падала). Распаковывает installCourse (src/learn/course-core.js) */
+export function packMistakeUnits(map) {
+  const out = {};
+  Object.entries(map).forEach(([id, u]) => {
+    if (/\s/.test(id)) throw new Error(`id задания с пробелом не упаковать: «${id}»`);
+    out[u] = out[u] ? `${out[u]} ${id}` : id;
+  });
+  return out;
+}
+
 // минуты и опыт на билете урока: как считает сам урок (все ответы верны и подряд, мини-игры — на максимум)
 function ticket(lessonId, opts) {
   try {
@@ -44,6 +56,6 @@ export function buildCourseIndex() {
     const list = (CHAPTER_SECTIONS[u.id] || []).filter((s) => used.has(s.id)).map((s) => ({ id: s.id, title: s.title, minutes: s.minutes, recall: s.recall || null }));
     if (list.length) sections[u.id] = list;
   });
-  return { units, mistakeUnits: mistakeUnitsMap(), sections };
+  return { units, mistakeUnits: packMistakeUnits(mistakeUnitsMap()), sections };
 }
 export default buildCourseIndex;

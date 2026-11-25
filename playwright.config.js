@@ -4,9 +4,11 @@ import { defineConfig, devices } from '@playwright/test';
    что приложение открывается, партия играется, газета закрывается, карта
    рисуется, а на телефоне ничего не уезжает вбок. Тесты гоняются по
    собранному сайту (vite preview), как его увидит игрок. Серверных функций
-   (api/) в preview нет — тесты подставляют ответы сами. */
+   (api/) в preview нет — тесты подставляют ответы сами. Кроме e2e/server.e2e.js: он идёт на сервер ONREZA Compute
+   (server/index.js) с настоящим API. */
 // порт сервера — 4173; другой (E2E_PORT) нужен, когда на этой машине уже идёт прогон другой копии репозитория
 const PORT = Number(process.env.E2E_PORT || 4173);
+const SERVER_PORT = Number(process.env.E2E_SERVER_PORT || 4175);
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.e2e\.js$/,
@@ -31,10 +33,22 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['iPhone 13'] }, testMatch: /(app|path|lesson|world)\.e2e\.js$/,
       grep: /меню открывается|навигация: у каждого экрана|путь: карточка урока|путь: повтор пройденного урока|одиночная партия: квартал проходит|вход: экраны до входа/ },
   ],
-  webServer: {
-    command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  webServer: [
+    {
+      command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
+      url: `http://localhost:${PORT}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+    /* сервер ONREZA Compute (server/index.js) раздаёт тот же dist/ и настоящий API без подстановок — для e2e/server.e2e.js.
+       База — память процесса (ALLOW_MEMORY_STORE): тест не трогает ни одной настоящей базы. Сервер проверяет dist/ на каждом
+       запросе, поэтому может стартовать раньше, чем закончится сборка у первого сервера. */
+    {
+      command: 'node server/index.js',
+      env: { PORT: String(SERVER_PORT), ALLOW_MEMORY_STORE: '1', SERVE_STATIC: 'dist', DATABASE_URL: '' },
+      url: `http://localhost:${SERVER_PORT}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+  ],
 });

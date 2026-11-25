@@ -499,7 +499,9 @@ export const playerCss = () => `
      Карточка с живым светом цвета настроения; в центре — диск-обложка, вокруг него — кольцо спектра НАСТОЯЩЕГО звука
      (анализатор на шине музыки, Audio.levels); под названием — полоса времени записи и «Далее»; настроения — плитками-миксами;
      музыка, звуки и громкость — нижней панелью. Шапка — ручка: панель перетаскивается и помнит место. */
-  .mp { position: fixed; isolation: isolate; overflow-x: hidden; overflow-y: auto; padding: 10px 14px 14px; border-radius: 24px; color: ${COLOR.text};
+  /* border-box: ширина и высота панели — вместе с полями; раньше поля прибавлялись к 320 px, и на телефоне панель вылезала
+     за правый и верхний край (пункт владельца 24.11, п. 3: «проигрыватель под телефон вообще не сделан») */
+  .mp { box-sizing: border-box; position: fixed; isolation: isolate; overflow-x: hidden; overflow-y: auto; padding: 10px 14px 14px; border-radius: 24px; color: ${COLOR.text};
     background-color: ${COLOR.panelRaised}; font-family: var(--ds-sans, sans-serif); scrollbar-width: none;
     box-shadow: 0 30px 60px -24px rgba(0,0,0,.5), 0 0 0 1px color-mix(in srgb, var(--mp) 26%, ${COLOR.border}); animation: mp-in .28s cubic-bezier(.2,.9,.3,1.2); }
   .mp::-webkit-scrollbar { display: none; }
@@ -507,6 +509,14 @@ export const playerCss = () => `
   .mp.out { animation: mp-out .2s cubic-bezier(.4,0,.8,.4) forwards; pointer-events: none; }
   @keyframes mp-out { to { opacity: 0; transform: translateY(12px) scale(.96); } }
   .mp.dragging { box-shadow: 0 40px 70px -20px rgba(0,0,0,.6), 0 0 0 2px var(--mp); }
+  /* телефон: панель во всю ширину над плашкой — выезжает снизу и уходит вниз; потянуть за шапку вниз — закрыть */
+  .mp.sheet { animation: mp-sheet-in .3s cubic-bezier(.2,.9,.3,1); border-radius: 22px; }
+  .mp.sheet .mp-head { touch-action: none; }
+  .mp.sheet .mp-grab { width: 44px; }
+  .mp.sheet.out { animation: mp-sheet-out .22s cubic-bezier(.4,0,.8,.4) forwards; }
+  .mp.sheet.pulling { transition: none; animation: none; }
+  @keyframes mp-sheet-in { from { opacity: 0; transform: translateY(36px); } }
+  @keyframes mp-sheet-out { to { opacity: 0; transform: translateY(48px); } }
   /* живой свет: три размытых пятна цвета настроения медленно плывут за содержимым */
   .mp-aura { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; pointer-events: none; }
   .mp-aura i { position: absolute; width: 220px; height: 220px; border-radius: 50%; filter: blur(46px); opacity: .34; background: var(--mp); animation: mp-float 14s ease-in-out infinite alternate; }
@@ -611,7 +621,7 @@ export const playerCss = () => `
   [data-skin="mint"] .mp .mp-title { font-family: var(--ds-head, serif); }
   :is([data-skin="exchange"], [data-skin="aurora"], [data-skin="blueprint"]) .mp :is(.mp-b:not(.main), .mp-x) { background: rgba(255,255,255,.09); }
   [data-skin] .mp .mp-mood[aria-checked="true"] { box-shadow: 0 0 0 2px rgba(0,0,0,.3), 0 0 0 4px var(--m); }
-  @media (prefers-reduced-motion: reduce) { .mp, .mp.out, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .mp, .mp.out, .mp.sheet, .mp.sheet.out, .mp-aura i, .mp-cover.on, .mp-load svg, .mp-load span, .mp-eq i, .mp-like.on, .mp-title, .mp-b, .mp-b svg { animation: none !important; } .mp-sw i, .mp-track i { transition: none; } }
 `;
 
 // лайки и дизлайки пьес — движку сразу (он сам их держит до загрузки, не загружаясь)
@@ -685,7 +695,9 @@ export const leaveWave = () => { if (Audio.loaded() && Audio.nowPlaying().locked
 /* icon, label, testid — своя кнопка открытия (мини-плашка музыки разворачивает проигрыватель стрелкой «вверх»,
    в уроке — круглая кнопка в шапке) */
 export function AudioControls({ wave = false, buttonStyle = null, learn = false, icon = null, label = 'Музыка и звуки', testid = 'music-btn', className = 'ems-btn' }) {
-  const DD_WIDTH = typeof window !== 'undefined' ? Math.min(320, window.innerWidth - 16) : 320;
+  // телефон (узкий экран): панель — во всю ширину над плашкой, без перетаскивания вбок
+  const sheet = typeof window !== 'undefined' && window.innerWidth <= 560;
+  const DD_WIDTH = typeof window !== 'undefined' ? (sheet ? window.innerWidth - 16 : Math.min(320, window.innerWidth - 16)) : 320;
   // анимация переключения: «вперёд» / «назад» вздрагивают, название въезжает с той стороны (пункт владельца 16.11)
   const [kick, setKick] = useState(null);
   const kickRef = React.useRef(0);
@@ -729,9 +741,23 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
   }, [open]);
   const resetDrag = () => { setDrag(null); try { localStorage.removeItem('ems-mp-pos'); } catch { /* нет хранилища */ } };
   const lastDown = React.useRef(0);
+  const [pull, setPull] = useState(0);
   const startDrag = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
     if (e.target.closest && e.target.closest('button')) return;
+    // телефон: шапку тянут вниз — панель едет за пальцем; дальше 70 px — закрыть, иначе вернуться на место
+    if (sheet) {
+      const y0 = e.clientY; let dy = 0;
+      const move = (ev) => { dy = Math.max(0, ev.clientY - y0); setPull(dy); };
+      const up = () => {
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+        setPull(0);
+        if (dy > 70) { Audio.play('click'); setOpen(false); }
+      };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+      e.preventDefault();
+      return;
+    }
     // двойное касание или щелчок по шапке — панель обратно к кнопке
     const t = Date.now(); if (t - lastDown.current < 350) { lastDown.current = 0; resetDrag(); return; } lastDown.current = t;
     const r = panelRef.current && panelRef.current.getBoundingClientRect(); if (!r) return;
@@ -758,6 +784,8 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
   /* в обучении играет «Волна»: пока экран её не выбрал (проигрыватель открыли до того, как музыка заиграла), панель всё
      равно — «Волна», без плейлиста (пункт владельца 18.11: «первый раз открываешь — показывает плейлист») */
   const waveNow = wave && (!np.locked || np.locked === 'wave');
+  // место, куда панель перетащили на ПК, на телефоне не действует: там она всегда во всю ширину над плашкой
+  const dragPos = sheet ? null : drag;
   React.useEffect(() => { if (open && wave && Audio.loaded() && !Audio.nowPlaying().locked) Audio.setPlaylist('wave'); }, [open, wave]);
   const list = waveNow ? [] : Audio.playlist();
   // названия настроений приезжают вместе с движком (см. audio/lazy.js)
@@ -775,8 +803,9 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
       </button>
       {(open || leaving) && portalTarget && createPortal(
         <div className="mp-portal" data-skin={host.skin || undefined} style={host.vars}>
-        <div ref={panelRef} className={`mp${dragging ? ' dragging' : ''}${music ? ' playing' : ''}${!open ? ' out' : ''}`} data-testid={open ? 'music-panel' : 'music-panel-out'} data-closing={!open ? 'true' : undefined} data-moved={drag ? 'true' : 'false'} role="dialog" aria-label="Сейчас играет"
-          style={{ top: drag ? drag.top : pos.top, bottom: drag ? 'auto' : pos.bottom, left: drag ? drag.left : pos.left, width: DD_WIDTH, zIndex: 1300, maxHeight: drag ? `calc(100vh - ${Math.round(drag.top) + 8}px)` : pos.maxHeight,
+        <div ref={panelRef} className={`mp${sheet ? ' sheet' : ''}${pull ? ' pulling' : ''}${dragging ? ' dragging' : ''}${music ? ' playing' : ''}${!open ? ' out' : ''}`} data-sheet={sheet ? 'true' : undefined} data-testid={open ? 'music-panel' : 'music-panel-out'} data-closing={!open ? 'true' : undefined} data-moved={dragPos ? 'true' : 'false'} role="dialog" aria-label="Сейчас играет"
+          style={{ top: dragPos ? dragPos.top : pos.top, bottom: dragPos ? 'auto' : pos.bottom, left: dragPos ? dragPos.left : pos.left, width: DD_WIDTH, zIndex: 1300, maxHeight: dragPos ? `calc(100vh - ${Math.round(dragPos.top) + 8}px)` : pos.maxHeight,
+            ...(pull ? { transform: `translateY(${pull}px)`, opacity: Math.max(0.4, 1 - pull / 260) } : null),
             '--mp': MOOD_TINT[np.mood] || MOOD_TINT.calm, '--mp2': `color-mix(in srgb, ${MOOD_TINT[np.mood] || MOOD_TINT.calm} 55%, #6A5BFF)` }}>
           <style>{playerCss()}</style>
           <div className="mp-aura" aria-hidden="true"><i /><i /><i /></div>

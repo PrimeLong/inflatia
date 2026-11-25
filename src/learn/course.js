@@ -15,26 +15,27 @@ import { CAST } from './cast.js';
 import { pathBlocks } from './money.js';
 import { plural } from '../lib/plural.js';
 import { walletYears, WALLET } from './wallet.js';
+import { itemText } from './data.js';
 import {
-  LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, LEVEL_REVIEW_SIZE, FIX_MIN, mistakeUnit, fixIds,
+  LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, PRACTICE_PAD, LEVEL_REVIEW_SIZE, FIX_MIN, mistakeUnit, fixIds,
   fixDue, fixCount, canPractice, practiceIds, pathState, unitTitle, hydrateCourse,
 } from './course-core.js';
 
 // лёгкая часть курса — в course-core.js; отсюда она видна под прежними именами
 export {
-  LEVELS, UNIT_LEVEL, LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, LEVEL_REVIEW_SIZE,
+  LEVELS, UNIT_LEVEL, LEVEL_BY_ID, levelOf, UNITS, UNIT_BY_ID, LESSONS, LESSON_BY_ID, pilotUnits, levelUnits, GAME_KINDS, LESSON_KIND, PRACTICE_MIN, PRACTICE_MAX, PRACTICE_PAD, LEVEL_REVIEW_SIZE,
   FIX_MIN, mistakeUnit, fixIds, fixDue, fixCount, canPractice, practiceIds, pathState, unitTitle,
 };
 
 // сколько секунд на упражнение: одно касание — около десяти, расчёт и сборка — дольше
-export const SECONDS = { choice: 12, gap: 12, tf: 10, shift: 12, news: 16, match: 22, sort: 22, calc: 28, tiles: 20, curve: 15, price: 18, point: 15, swipe: 60, rush: 60, wallet: 120, open: 30, domino: 35, exam: 45 };
+export const SECONDS = { choice: 12, gap: 12, tf: 10, shift: 12, news: 16, match: 22, sort: 22, calc: 28, tiles: 20, curve: 15, price: 18, point: 15, swipe: 60, rush: 60, wallet: 120, open: 30, domino: 35, exam: 45, data: 25 };
 export const IDEA_SECONDS = 25;
 export const KIND_LABEL = {
   choice: 'Выбор ответа', gap: 'Заполните пропуск', tf: 'Верно или неверно', shift: 'Куда сдвинется?',
   news: 'Газета', match: 'Сопоставьте пары', sort: 'Разложите по корзинам', calc: 'Быстрый расчёт',
   tiles: 'Соберите определение', curve: 'Сдвиньте кривую', price: 'Найдите цену', point: 'Отметьте равновесие',
   swipe: 'Мини-игра', rush: 'Мини-игра на время', wallet: 'Сбереги кошелёк', open: 'Как бы вы поступили?', domino: 'Домино',
-  exam: 'Задание экзамена',
+  exam: 'Задание экзамена', data: 'Данные',
 };
 /* Задание в формате ЕГЭ или ОГЭ (docs/mechanics.md, «Задания урока»): ответ — цифрами, как в бланке.
    Буквы пунктов соответствия — как на экзамене: А, Б, В, Г, Д, Е (без Ё и Й). */
@@ -158,16 +159,19 @@ function fromBlock(b) {
     case 'tf': return { ...e, answer: b.answer, wrongWhy: null };
     case 'match': return { ...e, pairs: b.pairs };
     case 'sort': return { ...e, bins: b.bins, items: b.items };
-    case 'exam': return { ...e, test: b.test, no: b.no, form: b.form, ...(b.form === 'match' ? { bins: b.bins, items: b.items } : { options: b.options }) };
+    case 'exam': return { ...e, test: b.test, no: b.no, form: b.form, ...(b.form === 'match' ? { bins: b.bins, items: b.items } : { options: b.options }),
+      ...(b.data ? { data: b.data, view: b.view, title: b.title, vunit: b.vunit, note: b.note, ...(b.from != null ? { from: b.from } : {}) } : {}) };
     case 'calc': return b.variant ? { ...e, variant: b.variant } : { ...e, answer: b.answer, tol: b.tol, unit: b.unit, traps: b.traps, ...(b.units ? { units: b.units } : {}), ...(b.source ? { source: b.source } : {}), ...(b.vary ? { vary: b.vary } : {}) };
     case 'shift': return { ...e, chart: b.chart, chartAttrs: b.chartAttrs, answer: b.answer, choices: b.choices || shiftChoices(b.chart), traps: b.traps };
     case 'news': return { ...e, headline: b.headline, vars: b.vars, expect: b.expect };
     case 'tiles': return { ...e, solution: b.solution, extra: b.extra, ...(b.orders ? { orders: b.orders } : {}) };
-    case 'curve': return { ...e, market: b.market, answer: b.answer, only: b.only, traps: b.traps };
-    case 'price': return { ...e, market: b.market, start: b.start };
-    case 'point': return { ...e, market: b.market };
+    case 'curve': return { ...e, market: b.market, answer: b.answer, only: b.only, traps: b.traps, ...(b.names ? { names: b.names } : {}) };
+    case 'price': return { ...e, market: b.market, start: b.start, ...(b.names ? { names: b.names } : {}) };
+    case 'point': return { ...e, market: b.market, ...(b.names ? { names: b.names } : {}) };
     case 'open': return e;
     case 'domino': return { ...e, headline: b.headline, scene: b.scene, links: b.links, decoys: b.decoys };
+    case 'data': return { ...e, data: b.data, view: b.view, ask: b.ask, title: b.title, vunit: b.vunit, note: b.note, ...(b.from != null ? { from: b.from } : {}),
+      ...(b.ask === 'choice' ? { options: b.options } : { answer: b.answer, traps: b.traps || [], ...(b.ask === 'number' ? { tol: b.tol, unit: b.unit, ...(b.units ? { units: b.units } : {}) } : {}) }) };
     default: throw new Error(b.kind);
   }
 }
@@ -321,9 +325,13 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
     }
     case 'sort': return { ...base, bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `s${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand) };
     // пункты перемешаны и пронумерованы заново — ответ цифрами не заучить
-    case 'exam': return ex.form === 'match'
-      ? { ...base, test: ex.test, no: ex.no, form: 'match', bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `e${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand) }
-      : { ...base, test: ex.test, no: ex.no, form: ex.form, options: shuffle(ex.options.map((o, k) => ({ key: `e${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand) };
+    case 'exam': {
+      // задание 9 ЕГЭ и 12 ОГЭ: диаграмма или таблица над пунктами (рисунок «Данных», без касания)
+      const fig = ex.data ? { data: ex.data, view: ex.view, ask: 'view', title: ex.title, vunit: ex.vunit, note: ex.note, ...(ex.from != null ? { from: ex.from } : {}) } : {};
+      return ex.form === 'match'
+        ? { ...base, test: ex.test, no: ex.no, form: 'match', bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `e${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand), ...fig }
+        : { ...base, test: ex.test, no: ex.no, form: ex.form, options: shuffle(ex.options.map((o, k) => ({ key: `e${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand), ...fig };
+    }
     case 'calc': {
       if (ex.variant) {
         const tpl = TEMPLATE_BY_ID[ex.variant];
@@ -349,14 +357,21 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
       const answers = [ex.solution, ...(ex.orders || [])].map((o) => o.join(' '));
       return { ...base, tiles: shuffle([...sol, ...extra], rand), solution: sol.map((t) => t.key), answers };
     }
-    case 'curve': return { ...base, market: ex.market, answer: ex.answer, only: ex.only || null, traps: ex.traps || [], step: CURVE_STEP };
-    case 'price': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, start: ex.start, answer: Math.round(eq.p * 100) / 100 }; }
-    case 'point': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, answer: { q: eq.q, p: eq.p } }; }
+    case 'curve': return { ...base, market: ex.market, answer: ex.answer, only: ex.only || null, traps: ex.traps || [], step: CURVE_STEP, ...(ex.names ? { names: ex.names } : {}) };
+    case 'price': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, start: ex.start, answer: Math.round(eq.p * 100) / 100, ...(ex.names ? { names: ex.names } : {}) }; }
+    case 'point': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, answer: { q: eq.q, p: eq.p }, ...(ex.names ? { names: ex.names } : {}) }; }
     case 'open': return { ...base, noRetry: true };
     case 'domino': {
       const links = ex.links.map((l, k) => ({ key: `l${k}`, text: l.text, raw: l.raw, effects: l.effects, link: k }));
       const decoys = ex.decoys.map((d, k) => ({ key: `f${k}`, text: d.text, raw: d.raw, why: d.why, link: null }));
       return { ...base, headline: ex.headline, scene: ex.scene, chain: links.map((l) => l.key), deck: shuffle([...links, ...decoys], rand) };
+    }
+    // «Данные»: таблица или диаграмма и ответ — касанием, числом или выбором вывода (src/learn/data.js)
+    case 'data': {
+      const d = { ...base, data: ex.data, view: ex.view, ask: ex.ask, title: ex.title || '', vunit: ex.vunit || '', note: ex.note || '', ...(ex.from != null ? { from: ex.from } : {}) };
+      if (ex.ask === 'choice') return { ...d, options: shuffle(ex.options.map((o, k) => ({ key: `o${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand) };
+      if (ex.ask === 'number') return { ...d, answer: ex.answer, tol: ex.tol, unit: ex.unit, ...(ex.units ? { units: ex.units } : {}), traps: ex.traps || [] };
+      return { ...d, answer: ex.answer, traps: ex.traps || [] };
     }
     // «Сбереги кошелёк»: пять лет — новость, прогноз и ставка — подбираются под этот экземпляр
     case 'wallet':
@@ -417,6 +432,13 @@ export function check(inst, resp) {
       return { ok, why: ok ? null : text('Равновесие — там, где кривые пересекаются: объём спроса равен объёму предложения.') };
     }
     case 'swipe': case 'rush': case 'wallet': return { ok: gameOk(inst, resp), why: null };
+    // «Данные»: число — как расчёт, вывод — как выбор, касание — элемент данных и ловушка его «почему»
+    case 'data': {
+      if (inst.ask === 'choice') return check({ ...inst, kind: 'choice' }, resp);
+      if (inst.ask === 'number') return check({ ...inst, kind: 'calc' }, resp);
+      const tr = (inst.traps || []).find((t) => t.key === resp);
+      return { ok: resp === inst.answer, why: resp !== inst.answer && tr ? tr.why : null };
+    }
     // открытый вопрос: любой продуманный ответ засчитан, дальше — разбор
     // пропуск — не ошибка: у открытого вопроса неверного ответа нет, разбор откроется и так
     case 'open': return resp && resp.skip ? { ok: true, why: null, skipped: true } : { ok: String(resp || '').trim().length >= OPEN_MIN, why: null };
@@ -477,6 +499,7 @@ export function ready(inst, resp) {
     case 'sort': return Object.keys(resp).length === inst.items.length;
     case 'news': return inst.vars.every((v) => resp[v.key]);
     case 'calc': return String(resp).trim().length > 0;
+    case 'data': return inst.ask === 'number' ? String(resp).trim().length > 0 : !!resp;
     case 'tiles': return Array.isArray(resp) && resp.length > 0;
     case 'curve': return !!(resp.D || resp.S);
     case 'point': return Number.isFinite(resp.q) && Number.isFinite(resp.p);
@@ -535,6 +558,7 @@ export function answerText(inst) {
     case 'wallet': return gameRule('wallet');
     case 'open': return 'свой ответ — пара продуманных предложений';
     case 'domino': return inst.chain.map((k) => plain(inst.deck.find((c) => c.key === k).text)).join(' → ');
+    case 'data': return inst.ask === 'choice' ? answerText({ ...inst, kind: 'choice' }) : inst.ask === 'number' ? answerText({ ...inst, kind: 'calc' }) : itemText(inst.data, inst.answer, inst.vunit);
     default: return '';
   }
 }
@@ -576,6 +600,28 @@ export const flashCards = (lesson) => lesson.terms.map((t) => ({ id: `${lesson.i
 const canRenumber = (e) => !!(e.variant || e.vary || (e.source && TEMPLATE_BY_SOURCE[e.source]));
 const timesSeen = (e, seen) => (canRenumber(e) ? 0 : (seen[e.id] || 0));
 const bySeen = (list, seen, rand) => shuffle(list, rand).map((e, k) => [e, timesSeen(e, seen), k]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map((x) => x[0]);
+/* n заданий из списка (он уже в порядке bySeen): реже виденные — первыми, как и раньше; среди одинаково виденных —
+   вид, которого в уроке ещё нет или меньше всего. «Выбор ответа», «Верно или неверно» и «Заполните пропуск» — один
+   вид «в одно касание»: урок не набирает их подряд (пункт владельца 25.11: «практика скучная — только вопросы, где
+   нужно выбрать вариант ответа»). have — виды, которые уже в уроке (закреплённые «Домино» и экзамен, свои задания) */
+const TAP_KINDS = ['choice', 'gap', 'tf'];
+const kindFamily = (k) => (TAP_KINDS.includes(k) ? 'tap' : k);
+export function pickDiverse(list, n, seen = {}, have = []) {
+  const left = list.map((e, k) => ({ e, k, t: timesSeen(e, seen) }));
+  const count = {}; have.forEach((k) => { const f = kindFamily(k); count[f] = (count[f] || 0) + 1; });
+  const out = [];
+  while (out.length < n && left.length) {
+    let best = 0;
+    for (let i = 1; i < left.length; i += 1) {
+      const a = left[i]; const b = left[best];
+      const ka = count[kindFamily(a.e.kind)] || 0; const kb = count[kindFamily(b.e.kind)] || 0;
+      if (a.t < b.t || (a.t === b.t && (ka < kb || (ka === kb && a.k < b.k)))) best = i;
+    }
+    const [x] = left.splice(best, 1); out.push(x.e);
+    const f = kindFamily(x.e.kind); count[f] = (count[f] || 0) + 1;
+  }
+  return out;
+}
 
 /* Персональная программа (src/learn/program.js) подстраивает урок:
    level — «easy» (точность ниже 60%): в выборе ответа три варианта вместо четырёх, а разбор
@@ -760,7 +806,13 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
     // одна и та же задача (тот же генератор чисел) дважды не приходит
     const avoid = new Set([...order.slice(0, 15), ...pastPool].map((e) => e.id));
     const items = []; const used = new Set();
-    const add = (e, extra, sibling) => { const it = freshCopy(e, rand, extra, { avoid, sibling }); if (used.has(it.id)) return false; items.push(it); used.add(it.id); return true; };
+    // похожая задача — не из уже взятых: иначе ошибка или подсказанное задание молча выпадали из повторения
+    const add = (e, extra, sibling) => {
+      const av = new Set([...avoid, ...used]);
+      let it = freshCopy(e, rand, extra, { avoid: av, sibling });
+      if (used.has(it.id) && sibling) it = freshCopy(e, rand, extra, { avoid: av, sibling: false });
+      if (used.has(it.id)) return false; items.push(it); used.add(it.id); return true;
+    };
     let k = 0;
     for (; k < order.length && items.length < REVIEW_SIZE - pastN; k += 1) add(order[k], { review: true }, mistakes.includes(order[k].id) || hinted.includes(order[k].id));
     let got = 0;
@@ -779,7 +831,8 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   // свои — не больше десяти, в прежнем порядке (случайный набор при каждом прохождении; реже виденные — первыми);
   // «Домино» урока — всегда: в нём ученик сам строит цепочку, а не только отвечает; задание экзамена — тоже всегда
   const pinned = all.map((e, k) => (SELF_CHECK.includes(e.kind) || e.kind === 'exam' ? k : -1)).filter((k) => k >= 0);
-  const keep = new Set([...pinned, ...bySeen(all.map((e, k) => ({ ...e, k })).filter((e) => !pinned.includes(e.k)), seen, rand).slice(0, PRACTICE_OWN - pinned.length).map((e) => e.k)]);
+  // свои — разных видов (pickDiverse): не десять «выборов ответа» подряд, а расчёт, таблица, сортировка, график…
+  const keep = new Set([...pinned, ...pickDiverse(bySeen(all.map((e, k) => ({ ...e, k })).filter((e) => !pinned.includes(e.k)), seen, rand), PRACTICE_OWN - pinned.length, seen, pinned.map((k) => all[k].kind)).map((e) => e.k)]);
   const own = all.filter((_, k) => keep.has(k));
   // начинать с упражнения в одно касание, а не с расчёта или сборки
   const easy = own.findIndex((e) => SECONDS[e.kind] <= 12);
@@ -787,7 +840,8 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   const prev = unit.lessons.filter((l) => l.no < lesson.no).flatMap((l) => l.exercises.map((e) => EXERCISES[e.id])).filter(basic);
   const nReview = Math.min(prev.length, Math.max(0, Math.min(15 - own.length, Math.round(own.length / 2))));
   // повторение — из реже виденного: одна и та же задача не всплывает в каждом уроке юнита
-  const review = bySeen(prev, seen, rand).slice(0, nReview);
+  // и повторение — видов, которых в уроке меньше
+  const review = pickDiverse(bySeen(prev, seen, rand), nReview, seen, own.map((e) => e.kind));
   const items = own.map((e) => instantiate(e, rand));
   review.forEach((e) => {
     const at = 1 + Math.floor(rand() * items.length);
@@ -797,9 +851,26 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   while (estimate(items) > LESSON_MAX_SECONDS && items.length > 10) {
     const rev = items.filter((it) => it.review).length;
     const dropReview = rev / (items.length - 1) > 0.34;
-    const k = items.map((it, i) => i).reverse().find((i) => i > 0 && !!items[i].review === dropReview && !SELF_CHECK.includes(items[i].kind) && items[i].kind !== 'exam');
-    if (k == null) break;
+    // снимаем задание самого частого вида (обычно «в одно касание»), при равенстве — последнее: урок короче, а видов
+    // в нём не меньше (раньше снималось просто последнее — и уходил единственный расчёт или таблица)
+    const fam = {}; items.forEach((it) => { const f = kindFamily(it.kind); fam[f] = (fam[f] || 0) + 1; });
+    const can = items.map((it, i) => i).filter((i) => i > 0 && !!items[i].review === dropReview && !SELF_CHECK.includes(items[i].kind) && items[i].kind !== 'exam');
+    if (!can.length) break;
+    const k = can.reduce((a, b) => (fam[kindFamily(items[b].kind)] >= fam[kindFamily(items[a].kind)] ? b : a));
     items.splice(k, 1);
+  }
+  /* десять заданий — нижняя граница урока, а он всё ещё дольше пяти минут (два «Домино», экзамен и долгие расчёты
+     или «Домино» прошлого урока в повторении): самое долгое задание, кроме своих «Домино» и экзамена, меняем на
+     быстрое из того же источника — своё на своё, повторение на повторение. Без этого урок выходил на 311–313 с */
+  for (let guard = 0; estimate(items) > LESSON_MAX_SECONDS && guard < items.length; guard += 1) {
+    const pinnedOwn = (it) => !it.review && (SELF_CHECK.includes(it.kind) || it.kind === 'exam');
+    const slow = items.map((it, i) => ({ it, i })).filter(({ it, i }) => i > 0 && !pinnedOwn(it) && (it.seconds || SECONDS[it.kind]) > 12);
+    if (!slow.length) break;
+    const { it, i } = slow.reduce((a, b) => ((b.it.seconds || SECONDS[b.it.kind]) > (a.it.seconds || SECONDS[a.it.kind]) ? b : a));
+    const used = new Set(items.map((x) => x.of || x.id));
+    const repl = (it.review ? prev : all).find((e) => SECONDS[e.kind] <= 12 && !used.has(e.id));
+    if (!repl) break;
+    items[i] = it.review ? freshCopy(repl, rand, { review: true }, { sibling: false }) : instantiate(repl, rand);
   }
   // сильному ученику — задачи семинарского и олимпиадного уровня вместо последних своих
   if (level === 'hard') {
@@ -961,8 +1032,13 @@ function practiceEntry(id) {
 }
 // что из ошибок можно решить в практике — для указателя курса (course-core.js): id → юнит
 export const practiceUnitOf = (id) => (practiceEntry(id) || {}).unitId || null;
+/* один термин — один вопрос за повторение (жалоба ученика 23.11, pr-w: «Это же буквально прошлый вопрос»: плитки «Общий
+   продукт» шли сразу после «Какой это термин: весь выпуск при данном числе работников?»). Ключ — урок и термин у заданий
+   слов (tiles, which); у остальных — своё задание */
+export const termKey = (id) => { const m = /^(.+):(tiles|which):(.+)$/.exec(String(id)); return m ? `${m[1]}:${m[3]}` : String(id); };
 export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}) {
-  const exs = mistakeIds.map(practiceEntry).filter(Boolean);
+  const seenTerm = new Set();
+  const exs = mistakeIds.map(practiceEntry).filter(Boolean).filter((e) => { const k = termKey(e.id); if (seenTerm.has(k)) return false; seenTerm.add(k); return true; });
   // ошибка возвращается похожей задачей или с новыми числами — ответ не запомнить
   const avoidMistakes = new Set(exs.map((e) => e.id));
   const items = shuffle(exs, rand).slice(0, PRACTICE_MAX).map((e) => (e.level >= 2 ? { ...hardInstance(e, rand), practice: true } : freshCopy(e, rand, { practice: true }, { avoid: avoidMistakes, sibling: true })));
@@ -971,8 +1047,18 @@ export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}
     if (items.length >= PRACTICE_MIN) break;
     const lesson = LESSON_BY_ID[lessonId];
     if (!lesson) continue;
-    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => basic(e) && !have.has(e.id)), rand);
-    pool.slice(0, PRACTICE_MIN - items.length).forEach((e) => { have.add(e.id); items.push(instantiate(e, rand, { practice: true, weak: true })); });
+    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => basic(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), rand);
+    pool.slice(0, PRACTICE_MIN - items.length).forEach((e) => { have.add(e.id); seenTerm.add(termKey(e.id)); items.push(instantiate(e, rand, { practice: true, weak: true })); });
+  }
+  /* ошибок мало, а слабых уроков нет — добрать заданиями тех же уроков, где ошибки (пункт владельца 24.11, п. 10: «странно,
+     что доступен повтор ошибки с одной ошибкой, и в итоге урок — одна карточка»): не меньше PRACTICE_PAD карточек */
+  const homes = [...new Set(exs.map((e) => e.lesson).filter(Boolean))];
+  for (const lessonId of homes) {
+    if (items.length >= PRACTICE_PAD) break;
+    const lesson = LESSON_BY_ID[lessonId];
+    if (!lesson) continue;
+    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => e && basic(e) && reviewable(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), rand);
+    pool.slice(0, PRACTICE_PAD - items.length).forEach((e) => { have.add(e.id); seenTerm.add(termKey(e.id)); items.push(instantiate(e, rand, { practice: true, pad: true })); });
   }
   return { items };
 }

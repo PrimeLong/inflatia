@@ -37,6 +37,8 @@ const CSS = `
   .dl-wrap .dl-ink { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; touch-action: none; cursor: crosshair;
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
+  /* ластик — кнопкой «Ластик» или правой кнопкой мыши: курсор-кольцо ластика, а не перекрестье (пункт владельца 24.11, п. 6) */
+  .dl-wrap .dl-ink.erasing { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Ccircle cx='13' cy='13' r='10' fill='%23fff' fill-opacity='.35' stroke='%2326201C' stroke-width='1.4'/%3E%3Ccircle cx='13' cy='13' r='11.4' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E") 13 13, cell; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
   .dl-coord { font: 700 11.5px var(--ds-sans); }
   /* алмазный уровень — тонкая линия цвета алмаза по рамке поля, без кольца и свечения вокруг (жалоба 21.11, draw-moncomp,
@@ -173,6 +175,8 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const strokes = useRef(0);
   const history = useRef([]);
   const [tool, setTool] = useState('brush');
+  // стирают правой кнопкой мыши — на это время курсор ластика
+  const [rightErase, setRightErase] = useState(false);
   const [v, setV] = useState(0);
   const [hover, setHover] = useState(null);
   const [tries, setTries] = useState(0);
@@ -338,7 +342,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
     if (t.do === 'area') {
       history.current = [...history.current, pts];
       // ластик — кнопкой «Ластик» или правой кнопкой мыши, как в Paint (жалоба 21.11)
-      if (tool === 'erase' || (e && e.button === 2 && e.pointerType === 'mouse')) { setPts(eraseAt(pts, raw)); drag.current = { erase: true, before: pts }; return; }
+      if (tool === 'erase' || (e && e.button === 2 && e.pointerType === 'mouse')) { setPts(eraseAt(pts, raw)); drag.current = { erase: true, before: pts }; if (tool !== 'erase') setRightErase(true); return; }
       strokes.current += 1; setPts([...pts, { ...raw, s: strokes.current }]); drag.current = { paint: true, before: pts }; return;
     }
     const p = place(raw);
@@ -399,10 +403,10 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
   const up = (e) => {
     const wasLocked = lockTouch.current || !!pan.current;
     release(e);
-    const dr = drag.current; drag.current = null;
+    const dr = drag.current; drag.current = null; setRightErase(false);
     if (!wasLocked && dr && dr.tap) { Audio.play('tick'); setPts((prev) => prev.filter((_, j) => j !== dr.k)); }
   };
-  const cancel = (e) => { release(e); drag.current = null; };
+  const cancel = (e) => { release(e); drag.current = null; setRightErase(false); };
 
   const check = () => {
     if (!ready || resolved) return;
@@ -673,7 +677,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
             <div ref={wrap} className={`dl-wrap${zoomed ? ' zoomed' : ''}`} data-testid="draw-wrap">
               <GraphStage g={tour} k={k} grid={d.grid} vb={vbString(vb)} live={t.do === 'shift' && !resolved ? { [t.control]: v } : null}
                 alsoShow={!resolved && t.show ? t.show : null} alsoHide={!resolved && t.hide ? t.hide : null} />
-              <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}${hand ? ' hand' : ''}`} viewBox={vbString(vb)} data-testid={full ? 'draw-ink-lesson' : 'draw-ink'}
+              <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}${hand ? ' hand' : ''}${!resolved && t.do === 'area' && (tool === 'erase' || rightErase) ? ' erasing' : ''}`} viewBox={vbString(vb)} data-testid={full ? 'draw-ink-lesson' : 'draw-ink'}
                 data-answer={full ? undefined : testAnswerOf()} data-ready={String(ready)} aria-label="Поле для рисования"
                 onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onPointerLeave={() => setHover(null)}
                 onContextMenu={(e) => { if (t.do === 'area') e.preventDefault(); }}>
@@ -728,7 +732,9 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
               <Button wide icon={ArrowRight} data-testid="draw-return" onClick={() => { Audio.play('paper'); setPeekI(null); }}>Вернуться к шагу {i + 1}</Button>
             </> : <>
               {i > 0 && <IconButton label="Назад: прошлый шаг" icon={ArrowLeft} data-testid="draw-back" onClick={peekBack} />}
-              <Button variant="secondary" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} data-testid="draw-reset" onClick={reset}>Сбросить</Button>
+              {/* с «Назад» на узком экране три кнопки не помещались в ряд (жалоба ученика 24.11, draw-prices, шаг 2: «кнопки
+                  съехали») — у «Сбросить» там остаётся значок */}
+              <Button variant="secondary" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} data-testid="draw-reset" aria-label="Сбросить" className={i > 0 ? 'sp-squeeze' : undefined} onClick={reset}><span className="sp-squeeze-t">Сбросить</span></Button>
               {resolved
                 ? <Button wide icon={i < n - 1 ? ArrowRight : Check} data-testid="draw-next" onClick={next}>{i < n - 1 ? 'Дальше' : 'Готово'}</Button>
                 : <Button wide icon={Check} disabled={!ready} data-testid="draw-check" onClick={check}>Проверить</Button>}

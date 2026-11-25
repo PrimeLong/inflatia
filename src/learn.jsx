@@ -31,7 +31,7 @@ import { Audio, getPlayerId, syncProfile, SYNC_EVENT, syncState } from './MacroS
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, reviewQueue } from './textbook/progress.js';
 import { applyDupeAudit, fineOf } from './learn/audit.js';
 // курс — из лёгкого ядра: Путь рисуется по указателю курса, главы грузятся с уроком (src/learn/course-core.js)
-import { UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, LESSON_BY_ID, LESSON_KIND, practiceIds, PRACTICE_MAX, pathState, LEVEL_REVIEW_SIZE, reachedLevel } from './learn/course-core.js';
+import { UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, LESSON_BY_ID, LESSON_KIND, practiceIds, PRACTICE_MAX, PRACTICE_PAD, pathState, LEVEL_REVIEW_SIZE, reachedLevel } from './learn/course-core.js';
 import { abandonLesson, skipLesson, streak, goalToday, missedYesterday, applyFreezes, setPlacement, dayOf, markShown, shownWith, levelConfirmed, LEVEL_REVIEW_OK } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
 import { settle, questsFor, indexed, COIN, chestKey, hasClaim, outfitOf, chargePremiums, fixMonth, gainsNote, onCoinGuard, ownedRecordTracks } from './learn/rewards.js';
@@ -231,7 +231,7 @@ export const CSS = `
   @media (prefers-reduced-motion: reduce) { .ln-model-intro { animation: none; } }
   .ln-fold-row .lm-pips { margin-right: 4px; }
   /* «К карте»: появляется, когда карта уехала за верх экрана */
-  .ln-to-map { position: fixed; right: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 30; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center;
+  .ln-to-map { position: fixed; right: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); transition: bottom .25s ease; z-index: 30; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; border-radius: 50%; border: 2px solid var(--ds-rule); background: var(--ds-card); color: var(--u-ink); box-shadow: 0 3px 0 var(--ds-rule2), 0 6px 16px var(--ds-shade); cursor: pointer; }
   @media (min-width: 1024px) { .ln-to-map { right: max(16px, calc(50vw - 560px)); } }
   /* над вкладками звучит книга — кнопка поднимается над её мини-проигрывателем */
@@ -247,8 +247,11 @@ export const CSS = `
   /* остановка Пути — объёмная монета: снизу кромка темнее, нажатие опускает её */
   .ln-token { position: relative; width: 62px; height: 62px; border-radius: 50%; border: 3px solid var(--ds-rule2); background: var(--ds-card); color: var(--ds-ink2); cursor: pointer;
     display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 0 var(--ds-rule2); margin-bottom: 5px; transition: transform .08s, box-shadow .08s; }
-  .ln-token:not(.locked):hover { filter: brightness(1.04); }
-  .ln-token:not(.locked):hover > svg { animation: ds-wiggle .5s ease-in-out .25s; }
+  /* наведение — подсветка без движения (пункт владельца 24.11, п. 9: «можно наводиться на задание, и анимация будет
+     проигрываться постоянно и неестественно»): покачивание значка запускалось заново при каждом входе курсора, а у края
+     остановки — снова и снова. Теперь значок не двигается, остановка мягко светлеет и получает кольцо */
+  .ln-token:not(.locked) { transition: transform .08s, box-shadow .08s, filter .18s ease, outline-color .18s ease; outline: 3px solid transparent; outline-offset: 3px; }
+  .ln-token:not(.locked):hover { filter: brightness(1.05); outline-color: color-mix(in srgb, var(--u, var(--ds-accent)) 28%, transparent); }
   .ln-token:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ds-rule2); }
   .ln-token.done { background: var(--u); color: #fff; border-color: color-mix(in srgb, var(--u) 82%, #fff); box-shadow: 0 5px 0 color-mix(in srgb, var(--u) 68%, #000); }
   .ln-token.done:active { box-shadow: 0 1px 0 color-mix(in srgb, var(--u) 68%, #000); }
@@ -617,7 +620,7 @@ export const bareTitle = (t) => { const x = String(t).replace(/^Знакомст
    и опыт — и кнопка «Начать» (или «Продолжить», если урок был прерван). Пройденный урок
    можно взять на алмазном уровне — задачи сложнее, опыт и монеты больше — или просто
    повторить. Если тема слабая, первым предлагается простой повтор. */
-/* «Я знаю эту тему — не напоминать»: разделы, про которые больше не спрашиваем (удобство устройства) */
+/* разделы, про которые больше не спрашиваем: урок начали, не открывая теорию, — тема знакома (удобство устройства) */
 const THEORY_KEY = 'ems-learn-theory-known';
 const readKnown = () => { try { const v = JSON.parse(localStorage.getItem(THEORY_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
 const addKnown = (id) => { try { localStorage.setItem(THEORY_KEY, JSON.stringify([...new Set([...readKnown(), id])].slice(-200))); } catch { /* приватный режим */ } };
@@ -667,17 +670,15 @@ function LessonSheet({ l, learn, weak = false, onStart, onClose, onOpenBook, onS
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <BookOpenText size={22} color="var(--u-ink)" style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
               <div className="ds-sub" style={{ fontSize: 14.5, lineHeight: 1.45 }}>
-                Урок опирается на раздел учебника <b>«{theory.section.title}»</b>{theory.section.minutes ? ` (≈${theory.section.minutes} мин)` : ''}. Можно прочитать его сейчас — или начать урок сразу.
+                Урок опирается на раздел учебника <b>«{theory.section.title}»</b>{theory.section.minutes ? ` (≈${theory.section.minutes} мин)` : ''}. Можно прочитать его сейчас — или начать урок сразу, и про этот раздел мы больше не напомним.
               </div>
             </div>
             <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
               <Button wide variant="secondary" icon={BookOpenText} data-testid="theory-open"
                 onClick={() => { Audio.play('paper'); onClose(); onOpenBook({ kind: 'chapter', id: theory.chapter, anchor: theory.section.id }); }}>Открыть теорию</Button>
-              <Button wide data-testid="lesson-start" onClick={() => { Audio.prime(); Audio.play('click'); onStart({ mode: 'lesson', lessonId: l.id }); }}>Начать урок</Button>
-              {/* было «Теория уже была в уроке» — непонятно, зачем и что значит (пункт владельца 18.11). Теперь прямо: тема
-                  знакома — начать урок и больше не напоминать про этот раздел */}
-              <Button wide variant="ghost" data-testid="theory-known"
-                onClick={() => { Audio.prime(); Audio.play('click'); addKnown(theory.section.id); onStart({ mode: 'lesson', lessonId: l.id }); }}>Я знаю эту тему — не напоминать</Button>
+              {/* «Начать урок» — это и есть «тема знакома»: про этот раздел больше не напоминаем (пункт владельца 24.11, п. 16:
+                  «кнопка "Я знаю эту тему — не напоминать" — зачем, если по функционалу она то же, что "Начать урок"») */}
+              <Button wide data-testid="lesson-start" onClick={() => { Audio.prime(); Audio.play('click'); addKnown(theory.section.id); onStart({ mode: 'lesson', lessonId: l.id }); }}>Начать урок</Button>
             </div>
           </div>
         ) : resume || !l.done ? (
@@ -1693,6 +1694,8 @@ function PathView({ learn, update, onLesson, onStart, onOpenBook, onChest, onTas
    вперемешку и итоговая проверка. Один «назад» — на Путь. */
 function TasksView({ learn, onStart, onOpenBook, onBack }) {
   const n = practiceIds(learn).length;
+  // вышли посреди «Повторить ошибки» — продолжается с того же места (сутки, как обычный урок)
+  const [practiceResume] = useState(() => getResume('practice'));
   // задачи и вопросы учебника, которым подошёл срок повторения
   const [due] = useState(() => reviewQueue(loadProgress()).due.length);
   const arrow = <ChevronRight size={20} color="var(--ds-ink3)" aria-hidden="true" />;
@@ -1704,9 +1707,9 @@ function TasksView({ learn, onStart, onOpenBook, onBack }) {
       <MonthCard learn={learn} />
       <div data-testid="practice">
         <div className="ds-h3" style={{ margin: '18px 0 6px' }}>Практика</div>
-        <MenuCard icon={RotateCcw} tone="var(--ds-bad)" title="Повторить ошибки" data-testid="practice-mistakes" data-nav-target={n ? 'run:practice' : undefined} disabled={!n}
-          text={n ? `${n} ${plural(n, 'упражнение', 'упражнения', 'упражнений')} из прошлых уроков${n > PRACTICE_MAX ? ` — за раз ${PRACTICE_MAX}` : ''}. Решённое верно уходит из списка` : 'Ошибок нет — всё решено верно'} right={n ? arrow : null}
-          onClick={() => { Audio.prime(); onStart({ mode: 'practice' }); }} />
+        <MenuCard icon={RotateCcw} tone="var(--ds-bad)" title={practiceResume ? 'Повторить ошибки — продолжить' : 'Повторить ошибки'} data-testid="practice-mistakes" data-resume={practiceResume ? 'true' : undefined} data-nav-target={n ? 'run:practice' : undefined} disabled={!n && !practiceResume}
+          text={n ? `${n} ${plural(n, 'упражнение', 'упражнения', 'упражнений')} из прошлых уроков${n > PRACTICE_MAX ? ` — за раз ${PRACTICE_MAX}` : n < PRACTICE_PAD ? ' и похожие задания тех же уроков' : ''}. Решённое верно уходит из списка` : 'Ошибок нет — всё решено верно'} right={n ? arrow : null}
+          onClick={() => { Audio.prime(); onStart({ mode: 'practice', resume: practiceResume }); }} />
         <MenuCard icon={BookOpenText} tone="#3E6FA8" title="Повторить задачи учебника" data-testid="practice-review" data-nav-target={due ? 'book:review' : undefined} disabled={!due}
           text={due ? `${due} ${plural(due, 'задача или вопрос', 'задачи или вопроса', 'задач или вопросов')} — подошёл срок` : 'Сегодня повторять нечего'} right={due ? arrow : null}
           onClick={() => { Audio.play('paper'); onOpenBook({ kind: 'review' }); }} />
@@ -1859,9 +1862,13 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
     if (!acc || !acc.token) return;
     reportsMe(acc.token).then((r) => { if (r && r.owner === false) { rememberTeam(acc.login, false); window.location.assign('/'); } }).catch(() => {});
   }, []);
-  /* Фоновая подгрузка для офлайна (src/lib/warmup.js): Путь появился — после простоя догружаем урок (с ним главы,
-     формулы и графики) и учебник, чтобы урок открылся и без сети. Не при экономии трафика и не на медленной связи. */
-  useEffect(() => scheduleWarmup(() => Promise.all([import('./learn-lesson.jsx'), import('./textbook.jsx')])), []);
+  /* Фоновая подгрузка (src/lib/warmup.js): Путь появился — после простоя догружаем урок (с ним главы, формулы и графики)
+     и учебник, чтобы урок открылся и без сети; следом — лавку, особые уроки, профиль и новости (пункт владельца 24.11, п. 1:
+     «модули типа лавки, особых уроков долго грузятся»): к первому касанию они уже в кэше браузера. Не при экономии трафика
+     и не на медленной связи; вторая очередь — только после первой, чтобы не спорить с ней за сеть. */
+  useEffect(() => scheduleWarmup(() => Promise.all([import('./learn-lesson.jsx'), import('./textbook.jsx')])
+    .then(() => Promise.all([import('./learn-shop.jsx'), import('./learn-people.jsx'), import('./learn-reading.jsx'), import('./learn-graph.jsx'),
+      import('./learn-draw.jsx'), import('./learn-profile.jsx'), import('./learn-news.jsx')]))), []);
   const [run, setRun] = useState(null);
   // «Чтение» юнита — подборка цитат поверх Пути (src/learn-reading.jsx)
   const [reading, setReading] = useState(null);
@@ -2016,8 +2023,11 @@ export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReo
   useEffect(() => {
     if (typeof window === 'undefined' || !window.__INFLATIA_TEST__) return undefined;
     const on = (e) => { if (e.detail && e.detail.id) openExtra({ open: true, ...e.detail }); };
+    // урок из названных заданий: { lessonId, only: [id…] } — проверить вид задания, не проходя урок целиком
+    const run1 = (e) => { if (e.detail && Array.isArray(e.detail.only)) start({ mode: 'lesson', lessonId: e.detail.lessonId, only: e.detail.only }); };
     window.addEventListener('inflatia:test-open-extra', on);
-    return () => window.removeEventListener('inflatia:test-open-extra', on);
+    window.addEventListener('inflatia:test-run', run1);
+    return () => { window.removeEventListener('inflatia:test-open-extra', on); window.removeEventListener('inflatia:test-run', run1); };
   });
   // гость: после выбора цели — сразу первый урок Пути, без карточки урока
   useEffect(() => { if (firstLesson) { onFirstLesson(); start({ mode: 'lesson', lessonId: LESSONS[0].id }); } // eslint-disable-next-line react-hooks/exhaustive-deps

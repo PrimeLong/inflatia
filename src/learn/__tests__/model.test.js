@@ -114,14 +114,19 @@ describe('живая модель юнита supply-demand', () => {
 
 describe('«Домино»', () => {
   const dominoes = LESSONS.flatMap((l) => l.exercises.filter((e) => e.kind === 'domino').map((e) => ({ ...e, lesson: l.id })));
-  it('четыре «Домино» — только в supply-demand: доходы, морозы, потолок, чай', () => {
-    expect(dominoes.map((d) => d.id).sort()).toEqual(['sd-dom-ceiling', 'sd-dom-frost', 'sd-dom-income', 'sd-dom-tea']);
-    dominoes.forEach((d) => expect(LESSON_BY_ID[d.lesson].unitId).toBe('supply-demand'));
+  /* «Домино» — не только в supply-demand (пункт владельца 25.11: «какие-то типы карточек встречаются только в
+     конкретных юнитах — это не очень»). У кофейни — сцена рынка; в остальных юнитах — без сцены (scene=none) */
+  it('«Домино» в supply-demand со сценой кофейни и не меньше чем в восьми других юнитах — без сцены', () => {
+    const sd = dominoes.filter((d) => LESSON_BY_ID[d.lesson].unitId === 'supply-demand');
+    expect(sd.map((d) => d.id).sort()).toEqual(['sd-dom-ceiling', 'sd-dom-frost', 'sd-dom-income', 'sd-dom-tea']);
     // доходы — урок про спрос, до предложения: на сцене только спрос
     expect(dominoes.find((d) => d.id === 'sd-dom-income').scene).toBe('demand');
+    const other = dominoes.filter((d) => LESSON_BY_ID[d.lesson].unitId !== 'supply-demand');
+    expect(new Set(other.map((d) => LESSON_BY_ID[d.lesson].unitId)).size).toBeGreaterThanOrEqual(8);
+    other.forEach((d) => expect(d.scene, d.id).toBe('none'));
   });
   it('практика берёт своё «Домино» всегда, при любом наборе и уровне', () => {
-    ['sd-l1', 'sd-l3'].forEach((id) => {
+    [...new Set(dominoes.map((d) => d.lesson))].filter((id) => LESSON_BY_ID[id].kind === 'practice').forEach((id) => {
       const own = LESSON_BY_ID[id].exercises.filter((e) => e.kind === 'domino').map((e) => e.id);
       expect(own.length, id).toBeGreaterThan(0);
       for (let s = 1; s <= 12; s += 1) {

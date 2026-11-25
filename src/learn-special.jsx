@@ -50,6 +50,9 @@ const CSS = `
   .sp-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; }
   .sp-foot > .ln-inner { display: flex; gap: 10px; }
   .sp-foot > .ln-inner > :last-child { flex: 1; }
+  .sp-foot > .ln-inner > * { min-width: 0; }
+  /* три кнопки на узком экране: «Сбросить» — только значок (жалоба ученика 24.11, draw-prices: «кнопки съехали») */
+  @media (max-width: 430px) { .sp-foot .sp-squeeze { flex: none; padding-left: 14px; padding-right: 14px; } .sp-foot .sp-squeeze .sp-squeeze-t { display: none; } }
   .sp-foot.fb > .ds-answer { max-height: 62vh; overflow-y: auto; }
   /* плашка ответа урока внутри страницы особого урока (под вариантами), а не у нижнего края */
   .ds-answer.sp-inline { margin-top: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--ds-rule2); border-top-width: 3px; }

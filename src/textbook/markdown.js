@@ -40,6 +40,7 @@
      scenario — сценарий партии, lab — рычаг в Лаборатории (?cb=fixed&mode=hold&scenario=…),
      tycoon — задание в «Своём деле», chapter — глава, card — карточка «игра ↔ учебник»,
      appendix — приложение (cards, limits, glossary). */
+import { DATA_VIEWS, DATA_ASKS, PIE_MAX, parseDataRows, dataKeys } from '../learn/data.js';
 import { DIAGRAM_KINDS } from './diagrams.js';
 import { plural } from '../lib/plural.js';
 
@@ -370,12 +371,18 @@ export const parseChapter = (text) => parseBlocks(text);
        и разборе {=выражение} подставляется по параметрам (имя=по умолчанию:от..до[:шаг]), calc — формула
        ответа; с параметрами по умолчанию — как написано, в повторах — новые числа (varyInstance);
      shift chart=тип answer="S-" options="D+ D- S+ S-" — «куда сдвинется?», ловушки «!! D+ | почему»;
-     news headline="…" vars="P:цена Q:количество" expect="P:+ Q:-" — «газета».
+     news headline="…" vars="P:цена Q:количество" expect="P:+ Q:-" — «газета»;
+     data view=table|bar|hbar|line|pie ask=pick|number|choice — «Данные» (src/learn/data.js): строки «| подпись | число |»
+       (первая — заголовок с именами рядов, если в ней не числа) — таблица или диаграмма; title="…" — заголовок, vunit="…" —
+       единица значений, note="…" — источник, from=… — начало оси (для заданий «найдите подвох»). Ответ: pick answer="Июнь"
+       (или «Июнь / На базе» при нескольких рядах) — коснуться элемента, ловушки «!! Май | почему»; number answer=… tol=…
+       unit=… — число, как в расчёте, ловушки «!! 37 | почему»; choice — строки «+ вывод» и «- вывод | почему».
    Всё после строки «---» — объяснение, которое показывается после ответа.
    context="…" — то, что ученик услышал в «Слушай»: в самом радиоуроке вопрос его не повторяет,
    а в повторении, практике и проверке (вне эфира) context встаёт перед условием.
    Новые взаимодействия (рынок Q_D = a − bP, Q_S = c + dP; dA, dC — сдвиги кривых):
-     tiles — «+ плитка | плитка | …» — верное определение из плиток, «- плитка | …» — лишние плитки;
+     tiles — «+ плитка | плитка | …» — верное определение из плиток (ещё строки «+» — другой верный порядок тех же
+       плиток), «- плитка | …» — лишние плитки;
      curve a b c d answer="D+" only=D — сдвинуть кривую пальцем (only — на графике одна кривая), ловушки «!! S+ | почему»;
      price a b c d start=10 — двигать цену, пока не исчезнут дефицит и избыток;
      point a b c d dA=… dC=… — поставить точку (нового) равновесия;
@@ -388,12 +395,14 @@ export const parseChapter = (text) => parseBlocks(text);
    Задание в формате экзамена (exam test=ЕГЭ|ОГЭ no=N form=pick|match|one): pick — «выберите верные
    суждения», строки «+ верное» и «- неверное | почему» (4–6 пунктов, верных 2–4), ответ — цифры
    по возрастанию; match — «установите соответствие», bins="Столбец 1|Столбец 2", строки
-   «- пример >> столбец» (4–6 пунктов), ответ — цифры под буквами; one — один верный из четырёх. */
+   «- пример >> столбец» (4–6 пунктов), ответ — цифры под буквами; one — один верный из четырёх.
+   С view=table|bar|hbar|line|pie и строками «| подпись | число |» (как у «Данных») — задание 9 ЕГЭ: диаграмма или
+   таблица и «найдите выводы, которые можно сделать на основе диаграммы»; title, vunit, note — подписи рисунка. */
 export const EXAM_FORMS = ['pick', 'match', 'one'];
 export const LESSON_KINDS = ['intro', 'practice', 'words', 'story', 'listen', 'game', 'review', 'summary'];
 // шаги «Откройте сами»: demand — день в кофейне, точки «цена — сколько купили» складываются в кривую спроса
 export const DISCOVER_KINDS = ['demand'];
-const EX_KINDS = ['choice', 'gap', 'tf', 'match', 'sort', 'calc', 'shift', 'news', 'tiles', 'curve', 'price', 'point', 'open', 'domino', 'exam'];
+const EX_KINDS = ['choice', 'gap', 'tf', 'match', 'sort', 'calc', 'shift', 'news', 'tiles', 'curve', 'price', 'point', 'open', 'domino', 'exam', 'data'];
 export const DOMINO_EFFECTS = ['D+', 'D-', 'S+', 'S-', 'P', 'Q', 'ceil', 'street'];
 const MARKET = ['a', 'b', 'c', 'd', 'dA', 'dC'];
 const market = (attrs) => Object.fromEntries(MARKET.map((k) => [k, attrs[k] != null ? Number(attrs[k]) : (k === 'dA' || k === 'dC' ? 0 : NaN)]));
@@ -517,7 +526,8 @@ function parseExercise(kind, attrs, body) {
   const explain = sep >= 0 ? parseBlocks(body.slice(sep + 1).join('\n')) : null;
   const isOpt = (l) => /^[+-]\s/.test(l.trim());
   const isTrap = (l) => l.trim().startsWith('!!');
-  const special = (l) => isOpt(l) || isTrap(l);
+  // у «Данных» строки «| … |» — сами данные, а не текст условия
+  const special = (l) => isOpt(l) || isTrap(l) || ((kind === 'data' || (kind === 'exam' && attrs.view)) && l.trim().startsWith('|'));
   const prompt = parseBlocks(main.filter((l) => !special(l)).join('\n'));
   const why = splitWhy;
   const ex = { type: 'ex', kind, id: attrs.id, attrs, prompt, explain, ...(attrs.context ? { context: parseInline(attrs.context) } : {}) };
@@ -543,15 +553,39 @@ function parseExercise(kind, attrs, body) {
       if (ex.form === 'one' && (ex.options.length !== 4 || right !== 1)) throw new Error(`В задании ${attrs.id} (один ответ) — 4 пункта, верный один`);
       if (ex.form === 'pick' && (ex.options.length < 4 || ex.options.length > 6 || right < 2 || right > 4)) throw new Error(`В задании ${attrs.id} (верные суждения) — 4–6 пунктов, верных 2–4`);
     }
+    /* задание 9 ЕГЭ — анализ диаграммы или таблицы: view= и строки данных «| … |», как у «Данных»; пункты — выводы,
+       «+» — следует из данных, «- … | почему» — не следует. Только «выберите выводы» (form=pick) */
+    if (attrs.view) {
+      const where = `В задании ${attrs.id} (анализ данных)`;
+      // pick — «найдите выводы» (ЕГЭ, задание 9); match — выводы о сходстве и различии позиций групп (ОГЭ, задание 12)
+      if (ex.form === 'one') throw new Error(`${where}: с диаграммой — form=pick или form=match`);
+      ex.view = attrs.view;
+      if (!DATA_VIEWS.includes(ex.view)) throw new Error(`${where}: view — ${DATA_VIEWS.join(', ')}`);
+      ex.data = parseDataRows(main, where);
+      ex.title = attrs.title || ''; ex.vunit = attrs.vunit || ''; ex.note = attrs.note || '';
+      if (attrs.from != null) ex.from = Number(attrs.from);
+      if (ex.view === 'pie' && (ex.data.cols.length > 1 || ex.data.rows.length > PIE_MAX)) throw new Error(`${where}: у круговой — один ряд, до ${PIE_MAX} секторов`);
+    }
   }
   if (kind === 'tiles') {
-    const tiles = (o) => o.raw.split(/\s\|\s/).map((x) => x.trim()).filter(Boolean);
-    const right = opts.filter((o) => o.correct);
-    if (right.length !== 1) throw new Error(`В плитках ${attrs.id} должна быть одна строка «+ …»`);
-    ex.solution = tiles(right[0]); ex.extra = opts.filter((o) => !o.correct).flatMap(tiles);
+    // плитки — вся строка через « | » (у плиток нет «почему»: разбор строк вариантов здесь не подходит — он отрезал
+    // всё после первой « | » как объяснение, и из определения оставалась одна плитка)
+    const tileLines = main.filter(isOpt).map((l) => l.trim());
+    const tiles = (l) => l.slice(1).trim().split(/\s\|\s/).map((x) => x.trim()).filter(Boolean);
+    const right = tileLines.filter((l) => l[0] === '+');
+    if (!right.length) throw new Error(`В плитках ${attrs.id} должна быть строка «+ …»`);
+    ex.solution = tiles(right[0]); ex.extra = tileLines.filter((l) => l[0] === '-').flatMap(tiles);
+    // ещё строки «+ …» — другой верный порядок тех же плиток («прибавка от ещё одного работника к выпуску»)
+    const same = (a) => [...a].sort().join('|') === [...ex.solution].sort().join('|');
+    const orders = right.slice(1).map(tiles);
+    orders.forEach((o) => { if (!same(o)) throw new Error(`В плитках ${attrs.id}: другой порядок — из тех же плиток`); });
+    if (orders.length) ex.orders = orders;
+    if (new Set([...ex.solution, ...ex.extra]).size !== ex.solution.length + ex.extra.length) throw new Error(`В плитках ${attrs.id} плитки повторяются`);
   }
   if (kind === 'curve' || kind === 'price' || kind === 'point') {
     ex.market = market(attrs);
+    // свои подписи осей и кривых (рынок труда: «W, зарплата», «спрос на труд») — как у мини-игры
+    const names = marketNames(attrs); if (names) ex.names = names;
     if (MARKET.slice(0, 4).some((k) => !Number.isFinite(ex.market[k]))) throw new Error(`В упражнении ${attrs.id} нужны a, b, c, d`);
     if (kind === 'curve') { ex.answer = attrs.answer; ex.only = attrs.only || null; ex.traps = traps.map((t) => ({ key: t.key, why: t.why })); }
     if (kind === 'price') ex.start = Number(attrs.start || 0);
@@ -584,7 +618,9 @@ function parseExercise(kind, attrs, body) {
     ex.headline = attrs.headline;
     // scene=demand — на сцене только спрос и цена кофейни (предложения ученик ещё не знает)
     ex.scene = attrs.scene || 'market';
-    if (!['market', 'demand'].includes(ex.scene)) throw new Error(`В «Домино» ${attrs.id}: сцена ${ex.scene} — market или demand`);
+    // scene=none — без кофейной сцены: только газета и цепочка (труд, деньги, инфляция, издержки — пункт владельца 25.11:
+    // «какие-то типы карточек встречаются только в конкретных юнитах»); эффектов сцены у такого «Домино» нет
+    if (!['market', 'demand', 'none'].includes(ex.scene)) throw new Error(`В «Домино» ${attrs.id}: сцена ${ex.scene} — market, demand или none`);
     ex.links = main.filter((l) => /^\+\s/.test(l.trim())).map((l) => {
       const m = /^(.*?)\s*(?:\[([^\]]+)\])?\s*$/.exec(l.trim().slice(1).trim());
       const effects = m[2] ? m[2].split(/\s+/) : [];
@@ -600,6 +636,45 @@ function parseExercise(kind, attrs, body) {
     if (ex.links.length < 4 || ex.links.length > 5) throw new Error(`В «Домино» ${attrs.id} звеньев ${ex.links.length}, нужно 4–5`);
     const total = ex.links.length + ex.decoys.length;
     if (total < 7 || total > 8) throw new Error(`В «Домино» ${attrs.id} карточек ${total}, нужно 7–8`);
+    if (ex.scene === 'none' && ex.links.some((l) => l.effects.length)) throw new Error(`В «Домино» ${attrs.id} без сцены (scene=none) эффектов [D+] и т. п. нет`);
+  }
+  if (kind === 'data') {
+    const where = `В задании «Данные» ${attrs.id}`;
+    ex.view = attrs.view || 'table';
+    if (!DATA_VIEWS.includes(ex.view)) throw new Error(`${where}: view — ${DATA_VIEWS.join(', ')}`);
+    ex.data = parseDataRows(main, where);
+    // by=row — касание выбирает строку целиком (у таблицы с несколькими столбцами, у групп столбцов)
+    if (attrs.by === 'row') ex.data.by = 'row'; else if (attrs.by) throw new Error(`${where}: by — только row`);
+    ex.ask = attrs.ask || (opts.length ? 'choice' : 'pick');
+    if (!DATA_ASKS.includes(ex.ask)) throw new Error(`${where}: ask — ${DATA_ASKS.join(', ')}`);
+    ex.title = attrs.title || ''; ex.vunit = attrs.vunit || ''; ex.note = attrs.note || '';
+    if (attrs.from != null) ex.from = Number(attrs.from);
+    const vals = ex.data.rows.flatMap((r) => r.values);
+    if (ex.view === 'pie' && (ex.data.cols.length > 1 || vals.some((v) => v < 0))) throw new Error(`${where}: у круговой диаграммы — один ряд без отрицательных чисел`);
+    if (ex.view === 'pie' && ex.data.rows.length > PIE_MAX) throw new Error(`${where}: у круговой диаграммы — не больше ${PIE_MAX} секторов (больше не различить цветом)`);
+    if (ex.from != null && !(ex.from < Math.max(...vals))) throw new Error(`${where}: from — ниже самого большого значения`);
+    if (ex.ask === 'pick') {
+      const keys = dataKeys(ex.data);
+      if (!keys.includes(attrs.answer)) throw new Error(`${where}: answer=«${attrs.answer}» — нет такого элемента (${keys.join('; ')})`);
+      ex.answer = attrs.answer;
+      ex.traps = traps.map((t) => {
+        if (!keys.includes(t.key) || t.key === ex.answer) throw new Error(`${where}: ловушка «${t.key}» — не элемент данных или верный ответ`);
+        return { key: t.key, why: t.why };
+      });
+      if (opts.length) throw new Error(`${where}: у ответа касанием нет вариантов «+ / -»`);
+    }
+    if (ex.ask === 'number') {
+      const forms = String(attrs.unit || '').split('|').map((f) => f.trim());
+      ex.answer = Number(attrs.answer); ex.tol = attrs.tol != null ? Number(attrs.tol) : null; ex.unit = forms[forms.length - 1];
+      if (forms.length === 3) ex.units = forms;
+      if (!Number.isFinite(ex.answer)) throw new Error(`${where}: answer — число`);
+      ex.traps = traps.map((t) => ({ value: parseNumber(t.key), why: t.why }));
+      if (opts.length) throw new Error(`${where}: у ответа числом нет вариантов «+ / -»`);
+    }
+    if (ex.ask === 'choice') {
+      ex.options = opts.map((o) => ({ text: parseInline(o.raw), raw: o.raw, correct: o.correct, why: o.why }));
+      if (ex.options.filter((o) => o.correct).length !== 1 || ex.options.length < 2) throw new Error(`${where}: вариантов — от двух, верный — один`);
+    }
   }
   if (kind === 'news') {
     ex.headline = attrs.headline || '';

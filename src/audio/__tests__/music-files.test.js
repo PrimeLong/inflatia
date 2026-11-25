@@ -194,3 +194,107 @@ describe('записи вместо синтеза', () => {
     expect(a.playlist().map((p) => p.id)).toEqual(MOOD_PLAYLISTS.war);
   });
 });
+
+/* Поддельный <audio>: canplay — когда тест скажет (набралось несколько секунд), play/pause, позиция и длительность. */
+function fakeAudio(log, { duration = 30 } = {}) {
+  return () => {
+    const ls = {};
+    const el = {
+      paused: true, currentTime: 0, duration: NaN, preload: '', src: '', played: 0, pausedAt: [],
+      addEventListener(type, fn) { (ls[type] = ls[type] || new Set()).add(fn); },
+      removeEventListener(type, fn) { if (ls[type]) ls[type].delete(fn); },
+      emit(type) { if (type === 'canplay') el.duration = duration; [...(ls[type] || [])].forEach((fn) => fn()); },
+      load() {},
+      play() { el.paused = false; el.played += 1; return Promise.resolve(); },
+      pause() { el.paused = true; el.pausedAt.push(el.currentTime); },
+    };
+    log.els.push(el);
+    return el;
+  };
+}
+
+describe('записи потоком (пункт владельца 24.11, п. 1: не ждать, пока песня скачается целиком)', () => {
+  const streamCtx = () => {
+    const { ctx, log } = fakeContext();
+    log.els = []; log.mediaNodes = 0;
+    ctx.createMediaElementSource = () => { log.mediaNodes += 1; return { connect() {}, disconnect() {} }; };
+    return { ctx, log };
+  };
+  it('играет, как только набралось на старт (canplay): ни fetch целиком, ни декодирования', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx, log } = streamCtx();
+    const fetched = [];
+    const a = createAudioEngine({ context: ctx, musicFiles: ['dawn'], createAudioElement: fakeAudio(log), fetchMusic: async (u) => { fetched.push(u); return new ArrayBuffer(8); } });
+    a.playTrack('dawn');
+    vi.advanceTimersByTime(120); await flush();
+    expect(log.els).toHaveLength(1);
+    expect(log.els[0].src).toBe('/music/dawn.mp3');
+    expect(log.els[0].preload).toBe('auto');
+    expect(a.nowPlaying()).toMatchObject({ loading: true, playing: false });
+    log.els[0].emit('canplay'); await flush(); await flush();
+    expect(fetched).toEqual([]);
+    expect(log.decoded).toBe(0);
+    expect(log.mediaNodes).toBe(1);
+    expect(log.els[0].played).toBe(1);
+    expect(a.nowPlaying()).toMatchObject({ loading: false, playing: true, file: true, duration: 30 });
+    a.stopMusic();
+  });
+  it('пауза — элемент на паузе; «играть» — с того же места', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx, log } = streamCtx();
+    const a = createAudioEngine({ context: ctx, musicFiles: ['dawn'], createAudioElement: fakeAudio(log) });
+    a.playTrack('dawn'); vi.advanceTimersByTime(120); await flush();
+    log.els[0].emit('canplay'); await flush(); await flush();
+    for (let k = 0; k < 40; k += 1) { ctx.currentTime += 0.25; log.els[0].currentTime += 0.25; vi.advanceTimersByTime(120); }
+    a.stopMusic();
+    await new Promise((r) => setTimeout(r, 450));
+    expect(log.els[0].paused).toBe(true);
+    a.startMusic(); vi.advanceTimersByTime(240); await flush(); await flush();
+    // тот же элемент, а не новый: докачанное не качается заново
+    expect(log.els).toHaveLength(1);
+    expect(log.els[0].currentTime).toBeGreaterThan(5);
+    expect(log.els[0].paused).toBe(false);
+    a.stopMusic();
+  });
+  it('следующая пьеса готовится заранее своим элементом и входит поверх затухающей', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx, log } = streamCtx();
+    const list = MOOD_PLAYLISTS.calm; const next = list[(list.indexOf('dawn') + 1) % list.length];
+    const a = createAudioEngine({ context: ctx, musicFiles: ['dawn', next], createAudioElement: fakeAudio(log) });
+    a.playTrack('dawn'); vi.advanceTimersByTime(120); await flush();
+    log.els[0].emit('canplay'); await flush(); await flush();
+    expect(log.els).toHaveLength(2);
+    expect(log.els[1].src).toBe(`/music/${next}.mp3`);
+    log.els[1].emit('canplay'); await flush(); await flush();
+    expect(log.els[1].played).toBe(0);
+    for (let k = 0; k < 280 && a.nowPlaying().id !== next; k += 1) { ctx.currentTime += 0.125; log.els[0].currentTime = Math.min(30, log.els[0].currentTime + 0.125); vi.advanceTimersByTime(120); }
+    expect(a.nowPlaying().id).toBe(next);
+    expect(log.els[1].played).toBe(1);
+    a.stopMusic();
+  });
+  it('запись постояла, пока докачивалась: переход — по позиции элемента, а не по часам', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx, log } = streamCtx();
+    const list = MOOD_PLAYLISTS.calm; const next = list[(list.indexOf('dawn') + 1) % list.length];
+    const a = createAudioEngine({ context: ctx, musicFiles: ['dawn', next], createAudioElement: fakeAudio(log) });
+    a.playTrack('dawn'); vi.advanceTimersByTime(120); await flush();
+    log.els[0].emit('canplay'); await flush(); await flush();
+    log.els[1].emit('canplay'); await flush(); await flush();
+    // 40 секунд по часам, а запись прошла только 20 (стояла, пока качалась) — пьеса ещё та же
+    for (let k = 0; k < 320; k += 1) { ctx.currentTime += 0.125; log.els[0].currentTime = Math.min(20, log.els[0].currentTime + 0.0625); vi.advanceTimersByTime(120); }
+    expect(a.nowPlaying().id).toBe('dawn');
+    a.stopMusic();
+  });
+  it('файл не открылся (error) — та же пьеса синтезом', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const { ctx, log } = streamCtx();
+    const a = createAudioEngine({ context: ctx, musicFiles: ['dawn'], createAudioElement: fakeAudio(log) });
+    a.playTrack('dawn'); vi.advanceTimersByTime(120); await flush();
+    const osc0 = log.osc;
+    log.els[0].emit('error'); await flush(); await flush();
+    for (let k = 0; k < 40; k += 1) { ctx.currentTime += 0.125; vi.advanceTimersByTime(120); }
+    expect(a.nowPlaying().file).toBe(false);
+    expect(log.osc).toBeGreaterThan(osc0);
+    a.stopMusic();
+  });
+});

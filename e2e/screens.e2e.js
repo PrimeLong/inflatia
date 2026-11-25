@@ -130,6 +130,12 @@ async function answer(page, wrong = false) {
   else if (kind === 'point') {
     const svg = ex.getByTestId('market-chart'); const pl = JSON.parse(await svg.getAttribute('data-plot')); const box = await svg.boundingBox();
     await svg.click({ position: { x: ((pl.x0 + (ans.q / pl.qMax) * pl.w) / pl.vw) * box.width, y: ((pl.y0 + pl.h - (ans.p / pl.pMax) * pl.h) / pl.vh) * box.height } });
+  } else if (kind === 'data') {
+    // «Данные»: касание элемента (у круговой — строка подписи), число с клавиатуры или вывод — как в e2e/helpers.js
+    const view = ex.getByTestId('data-view');
+    if (ans.ask === 'pick') await view.locator((await view.getAttribute('data-view')) === 'pie' ? `[data-legend="${ans.key}"]` : `[data-key="${ans.key}"]`).first().click();
+    else if (ans.ask === 'number') { for (const ch of ans.value) await ex.getByRole('group', { name: 'Цифровая клавиатура' }).getByRole('button', { name: ch, exact: true }).click(); }
+    else await ex.locator(`.ds-opt[data-key="${ans.key}"]`).click();
   } else if (kind === 'match') {
     for (const l of Object.keys(ans)) { await ex.locator(`[data-side=right][data-key="${ans[l]}"]`).click(); await ex.locator(`[data-side=left][data-key="${l}"]`).click(); }
   } else if (kind === 'swipe' || kind === 'rush') {
@@ -507,7 +513,7 @@ for (const theme of ['light', 'dark']) {
       await (await pathLesson(page, 'cs-s1')).click();
       await expect(page.getByTestId('theory-notice')).toBeVisible();
       await shot(page, '55-theory-notice', theme);
-      await page.getByTestId('theory-known').click();
+      await page.getByTestId('theory-notice').getByTestId('lesson-start').click();
       await expect(page.getByTestId('lesson')).toBeVisible();
       await exitLesson(page);
       await openLesson(page, 'cs-i1');

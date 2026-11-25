@@ -37,10 +37,13 @@
 
 - React 19 + Vite (сборщик rolldown), JSX без строгой типизации (см. «Известные ограничения»)
 - `recharts` для графиков партии, KaTeX для формул учебника, `lucide-react` для иконок
-- Серверные функции на Vercel (`api/*.js`, регион `arn1`), база — одна, PostgreSQL ONREZA по `DATABASE_URL`
-  (таблицы `inflatia_kv` и `inflatia_research`, `docs/onreza.md`). Без `DATABASE_URL` — Upstash Redis
-  (`KV_REST_API_URL`, `KV_REST_API_TOKEN`; так работают превью), без обеих — память процесса.
-  Резервная копия базы — `node scripts/db-backup.mjs`.
+- Сервер — обработчики `api/*.js` (все маршруты — `docs/api.md`). Сейчас рабочий сайт отдаёт их функциями Vercel (регион
+  `arn1`); подготовлен и проверен перенос в ONREZA Compute — Express-сервер `server/index.js`, сборка `npm run build:onreza`
+  (статика + сервер одним файлом + манифест), правила Edge `onreza.rules.toml` (`docs/onreza.md`, «Перенос сервера в ONREZA
+  Compute»; рабочий сайт ещё не переключён).
+- База — одна, PostgreSQL ONREZA по `DATABASE_URL` (таблицы `inflatia_kv` и `inflatia_research`, `docs/onreza.md`). На Vercel
+  без `DATABASE_URL` — Upstash Redis (`KV_REST_API_URL`, `KV_REST_API_TOKEN`; так работают превью), без обеих — память
+  процесса; сервер ONREZA Compute работает только с PostgreSQL. Резервная копия базы — `node scripts/db-backup.mjs`.
 - Тесты: vitest (модель, курс, тексты, сервер) и Playwright (браузер: компьютер, телефон,
   Safari/WebKit, доступность через axe, визуальные эталоны).
 
@@ -48,7 +51,10 @@
 
 ```bash
 npm install
-npm run dev        # клиент на Vite; api/* локально не поднимается — нужен `vercel dev` или деплой
+npm run dev        # клиент на Vite; api/* в нём не поднимается — для API: npm run start в другом окне
+ALLOW_MEMORY_STORE=1 SERVE_STATIC=dist npm run start   # сайт из dist/ и весь API на :3000, база — память
+DATABASE_URL='postgresql://…' npm run start            # API на своей базе (не на рабочей!)
+npm run build:onreza   # для ONREZA: dist/ + сервер одним файлом + манифест → onreza-build/
 npm run lint       # oxlint
 npm test           # vitest: модель партии, курс и тексты, награды, сервер
 npm run build      # tsc -b && vite build; сборка падает, если JS-чанк больше 400 КБ

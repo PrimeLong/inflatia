@@ -85,7 +85,6 @@ export const DS_CSS = `
   .ds-card--button { transition: transform .15s ease, box-shadow .15s ease, border-color .15s; }
   /* наведение — тенью, без подъёма: поднятая карточка уходила из-под курсора у нижнего края и дрожала (жалоба 22.11) */
   .ds-card--button:hover:not(:disabled) { box-shadow: 0 4px 0 var(--ds-rule), 0 10px 22px -12px var(--ds-shade); }
-  .ds-card--button:hover:not(:disabled) > span:first-child { animation: ds-wiggle .5s ease-in-out .25s; }
   .ds-card--button:active:not(:disabled) { transform: translateY(1px); }
   .ds-card--button:disabled { opacity: .6; cursor: default; }
   .ds-panel { background: var(--ds-card2); border-radius: 14px; padding: 12px 14px; }

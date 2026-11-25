@@ -69,6 +69,8 @@ const CSS = `
   @keyframes infla-pk-jump { 0% { transform: none } 16% { transform: translateY(1%) scale(1.03, .97) } 46% { transform: translateY(-11%) scale(.99, 1.02) } 74% { transform: translateY(.5%) scale(1.015, .985) } 100% { transform: none } }
   @keyframes infla-pk-squish { 0% { transform: none } 32% { transform: scale(1.07, .93) } 64% { transform: scale(.985, 1.015) } 100% { transform: none } }
   @keyframes infla-pk-tilt { 0% { transform: rotate(0) } 28% { transform: rotate(-7deg) } 58% { transform: rotate(4deg) } 82% { transform: rotate(-1.5deg) } 100% { transform: rotate(0) } }
+  .infla-face { animation: infla-face .22s ease-out; transform-box: fill-box; transform-origin: 50% 50%; }
+  @keyframes infla-face { from { opacity: 0; transform: scale(.94) } to { opacity: 1; transform: none } }
   @keyframes infla-pk-dizzy { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-9deg) } 42% { transform: rotate(7deg) } 64% { transform: rotate(-4deg) } 84% { transform: rotate(2deg) } }
   /* неподвижная Инфля (still): плитки гардероба и витрины — каждая не дышит, не моргает и не машет; живая — только в зеркале */
   .infla-still .infla, .infla-still .infla * { animation: none !important; }
@@ -77,7 +79,7 @@ const CSS = `
   .infla-heart::before { content: ''; position: absolute; inset: 0; background: #E0457B; clip-path: path('M6 11 L1 6 A2.6 2.6 0 0 1 6 2.4 A2.6 2.6 0 0 1 11 6 Z'); }
   .infla-heart.star::before { background: #F3C553; clip-path: polygon(50% 0, 62% 38%, 100% 38%, 69% 60%, 80% 100%, 50% 76%, 20% 100%, 31% 60%, 0 38%, 38% 38%); }
   @keyframes infla-heart { 0% { opacity: 0; transform: translate(0, 0) scale(.5) } 18% { opacity: 1 } 100% { opacity: 0; transform: translate(var(--hx), -38px) scale(1) } }
-  @media (prefers-reduced-motion: reduce) { .infla-pk, .infla-heart, .infla-bob, .infla-hop, .infla-eyes, .infla-hand, .infla-sway, .infla-balloon, .infla-swing, .infla-spin, .infla-flicker { animation: none; } .infla-spark { animation: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .infla-pk, .infla-heart, .infla-face, .infla-bob, .infla-hop, .infla-eyes, .infla-hand, .infla-sway, .infla-balloon, .infla-swing, .infla-spin, .infla-flicker { animation: none; } .infla-spark { animation: none; opacity: 1; } }
 `;
 
 /* Наряды из лавки (src/learn/rewards.js): голова, лицо, шея. Рисуются поверх монеты тушью и
@@ -113,7 +115,9 @@ const OUTFIT = {
   glasses: <g fill="none" stroke={INK} strokeWidth="1.5"><circle cx="24.5" cy="23" r="5.6" fill="#DDEBF7" fillOpacity=".35" /><circle cx="39.5" cy="23" r="5.6" fill="#DDEBF7" fillOpacity=".35" /><path d="M30.1 22.4 Q32 21 33.9 22.4 M18.9 22 L12.5 20.5 M45.1 22 L51.5 20.5" /></g>,
   monocle: <g fill="none" stroke={INK} strokeWidth="1.4"><circle cx="39.5" cy="23" r="6.2" fill="#DDEBF7" fillOpacity=".35" stroke="#94700F" strokeWidth="1.8" /><path d="M44 27.6 Q49 36 45 44" strokeDasharray="1.4 1.6" stroke="#94700F" /></g>,
   bowtie: <g stroke={INK} strokeWidth="1" strokeLinejoin="round"><path d="M24 45.5 L32 49 L24 52.5 Z" fill="#A0372A" /><path d="M40 45.5 L32 49 L40 52.5 Z" fill="#A0372A" /><rect x="30.3" y="47.3" width="3.4" height="3.4" rx=".8" fill="#7A2A20" /></g>,
-  scarf: <g stroke={INK} strokeWidth="1" strokeLinejoin="round"><path d="M13 40 Q32 53 51 40 L51.5 45 Q32 58 12.5 45 Z" fill="#356653" /><path d="M42 47 L47 60 L42 61 L38.5 49 Z" fill="#2B5343" /><path d="M20 44 L21 48.5 M26 46.5 L26.6 51 M44 44 L43 48.5" stroke="#A9C7B8" strokeWidth="1.2" /></g>,
+  /* шарф (пункт владельца 24.11, п. 15: «аксессуар шарф выглядит не очень»): два витка вязки с рубчиками, узел спереди и
+     два конца в полоску с бахромой — вместо плоской ленты и прямоугольника */
+  scarf: <g stroke={INK} strokeWidth=".9" strokeLinecap="round" strokeLinejoin="round"><path d="M12.2 37.4 Q32 47.6 51.8 37.4 L52.8 41.6 Q32 52.8 11.2 41.6 Z" fill="#8A2F1F" /><path d="M24.6 50.2 Q27 56.4 26.4 63.4 L31 63 Q30.9 55.8 28.8 49.8 Z" fill="#8A2F1F" /><path d="M25.6 55.6 L30.2 55.2 M26.1 59.2 L30.6 58.9" stroke="#E9D6B4" strokeWidth="1.1" /><path d="M11 41 Q22 49.4 32 49.6 Q42 49.4 53 41 Q54 43.9 53.1 46.7 Q42 55.4 32 55.6 Q22 55.4 10.9 46.7 Q10 43.9 11 41 Z" fill="#B5452F" /><path d="M14.6 44.6 l1 2.9 M18.6 46.8 l.9 3 M36.6 49.6 l.5 3 M41.2 48.6 l.8 3 M45.6 46.9 l1 2.9 M49.4 44.6 l1 2.7" stroke="#E2876B" strokeWidth=".8" fill="none" /><path d="M31.4 49.7 Q31.6 52.6 31.4 55.5 M34 49.6 Q34.2 52.5 34 55.3" stroke="#E9D6B4" strokeWidth="1.1" fill="none" /><path d="M19.6 49.4 Q18.5 56 16.2 62.4 L21.4 64 Q23.5 57 24.8 50.4 Z" fill="#B5452F" /><path d="M18.4 55 L23.6 56.4 M17.4 58.3 L22.6 59.8" stroke="#E9D6B4" strokeWidth="1.1" /><path d="M16.6 63.2 l-.7 2.4 M18.3 63.7 l-.4 2.5 M20 64.2 l-.1 2.4 M27 63.4 l.1 2.3 M28.8 63.3 l.3 2.3 M30.4 63.1 l.4 2.2" stroke="#8A2F1F" strokeWidth=".9" fill="none" /><path d="M18.8 47.4 Q21.8 45 25.8 46.2 Q27.4 49.6 25 52.2 Q21 52.9 19 51 Q18.1 49.1 18.8 47.4 Z" fill="#C4513A" /><path d="M20.4 47.8 Q22.4 46.6 24.6 47.3" stroke="#EDA48C" strokeWidth=".9" fill="none" /></g>,
   tie: <g stroke={INK} strokeWidth="1" strokeLinejoin="round"><path d="M29.5 45.6 L34.5 45.6 L33.6 49 L30.4 49 Z" fill="#2C5A8E" /><path d="M30.4 49 L33.6 49 L35.6 61 L32 64.5 L28.4 61 Z" fill="#3E6FA8" /><path d="M29.6 53 L34.4 55.5 M29 58 L35 60.6" stroke="#9FB3C8" strokeWidth="1" /></g>,
   // новые вещи лавки: голова, лицо, шея
   ushanka: <g stroke={INK} strokeWidth="1.1" strokeLinejoin="round"><path d="M14 10 Q32 -9 50 10 L50 13 Q32 6 14 13 Z" fill="#6B4E32" /><path d="M14 10 Q32 4 50 10 L50 14.5 Q32 9 14 14.5 Z" fill="#E9DDC7" /><path d="M13.5 13 L11 27 Q14.5 28.5 17 25 L17.5 13.5 Z M50.5 13 L53 27 Q49.5 28.5 47 25 L46.5 13.5 Z" fill="#E9DDC7" /><circle cx="32" cy="2.5" r="2.4" fill="#A0372A" /></g>,
@@ -373,6 +377,9 @@ export const OUTFIT_IDS = [...Object.keys(OUTFIT), ...Object.keys(FRAMES)];
    обучения, а явный outfit (витрина лавки) — важнее. */
 export const OutfitContext = React.createContext(null);
 // высота рисунка с учётом головного убора — чтобы место под Инфлю оставляли заранее
+// длительность движений касания (CSS .infla-pk.p-*) и передышка после «закружилась»
+export const PK_MS = { jump: 800, squish: 700, tilt: 900, dizzy: 1100 };
+export const PK_REST_MS = 1200;
 export const mascotHeight = (size, outfit) => size * (70 - (outfit && outfit.head && OUTFIT[outfit.head] ? -12 : 0)) / 64;
 
 /* react — откликаться на касание (по умолчанию да; внутри кнопки или плитки — нет: там касание — это нажатие кнопки, и
@@ -388,28 +395,45 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null, react 
   const motion = m === 'joy' || m === 'party' ? 'infla-hop' : m === 'sleep' ? '' : m === 'wave' ? 'infla-sway' : 'infla-bob';
   // свой ритм моргания у каждой Инфли: длина цикла 5,2–8,4 с и случайный сдвиг — не хором и не по метроному
   const blink = React.useMemo(() => ({ '--blink': `${(5.2 + Math.random() * 3.2).toFixed(2)}s`, '--blink-at': `${(-Math.random() * 8).toFixed(2)}s` }), []);
-  // касание: реакция по очереди, на миг — радость; пять касаний за 2,5 с — «закружилась» (думает)
+  /* касание: реакция по очереди, на миг — радость; пять касаний за 2,5 с — «закружилась» (думает).
+     Частые касания (пункт владельца 24.11, п. 2: «можно много спамить нажатием по Инфле, и она ведёт себя неестественно»):
+     начатое движение доигрывает до конца — касания во время него не перезапускают его с начала, а только считаются;
+     пятое подряд — «закружилась» сразу после текущего движения, и потом Инфле нужна передышка (касания не действуют) */
   const [pk, setPk] = React.useState({ n: 0, kind: '', hearts: [] });
-  const taps = React.useRef([]); const pkTimer = React.useRef(0);
-  React.useEffect(() => () => window.clearTimeout(pkTimer.current), []);
-  const dizzyUntil = React.useRef(0);
+  const taps = React.useRef([]); const pkTimer = React.useRef(0); const dizzyTimer = React.useRef(0);
+  React.useEffect(() => () => { window.clearTimeout(pkTimer.current); window.clearTimeout(dizzyTimer.current); }, []);
+  const busyUntil = React.useRef(0); const restUntil = React.useRef(0);
+  const start = (dizzy) => {
+    const now = Date.now();
+    setPk((p) => {
+      const n = p.n + 1;
+      const kind = dizzy ? 'dizzy' : ['jump', 'squish', 'tilt'][n % 3];
+      const ms = PK_MS[kind];
+      busyUntil.current = now + ms;
+      if (dizzy) restUntil.current = now + ms + PK_REST_MS;
+      window.clearTimeout(pkTimer.current);
+      pkTimer.current = window.setTimeout(() => setPk((q) => ({ ...q, kind: '', hearts: [] })), ms + 250);
+      const hearts = Array.from({ length: dizzy ? 5 : 3 }, (_, i) => ({ id: `${n}-${i}`, x: Math.round((i - (dizzy ? 2 : 1)) * 16 + (Math.random() - 0.5) * 10), star: dizzy || i === 1, d: i * 70 }));
+      return { n, kind, hearts };
+    });
+  };
   const poke = (e) => {
     if (!react) return;
     const host = e && e.currentTarget && e.currentTarget.parentElement;
     if (host && host.closest && host.closest('button, a[href], [role="button"], [role="tab"], label')) return;
     const now = Date.now();
-    if (now < dizzyUntil.current) return; // голова кружится — до конца не мешаем
+    if (now < restUntil.current || dizzyTimer.current) return; // кружится или переводит дух — не мешаем
     taps.current = [...taps.current.filter((x) => now - x < 2500), now];
     const dizzy = taps.current.length >= 5;
-    if (dizzy) { taps.current = []; dizzyUntil.current = now + 1150; }
-    setPk((p) => {
-      const n = p.n + 1;
-      const kind = dizzy ? 'dizzy' : ['jump', 'squish', 'tilt'][n % 3];
-      const hearts = Array.from({ length: dizzy ? 5 : 3 }, (_, i) => ({ id: `${n}-${i}`, x: Math.round((i - (dizzy ? 2 : 1)) * 16 + (Math.random() - 0.5) * 10), star: dizzy || i === 1, d: i * 70 }));
-      return { n, kind, hearts };
-    });
-    window.clearTimeout(pkTimer.current);
-    pkTimer.current = window.setTimeout(() => setPk((p) => ({ ...p, kind: '', hearts: [] })), dizzy ? 1150 : 1150);
+    if (dizzy) {
+      taps.current = [];
+      const wait = Math.max(0, busyUntil.current - now);
+      if (!wait) { start(true); return; }
+      dizzyTimer.current = window.setTimeout(() => { dizzyTimer.current = 0; start(true); }, wait);
+      return;
+    }
+    if (now < busyUntil.current) return; // движение ещё идёт — доигрывает, касание только посчитано
+    start(false);
   };
   const shown = pk.kind === 'dizzy' ? 'think' : pk.kind ? (m === 'sleep' ? 'hello' : 'joy') : m;
   const sm = MOUTH[shown] ? shown : m;
@@ -418,7 +442,7 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null, react 
       <style>{CSS}</style>
       <span className={`infla-pk${pk.kind ? ` p-${pk.kind}` : ''}`} key={`pk${pk.n}`}>
       <svg viewBox={`0 ${top} 64 ${70 - top}`} width={size} height={size * (70 - top) / 64} role="img" aria-label={label || `Инфля: ${({ hello: 'привет', wave: 'машет', joy: 'радуется', cheer: 'подбадривает', party: 'празднует', sleep: 'спит', think: 'думает' })[m]}`}
-        className={`infla ${motion}`} key={sm} style={{ overflow: 'visible' }}>
+        className={`infla ${motion}`} style={{ overflow: 'visible' }}>
         <defs>
           <radialGradient id={gid} cx="36%" cy="28%" r="78%">
             <stop offset="0" stopColor="#FBE7A1" /><stop offset="0.5" stopColor="#D9B23A" /><stop offset="1" stopColor="#94700F" />
@@ -433,7 +457,9 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null, react 
         {/* шея — сразу за монетой: стоячий воротник встаёт по бокам, и машущая рука должна быть поверх него */}
         {wear.neck && OUTFIT[wear.neck] && <g data-outfit={wear.neck}>{OUTFIT[wear.neck]}</g>}
         {(sm === 'joy' || sm === 'party' || sm === 'hello') && <><ellipse cx="20" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /><ellipse cx="44" cy="29.5" rx="2.6" ry="1.6" fill="#E07A5F" opacity="0.45" /></>}
-        {sm === 'sleep' ? EYES[sm](ink) : <g className="infla-eyes" style={blink}>{EYES[sm](ink)}</g>}
+        {/* лицо меняется плавно (пункт владельца 24.11, п. 13: «очень странно выглядит резкая смена лица у Инфли, когда на неё
+            нажимаешь»): новые глаза и рот проявляются за 0,2 с, а монета, дыхание и наряд не перерисовываются */}
+        <g className="infla-face" key={`f-${sm}`}>{sm === 'sleep' ? EYES[sm](ink) : <g className="infla-eyes" style={blink}>{EYES[sm](ink)}</g>}</g>
         {/* рука начинается чуть внутри края монеты, и плечо — центр вращения: при взмахе она не отрывается */}
         {m === 'wave' && (wear.hand && OUTFIT[wear.hand] ? (
           <g className="infla-hand left">
@@ -448,7 +474,7 @@ export function Mascot({ mood = 'hello', size = 56, label, outfit = null, react 
             <circle cx="58.5" cy="21.5" r="4" fill="#E8C766" stroke="#3A2A08" strokeWidth="1.2" />
           </g>
         ))}
-        {MOUTH[sm](ink)}
+        <g className="infla-face" key={`m-${sm}`}>{MOUTH[sm](ink)}</g>
         {m === 'party' && <>
           <path d="M26 3.5 L32 -4 L38 3.5 Z" fill="#4FA38F" stroke="#3A2A08" strokeWidth="0.8" transform="translate(0 4)" />
           {[[8, 12, '#E07A5F'], [56, 10, '#6FA8DC'], [5, 34, '#4FA38F'], [59, 32, '#E07A5F'], [12, 4, '#D9B23A']].map(([x, y, c], i) => <rect key={i} x={x} y={y} width="3" height="3" fill={c} transform={`rotate(${i * 37} ${x + 1.5} ${y + 1.5})`} />)}

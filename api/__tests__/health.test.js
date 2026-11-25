@@ -15,7 +15,7 @@ describe('/api/health', () => {
     expect(r.status).toBe(200);
     expect(r['Cache-Control']).toBe('no-store');
     expect(r.data).toMatchObject({ ok: process.env.DATABASE_URL ? true : false, db: process.env.DATABASE_URL ? 'postgres' : 'memory' });
-    expect(Object.keys(r.data).sort()).toEqual(['db', 'ok', 'region', 'research']);
+    expect(Object.keys(r.data).sort()).toEqual(['db', 'env', 'ok', 'region', 'research', 'runtime']);
     if (process.env.DATABASE_URL) expect(JSON.stringify(r.data)).not.toContain(new URL(process.env.DATABASE_URL).hostname);
   });
 });

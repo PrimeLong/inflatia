@@ -102,7 +102,7 @@ test('«Чтение» — урок на дороге юнита: после у�
     await expect(page.getByTestId('reading-feedback')).toHaveAttribute('data-ok', 'true');
     await page.getByTestId('reading-next').click();
   }
-  await expect(page.getByTestId('reading-done')).toContainText('Подборка встала на полку');
+  await expect(page.getByTestId('reading-done')).toContainText('Свиток встал на полку');
   // итоги — как после урока (пункт владельца 08.11, вечер): опыт, точность, время и монеты за урок
   const rres = page.getByTestId('reading-done').getByTestId('extra-result');
   await expect(rres).toHaveAttribute('data-kind', 'read');
@@ -153,18 +153,18 @@ test('«Чтение» перечитано: книга уже стоит на �
   const done = page.getByTestId('reading-done');
   await expect(done.getByTestId('extra-result')).toHaveAttribute('data-replay', 'true');
   await expect(done.getByTestId('extra-result')).toHaveAttribute('data-coins', '0');
-  await expect(done.getByTestId('reading-shelf-count')).toContainText('Подборка уже стояла на полке');
+  await expect(done.getByTestId('reading-shelf-count')).toContainText('Свиток уже стоял на полке');
   // счёт — подборок цитат, а не книг: книг в библиотеке другое число (пункт владельца 15.11)
   await expect(done.getByTestId('reading-shelf-count')).toContainText(/Прочитано подборок цитат — \d+ из \d+/);
   await expect(done.getByTestId('reading-shelf-count')).not.toContainText('Книга');
   await expect(done.locator('[data-testid=reading-book][data-new]')).toHaveCount(0);
   await expect(done.locator('[data-testid=reading-book][data-done="true"]')).toHaveCount(1);
-  // полки по шесть книг, каждая — во всю свою ширину (38px), а не сплющена
+  // полки по шесть свитков (пункт владельца 24.11, п. 17: подборки — свитки, а не книги), каждый — во всю свою ширину (36px), а не сплющен
   const rows = done.getByTestId('reading-shelf-row');
   expect(await rows.count()).toBeGreaterThanOrEqual(2);
   for (const n of await rows.evaluateAll((els) => els.map((e) => e.children.length))) expect(n).toBeLessThanOrEqual(6);
   const widths = await done.getByTestId('reading-book').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
-  widths.forEach((w) => expect(w).toBeGreaterThanOrEqual(37));
+  widths.forEach((w) => expect(w).toBeGreaterThanOrEqual(35));
   const shelf = await done.getByTestId('reading-shelf').boundingBox();
   expect(shelf.x + shelf.width).toBeLessThanOrEqual(page.viewportSize().width + 1);
   expect(errors).toEqual([]);
@@ -712,10 +712,14 @@ test('«Разбор графика» — остановка на дороге �
   await g.getByTestId('graph-next').click();
   // вопрос: сначала ошибка — объяснение, потом верно
   await expect(g).toHaveAttribute('data-phase', 'quiz');
-  await expect(g.getByTestId('graph-next')).toBeDisabled();
+  // вариант выбирают, ответ — по «Проверить» (жалоба ученика 24.11: как в обычном уроке)
+  await expect(g.getByTestId('graph-check')).toBeDisabled();
   await g.locator('[data-testid=graph-opt][data-ok="false"]').first().click();
+  await expect(g.getByTestId('graph-feedback')).toHaveCount(0);
+  await g.getByTestId('graph-check').click();
   await expect(g.getByTestId('graph-feedback')).toHaveAttribute('data-ok', 'false');
   await g.locator('[data-testid=graph-opt][data-ok="true"]').click();
+  await g.getByTestId('graph-check').click();
   await expect(g.getByTestId('graph-feedback')).toHaveAttribute('data-ok', 'true');
   await g.getByTestId('graph-next').click();
   // итоги — как после урока: с ошибкой в вопросе — 10 монет без надбавки «без ошибок»
@@ -1081,6 +1085,7 @@ test('«Разбор графика» на алмаз: пропущенное с
       await g.getByTestId('graph-next').click();
     }
     await g.locator('[data-testid=graph-opt][data-ok="true"]').click();
+    await g.getByTestId('graph-check').click();
     await g.getByTestId('graph-next').click();
     const res = g.getByTestId('extra-result');
     await expect(res).toHaveAttribute('data-diamond', 'true');
