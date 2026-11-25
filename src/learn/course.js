@@ -851,8 +851,12 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   while (estimate(items) > LESSON_MAX_SECONDS && items.length > 10) {
     const rev = items.filter((it) => it.review).length;
     const dropReview = rev / (items.length - 1) > 0.34;
-    const k = items.map((it, i) => i).reverse().find((i) => i > 0 && !!items[i].review === dropReview && !SELF_CHECK.includes(items[i].kind) && items[i].kind !== 'exam');
-    if (k == null) break;
+    // снимаем задание самого частого вида (обычно «в одно касание»), при равенстве — последнее: урок короче, а видов
+    // в нём не меньше (раньше снималось просто последнее — и уходил единственный расчёт или таблица)
+    const fam = {}; items.forEach((it) => { const f = kindFamily(it.kind); fam[f] = (fam[f] || 0) + 1; });
+    const can = items.map((it, i) => i).filter((i) => i > 0 && !!items[i].review === dropReview && !SELF_CHECK.includes(items[i].kind) && items[i].kind !== 'exam');
+    if (!can.length) break;
+    const k = can.reduce((a, b) => (fam[kindFamily(items[b].kind)] >= fam[kindFamily(items[a].kind)] ? b : a));
     items.splice(k, 1);
   }
   /* десять заданий — нижняя граница урока, а он всё ещё дольше пяти минут (два «Домино», экзамен и долгие расчёты
