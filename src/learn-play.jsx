@@ -42,6 +42,8 @@ const yOf = (p, ax) => PT + PH - (p / ax.pMax) * PH;
 /* m — рынок упражнения; shift — { D, S } сдвиг кривых поверх m; show — какие кривые рисовать;
    ghost — исходные кривые пунктиром; price — горизонталь цены с объёмами; mark — точка ученика;
    good — верная точка (после ответа); onDrag / onPlot — перетаскивание кривой и нажатие по полю. */
+// буква оси из подписи «W, зарплата в час» → «W»; подпись без буквы — по умолчанию
+const axisLetter = (name, def) => { const h = String(name || '').split(',')[0].trim(); return /^[A-Za-z]{1,3}$/.test(h) ? h : def; };
 export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghost = false, price = null, mark = null, good = null, onDrag = null, onPlot = null, eq = false, label = 'График рынка', names = null }) {
   // названия осей и кривых — из раунда (процент, вклады, кредиты…), иначе общие
   const nm = { x: 'Q, количество', y: 'P, цена', d: null, s: null, unit: '', ...(names || {}) };
@@ -143,9 +145,10 @@ export function MarketChart({ m, shift = { D: 0, S: 0 }, show = ['D', 'S'], ghos
           <line x1={xOf(e0.q, ax)} x2={xOf(e0.q, ax)} y1={yOf(e0.p, ax)} y2={PT + PH} stroke="var(--ds-ink2)" strokeWidth="1.2" strokeDasharray="3 4" />
           <circle cx={xOf(e0.q, ax)} cy={yOf(e0.p, ax)} r="11" fill="var(--u, #9A7413)" opacity=".18" className="lp-eq-glow" />
           <circle cx={xOf(e0.q, ax)} cy={yOf(e0.p, ax)} r="6" fill="var(--ds-ink)" stroke="var(--ds-card)" strokeWidth="2" />
-          <text x={PL + 4} y={yOf(e0.p, ax) - 5} className="lp-eqv">P* {Math.round(e0.p)}{nm.unit}</text>
+          {/* буква — по оси: на рынке труда W* и L*, а не P* и Q* */}
+          <text x={PL + 4} y={yOf(e0.p, ax) - 5} className="lp-eqv">{axisLetter(nm.y, 'P')}* {Math.round(e0.p)}{nm.unit}</text>
           {/* длинное название оси — справа у оси: Q* тогда слева от пунктира, чтобы не налезать */}
-          <text x={xOf(e0.q, ax) + (names && names.x ? -5 : 5)} y={PT + PH - 5} textAnchor={names && names.x ? 'end' : 'start'} className="lp-eqv">Q* {Math.round(e0.q)}</text>
+          <text x={xOf(e0.q, ax) + (names && names.x ? -5 : 5)} y={PT + PH - 5} textAnchor={names && names.x ? 'end' : 'start'} className="lp-eqv">{axisLetter(nm.x, 'Q')}* {Math.round(e0.q)}</text>
         </g>
       )}
       {good && <circle cx={xOf(good.q, ax)} cy={yOf(good.p, ax)} r="9" fill="none" stroke="var(--ds-ok)" strokeWidth="3" data-testid="point-good" />}
@@ -168,7 +171,7 @@ export function CurveEx({ inst, resp, setResp, locked, fb }) {
   const shown = fb && !fb.ok ? { D: 0, S: 0, [inst.answer[0]]: inst.answer[1] === '+' ? 20 : -20 } : r;
   return (
     <div data-testid="curve-ex">
-      <MarketChart m={inst.market} show={curves} shift={shown} ghost eq={curves.length === 2} onDrag={locked ? null : set} label="Кривые рынка: перетащите нужную кривую" />
+      <MarketChart m={inst.market} show={curves} shift={shown} ghost eq={curves.length === 2} onDrag={locked ? null : set} label="Кривые рынка: перетащите нужную кривую" names={inst.names || null} />
       <div className="lp-readout ds-sub">{fb && !fb.ok ? 'Так должна была сдвинуться кривая' : curves.some((c) => r[c]) ? curves.filter((c) => r[c]).map((c) => `${CURVE_TITLE[c]} ${r[c] > 0 ? 'вправо' : 'влево'} на ${Math.abs(r[c])}`).join(', ') : 'Потяните кривую пальцем или нажмите стрелку'}</div>
       {curves.map((c) => (
         <div key={c} className="lp-row">
@@ -183,6 +186,8 @@ export function CurveEx({ inst, resp, setResp, locked, fb }) {
   );
 }
 
+// слово оси для подписи под графиком: «W, зарплата» → «Зарплата»; своих подписей нет — по умолчанию
+const axisWord = (names, axis, def) => { const v = names && names[axis]; if (!v) return def; const w = (v.split(',').slice(1).join(',') || v).trim(); return w.charAt(0).toUpperCase() + w.slice(1); };
 // цена ползунком: видно, сколько хотят купить и сколько продают, и разрыв между ними
 export function PriceEx({ inst, resp, setResp, locked }) {
   const ax = marketAxes(inst.market);
@@ -191,9 +196,9 @@ export function PriceEx({ inst, resp, setResp, locked }) {
   const gap = d - s;
   return (
     <div data-testid="price-ex">
-      <MarketChart m={inst.market} price={p} label={`Рынок при цене ${p}`} />
+      <MarketChart m={inst.market} price={p} label={`Рынок при цене ${p}`} names={inst.names || null} />
       <div className="lp-readout" data-testid="price-readout">
-        Цена <b>{p}</b>: хотят купить <b className="lp-dem">{Math.max(0, d)}</b>, продают <b className="lp-sup">{Math.max(0, s)}</b>
+        {axisWord(inst.names, 'y', 'Цена')} <b>{p}</b>: хотят купить <b className="lp-dem">{Math.max(0, d)}</b>, продают <b className="lp-sup">{Math.max(0, s)}</b>
         {gap > 0 ? <> — <b style={{ color: 'var(--ds-bad-ink)' }}>дефицит {gap}</b></> : gap < 0 ? <> — <b className="lp-sup">избыток {-gap}</b></> : <> — <b style={{ color: 'var(--ds-ok-ink)' }}>ни дефицита, ни избытка</b></>}
       </div>
       <input type="range" className="lp-range" min={0} max={ax.pMax} step={1} value={p} disabled={locked} aria-label="Цена"
@@ -207,8 +212,8 @@ export function PointEx({ inst, resp, setResp, locked, fb }) {
   return (
     <div data-testid="point-ex">
       <MarketChart m={inst.market} ghost mark={resp} good={fb ? inst.answer : null} onPlot={locked ? null : (q, p) => { Audio.play('tick'); setResp({ q, p }); }}
-        label="Нажмите на график там, где новое равновесие" />
-      <div className="lp-readout ds-sub">{resp ? <>Ваша точка: объём <b>{resp.q}</b>, цена <b>{String(resp.p).replace('.', ',')}</b></> : 'Нажмите на график, чтобы поставить точку'}</div>
+        label="Нажмите на график там, где новое равновесие" names={inst.names || null} />
+      <div className="lp-readout ds-sub">{resp ? <>Ваша точка: {axisWord(inst.names, 'x', 'объём').toLowerCase()} <b>{resp.q}</b>, {axisWord(inst.names, 'y', 'цена').toLowerCase()} <b>{String(resp.p).replace('.', ',')}</b></> : 'Нажмите на график, чтобы поставить точку'}</div>
     </div>
   );
 }

@@ -122,13 +122,13 @@ test('«Данные»: выбор с клавиатуры — фокус на �
 const CHAPTERS = new URL('../src/textbook/chapters/', import.meta.url);
 const ALL = readdirSync(CHAPTERS).filter((f) => f.endsWith('.md')).flatMap((f) => {
   const md = readFileSync(new URL(f, CHAPTERS), 'utf8');
-  return [...md.matchAll(/^:::ex (data|exam) id=(\S+)([^\n]*)$/gm)].filter((m) => m[1] === 'data' || / view=/.test(m[3])).map((m) => ({ id: m[2], kind: m[1] }));
+  return [...md.matchAll(/^:::ex (data|exam) id=(\S+)([^\n]*)$/gm)].filter((m) => m[1] === 'data' || / view=/.test(m[3])).map((m) => ({ id: m[2], kind: m[1], test: (/ test=(\S+)/.exec(m[3]) || [])[1] || null }));
 });
 
 test('задание 9 ЕГЭ: метка «ЕГЭ · задание 9», диаграмма над выводами, ответ цифрами; ошибка — разбор каждого вывода', async ({ page }) => {
   await withTestFlag(page);
   const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
-  const ege = ALL.filter((x) => x.kind === 'exam').map((x) => x.id);
+  const ege = ALL.filter((x) => x.kind === 'exam' && x.test === 'ЕГЭ').map((x) => x.id);
   expect(ege.length).toBeGreaterThanOrEqual(5);
   await runOnly(page, [ege[0]]);
   const ex = page.getByTestId('ex');
@@ -165,5 +165,22 @@ test('все задания «Данные» и задания 9 ЕГЭ курс
     await page.getByRole('button', { name: 'Дальше', exact: true }).click();
   }
   expect(seen.sort()).toEqual(ALL.map((x) => x.id).sort());
+  expect(errors).toEqual([]);
+});
+
+// ОГЭ, задание 12: диаграмма опроса двух групп — выводы о сходстве, различии и то, что из диаграммы не следует
+test('задание 12 ОГЭ: диаграмма над выводами, соответствие «сходство — различие — не следует»', async ({ page }) => {
+  await withTestFlag(page);
+  const { errors } = await openApp(page, '/', '{}', { tab: 'path' });
+  const oge = ALL.filter((x) => x.kind === 'exam' && x.test === 'ОГЭ').map((x) => x.id);
+  expect(oge.length).toBeGreaterThanOrEqual(4);
+  await runOnly(page, [oge[0]]);
+  const ex = page.getByTestId('ex');
+  await expect(ex.getByTestId('exam-tag')).toHaveText('ОГЭ · задание 12');
+  await expect(ex.getByTestId('data-view')).toBeVisible();
+  await expect(ex).toContainText('О сходстве позиций');
+  await expect(ex).toContainText('Не следует из диаграммы');
+  await expectNoSidewaysScroll(page);
+  await answerExercise(page);
   expect(errors).toEqual([]);
 });

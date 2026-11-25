@@ -165,9 +165,9 @@ function fromBlock(b) {
     case 'shift': return { ...e, chart: b.chart, chartAttrs: b.chartAttrs, answer: b.answer, choices: b.choices || shiftChoices(b.chart), traps: b.traps };
     case 'news': return { ...e, headline: b.headline, vars: b.vars, expect: b.expect };
     case 'tiles': return { ...e, solution: b.solution, extra: b.extra, ...(b.orders ? { orders: b.orders } : {}) };
-    case 'curve': return { ...e, market: b.market, answer: b.answer, only: b.only, traps: b.traps };
-    case 'price': return { ...e, market: b.market, start: b.start };
-    case 'point': return { ...e, market: b.market };
+    case 'curve': return { ...e, market: b.market, answer: b.answer, only: b.only, traps: b.traps, ...(b.names ? { names: b.names } : {}) };
+    case 'price': return { ...e, market: b.market, start: b.start, ...(b.names ? { names: b.names } : {}) };
+    case 'point': return { ...e, market: b.market, ...(b.names ? { names: b.names } : {}) };
     case 'open': return e;
     case 'domino': return { ...e, headline: b.headline, scene: b.scene, links: b.links, decoys: b.decoys };
     case 'data': return { ...e, data: b.data, view: b.view, ask: b.ask, title: b.title, vunit: b.vunit, note: b.note, ...(b.from != null ? { from: b.from } : {}),
@@ -325,11 +325,13 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
     }
     case 'sort': return { ...base, bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `s${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand) };
     // пункты перемешаны и пронумерованы заново — ответ цифрами не заучить
-    case 'exam': return ex.form === 'match'
-      ? { ...base, test: ex.test, no: ex.no, form: 'match', bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `e${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand) }
-      : { ...base, test: ex.test, no: ex.no, form: ex.form, options: shuffle(ex.options.map((o, k) => ({ key: `e${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand),
-        // задание 9 ЕГЭ: диаграмма или таблица над выводами (рисунок «Данных», без касания)
-        ...(ex.data ? { data: ex.data, view: ex.view, ask: 'view', title: ex.title, vunit: ex.vunit, note: ex.note, ...(ex.from != null ? { from: ex.from } : {}) } : {}) };
+    case 'exam': {
+      // задание 9 ЕГЭ и 12 ОГЭ: диаграмма или таблица над пунктами (рисунок «Данных», без касания)
+      const fig = ex.data ? { data: ex.data, view: ex.view, ask: 'view', title: ex.title, vunit: ex.vunit, note: ex.note, ...(ex.from != null ? { from: ex.from } : {}) } : {};
+      return ex.form === 'match'
+        ? { ...base, test: ex.test, no: ex.no, form: 'match', bins: ex.bins, items: shuffle(ex.items.map((it, k) => ({ key: `e${k}`, text: it.text, raw: it.raw, bin: it.bin })), rand), ...fig }
+        : { ...base, test: ex.test, no: ex.no, form: ex.form, options: shuffle(ex.options.map((o, k) => ({ key: `e${k}`, text: o.text, raw: o.raw, correct: o.correct, why: o.why })), rand), ...fig };
+    }
     case 'calc': {
       if (ex.variant) {
         const tpl = TEMPLATE_BY_ID[ex.variant];
@@ -355,9 +357,9 @@ export function instantiate(ex, rand = Math.random, extra = {}) {
       const answers = [ex.solution, ...(ex.orders || [])].map((o) => o.join(' '));
       return { ...base, tiles: shuffle([...sol, ...extra], rand), solution: sol.map((t) => t.key), answers };
     }
-    case 'curve': return { ...base, market: ex.market, answer: ex.answer, only: ex.only || null, traps: ex.traps || [], step: CURVE_STEP };
-    case 'price': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, start: ex.start, answer: Math.round(eq.p * 100) / 100 }; }
-    case 'point': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, answer: { q: eq.q, p: eq.p } }; }
+    case 'curve': return { ...base, market: ex.market, answer: ex.answer, only: ex.only || null, traps: ex.traps || [], step: CURVE_STEP, ...(ex.names ? { names: ex.names } : {}) };
+    case 'price': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, start: ex.start, answer: Math.round(eq.p * 100) / 100, ...(ex.names ? { names: ex.names } : {}) }; }
+    case 'point': { const eq = equilibrium(ex.market); return { ...base, market: ex.market, answer: { q: eq.q, p: eq.p }, ...(ex.names ? { names: ex.names } : {}) }; }
     case 'open': return { ...base, noRetry: true };
     case 'domino': {
       const links = ex.links.map((l, k) => ({ key: `l${k}`, text: l.text, raw: l.raw, effects: l.effects, link: k }));
@@ -598,6 +600,28 @@ export const flashCards = (lesson) => lesson.terms.map((t) => ({ id: `${lesson.i
 const canRenumber = (e) => !!(e.variant || e.vary || (e.source && TEMPLATE_BY_SOURCE[e.source]));
 const timesSeen = (e, seen) => (canRenumber(e) ? 0 : (seen[e.id] || 0));
 const bySeen = (list, seen, rand) => shuffle(list, rand).map((e, k) => [e, timesSeen(e, seen), k]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map((x) => x[0]);
+/* n заданий из списка (он уже в порядке bySeen): реже виденные — первыми, как и раньше; среди одинаково виденных —
+   вид, которого в уроке ещё нет или меньше всего. «Выбор ответа», «Верно или неверно» и «Заполните пропуск» — один
+   вид «в одно касание»: урок не набирает их подряд (пункт владельца 25.11: «практика скучная — только вопросы, где
+   нужно выбрать вариант ответа»). have — виды, которые уже в уроке (закреплённые «Домино» и экзамен, свои задания) */
+const TAP_KINDS = ['choice', 'gap', 'tf'];
+const kindFamily = (k) => (TAP_KINDS.includes(k) ? 'tap' : k);
+export function pickDiverse(list, n, seen = {}, have = []) {
+  const left = list.map((e, k) => ({ e, k, t: timesSeen(e, seen) }));
+  const count = {}; have.forEach((k) => { const f = kindFamily(k); count[f] = (count[f] || 0) + 1; });
+  const out = [];
+  while (out.length < n && left.length) {
+    let best = 0;
+    for (let i = 1; i < left.length; i += 1) {
+      const a = left[i]; const b = left[best];
+      const ka = count[kindFamily(a.e.kind)] || 0; const kb = count[kindFamily(b.e.kind)] || 0;
+      if (a.t < b.t || (a.t === b.t && (ka < kb || (ka === kb && a.k < b.k)))) best = i;
+    }
+    const [x] = left.splice(best, 1); out.push(x.e);
+    const f = kindFamily(x.e.kind); count[f] = (count[f] || 0) + 1;
+  }
+  return out;
+}
 
 /* Персональная программа (src/learn/program.js) подстраивает урок:
    level — «easy» (точность ниже 60%): в выборе ответа три варианта вместо четырёх, а разбор
@@ -807,7 +831,8 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   // свои — не больше десяти, в прежнем порядке (случайный набор при каждом прохождении; реже виденные — первыми);
   // «Домино» урока — всегда: в нём ученик сам строит цепочку, а не только отвечает; задание экзамена — тоже всегда
   const pinned = all.map((e, k) => (SELF_CHECK.includes(e.kind) || e.kind === 'exam' ? k : -1)).filter((k) => k >= 0);
-  const keep = new Set([...pinned, ...bySeen(all.map((e, k) => ({ ...e, k })).filter((e) => !pinned.includes(e.k)), seen, rand).slice(0, PRACTICE_OWN - pinned.length).map((e) => e.k)]);
+  // свои — разных видов (pickDiverse): не десять «выборов ответа» подряд, а расчёт, таблица, сортировка, график…
+  const keep = new Set([...pinned, ...pickDiverse(bySeen(all.map((e, k) => ({ ...e, k })).filter((e) => !pinned.includes(e.k)), seen, rand), PRACTICE_OWN - pinned.length, seen, pinned.map((k) => all[k].kind)).map((e) => e.k)]);
   const own = all.filter((_, k) => keep.has(k));
   // начинать с упражнения в одно касание, а не с расчёта или сборки
   const easy = own.findIndex((e) => SECONDS[e.kind] <= 12);
@@ -815,7 +840,8 @@ function buildLessonBase(lessonId, rand, { mistakes = [], hinted = [], level = '
   const prev = unit.lessons.filter((l) => l.no < lesson.no).flatMap((l) => l.exercises.map((e) => EXERCISES[e.id])).filter(basic);
   const nReview = Math.min(prev.length, Math.max(0, Math.min(15 - own.length, Math.round(own.length / 2))));
   // повторение — из реже виденного: одна и та же задача не всплывает в каждом уроке юнита
-  const review = bySeen(prev, seen, rand).slice(0, nReview);
+  // и повторение — видов, которых в уроке меньше
+  const review = pickDiverse(bySeen(prev, seen, rand), nReview, seen, own.map((e) => e.kind));
   const items = own.map((e) => instantiate(e, rand));
   review.forEach((e) => {
     const at = 1 + Math.floor(rand() * items.length);

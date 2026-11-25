@@ -381,7 +381,8 @@ export const parseChapter = (text) => parseBlocks(text);
    context="…" — то, что ученик услышал в «Слушай»: в самом радиоуроке вопрос его не повторяет,
    а в повторении, практике и проверке (вне эфира) context встаёт перед условием.
    Новые взаимодействия (рынок Q_D = a − bP, Q_S = c + dP; dA, dC — сдвиги кривых):
-     tiles — «+ плитка | плитка | …» — верное определение из плиток, «- плитка | …» — лишние плитки;
+     tiles — «+ плитка | плитка | …» — верное определение из плиток (ещё строки «+» — другой верный порядок тех же
+       плиток), «- плитка | …» — лишние плитки;
      curve a b c d answer="D+" only=D — сдвинуть кривую пальцем (only — на графике одна кривая), ловушки «!! S+ | почему»;
      price a b c d start=10 — двигать цену, пока не исчезнут дефицит и избыток;
      point a b c d dA=… dC=… — поставить точку (нового) равновесия;
@@ -556,7 +557,8 @@ function parseExercise(kind, attrs, body) {
        «+» — следует из данных, «- … | почему» — не следует. Только «выберите выводы» (form=pick) */
     if (attrs.view) {
       const where = `В задании ${attrs.id} (анализ данных)`;
-      if (ex.form !== 'pick') throw new Error(`${where}: с диаграммой — только form=pick («найдите выводы»)`);
+      // pick — «найдите выводы» (ЕГЭ, задание 9); match — выводы о сходстве и различии позиций групп (ОГЭ, задание 12)
+      if (ex.form === 'one') throw new Error(`${where}: с диаграммой — form=pick или form=match`);
       ex.view = attrs.view;
       if (!DATA_VIEWS.includes(ex.view)) throw new Error(`${where}: view — ${DATA_VIEWS.join(', ')}`);
       ex.data = parseDataRows(main, where);
@@ -566,13 +568,24 @@ function parseExercise(kind, attrs, body) {
     }
   }
   if (kind === 'tiles') {
-    const tiles = (o) => o.raw.split(/\s\|\s/).map((x) => x.trim()).filter(Boolean);
-    const right = opts.filter((o) => o.correct);
-    if (right.length !== 1) throw new Error(`В плитках ${attrs.id} должна быть одна строка «+ …»`);
-    ex.solution = tiles(right[0]); ex.extra = opts.filter((o) => !o.correct).flatMap(tiles);
+    // плитки — вся строка через « | » (у плиток нет «почему»: разбор строк вариантов здесь не подходит — он отрезал
+    // всё после первой « | » как объяснение, и из определения оставалась одна плитка)
+    const tileLines = main.filter(isOpt).map((l) => l.trim());
+    const tiles = (l) => l.slice(1).trim().split(/\s\|\s/).map((x) => x.trim()).filter(Boolean);
+    const right = tileLines.filter((l) => l[0] === '+');
+    if (!right.length) throw new Error(`В плитках ${attrs.id} должна быть строка «+ …»`);
+    ex.solution = tiles(right[0]); ex.extra = tileLines.filter((l) => l[0] === '-').flatMap(tiles);
+    // ещё строки «+ …» — другой верный порядок тех же плиток («прибавка от ещё одного работника к выпуску»)
+    const same = (a) => [...a].sort().join('|') === [...ex.solution].sort().join('|');
+    const orders = right.slice(1).map(tiles);
+    orders.forEach((o) => { if (!same(o)) throw new Error(`В плитках ${attrs.id}: другой порядок — из тех же плиток`); });
+    if (orders.length) ex.orders = orders;
+    if (new Set([...ex.solution, ...ex.extra]).size !== ex.solution.length + ex.extra.length) throw new Error(`В плитках ${attrs.id} плитки повторяются`);
   }
   if (kind === 'curve' || kind === 'price' || kind === 'point') {
     ex.market = market(attrs);
+    // свои подписи осей и кривых (рынок труда: «W, зарплата», «спрос на труд») — как у мини-игры
+    const names = marketNames(attrs); if (names) ex.names = names;
     if (MARKET.slice(0, 4).some((k) => !Number.isFinite(ex.market[k]))) throw new Error(`В упражнении ${attrs.id} нужны a, b, c, d`);
     if (kind === 'curve') { ex.answer = attrs.answer; ex.only = attrs.only || null; ex.traps = traps.map((t) => ({ key: t.key, why: t.why })); }
     if (kind === 'price') ex.start = Number(attrs.start || 0);
@@ -605,7 +618,9 @@ function parseExercise(kind, attrs, body) {
     ex.headline = attrs.headline;
     // scene=demand — на сцене только спрос и цена кофейни (предложения ученик ещё не знает)
     ex.scene = attrs.scene || 'market';
-    if (!['market', 'demand'].includes(ex.scene)) throw new Error(`В «Домино» ${attrs.id}: сцена ${ex.scene} — market или demand`);
+    // scene=none — без кофейной сцены: только газета и цепочка (труд, деньги, инфляция, издержки — пункт владельца 25.11:
+    // «какие-то типы карточек встречаются только в конкретных юнитах»); эффектов сцены у такого «Домино» нет
+    if (!['market', 'demand', 'none'].includes(ex.scene)) throw new Error(`В «Домино» ${attrs.id}: сцена ${ex.scene} — market, demand или none`);
     ex.links = main.filter((l) => /^\+\s/.test(l.trim())).map((l) => {
       const m = /^(.*?)\s*(?:\[([^\]]+)\])?\s*$/.exec(l.trim().slice(1).trim());
       const effects = m[2] ? m[2].split(/\s+/) : [];
@@ -621,6 +636,7 @@ function parseExercise(kind, attrs, body) {
     if (ex.links.length < 4 || ex.links.length > 5) throw new Error(`В «Домино» ${attrs.id} звеньев ${ex.links.length}, нужно 4–5`);
     const total = ex.links.length + ex.decoys.length;
     if (total < 7 || total > 8) throw new Error(`В «Домино» ${attrs.id} карточек ${total}, нужно 7–8`);
+    if (ex.scene === 'none' && ex.links.some((l) => l.effects.length)) throw new Error(`В «Домино» ${attrs.id} без сцены (scene=none) эффектов [D+] и т. п. нет`);
   }
   if (kind === 'data') {
     const where = `В задании «Данные» ${attrs.id}`;
