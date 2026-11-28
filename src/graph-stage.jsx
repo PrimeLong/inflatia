@@ -110,7 +110,10 @@ function useTweenValues(target, reduced, start = null) {
 // vb — окно графика, когда его приблизили («Нарисуй сам», src/lib/view-zoom.js); по умолчанию — весь график
 /* мини-игра: g.def — своя модель вместо CHARTS[g.chart]; showAll — видно всё, без подсветки и без прорисовки заново
    на каждом ходу; lockLive — оси одни на всю игру (окно — по крайним состояниям в g.steps), хотя значения идут из live */
-export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null, grid = null, vb = null, showAll = false, lockLive = false, replayFrom = null }) {
+export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null, grid = null, vb = null, showAll = false, lockLive = false, replayFrom = null, hover = false }) {
+  /* наведение мышью (hover): у линии — точка на ней, пунктир к осям и значения, как на плоскости на весь экран (жалоба
+     mwwzp4o3, graph-prices: «почему так не сделать в обычном режиме») */
+  const [hv, setHv] = useState(null); const svgEl = useRef(null);
   const reduced = useReducedMotion();
   const def = g.def || CHARTS[g.chart];
   const view0 = showAll ? { shown: new Set(), focus: new Set(), added: new Set(), values: {}, marks: [], text: '' } : stepView(g, k);
@@ -208,7 +211,26 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
     });
   }
   return (
-    <svg viewBox={vb || `0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}>
+    <svg ref={svgEl} viewBox={vb || `0 0 ${W} ${H}`} role="img" aria-label={`График: ${g.title}`} data-testid="graph-stage" data-step={k}
+      onPointerMove={hover ? (e) => {
+        if (e.pointerType !== 'mouse' || !svgEl.current) return;
+        const m = svgEl.current.getScreenCTM(); if (!m) return;
+        const u = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+        // ближайшая точка видимых линий шага — в пикселях, не дальше 18
+        let best = null;
+        scene.curves.filter((c) => !c.ghost && view.shown.has(c.id) && c.points && c.points.length > 1).forEach((c) => {
+          for (let i = 1; i < c.points.length; i += 1) {
+            const a = { x: sx(c.points[i - 1].x), y: sy(c.points[i - 1].y) }; const b = { x: sx(c.points[i].x), y: sy(c.points[i].y) };
+            const dx = b.x - a.x; const dy = b.y - a.y; const L = dx * dx + dy * dy || 1;
+            const t = Math.max(0, Math.min(1, ((u.x - a.x) * dx + (u.y - a.y) * dy) / L));
+            const px = a.x + t * dx; const py = a.y + t * dy; const d = Math.hypot(u.x - px, u.y - py);
+            if (d < 18 && (!best || d < best.d)) best = { d, px, py, c };
+          }
+        });
+        setHv(best && best.px >= M.l && best.px <= W - M.r && best.py >= M.t - 2 && best.py <= H - M.b + 2
+          ? { px: best.px, py: best.py, x: x0 + ((best.px - M.l) / (W - M.l - M.r)) * (x1 - x0), y: y0 + ((H - M.b - best.py) / (H - M.t - M.b)) * (y1 - y0), color: best.c.color } : null);
+      } : undefined}
+      onPointerLeave={hover ? () => setHv(null) : undefined}>
       <defs><clipPath id={clip}><rect x={M.l} y={M.t - 6} width={W - M.l - M.r + 6} height={H - M.t - M.b + 6} /></clipPath></defs>
       {(grid ? gridLines(x0, x1, grid[0]) : tx).map((t) => <line key={`gx${t}`} x1={sx(t)} x2={sx(t)} y1={M.t} y2={H - M.b} stroke="var(--g-grid)" />)}
       {(grid ? gridLines(y0, y1, grid[1]) : ty).map((t) => <line key={`gy${t}`} x1={M.l} x2={W - M.r} y1={sy(t)} y2={sy(t)} stroke="var(--g-grid)" />)}
@@ -326,6 +348,23 @@ export function GraphStage({ g, k, live = null, alsoShow = null, alsoHide = null
         }
         return null;
       })}
+      {hover && hv && (() => {
+        const col = KCOLOR[hv.color] || 'var(--g-gold)'; // каждая ось — по своей шкале: килограммы с десятыми, тысячи крон — целыми
+        const xs = gv(hv.x, x0, x1); const ys = gv(hv.y, y0, y1);
+        const badge = (x, y, text, anchor) => {
+          const w = text.length * 7.2 + 10; const bx = anchor === 'end' ? x - w : x - w / 2;
+          return <g><rect x={bx} y={y - 11} width={w} height={20} rx={6} fill="var(--g-blue)" /><text x={bx + w / 2} y={y + 4} fontSize="12.5" fontWeight="700" fill="#fff" textAnchor="middle">{text}</text></g>;
+        };
+        return (
+          <g pointerEvents="none" data-testid="graph-hover" data-x={xs} data-y={ys}>
+            <line x1={hv.px} x2={hv.px} y1={hv.py} y2={H - M.b} stroke="var(--g-blue)" strokeWidth="1.3" strokeDasharray="4 4" />
+            <line x1={M.l} x2={hv.px} y1={hv.py} y2={hv.py} stroke="var(--g-blue)" strokeWidth="1.3" strokeDasharray="4 4" />
+            <circle cx={hv.px} cy={hv.py} r="5.5" fill="var(--ds-card)" stroke={col} strokeWidth="2.6" />
+            {badge(hv.px, H - M.b + 14, xs, 'middle')}
+            {badge(M.l - 2, hv.py, ys, 'end')}
+          </g>
+        );
+      })()}
     </svg>
   );
 }

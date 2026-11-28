@@ -35,6 +35,11 @@ const CSS = `
   .sp-top { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; background: var(--ds-paper); }
   .sk-on .sp-top { background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 78%, transparent) 60%, transparent); }
   .sp-top .ln-head { padding-bottom: 6px; }
+  /* черновик в особом уроке: шапка сплошная только в колонке урока, по бокам — прозрачная. Раньше она была сплошной во
+     всю ширину, и точки полей черновика обрывались о её край — горизонтальная полоса посреди экрана (жалоба mwx01b79,
+     draw-prices: «половина экрана полоса, такого нет в обычном уроке») */
+  .gl[data-sketch] .sp-top { background: transparent; }
+  .gl[data-sketch] .sp-top > .ln-head, .gl[data-sketch] .sp-top > .sp-label { background: var(--ds-paper); }
   /* Инфля серии — прямо в шапке, как в уроке (обёртка с высотой 40 px поджимала её к верхнему краю — пункт владельца 21.11, п. 2) */
   .sp-run { display: contents; }
   /* на ПК шапка и строка вида урока — того же размера, что у урока: урок увеличивается целиком (src/learn.jsx), а шапка

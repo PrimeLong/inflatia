@@ -10,7 +10,7 @@ import { useActiveMs } from './learn-clock.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowLeft, ArrowRight, Check, RotateCcw, Lightbulb, Maximize2, Plus, Minus, Hand, Expand, Undo2, Paintbrush, Eraser } from 'lucide-react';
 import { Audio } from './MacroSimulator.jsx';
-import { Button, IconButton } from './ds.jsx';
+import { Button } from './ds.jsx';
 import { GraphStage, GRAPH_CSS, W, H, M } from './learn-graph.jsx';
 import { stageScene } from './graph-stage.jsx';
 
@@ -37,6 +37,9 @@ const CSS = `
   .dl-wrap .dl-ink { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; touch-action: none; cursor: crosshair;
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   .dl-wrap .dl-ink.shift { cursor: ew-resize; }
+  /* ставим точку мышью — курсор только сама точка (она прилипает к сетке): перекрестие системы шло за мышью, а точка
+     стояла на узле сетки — «точка в одном месте, а пунктир там, где мышка» (жалоба mwwztgrv, draw-prices) */
+  .dl-wrap .dl-ink.placing { cursor: none; }
   /* ластик — кнопкой «Ластик» или правой кнопкой мыши: курсор-кольцо ластика, а не перекрестье (пункт владельца 24.11, п. 6) */
   .dl-wrap .dl-ink.erasing { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Ccircle cx='13' cy='13' r='10' fill='%23fff' fill-opacity='.35' stroke='%2326201C' stroke-width='1.4'/%3E%3Ccircle cx='13' cy='13' r='11.4' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E") 13 13, cell; }
   .dl-wrap .dl-ink.off { cursor: default; touch-action: auto; }
@@ -677,7 +680,7 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
             <div ref={wrap} className={`dl-wrap${zoomed ? ' zoomed' : ''}`} data-testid="draw-wrap">
               <GraphStage g={tour} k={k} grid={d.grid} vb={vbString(vb)} live={t.do === 'shift' && !resolved ? { [t.control]: v } : null}
                 alsoShow={!resolved && t.show ? t.show : null} alsoHide={!resolved && t.hide ? t.hide : null} />
-              <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}${hand ? ' hand' : ''}${!resolved && t.do === 'area' && (tool === 'erase' || rightErase) ? ' erasing' : ''}`} viewBox={vbString(vb)} data-testid={full ? 'draw-ink-lesson' : 'draw-ink'}
+              <svg ref={ink} className={`dl-ink${t.do === 'shift' ? ' shift' : ''}${resolved ? ' off' : ''}${hand ? ' hand' : ''}${!resolved && t.do === 'area' && (tool === 'erase' || rightErase) ? ' erasing' : ''}${hover && !resolved && !hand && t.do !== 'area' && t.do !== 'shift' ? ' placing' : ''}`} viewBox={vbString(vb)} data-testid={full ? 'draw-ink-lesson' : 'draw-ink'}
                 data-answer={full ? undefined : testAnswerOf()} data-ready={String(ready)} aria-label="Поле для рисования"
                 onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onPointerLeave={() => setHover(null)}
                 onContextMenu={(e) => { if (t.do === 'area') e.preventDefault(); }}>
@@ -731,10 +734,9 @@ export default function DrawLesson({ id, learn, update, onClose, gem = false }) 
               <Button variant="secondary" icon={ArrowLeft} disabled={viewI === 0} data-testid="draw-back" onClick={peekBack}>Назад</Button>
               <Button wide icon={ArrowRight} data-testid="draw-return" onClick={() => { Audio.play('paper'); setPeekI(null); }}>Вернуться к шагу {i + 1}</Button>
             </> : <>
-              {i > 0 && <IconButton label="Назад: прошлый шаг" icon={ArrowLeft} data-testid="draw-back" onClick={peekBack} />}
-              {/* с «Назад» на узком экране три кнопки не помещались в ряд (жалоба ученика 24.11, draw-prices, шаг 2: «кнопки
-                  съехали») — у «Сбросить» там остаётся значок */}
-              <Button variant="secondary" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} data-testid="draw-reset" aria-label="Сбросить" className={i > 0 ? 'sp-squeeze' : undefined} onClick={reset}><span className="sp-squeeze-t">Сбросить</span></Button>
+              {/* назад — касанием полосы прогресса вверху, как в обычном уроке: вторая кнопка «←» внизу была лишней
+                  (жалоба mwwzy7v9, draw-prices: «зачем, если сверху есть, да и в обычном такого нет») */}
+              <Button variant="secondary" icon={RotateCcw} disabled={resolved || (!pts.length && v === 0)} data-testid="draw-reset" aria-label="Сбросить" onClick={reset}><span className="sp-squeeze-t">Сбросить</span></Button>
               {resolved
                 ? <Button wide icon={i < n - 1 ? ArrowRight : Check} data-testid="draw-next" onClick={next}>{i < n - 1 ? 'Дальше' : 'Готово'}</Button>
                 : <Button wide icon={Check} disabled={!ready} data-testid="draw-check" onClick={check}>Проверить</Button>}

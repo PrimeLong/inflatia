@@ -202,7 +202,7 @@ export default function GraphLesson({ id, learn, update, onClose, peek = false, 
         <div className="gl-page">
           <div className="gl-stage">
             {/* «Ещё раз» — шаг заново: линии чертятся, а сдвиг модели (спрос влево, налог…) едет с прошлого шага, а не просто перерисовывается */}
-            <GraphStage g={g} k={k} key={replay} replayFrom={replay && k > 0 ? stepView(g, k - 1).values : null} />
+            <GraphStage g={g} k={k} key={replay} replayFrom={replay && k > 0 ? stepView(g, k - 1).values : null} hover />
             <div className="gl-replay">
               <IconButton label="Ещё раз" icon={RotateCcw} data-testid="graph-replay" onClick={() => { Audio.play('tick'); setReplay((x) => x + 1); }} />
               {/* на весь экран — числовая плоскость этого шага: ползунки модели, выделенное шага (пункт владельца 18.11) */}

@@ -1643,8 +1643,10 @@ test('особые уроки 22.11: «Назад» в «Нарисуй сам»
   await expect(g.getByTestId('draw-feedback')).toHaveAttribute('data-ok', 'true');
   await g.getByTestId('draw-next').click();
   await expect(g).toHaveAttribute('data-task', '1');
-  // «Назад» — прошлый шаг для просмотра: решение на графике, рисовать нельзя; «Вернуться» — к текущему
-  await g.getByTestId('draw-back').click();
+  // назад — касанием полосы прогресса вверху (кнопки «←» внизу нет, как в обычном уроке): прошлый шаг для просмотра —
+  // решение на графике, рисовать нельзя; «Вернуться» — к текущему
+  await expect(g.getByTestId('draw-foot').getByTestId('draw-back')).toHaveCount(0);
+  await g.getByTestId('special-progress').getByTestId('lesson-back').click();
   await expect(g.getByTestId('draw-peek')).toContainText('Шаг 1 из');
   // на прошлом шаге поле не принимает точки, проверки нет
   await expect(ink).toHaveClass(/\boff\b/);
