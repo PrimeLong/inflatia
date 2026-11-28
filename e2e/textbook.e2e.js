@@ -1194,7 +1194,7 @@ test('учебник: калькулятор по полям а → б → в, �
   await done.getByTestId('tb-problem-expand').click();
   await expect(done).not.toHaveAttribute('data-collapsed', 'true');
   await expect(done.getByRole('textbox').first()).toBeVisible();
-  // развёрнутую — и свернуть обратно: кнопкой вверху карточки и внизу, у «Решения»
+  // развёрнутую — и свернуть обратно кнопкой вверху карточки
   // сворачивается плавно: карточка складывается по высоте в строку, а не пропадает мгновенно
   // (запоминаем вызовы animate — сама анимация короче, чем проверка на загруженной машине)
   await done.evaluate((el) => { const orig = el.animate.bind(el); el.dataset.fold = ''; el.animate = (k, o) => { if (k.some((f) => f.height)) el.dataset.fold = `${k[0].height}>${k[k.length - 1].height}`; return orig(k, o); }; });
@@ -1203,10 +1203,10 @@ test('учебник: калькулятор по полям а → б → в, �
   const fold = (await done.getAttribute('data-fold')).match(/^(\d+)px>(\d+)px$/);
   expect(Number(fold[1])).toBeGreaterThan(Number(fold[2]) + 100);
   await expect.poll(() => done.evaluate((el) => el.getAnimations().length === 0 && el.style.overflow === '')).toBe(true);
+  // кнопка «Свернуть» — одна, вверху (вторая, внизу у «Решения», была лишней — пункт владельца 28.11, п. 12)
   await done.getByTestId('tb-problem-expand').click();
-  await done.getByTestId('tb-problem-collapse-bottom').click();
-  await expect(done).toHaveAttribute('data-collapsed', 'true');
-  await expect(done).toBeInViewport();
+  await expect(done.getByTestId('tb-problem-collapse-bottom')).toHaveCount(0);
+  await expect(done.getByTestId('tb-problem-collapse')).toHaveCount(1);
   // и нерешённую можно свернуть — отложить на потом: строка говорит «не решена», без зелёной отметки
   const todo = ch.locator(`[data-problem="${curId}"]`);
   await todo.getByTestId('tb-problem-collapse').click();

@@ -507,6 +507,12 @@ export const playerCss = () => `
   .mp::-webkit-scrollbar { display: none; }
   @keyframes mp-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
   .mp.out { animation: mp-out .2s cubic-bezier(.4,0,.8,.4) forwards; pointer-events: none; }
+  /* закрытие без рывков (пункт владельца 28.11, п. 4: «проигрыватель всё ещё лагано закрывается»): панель — свой слой,
+     её прозрачность и сдвиг считает видеокарта; размытые пятна света — тоже свои слои и на закрытии замирают; кольцо
+     спектра на закрытии больше не перерисовывается каждый кадр (MusicViz run) */
+  .mp { will-change: transform, opacity; }
+  .mp-aura i { will-change: transform; }
+  .mp.out .mp-aura i { animation-play-state: paused; }
   @keyframes mp-out { to { opacity: 0; transform: translateY(12px) scale(.96); } }
   .mp.dragging { box-shadow: 0 40px 70px -20px rgba(0,0,0,.6), 0 0 0 2px var(--mp); }
   /* телефон: панель во всю ширину над плашкой — выезжает снизу и уходит вниз; потянуть за шапку вниз — закрыть */
@@ -629,7 +635,7 @@ Audio.setLikes(musicLikes());
 Audio.setDislikes(musicDislikes());
 /* кольцо спектра вокруг диска: полосы по кругу, длина — громкость полосы частот того, что звучит сейчас (Audio.levels);
    на паузе — тихое «дыхание»; при «Уменьшить движение» — неподвижное кольцо. data-live — шёл ли живой звук (для проверки) */
-function MusicViz({ on }) {
+function MusicViz({ on, run = true }) {
   const ref = React.useRef(null);
   React.useEffect(() => {
     const cv = ref.current; if (!cv) return undefined;
@@ -662,11 +668,11 @@ function MusicViz({ on }) {
         g.beginPath(); g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0); g.lineTo(c + Math.cos(a) * (r0 + len), c + Math.sin(a) * (r0 + len)); g.stroke();
       }
       g.globalAlpha = 1;
-      if (!still) raf = requestAnimationFrame(draw);
+      if (!still && run) raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [on]);
+  }, [on, run]);
   return <canvas ref={ref} className="mp-viz" data-testid="music-viz" aria-hidden="true" />;
 }
 // время записи: прошло и осталось; у синтеза длительности нет — полосы нет
@@ -744,7 +750,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
   const [pull, setPull] = useState(0);
   const startDrag = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
-    if (e.target.closest && e.target.closest('button')) return;
+    if (e.target.closest && e.target.closest('button, input, select, textarea, a, label, [role="slider"]')) return;
     // телефон: шапку тянут вниз — панель едет за пальцем; дальше 70 px — закрыть, иначе вернуться на место
     if (sheet) {
       const y0 = e.clientY; let dy = 0;
@@ -817,7 +823,7 @@ export function AudioControls({ wave = false, buttonStyle = null, learn = false,
           </div>
           {/* диск-обложка и кольцо спектра того, что звучит (Audio.levels) */}
           <div className="mp-stage">
-            <MusicViz on={music && !!np.playing} />
+            <MusicViz on={music && !!np.playing} run={open} />
             {/* диск крутится, только пока музыка правда звучит; грузится запись — бегущее кольцо и «Загружаем…» */}
             <div className={`mp-cover${music && np.playing ? ' on' : ''}`} aria-hidden="true" data-testid="music-cover" data-spin={String(!!(music && np.playing))} />
             {music && np.loading && <div className="mp-load" data-testid="music-loading" aria-live="polite"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" /></svg><span>Загружаем…</span></div>}

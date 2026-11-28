@@ -71,6 +71,11 @@ export const TEXTBOOK_CSS = `
   .tb-table th, .tb-table td { border: 1px solid var(--c-border); padding: 6px 10px; text-align: left; vertical-align: top; }
   .tb-table th { color: var(--c-gold-soft); font-weight: 600; background: var(--c-panel-alt); }
   .tb-box { border: 1px solid var(--c-border); border-left-width: 3px; padding: 12px 14px 4px; margin: 16px 0; background: var(--c-panel-alt); }
+  /* флажок «Сообщить об ошибке» в рамке задачи и «Вспомните»: кружок подсветки 44 px с отрицательным полем вылезал за
+     рамку и закрывал обводку (жалоба mwx67nzj, costs-r-types) — внутри рамки он не выходит за край, а при наведении
+     меняется только цвет */
+  .tb-box .ln-flag, .tb-problem .ln-flag { margin: -10px -6px -10px 0; min-width: 36px; min-height: 36px; border-radius: 10px; }
+  .tb-box .ln-flag:hover, .tb-box .ln-flag:focus-visible, .tb-problem .ln-flag:hover, .tb-problem .ln-flag:focus-visible { background: none; }
   .tb-ask { border: 1px dashed var(--c-gold); border-radius: 10px; padding: 12px 14px; margin: 16px 0; background: color-mix(in srgb, var(--c-gold) 6%, transparent); }
   .tb-ask-q { display: flex; gap: 8px; align-items: center; font-weight: 700; color: var(--c-text); }
   .tb-ask-q svg { color: var(--c-gold-soft); flex: none; }

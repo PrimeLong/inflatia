@@ -793,7 +793,7 @@ function ProblemFrame({ block, no, ctx, from, children, verdict, answerText, onS
   const [hintsShown, setHintsShown] = useState(0);
   /* задача, решённая раньше (и не пришедшая на повтор), свёрнута в строку «решена» — сборник не
      приходится листать через уже сделанное; развернуть — по нажатию. Свернуть можно любую задачу, и
-     нерешённую тоже (отложить на потом) — кнопкой «Свернуть» вверху карточки и внизу, у «Решения»;
+     нерешённую тоже (отложить на потом) — кнопкой «Свернуть» вверху карточки (одной: вторая внизу была лишней);
      свёрнутая строка остаётся на виду и говорит, решена ли задача. В повторении не сворачивают:
      карточка уходит сама (ReviewItem). */
   const [collapsed, setCollapsed] = useState(() => !ctx.inReview && !!(rec && rec.ok && !(rec.due && rec.due <= Date.now())));
@@ -904,10 +904,7 @@ function ProblemFrame({ block, no, ctx, from, children, verdict, answerText, onS
         )}
         <button type="button" className="tb-tool" aria-expanded={!!open}
           onClick={() => { Audio.play('click'); if (!open && onSolutionOpen) onSolutionOpen(); setSolMode(!open); }}><BookOpen size={15} aria-hidden="true" />{open ? 'Скрыть решение' : 'Решение'}</button>
-        {canCollapse && (
-          <button type="button" className="tb-tool" style={{ marginLeft: 'auto' }} aria-expanded="true" data-testid="tb-problem-collapse-bottom"
-            onClick={collapse}><ChevronUp size={15} aria-hidden="true" />Свернуть</button>
-        )}
+        {/* «Свернуть» — одна, вверху карточки: вторая, внизу у «Решения», была лишней (пункт владельца 28.11, п. 12) */}
       </div>
       {open && (
         <div className="tb-box" style={{ borderLeftColor: COLOR.gold, marginBottom: 0 }}>

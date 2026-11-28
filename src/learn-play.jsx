@@ -21,6 +21,7 @@ import { Button } from './ds.jsx';
 import { evalExpr, fmtResult, pressRoot } from './learn/calc.js';
 import { gameGraph } from './learn/game-graph.js';
 import { GraphStage, STAGE_CSS } from './graph-stage.jsx';
+import { DataView } from './learn-data.jsx';
 
 export { PLAY_CSS } from './learn-styles.js';
 
@@ -377,6 +378,25 @@ function GameGraph({ inst, st }) {
     </div>
   );
 }
+/* «Базар» (жалоба mvgjkq8, tr-g-straw: «почему тут самый обычный график спроса и предложения, а не тот, что был в юните»):
+   юнит идёт раньше «Спроса и предложения» — кривых D и S ученик ещё не знает. В юните цена — сигнал, и клубника там —
+   график цены по месяцам; в игре — тот же вид графика: цена клубники после каждого заголовка (последние восемь), кроны
+   за килограмм. Сдвиги рынка — внутри игры, как и прежде */
+const SIGNAL_SCALE = 40; // цена модели игры (≈ 11) → кроны за килограмм клубники (≈ 450, как в задании tr-e1-straw)
+function SignalChart({ prices }) {
+  const tail = prices.slice(-8); const from = prices.length - tail.length;
+  const rows = tail.map((p, i) => ({ label: from + i === 0 ? 'старт' : String(from + i), values: [Math.round((p * SIGNAL_SCALE) / 10) * 10] }));
+  const inst = { data: { label: 'Заголовок', cols: [''], rows }, view: 'line', ask: 'view', title: 'Цена клубники на рынке Велеграда', vunit: 'кр. за кг' };
+  const last = tail[tail.length - 1]; const prev = tail.length > 1 ? tail[tail.length - 2] : last;
+  return (
+    <div className="lp-game-graph" data-testid="game-chart" data-chart="market" data-model="signal">
+      <DataView inst={inst} />
+      <div className="ds-sub" style={{ fontSize: 13.5, marginTop: -4 }} data-testid="signal-say">
+        {last > prev ? 'Цена вверх — сигнал: клубники мало' : last < prev ? 'Цена вниз — сигнал: клубники много' : 'Цена — сигнал: растёт, когда товара мало'}
+      </div>
+    </div>
+  );
+}
 // история цены за игру: маленькая линия под графиком рынка
 function PriceTicker({ prices, name = 'Цена', unit = '' }) {
   if (prices.length < 2) return null;
@@ -469,7 +489,7 @@ export function GameRound({ inst, onDone, locked, result = null, best = 0, intro
   /* график игры — тот же, что в «Разборе графика» юнита (src/learn/game-graph.js): модель учебника, сцена GraphStage */
   const unit = String(inst.id || '').split('-')[0];
   const tickerName = unit === 'hh' ? 'Ставка' : unit === 'mb' ? 'Ставка по кредитам' : inst.names && inst.names.y ? inst.names.y.split(',')[0].replace(/^./, (c) => c.toUpperCase()) : 'Цена';
-  const chart = inst.chart ? (
+  const chart = inst.chart === 'market' && unit === 'tr' ? <SignalChart prices={prices} /> : inst.chart ? (
     <>
       <GameGraph inst={inst} st={shown} />
       {inst.chart === 'market' && <PriceTicker prices={prices} name={tickerName} unit={unit === 'hh' || unit === 'mb' ? '%' : (inst.names && inst.names.unit) || ''} />}

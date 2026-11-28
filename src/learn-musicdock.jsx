@@ -26,7 +26,10 @@ const DOCK_CSS = `
   html[data-music-dock][data-book-dock] .ln-to-map { bottom: calc(238px + env(safe-area-inset-bottom)); }
   /* «×» — плашка уходит вниз и тает, а не пропадает в тот же кадр (пункт владельца 24.11, п. 5: «очень странно закрывается
      проигрыватель»); translate складывается с transform центровки */
-  .lm-dock.closing { animation: lm-out .22s cubic-bezier(.4,0,.8,.4) forwards; pointer-events: none; }
+  /* уход по «×» — без пересчёта размытия фона в каждом кадре: размытие под плашкой (backdrop-filter) на время ухода
+     снимаем, плашка становится сплошной — она и так почти непрозрачная (пункт владельца 28.11, п. 4) */
+  .lm-dock { will-change: transform, opacity; }
+  .lm-dock.closing { animation: lm-out .22s cubic-bezier(.4,0,.8,.4) forwards; pointer-events: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--ds-card); }
   @keyframes lm-out { to { opacity: 0; translate: 0 16px; } }
   .lm-dock .lm-like.on { color: #E0457B; }
   .lm-dock .lm-dislike.on { color: #5B6B8A; }
@@ -129,7 +132,11 @@ export function MusicDock() {
   const startDrag = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
     const grip = !!(e.target.closest && e.target.closest('.lm-grip'));
-    if (!grip && e.target.closest && e.target.closest('button')) return;
+    /* только сама плашка: развёрнутый проигрыватель — портал в body, но события React из него всплывают сюда, и ползунок
+       громкости тащил всю плашку (пункт владельца 28.11, п. 13) */
+    if (!wrap.current || !wrap.current.contains(e.target)) return;
+    // не за кнопки и не за ползунки
+    if (!grip && e.target.closest && e.target.closest('button, input, select, textarea, a, label, [role="slider"], [data-no-drag]')) return;
     if (grip) { const t = Date.now(); if (t - lastGrip.current < 350) { lastGrip.current = 0; setPos(null); try { localStorage.removeItem(POS_KEY); } catch { /* нет хранилища */ } return; } lastGrip.current = t; }
     const el = wrap.current; if (!el) return;
     e.preventDefault();

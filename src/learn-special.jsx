@@ -48,6 +48,10 @@ const CSS = `
   .sp-label > span { flex: 1; min-width: 0; font: 800 11.5px/1.3 var(--ds-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ds-accent, var(--ds-ok)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* нижняя полоса особого урока — та же, что у урока (.ln-foot): страница особого урока прокручивается, полоса — поверх, у низа */
   .sp-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; }
+  /* текст уходит под нижнюю панель не обрывом, а растворяясь (жалоба mwwv6d90, people-worth: «всё ещё странно выглядит
+     резкий обрыв текста»): над панелью — полоса перехода в цвет страницы */
+  .sp-foot::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 36px; pointer-events: none;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 0%, transparent), var(--ds-paper)); }
   .sp-foot > .ln-inner { display: flex; gap: 10px; }
   .sp-foot > .ln-inner > :last-child { flex: 1; }
   .sp-foot > .ln-inner > * { min-width: 0; }
