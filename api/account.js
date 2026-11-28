@@ -19,6 +19,7 @@ import {
 } from './_lib/accounts.js';
 import { isOwner } from './reports.js';
 import { clientIp } from './_lib/client-ip.js';
+import { gateOn, keyOk, grantPass, gateGuard } from './_lib/gate.js';
 import { randomUUID } from 'node:crypto';
 
 const EMBLEMS = new Set(['star', 'crown', 'landmark', 'coins', 'shield', 'anchor', 'factory', 'wheat']);
@@ -28,6 +29,8 @@ const EMBLEMS = new Set(['star', 'crown', 'landmark', 'coins', 'shield', 'anchor
      вход на всё больший срок (LOCK_STEPS), успешный вход сбрасывает счёт. */
 const MAX_FAILS = 5;
 export const LOGIN_PER_HOUR = 30;
+// ключ закрытого сайта — не больше стольких попыток в час с адреса
+export const GATE_PER_HOUR = 20;
 export const LOCK_STEPS = [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000, 6 * 60 * 60 * 1000];
 export const lockFor = (level) => LOCK_STEPS[Math.min(Math.max(level, 1), LOCK_STEPS.length) - 1];
 const cleanName = (v) => {
@@ -67,6 +70,20 @@ async function handleRequest(req, res) {
   if (!body || typeof body !== 'object') return res.status(400).json({ error: 'Некорректное тело запроса' });
   const { action } = body;
 
+  /* ключ входа закрытого сайта: верный — пропуск в cookie (api/_lib/gate.js); с действующей сессией — тоже пропуск
+     (сюда её пропустил gateGuard). Сайт открыт (SITE_KEY не задан) — всегда ok */
+  if (action === 'gate') {
+    if (!gateOn()) return res.status(200).json({ ok: true, open: true });
+    if (body.key != null) {
+      if (await hit(`gate:${clientIp(req)}`, 3600) > GATE_PER_HOUR) return res.status(429).json({ error: 'Слишком много попыток — попробуйте через час' });
+      if (!keyOk(body.key)) return res.status(403).json({ error: 'Неверный ключ' });
+      grantPass(res);
+      return res.status(200).json({ ok: true });
+    }
+    // по сессии: сюда доходит, только если gateGuard её признал и уже выдал пропуск
+    return res.status(200).json({ ok: true });
+  }
+
   if (action === 'register') {
     const login = cleanLogin(body.login);
     if (!LOGIN_RE.test(login)) return res.status(400).json({ error: 'Логин: от 3 до 20 латинских букв, цифр или «_»' });
@@ -101,6 +118,7 @@ async function handleRequest(req, res) {
       ...(child ? { parentConsentAt: Date.now(), parentName } : {}), stats: emptyStats(), fails: 0, lockUntil: 0 };
     await setUser(login, user);
     const token = await openSession(user);
+    grantPass(res);
     return res.status(200).json({ token, profile: publicProfile(user), recoveryCode, storage: storage() });
   }
 
@@ -124,6 +142,7 @@ async function handleRequest(req, res) {
     }
     if (user.fails || user.lockLevel) await setUser(login, { ...user, fails: 0, lockLevel: 0, lockUntil: 0 });
     const token = await openSession(user);
+    grantPass(res);
     const checked = await checkName(user.fails || user.lockLevel ? { ...user, fails: 0, lockLevel: 0, lockUntil: 0 } : user);
     return res.status(200).json({ token, profile: publicProfile(checked), storage: storage() });
   }
@@ -148,6 +167,7 @@ async function handleRequest(req, res) {
       epoch: (user.epoch || 0) + 1, fails: 0, lockUntil: 0 };
     await setUser(login, next);
     const token = await openSession(next);
+    grantPass(res);
     return res.status(200).json({ token, profile: publicProfile(await checkName(next)), recoveryCode, storage: storage() });
   }
 
@@ -422,6 +442,8 @@ export default async function handler(req, res) {
   try {
     // настоящие имена для лиг больше не храним: прежний список стирается при первом запросе после запуска сервера
     await dropLeagueNames().catch(() => {});
+    // закрытый сайт: без пропуска — только вход, восстановление по коду и проверка ключа (api/_lib/gate.js)
+    if (!(await gateGuard(req, res, { open: ['login', 'recover', 'gate'] }))) return undefined;
     return await handleRequest(req, res);
   } catch (err) {
     console.error('account handler error:', err);

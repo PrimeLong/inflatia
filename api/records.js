@@ -2,6 +2,7 @@
    Записаться можно только из профиля — имя и значок берутся из него, так что
    чужим именем в таблицу не встать. Стоимость считает клиент (игра идёт у игрока),
    поэтому сервер проверяет только границы правдоподобия, как и таблица дня. */
+import { gateGuard } from './_lib/gate.js';
 import { getRecords, setRecord, hasKv } from './_lib/store.js';
 import { userBySession, isBlocked, nameForOthers, nameBanned } from './_lib/accounts.js';
 
@@ -57,6 +58,8 @@ async function handleRequest(req, res) {
 
 export default async function handler(req, res) {
   try {
+    // закрытый сайт: без пропуска или аккаунта — 403 (api/_lib/gate.js)
+    if (!(await gateGuard(req, res))) return undefined;
     return await handleRequest(req, res);
   } catch (err) {
     console.error('records handler error:', err);

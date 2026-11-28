@@ -30,8 +30,9 @@ describe('ссылки и поиск', () => {
     expect(xml).toContain('<loc>https://a.example/</loc>');
     expect(xml).toContain('<loc>https://a.example/book/supply-demand</loc>');
     expect((xml.match(/<url>/g) || []).length).toBe(paths.length);
+    // сайт закрыт (пункт владельца 28.11): поисковикам закрыто всё
     const robots = robotsTxt('https://a.example');
-    expect(robots).toContain('Disallow: /api/');
-    expect(robots).toContain('Sitemap: https://a.example/sitemap.xml');
+    expect(robots).toMatch(/^User-agent: \*\nDisallow: \/\n/);
+    expect(robots).not.toContain('Sitemap:');
   });
 });

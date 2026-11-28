@@ -317,8 +317,8 @@ export function NameRefused({ text, login, name, screen = 'register' }) {
   );
 }
 
-export function AuthModal({ onClose, onDone, reason }) {
-  const [tab, setTab] = useState('register');   // register | login | recover
+export function AuthModal({ onClose, onDone, reason, startTab = 'register' }) {
+  const [tab, setTab] = useState(startTab);   // register | login | recover
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');

@@ -8,6 +8,7 @@
    за 30 дней с конверсией шагов (только разовые события: первый урок — first_lesson_*), активность и
    точность по дням, сводка за неделю против прошлой, открытия разделов, уроки (начали, дошли до конца,
    сколько минут) и самые трудные упражнения, новые сообщения об ошибках по причинам. */
+import { gateGuard } from './_lib/gate.js';
 import { bumpCounters, addCounters, readCounters, addToSet, setMembers, getReports, hasKv } from './_lib/store.js';
 import { userBySession } from './_lib/accounts.js';
 import { isOwner } from './reports.js';
@@ -128,6 +129,8 @@ async function handleRequest(req, res) {
 
 export default async function handler(req, res) {
   try {
+    // закрытый сайт: без пропуска или аккаунта — 403 (api/_lib/gate.js)
+    if (!(await gateGuard(req, res))) return undefined;
     return await handleRequest(req, res);
   } catch (err) {
     console.error('events handler error:', err);

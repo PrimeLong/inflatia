@@ -3,6 +3,7 @@
    что остаётся локальным, потому что войти без аккаунта иначе некому).
    Сама партия — экономика, история, декэижны — целиком лежит на сервере,
    как и у сетевых комнат (тот же _lib/store.js). */
+import { gateGuard } from './_lib/gate.js';
 import { getSoloSlots, setSoloSlots, getProfile, setProfile, getLink, setLink, delLink, hasKv, getTycoonSlots, setTycoonSlots } from './_lib/store.js';
 import { randomInt, randomUUID } from 'node:crypto';
 import { normalizeTextbook, mergeTextbook } from '../src/textbook/progress.js';
@@ -303,6 +304,8 @@ export { normalizeProgress, mergeProgress };
 
 export default async function handler(req, res) {
   try {
+    // закрытый сайт: без пропуска или аккаунта — 403 (api/_lib/gate.js)
+    if (!(await gateGuard(req, res))) return undefined;
     return await handleRequest(req, res);
   } catch (err) {
     console.error('solo handler error:', err);

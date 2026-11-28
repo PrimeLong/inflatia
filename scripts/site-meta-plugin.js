@@ -17,7 +17,8 @@ export function sitePaths() {
   const chapters = PARTS.filter((p) => (p.track || 'econ') === 'econ').flatMap((p) => p.chapters).filter((c) => c.status === 'ready').map((c) => `/book/${c.id}`);
   return [...Object.values(TAB_PATHS), ...chapters];
 }
-export const robotsTxt = (url) => `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${url}/sitemap.xml\n`;
+// сайт закрыт (пункт владельца 28.11, п. 3): поисковикам — ничего; адрес сайта остаётся параметром на случай открытия
+export const robotsTxt = (url) => `User-agent: *\nDisallow: /\n# закрытый сайт: ${url}\n`;
 export function sitemapXml(url, paths = sitePaths()) {
   const rows = paths.map((p) => `  <url><loc>${url}${p === '/' ? '/' : p}</loc></url>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows}\n</urlset>\n`;

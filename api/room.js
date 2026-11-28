@@ -1,6 +1,7 @@
 /* Vercel Serverless Function: одна точка входа на все действия комнаты.
    POST /api/room  { action, ... }
    Модель считается ТОЛЬКО здесь: иначе у игроков разойдутся случайные шоки. */
+import { gateGuard } from './_lib/gate.js';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { getRoom, setRoom, withRoom, hasKv, addPublicRoom, removePublicRoom, listPublicRoomIds } from './_lib/store.js';
 import { userBySession, bumpStats, isBlocked, nameBanned, nameForOthers } from './_lib/accounts.js';
@@ -854,6 +855,8 @@ async function handleRequest(req, res) {
 
 export default async function handler(req, res) {
   try {
+    // закрытый сайт: без пропуска или аккаунта — 403 (api/_lib/gate.js)
+    if (!(await gateGuard(req, res))) return undefined;
     return await handleRequest(req, res);
   } catch (err) {
     console.error('room handler error:', err);

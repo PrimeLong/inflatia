@@ -9,6 +9,7 @@
    партию, — поэтому здесь только границы правдоподобия (0–100, известный пост,
    день — сегодня или вчера по Москве, чтобы партия, начатая до полуночи, успела
    записаться). Для таблицы друзей этого достаточно. */
+import { gateGuard } from './_lib/gate.js';
 import { getDailyBoard, setDailyEntry, hasKv } from './_lib/store.js';
 import { userBySession } from './_lib/accounts.js';
 import { dailyKey, DAILY_QUARTERS } from '../src/lib/catalog.js';
@@ -117,6 +118,8 @@ async function handleRequest(req, res) {
 
 export default async function handler(req, res) {
   try {
+    // закрытый сайт: без пропуска или аккаунта — 403 (api/_lib/gate.js)
+    if (!(await gateGuard(req, res))) return undefined;
     return await handleRequest(req, res);
   } catch (err) {
     console.error('daily handler error:', err);

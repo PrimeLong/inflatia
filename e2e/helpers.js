@@ -487,7 +487,9 @@ export function installHooks() {
     if (!info.title.startsWith('память браузера:')) await page.context().addInitScript(() => { try { localStorage.setItem('ems-storage-notice', '1'); } catch { /* нет хранилища */ } });
     // знакомство с живой моделью уже показано — кроме теста самого знакомства
     if (!info.title.startsWith('живая модель: знакомство')) await page.context().addInitScript(() => { try { localStorage.setItem('ems-model-intro', JSON.stringify(['supply-demand'])); } catch { /* нет хранилища */ } });
-    if (info.title.startsWith('вход:')) return;
+    // закрытый сайт (src/gate.jsx): ключ уже введён — кроме тестов самого экрана ключа
+    if (!info.title.startsWith('ключ:')) await page.context().addInitScript(() => { try { localStorage.setItem('ems-gate-ok', '1'); } catch { /* нет хранилища */ } });
+    if (info.title.startsWith('вход:') || info.title.startsWith('ключ:')) return;
     await page.context().addInitScript((a) => { try { localStorage.setItem('ems-account', JSON.stringify(a)); } catch { /* нет хранилища */ } }, ACCOUNT);
   });
 }

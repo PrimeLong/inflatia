@@ -5,6 +5,7 @@
    Читают и разбирают сообщения только владельцы — логины из переменной окружения
    OWNER_LOGINS (через запятую). Разбор и пачкой: «status-many» отмечает разобранными
    сообщения по списку id, «done-all» — все новые разом, «purge-done» удаляет все разобранные. */
+import { gateGuard } from './_lib/gate.js';
 import { getReports, setReport, setReports, deleteReport, deleteReports, hit, hasKv } from './_lib/store.js';
 import { isRude, RUDE_MESSAGE } from '../src/lib/moderation.js';
 import { userBySession } from './_lib/accounts.js';
@@ -168,6 +169,8 @@ async function handleRequest(req, res) {
 
 export default async function handler(req, res) {
   try {
+    // закрытый сайт: без пропуска или аккаунта — 403 (api/_lib/gate.js)
+    if (!(await gateGuard(req, res))) return undefined;
     return await handleRequest(req, res);
   } catch (err) {
     console.error('reports handler error:', err);

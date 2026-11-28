@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import MacroSimulator from './MacroSimulator.jsx';
 import { StorageNotice } from './privacy.jsx';
+import { SiteGate } from './gate.jsx';
 
 /* страница исследования — отдельно от приложения: без оболочки, аккаунта и уведомлений (src/research-page.jsx) */
 const ResearchPage = React.lazy(() => import('./research-page.jsx'));
@@ -42,8 +43,11 @@ function Shell() {
     <>
       <a className="ems-skip" href="#main" data-testid="skip-link" ref={skip} onClick={toMain}>К содержимому</a>
       {/* уведомление о памяти браузера — до приложения: на телефоне оно в потоке страницы, полосой наверху */}
-      <StorageNotice />
-      <MacroSimulator />
+      {/* закрытый сайт: без аккаунта — сначала ключ на весь экран (src/gate.jsx) */}
+      <SiteGate>
+        <StorageNotice />
+        <MacroSimulator />
+      </SiteGate>
     </>
   );
 }

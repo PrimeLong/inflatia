@@ -32,6 +32,7 @@
      задание k — после ответов на 1…k−1 этого урока; вернуться к прежнему заданию можно (замечание владельца 24.11, п. 3);
    — итоговый тест до 14-го дня — только после восьми уроков, пройденных по данным сервера; с 14-го по 16-й — у всех. */
 import { timingSafeEqual } from 'node:crypto';
+import { gateGuard } from './_lib/gate.js';
 import { PROTOCOL_VERSION, STUDY_STATUS, TEST_ITEMS, TEST_WINDOWS, EVENT_LAST_DAY, MODULE_LESSONS, CLIENT_EVENT_TYPES, SERVER_FIELDS, POST_FREE_DAY, IDLE_CAP } from '../src/research/dictionary.js';
 import { MODULE_BY_LESSON } from '../src/research/module.js';
 import { EXERCISE_INDEX, checkModuleAnswer, whyOf } from './_lib/research-module-key.js';
@@ -335,4 +336,11 @@ export function makeHandler({ status, store, seed = null, exportToken = '', now 
 /* Рабочий обработчик: открыт, только если исследование открыто И в коде (STUDY_STATUS), И в окружении (RESEARCH_STATUS),
    подключена база (DATABASE_URL — таблица исследования в ней) и задано зерно распределения (RESEARCH_ALLOC_SEED). */
 const liveStatus = STUDY_STATUS === 'open' && process.env.RESEARCH_STATUS === 'open' && hasResearchDb() ? 'open' : 'closed';
-export default makeHandler({ status: liveStatus, store: researchStore, seed: process.env.RESEARCH_ALLOC_SEED || null, exportToken: process.env.RESEARCH_EXPORT_TOKEN || '', whoIs: accountOf });
+const researchHandler = makeHandler({ status: liveStatus, store: researchStore, seed: process.env.RESEARCH_ALLOC_SEED || null, exportToken: process.env.RESEARCH_EXPORT_TOKEN || '', whoIs: accountOf });
+// закрытый сайт: без пропуска или аккаунта — 403 (api/_lib/gate.js); выгрузка и очистка исследователя — по своему ключу
+export default async function handler(req, res) {
+  const q = req.query || {}; const b = req.body && typeof req.body === 'object' ? req.body : {};
+  const own = ['export', 'purge'].includes(b.action || q.action);
+  if (!own && !(await gateGuard(req, res))) return undefined;
+  return researchHandler(req, res);
+}
