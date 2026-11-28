@@ -113,7 +113,9 @@ export function cradleWidth(H) {
   const m = makeCradle(400, H);
   return Math.ceil(4 * (m.r * 2 + 0.6) + 2 * (m.L * Math.sin(CRADLE_MAX) + m.r) + 8);
 }
-const ballPos = (m, b) => ({ x: b.ax + Math.sin(b.a) * m.L, y: m.top + Math.cos(b.a) * m.L });
+/* шарик на нити длины L; нить может провиснуть (rr < L — шарик подняли выше дуги, пункт владельца 28.11, п. 7: «их нельзя
+   дёргать вверх и вниз») и тогда, отпущенный, он летит (fly) — падает, пока нить снова не натянется */
+const ballPos = (m, b) => (b.fly ? { x: b.fly.x, y: b.fly.y } : { x: b.ax + Math.sin(b.a) * (b.rr ?? m.L), y: m.top + Math.cos(b.a) * (b.rr ?? m.L) });
 /* Взять можно любой шарик и вести в любую сторону — он толкает все шарики до края в эту сторону, как в
    настоящей колыбели: второй слева влево — подняли два, вправо — толкает четыре; правый крайний влево —
    качаются все пять. Отпустили — сколько ударило, столько и вылетит. */
@@ -125,10 +127,16 @@ export function cradleGroup(m, idx, dir) {
    прыгают под палец, а летят к нему как на упругой нити (pull — куда тянут, шаг расчёта — CRADLE_PULL);
    docs/mechanics.md, «Украшения урока» */
 export const CRADLE_PULL = { k: 110, zeta: 0.8, maxW: 7 };
-export function holdCradle(m, idx, dx) {
+export function holdCradle(m, idx, dx, dy = null) {
   const L = m.L; const lim = L * Math.sin(CRADLE_MAX); const d = Math.max(-lim, Math.min(lim, dx));
   m.lift = null;
-  m.hold = { idx, a: Math.asin(d / L) };
+  /* рука — и по вертикали: угол — от точки подвеса к руке, а ближе длины нити — нить провисает (шарик поднят выше дуги);
+     без dy — как раньше, только по горизонтали */
+  if (dy != null && dy > 2) {
+    const a = Math.max(-CRADLE_MAX, Math.min(CRADLE_MAX, Math.atan2(dx, dy)));
+    m.hold = { idx, a, r: Math.max(L * 0.5, Math.min(L, Math.hypot(dx, dy))) };
+  } else m.hold = { idx, a: Math.asin(d / L), r: L };
+  m.balls[idx].fly = null;
   return cradleReach(m);
 }
 /* Кого сейчас ведёт рука: сам взятый шарик и те соседи, которых он уже толкает, — они касаются его (по цепочке)
@@ -148,7 +156,15 @@ function cradleReach(m) {
 // отпустили: шарики уходят с той скоростью, с какой летели к руке (не больше предела)
 export function releaseCradle(m) {
   const lim = CRADLE_PULL.maxW;
-  m.balls.forEach((b) => { if (b.drag && b.pull != null) b.w = Math.max(-lim, Math.min(lim, b.w)); b.drag = false; b.pull = null; });
+  m.balls.forEach((b) => {
+    if (b.drag && b.pull != null) b.w = Math.max(-lim, Math.min(lim, b.w));
+    // поднятый на провисшей нити — свободно падает с той скоростью, что у него была
+    if (b.rr != null && b.rr < m.L - 0.5) {
+      const p = ballPos(m, b); const v = b.w * b.rr;
+      b.fly = { x: p.x, y: p.y, vx: Math.cos(b.a) * v, vy: -Math.sin(b.a) * v };
+    }
+    b.drag = false; b.pull = null;
+  });
   m.hold = null;
 }
 /* затухание колыбели — в секунду, а не за шаг расчёта: прежние 0,2% за подшаг гасили размах вдвое
@@ -170,14 +186,29 @@ function stepCradle(m, dt) {
   for (let s = 0; s < sub; s += 1) {
     // рука ведёт только тех, до кого взятый шарик уже дотянулся
     if (m.hold) cradleReach(m);
-    m.balls.forEach((b) => {
+    m.balls.forEach((b, i) => {
+      // летит на провисшей нити: падает, нить натянулась — снова маятник (поперечная скорость остаётся, рывок гасит продольную)
+      if (b.fly) {
+        const f = b.fly; f.vy += 980 * h; f.x += f.vx * h; f.y += f.vy * h;
+        const dx = f.x - b.ax; const dy = f.y - m.top; const d = Math.hypot(dx, dy);
+        if (d >= m.L) {
+          const a = Math.max(-CRADLE_MAX, Math.min(CRADLE_MAX, Math.atan2(dx, dy)));
+          b.w = Math.max(-CRADLE_PULL.maxW, Math.min(CRADLE_PULL.maxW, ((f.vx * Math.cos(a) - f.vy * Math.sin(a)) / m.L) * 0.9));
+          b.a = a; b.rr = m.L; b.fly = null; hit += 1;
+        }
+        return;
+      }
       // в руке: тянется к руке пружиной с затуханием — догоняет без рывка и почти без перелёта
       if (b.drag) {
         if (b.pull == null) return;
         b.w += (k * (b.pull - b.a) - c * b.w) * h; b.a += b.w * h;
         if (Math.abs(b.a) > CRADLE_MAX) { b.a = Math.sign(b.a) * CRADLE_MAX; b.w = 0; }
+        // длина нити: у взятого — к руке (провисает, если рука выше дуги), у соседей — натянута
+        const want = m.hold && m.hold.idx === i ? m.hold.r : m.L;
+        b.rr = (b.rr ?? m.L) + (want - (b.rr ?? m.L)) * Math.min(1, 14 * h);
         return;
       }
+      if (b.rr != null && b.rr !== m.L) b.rr = m.L;
       b.w += (-(980 / m.L) * Math.sin(b.a)) * h; b.w *= keep; b.a += b.w * h;
       // нить упёрлась в раму: дальше предела шарик не идёт, отскакивает мягко
       if (Math.abs(b.a) > CRADLE_MAX) { b.a = Math.sign(b.a) * CRADLE_MAX; b.w = -b.w * 0.25; }
@@ -187,8 +218,8 @@ function stepCradle(m, dt) {
       const p = m.balls[i]; const q = m.balls[i + 1];
       const pp = ballPos(m, p); const qq = ballPos(m, q);
       if (qq.x - pp.x < m.r * 2 && p.w > q.w) {
-        // два шарика в руке летят вместе — между собой не ударяются
-        if (p.drag && q.drag && p.pull != null && q.pull != null) continue;
+        // два шарика в руке летят вместе — между собой не ударяются; летящий на провисшей нити — пока не натянется
+        if ((p.drag && q.drag && p.pull != null && q.pull != null) || p.fly || q.fly) continue;
         const t = p.w; p.w = q.w; q.w = t;
         if (Math.abs(t) > 1.2) hit += 1;
         const over = m.r * 2 - (qq.x - pp.x);
@@ -198,7 +229,7 @@ function stepCradle(m, dt) {
     }
   }
   m.clicks += hit;
-  return m.balls.reduce((e, b) => e + Math.abs(b.w) + Math.abs(b.a) * 4, 0) + (m.lift ? 1 : 0);
+  return m.balls.reduce((e, b) => e + Math.abs(b.w) + Math.abs(b.a) * 4 + (b.fly ? 1 : 0) + (b.rr != null ? Math.abs(m.L - b.rr) : 0), 0) + (m.lift ? 1 : 0);
 }
 function drawCradle(ctx, m, col, W, H) {
   const stand = m.top > 10;
@@ -208,7 +239,13 @@ function drawCradle(ctx, m, col, W, H) {
   ctx.beginPath(); ctx.moveTo(x0, m.top); ctx.lineTo(x1, m.top); ctx.stroke();
   if (stand) { ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, m.top); ctx.lineTo(x0, H - 1); ctx.moveTo(x1, m.top); ctx.lineTo(x1, H - 1); ctx.stroke(); }
   ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
-  m.balls.forEach((b) => { const p = ballPos(m, b); ctx.beginPath(); ctx.moveTo(b.ax, m.top); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+  m.balls.forEach((b) => {
+    const p = ballPos(m, b); const slack = m.L - Math.hypot(p.x - b.ax, p.y - m.top);
+    ctx.beginPath(); ctx.moveTo(b.ax, m.top);
+    // провисшая нить — дугой вниз, натянутая — прямой
+    if (slack > 1) ctx.quadraticCurveTo((b.ax + p.x) / 2, (m.top + p.y) / 2 + slack * 0.7, p.x, p.y); else ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  });
   ctx.globalAlpha = 1;
   m.balls.forEach((b) => {
     const p = ballPos(m, b);
@@ -223,25 +260,43 @@ function drawCradle(ctx, m, col, W, H) {
 function makeMobile(W, H) {
   const n = Math.max(5, Math.min(9, Math.round(W / 60)));
   const top = 4; const Lmin = 8; const Lmax = Math.max(Lmin, H - top - 9 - 11);
-  const coins = Array.from({ length: n }, (_, i) => ({ ax: 22 + ((W - 44) * i) / (n - 1), L: Lmin + ((((i * 7) % 5) / 4) * (Lmax - Lmin)), a: i % 2 ? 0.12 : -0.12, w: 0, spin: 0, sv: 2 + (i % 3), glow: 0 }));
-  return { kind: 'mobile', coins, top, t: 0 };
+  const coins = Array.from({ length: n }, (_, i) => ({ ax: 22 + ((W - 44) * i) / (n - 1), L: Lmin + ((((i * 7) % 5) / 4) * (Lmax - Lmin)), a: i % 2 ? 0.12 : -0.12, w: 0, spin: 0, sv: 2 + (i % 3), glow: 0, ext: 0, ev: 0 }));
+  return { kind: 'mobile', coins, top, t: 0, H };
 }
+/* нить мобиле упругая (пункт владельца 28.11, п. 7: «их нельзя дёргать вверх и вниз, только влево и вправо»): монету
+   тянут и вверх, и вниз — вниз нить растягивается, вверх провисает; отпустили — монета пружинит на нити */
+export const MOBILE_STRING = { k: 70, slack: 38, damp: 3.4 };
+const coinReach = (m, c) => ({ min: -Math.max(0, c.L - 6), max: Math.max(0, (m.H || 56) - 2 * 9 - 1 - m.top - c.L) });
 /* Монета на нити — два маятника: качание в плоскости полосы и кручение. Закрученная нить
    раскручивается обратно, так что в покое монета смотрит на вас, а не застывает ребром. */
 function stepMobile(m, dt) {
+  const S = MOBILE_STRING;
   m.coins.forEach((c) => {
-    if (!c.drag) { c.w += (-(980 / (c.L + 10)) * Math.sin(c.a)) * dt; c.w *= 0.984; c.a += c.w * dt; }
+    if (!c.drag) {
+      const len = c.L + (c.ext || 0) + 10;
+      c.w += (-(980 / len) * Math.sin(c.a)) * dt; c.w *= 0.984; c.a += c.w * dt;
+      // нить: растянута — тянет назад пружиной; провисла — тянет тяжесть, мягче (плавно, без дрожи у точки покоя)
+      const acc = -((c.ext || 0) >= 0 ? S.k : S.slack) * (c.ext || 0);
+      c.ev = ((c.ev || 0) + (acc - S.damp * (c.ev || 0)) * dt); c.ext = (c.ext || 0) + c.ev * dt;
+      const r = coinReach(m, c);
+      if (c.ext > r.max) { c.ext = r.max; c.ev = -Math.abs(c.ev) * 0.4; }
+      if (c.ext < r.min) { c.ext = r.min; c.ev = Math.abs(c.ev) * 0.2; }
+      if (Math.abs(c.ext) < 0.05 && Math.abs(c.ev) < 0.5) { c.ext = 0; c.ev = 0; }
+    }
     c.sv += -7 * Math.sin(c.spin) * dt; c.sv *= 0.976; c.spin += c.sv * dt; c.glow *= 0.96;
   });
-  return m.coins.reduce((e, c) => e + Math.abs(c.w) + Math.abs(c.a) + Math.abs(c.sv) + Math.abs(Math.sin(c.spin)) + c.glow, 0);
+  return m.coins.reduce((e, c) => e + Math.abs(c.w) + Math.abs(c.a) + Math.abs(c.sv) + Math.abs(Math.sin(c.spin)) + c.glow + Math.abs(c.ext || 0) * 0.1 + Math.abs(c.ev || 0) * 0.05, 0);
 }
 function drawMobile(ctx, m, col) {
   const x0 = m.coins[0].ax - 10; const x1 = m.coins[m.coins.length - 1].ax + 10;
   ctx.strokeStyle = col.ink; ctx.lineWidth = 2; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(x0, m.top); ctx.lineTo(x1, m.top); ctx.stroke();
   m.coins.forEach((c) => {
-    const x = c.ax + Math.sin(c.a) * c.L; const y = m.top + Math.cos(c.a) * c.L;
-    ctx.globalAlpha = 0.55; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c.ax, m.top); ctx.lineTo(x, y); ctx.stroke(); ctx.globalAlpha = 1;
+    const len = c.L + (c.ext || 0); const x = c.ax + Math.sin(c.a) * len; const y = m.top + Math.cos(c.a) * len;
+    // провисшая нить — дугой, натянутая — прямой
+    ctx.globalAlpha = 0.55; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c.ax, m.top);
+    if ((c.ext || 0) < -0.5) ctx.quadraticCurveTo((c.ax + x) / 2 + 2, (m.top + y) / 2 - c.ext * 0.6, x, y); else ctx.lineTo(x, y);
+    ctx.stroke(); ctx.globalAlpha = 1;
     /* монета с объёмом (пункт владельца 24.11, п. 8): у неё есть толщина — повернувшись, она показывает ребро с насечкой,
        а не схлопывается в линию; лицо — с рельефным ободком и бликом, который скользит по монете при вращении */
     const cs = Math.cos(c.spin); const sx = Math.max(0.06, Math.abs(cs)); const R = 9; const T = 3.2;
@@ -336,7 +391,7 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
         m.balls.forEach((x, i) => { const q = ballPos(m, x); const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = i; } });
         return best >= 0 && { kind: 'ball', idx: best };
       }
-      const c = m.coins.find((x) => Math.hypot(x.ax + Math.sin(x.a) * x.L - p.x, m.top + Math.cos(x.a) * x.L + 9 - p.y) < 20);
+      const c = m.coins.find((x) => { const len = x.L + (x.ext || 0); return Math.hypot(x.ax + Math.sin(x.a) * len - p.x, m.top + Math.cos(x.a) * len + 9 - p.y) < 20; });
       return c && { kind: 'coin', c, x0: p.x };
     };
     let swallow = false;
@@ -354,9 +409,9 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       if (passThrough) { e.stopPropagation(); swallow = true; }
       drag = g; el.dataset.drag = 'true'; cursorAt('grabbing');
       if (g.kind === 'pt') holdBunting(g.q, p.x + g.dx, p.y + g.dy, H);
-      if (g.kind === 'coin') { g.c.sv += 3.5; g.c.glow = 0.6; }
+      if (g.kind === 'coin') { g.c.sv += 3.5; g.c.glow = 0.6; g.c.drag = true; }
       // взяли шарик — рука сразу держит его там, где нажали (он больше не качается сам)
-      if (g.kind === 'ball') holdCradle(m, g.idx, p.x - m.balls[g.idx].ax);
+      if (g.kind === 'ball') holdCradle(m, g.idx, p.x - m.balls[g.idx].ax, p.y - m.top);
       if (!passThrough) { try { cv.setPointerCapture(e.pointerId); } catch { /* указатель уже отпущен */ } }
       e.preventDefault(); wake();
     };
@@ -366,8 +421,13 @@ export function DeskDecor({ id, height = 56, preview = false, label = null, pass
       const p = local(e);
       if (drag.kind === 'pt') holdBunting(drag.q, p.x + drag.dx, p.y + drag.dy, H);
       // шарик тянется к руке (а не встаёт под неё) — куда тянуть, считаем от точки подвеса
-      if (drag.kind === 'ball') holdCradle(m, drag.idx, p.x - m.balls[drag.idx].ax);
-      if (drag.kind === 'coin') { const c = drag.c; c.a = Math.max(-0.9, Math.min(0.9, (p.x - c.ax) / (c.L + 10))); c.w = 0; }
+      if (drag.kind === 'ball') holdCradle(m, drag.idx, p.x - m.balls[drag.idx].ax, p.y - m.top);
+      // монета — за рукой и по вертикали: угол от точки подвеса, длина нити — растянута или провисла (в пределах полосы)
+      if (drag.kind === 'coin') {
+        const c = drag.c; const dx = p.x - c.ax; const dy = Math.max(4, p.y - 9 - m.top);
+        c.a = Math.max(-0.9, Math.min(0.9, Math.atan2(dx, dy))); c.w = 0;
+        const r = coinReach(m, c); c.ext = Math.max(r.min, Math.min(r.max, Math.hypot(dx, dy) - c.L)); c.ev = 0;
+      }
       wake();
     };
     const up = (e) => {

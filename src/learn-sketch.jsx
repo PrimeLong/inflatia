@@ -251,6 +251,7 @@ export function Sketch({ mode = 'lesson' }) {
   const liveRef = useRef(null);
   const gridRef = useRef(null);
   const strokes = useRef([]);
+  const lastEnd = useRef(null); // конец последнего штриха — для прямой с Shift
   const live = useRef(null);
   const frame = useRef(0);
   const wipeTimer = useRef(null);
@@ -336,11 +337,25 @@ export function Sketch({ mode = 'lesson' }) {
     const schedule = () => { if (!frame.current) frame.current = requestAnimationFrame(drawLive); };
     /* правая кнопка мыши — ластик, как в Paint (жалоба 21.11: «в рисовалке нужно, чтобы на правую кнопку мышки была стёрка»):
        штрих правой кнопкой стирает тем же размером, выбранный инструмент не меняется; меню браузера на полях не открывается */
+    /* прямая, как в Paint (пункт владельца 28.11, п. 10): провели штрих, зажали Shift и нажали в другом месте — прямая от
+       конца прошлого штриха до этой точки, тем же инструментом, цветом и толщиной; Shift и дальше — ломаная */
+    const straight = (e, p) => {
+      const a = lastEnd.current; const b = at(e);
+      const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6));
+      const s = { tool: a.tool || p.tool, color: p.color, size: p.size, points: [] };
+      for (let i = 0; i <= n; i += 1) s.points.push({ x: a.x + ((b.x - a.x) * i) / n, y: a.y + ((b.y - a.y) * i) / n, t: e.timeStamp, w: 1 });
+      const full = strokes.current.length >= SKETCH.maxStrokes;
+      strokes.current = pushStroke(strokes.current, s);
+      if (full || s.tool === 'eraser') paint(); else drawStroke(mainRef.current.getContext('2d'), s, inks(r)[p.color], markerAlpha(r));
+      lastEnd.current = { x: b.x, y: b.y, tool: s.tool };
+      setCount(strokes.current.length); setCleared(null); forgetRedo();
+    };
     const down = (e) => {
       const p = pick.current;
       const right = e.button === 2 && e.pointerType === 'mouse';
       if (!p.on || (e.button !== 0 && !right) || e.pointerType === 'touch' || live.current || !onMargin(e, r, M)) return;
       e.preventDefault();
+      if (e.shiftKey && !right && lastEnd.current) { straight(e, p); return; }
       paint();
       const s = { tool: right ? 'eraser' : p.tool, color: p.color, size: p.size, points: [] };
       addPoint(s, at(e));
@@ -372,6 +387,8 @@ export function Sketch({ mode = 'lesson' }) {
       if (L.cursor !== undefined) { r.style.setProperty('--sk-cursor', L.cursor); delete r.dataset.sketchErasing; }
       const full = strokes.current.length >= SKETCH.maxStrokes;
       strokes.current = pushStroke(strokes.current, L.s);
+      // конец штриха — начало прямой с Shift
+      const end = L.s.points[L.s.points.length - 1]; if (end) lastEnd.current = { x: end.x, y: end.y, tool: L.s.tool };
       // готовый штрих — на основной холст, живой слой — чистый; черновик переполнен — старейший штрих ушёл, холст заново
       wipeCanvas(liveRef.current);
       if (full) paint(); else drawStroke(mainRef.current.getContext('2d'), L.s, L.ink, markerAlpha(r));
@@ -501,7 +518,7 @@ export function Sketch({ mode = 'lesson' }) {
     Audio.play('erase');
     const done = () => {
       setCleared(strokes.current); forgetRedo();
-      strokes.current = [];
+      strokes.current = []; lastEnd.current = null;
       paint(); setCount(0); setWiping(false);
       if (pick.current.tool === 'eraser') setTool('pen');
     };

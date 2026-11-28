@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { OUTFITS, OUTFIT_BY_ID, DESK_ITEMS, WARDROBE, RATE_MAX, courseIncome, shopDay, buy, setWear, outfitOf, deskOf, earn, ACHIEVEMENTS } from '../rewards.js';
 import { emptyLearn, normalizeLearn, mergeLearn, dayOf } from '../../textbook/learn-state.js';
-import { decorModel, decorStep, kick, DECOR_IDS } from '../../learn-decor.jsx';
+import { decorModel, decorStep, kick, DECOR_IDS, holdCradle, releaseCradle } from '../../learn-decor.jsx';
 
 const T = Date.parse('2026-10-25T12:00:00Z');
 
@@ -56,7 +56,7 @@ const settle = (m, H, frames = 60 * 40) => {
 const bounds = (m, H) => {
   if (m.kind === 'bunting') return m.pts.every((p) => p.y >= 0 && p.y + 19 <= H);
   if (m.kind === 'cradle') return m.balls.every((b) => m.top + Math.cos(b.a) * m.L + m.r <= H);
-  return m.coins.every((c) => m.top + Math.cos(c.a) * c.L + 18 <= H);
+  return m.coins.every((c) => m.top + Math.cos(c.a) * (c.L + (c.ext || 0)) + 18 <= H);
 };
 
 describe('физика вещиц', () => {
@@ -281,5 +281,36 @@ describe('подставка колыбели: место на экране', ()
     expect(b.x + ph.w).toBeLessThanOrEqual(360);
     expect(b.y).toBeGreaterThan(740 / 2);
     expect(clampStand({ x: 5000, y: -300 }, ph, 360, 740)).toEqual({ x: 360 - ph.w - 4, y: 4 });
+  });
+});
+
+/* пункт владельца 28.11, п. 7: «мобиле из монет и колыбель нельзя дёргать вверх и вниз, только влево и вправо» */
+describe('вещицы — и по вертикали', () => {
+  it('мобиле: монету потянули вниз — нить растянулась и пружинит назад, вверх — провисла и падает обратно; из полосы не выходит', () => {
+    const H = 64; const m = decorModel('desk-mobile', 320, H);
+    const c = m.coins.reduce((a, b) => (b.L < a.L ? b : a));
+    c.ext = 6; c.ev = 0;
+    let crossed = false; let inside = true;
+    for (let k = 0; k < 120; k += 1) { decorStep(m, 1 / 60, H); crossed = crossed || c.ext < 0; inside = inside && m.top + Math.cos(c.a) * (c.L + c.ext) + 18 <= H; }
+    expect(crossed, 'отпущенная монета подпрыгнула выше покоя').toBe(true);
+    expect(inside).toBe(true);
+    c.ext = -Math.min(6, c.L - 6); c.ev = 0;
+    expect(settle(m, H), 'успокаивается').toBeLessThan(25);
+    expect(Math.abs(c.ext)).toBeLessThan(0.3);
+  });
+  it('колыбель: шарик подняли выше дуги — нить провисла; отпустили — падает, нить натягивается, дальше качается', () => {
+    const H = 170; const m = decorModel('desk-cradle', 400, H);
+    const b = m.balls[0];
+    // рука — левее и выше: на трети длины нити от подвеса
+    holdCradle(m, 0, -m.L * 0.4, m.L * 0.45);
+    for (let k = 0; k < 40; k += 1) decorStep(m, 1 / 60, H);
+    expect(b.rr).toBeLessThan(m.L * 0.9);
+    releaseCradle(m);
+    expect(b.fly).toBeTruthy();
+    let taut = false;
+    for (let k = 0; k < 120 && !taut; k += 1) { decorStep(m, 1 / 60, H); taut = !b.fly; }
+    expect(taut, 'нить натянулась').toBe(true);
+    expect(b.rr).toBe(m.L);
+    expect(settle(m, H)).toBeLessThan(45);
   });
 });
