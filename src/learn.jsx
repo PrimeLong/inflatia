@@ -31,7 +31,7 @@ import { Audio, getPlayerId, syncProfile, SYNC_EVENT, syncState } from './MacroS
 import { loadProgress, saveProgress, latestProgress, PROGRESS_EVENT, reviewQueue } from './textbook/progress.js';
 import { applyDupeAudit, fineOf } from './learn/audit.js';
 // курс — из лёгкого ядра: Путь рисуется по указателю курса, главы грузятся с уроком (src/learn/course-core.js)
-import { UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, LESSON_BY_ID, LESSON_KIND, practiceIds, PRACTICE_MAX, PRACTICE_PAD, pathState, LEVEL_REVIEW_SIZE, reachedLevel } from './learn/course-core.js';
+import { UNITS, LESSONS, LEVELS, LEVEL_BY_ID, levelOf, LESSON_BY_ID, LESSON_KIND, practiceIds, PRACTICE_MAX, practiceSize, pathState, LEVEL_REVIEW_SIZE, reachedLevel } from './learn/course-core.js';
 import { abandonLesson, skipLesson, streak, goalToday, missedYesterday, applyFreezes, setPlacement, dayOf, markShown, shownWith, levelConfirmed, LEVEL_REVIEW_OK } from './textbook/learn-state.js';
 import { courseLevel } from './learn/grade.js';
 import { settle, questsFor, indexed, COIN, chestKey, hasClaim, outfitOf, chargePremiums, fixMonth, gainsNote, onCoinGuard, ownedRecordTracks } from './learn/rewards.js';
@@ -1708,7 +1708,7 @@ function TasksView({ learn, onStart, onOpenBook, onBack }) {
       <div data-testid="practice">
         <div className="ds-h3" style={{ margin: '18px 0 6px' }}>Практика</div>
         <MenuCard icon={RotateCcw} tone="var(--ds-bad)" title={practiceResume ? 'Повторить ошибки — продолжить' : 'Повторить ошибки'} data-testid="practice-mistakes" data-resume={practiceResume ? 'true' : undefined} data-nav-target={n ? 'run:practice' : undefined} disabled={!n && !practiceResume}
-          text={n ? `${n} ${plural(n, 'упражнение', 'упражнения', 'упражнений')} из прошлых уроков${n > PRACTICE_MAX ? ` — за раз ${PRACTICE_MAX}` : n < PRACTICE_PAD ? ' и похожие задания тех же уроков' : ''}. Решённое верно уходит из списка` : 'Ошибок нет — всё решено верно'} right={n ? arrow : null}
+          text={n ? practiceText(n, practiceSize(n, weakLessons(learn).length)) : 'Ошибок нет — всё решено верно'} right={n ? arrow : null}
           onClick={() => { Audio.prime(); onStart({ mode: 'practice', resume: practiceResume }); }} />
         <MenuCard icon={BookOpenText} tone="#3E6FA8" title="Повторить задачи учебника" data-testid="practice-review" data-nav-target={due ? 'book:review' : undefined} disabled={!due}
           text={due ? `${due} ${plural(due, 'задача или вопрос', 'задачи или вопроса', 'задач или вопросов')} — подошёл срок` : 'Сегодня повторять нечего'} right={due ? arrow : null}
@@ -1850,6 +1850,14 @@ export function GuestSave({ learn, afterLesson = false }) {
       </div>
     </Card>
   );
+}
+
+/* карточка «Повторить ошибки»: сколько ошибок и сколько карточек в уроке — «3 ошибки · в уроке 5 заданий: ещё 2 —
+   похожие задания тех же уроков» (пункт владельца 28.11: «написано 3 упражнения, открываю — а их там 5») */
+export function practiceText(n, size) {
+  const head = `${n} ${plural(n, 'ошибка', 'ошибки', 'ошибок')} из прошлых уроков`;
+  const more = size > n ? ` · в уроке ${size} ${plural(size, 'задание', 'задания', 'заданий')}: ещё ${size - n} — похожие задания тех же тем` : size < n ? ` · за раз ${size}` : '';
+  return `${head}${more}. Решённое верно уходит из списка`;
 }
 
 export function LearnTab({ tab, bookHandlers = {}, reopenBook = false, onBookReopened = () => {}, onThemeChange = () => {}, onBookOver = () => {}, onBusy = () => {}, closeTick = 0, bookHome = 0, pathHome = 0, guest = false, firstLesson = false, onFirstLesson = () => {}, onTab = () => {} }) {

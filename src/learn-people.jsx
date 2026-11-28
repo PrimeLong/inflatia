@@ -297,8 +297,12 @@ export default function PeopleView({ id, learn, update, onClose, gem = false }) 
   const whoDone = who.length > 0 && who.every((it) => whoPicks[it.k] != null);
   const pickWho = (k, name) => {
     if (whoPicks[k] != null) return;
-    Audio.play(name === who[k].answer ? 'coin' : 'down');
-    run.answer(name === who[k].answer);
+    /* идея — по её ключу k, а не по месту в списке: порядок идей перемешан (quizOrder), и who[k] был другой идеей —
+       верный ответ рисовался зелёным, а звучал и шёл в серию как ошибка (жалоба mwz1pl75, people-labor) */
+    const item = who.find((x) => x.k === k);
+    const ok = !!item && name === item.answer;
+    Audio.play(ok ? 'coin' : 'down');
+    run.answer(ok);
     setWhoPicks((m) => ({ ...m, [k]: name }));
   };
   const activeMs = useActiveMs(was ? was.ms || 0 : 0);

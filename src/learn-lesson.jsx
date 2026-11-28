@@ -689,7 +689,7 @@ function newPlan(run, learn) {
   if (run.mode === 'level') { const p = buildLevelReview(run.levelId, learn); return { items: p.items, cards: {}, seconds: p.seconds }; }
   // «Работа над ошибками» юнита — его нерешённые ошибки (src/learn/course.js, buildFix)
   if (run.mode === 'fix') return { items: buildFix(learn, run.unitId).items, cards: {} };
-  return { items: buildPractice(practiceIds(learn), Math.random, { weak: weakLessons(learn).map((w) => w.id) }).items, cards: {} };
+  return { items: buildPractice(practiceIds(learn), Math.random, { weak: weakLessons(learn).map((w) => w.id), seen: learn.seen || {} }).items, cards: {} };
 }
 function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false, backRef = { current: null } }) {
   const rs = run.resume || null;
@@ -1265,6 +1265,8 @@ function Runner({ run, learn, update, onClose, onOpenBook, hidden, guest = false
               {inst.retry && <span className="ds-badge ln-retry-badge" data-testid="retry-badge">повтор ошибки</span>}
               {inst.hard && <span className="ds-badge" data-testid="ex-hard">{inst.hard >= 3 ? 'олимпиада' : 'семинар'}</span>}
               {inst.weak && <span className="ds-badge">слабая тема</span>}
+              {/* добранное до пяти карточек — не ошибка: так и подписано (жалоба mwydp2wf) */}
+              {inst.pad && <span className="ds-badge" data-testid="ex-pad-badge">похожее задание</span>}
               {inst.placeUnit && <span className="ds-badge">{placeOf(inst.placeUnit).place}</span>}
               <span style={{ flex: 1 }} />
               <ReportFlag context={() => exerciseContext(inst, { lesson, resp: respRef.current, correct: answerText(inst), mode: run.mode })} />

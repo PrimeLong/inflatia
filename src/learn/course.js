@@ -1036,7 +1036,7 @@ export const practiceUnitOf = (id) => (practiceEntry(id) || {}).unitId || null;
    продукт» шли сразу после «Какой это термин: весь выпуск при данном числе работников?»). Ключ — урок и термин у заданий
    слов (tiles, which); у остальных — своё задание */
 export const termKey = (id) => { const m = /^(.+):(tiles|which):(.+)$/.exec(String(id)); return m ? `${m[1]}:${m[3]}` : String(id); };
-export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}) {
+export function buildPractice(mistakeIds, rand = Math.random, { weak = [], seen = {} } = {}) {
   const seenTerm = new Set();
   const exs = mistakeIds.map(practiceEntry).filter(Boolean).filter((e) => { const k = termKey(e.id); if (seenTerm.has(k)) return false; seenTerm.add(k); return true; });
   // ошибка возвращается похожей задачей или с новыми числами — ответ не запомнить
@@ -1047,7 +1047,7 @@ export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}
     if (items.length >= PRACTICE_MIN) break;
     const lesson = LESSON_BY_ID[lessonId];
     if (!lesson) continue;
-    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => basic(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), rand);
+    const pool = bySeen(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => basic(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), seen, rand);
     pool.slice(0, PRACTICE_MIN - items.length).forEach((e) => { have.add(e.id); seenTerm.add(termKey(e.id)); items.push(instantiate(e, rand, { practice: true, weak: true })); });
   }
   /* ошибок мало, а слабых уроков нет — добрать заданиями тех же уроков, где ошибки (пункт владельца 24.11, п. 10: «странно,
@@ -1057,7 +1057,9 @@ export function buildPractice(mistakeIds, rand = Math.random, { weak = [] } = {}
     if (items.length >= PRACTICE_PAD) break;
     const lesson = LESSON_BY_ID[lessonId];
     if (!lesson) continue;
-    const pool = shuffle(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => e && basic(e) && reviewable(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), rand);
+    /* реже виденные — первыми (жалоба mwydp2wf, tr-q2-milk: «я в этом задании не ошибался, а видел его в пятый раз, так
+       ещё и в повторе ошибок»): одно и то же задание урока не добирается в каждый повтор */
+    const pool = bySeen(lesson.exercises.map((e) => EXERCISES[e.id]).filter((e) => e && basic(e) && reviewable(e) && !have.has(e.id) && !seenTerm.has(termKey(e.id))), seen, rand);
     pool.slice(0, PRACTICE_PAD - items.length).forEach((e) => { have.add(e.id); seenTerm.add(termKey(e.id)); items.push(instantiate(e, rand, { practice: true, pad: true })); });
   }
   return { items };

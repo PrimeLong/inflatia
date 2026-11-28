@@ -34,6 +34,11 @@ export const LESSON_KIND = {
 export const PRACTICE_MIN = 8;
 // «Повторить ошибки» — не короче стольких карточек: ошибки и похожие задания их уроков (пункт владельца 24.11, п. 10)
 export const PRACTICE_PAD = 5;
+/* сколько карточек будет в «Повторить ошибки» при n ошибках (как собирает buildPractice в course.js): ошибок восемь и
+   больше — они сами, не больше PRACTICE_MAX; меньше — со слабыми темами до PRACTICE_MIN, без слабых тем — похожими
+   заданиями до PRACTICE_PAD. Карточка «Повторить ошибки» пишет это число, а не только число ошибок (пункт владельца
+   28.11: «написано 3 упражнения, открываю — а их там 5») */
+export const practiceSize = (n, weak = 0) => (n <= 0 ? 0 : n >= PRACTICE_MIN ? Math.min(n, PRACTICE_MAX) : weak > 0 ? PRACTICE_MIN : Math.max(n, PRACTICE_PAD));
 export const PRACTICE_MAX = 12;
 export const LEVEL_REVIEW_SIZE = 15;
 

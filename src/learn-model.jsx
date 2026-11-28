@@ -673,7 +673,7 @@ export function DominoEx({ inst, resp, setResp, locked, fb, onSubmit, prompt }) 
     setResp(nr);
   };
   return (
-    <div className="lm-dom" data-testid="domino" data-placed={r.placed.length} data-falls={r.falls.length}>
+    <div className={`lm-dom${inst.scene === 'none' ? ' lm-dom--plain' : ''}`} data-testid="domino" data-scene={inst.scene || 'market'} data-placed={r.placed.length} data-falls={r.falls.length}>
       <div className="lm-news"><div className="lm-news-mast">Вестник Инфляции</div><div className="lm-news-head" data-testid="domino-headline">{inst.headline}</div></div>
       <div className="lm-dom-prompt">{prompt}</div>
       {/* scene=none — «Домино» не про кофейню (труд, деньги, издержки): только газета и цепочка */}

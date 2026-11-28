@@ -748,9 +748,11 @@ export const DOMINO_CSS = `
   @media (prefers-reduced-motion: reduce) { .lm-slot.on.fresh, .lm-fall { animation: none !important; } .lm-fall { display: none; } }
   /* домино на широком экране — в две колонки: слева сцена (график и улица), справа цепочка и колода.
      В одну колонку урок с увеличением не влезал в экран 1920×1080 (отчёт mvmfcaud) */
+  /* «Домино» без сцены (scene=none: труд, деньги, издержки — не про кофейню) — одной колонкой, как обычное задание:
+     в две колонки левая оставалась пустой, и цепочка уезжала в правую половину экрана (жалоба mwz1t9yc, lm-l1) */
   @media (min-width: 1000px) {
-    .ln-inner:has(> .lm-dom) { max-width: 980px; }
-    .lm-dom { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); column-gap: 22px; align-items: start; }
+    .ln-inner:has(> .lm-dom:not(.lm-dom--plain)) { max-width: 980px; }
+    .lm-dom:not(.lm-dom--plain) { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); column-gap: 22px; align-items: start; }
     .lm-dom > .lm-news, .lm-dom > .lm-dom-prompt { grid-column: 1 / -1; }
     .lm-dom > .lm-scene { grid-column: 1; grid-row: span 4; position: sticky; top: 0; }
     .lm-dom > .lm-chain, .lm-dom > .lm-done, .lm-dom > .lm-why, .lm-dom > .lm-deck { grid-column: 2; }
